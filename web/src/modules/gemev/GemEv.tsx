@@ -9,6 +9,8 @@ import {
   calculateGiftEvPerGift,
   calculateTotalEvPerHour,
   defaultGameParameters,
+  getEffectiveFreebieTimerMinutes,
+  getGameSpeedMultiplier,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
 import { ContribBarChart, ContribLegend } from "./ContribBarChart";
@@ -16,6 +18,7 @@ import { ContribBarChart, ContribLegend } from "./ContribBarChart";
 type SavedStateV1 = {
   params: Partial<GameParameters>;
   stonks_enabled: boolean;
+  skill_shards_enabled: boolean;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -64,8 +67,10 @@ function Stepper(props: {
   inputMode?: "decimal" | "numeric";
   decimals?: number;
   disabled?: boolean;
+  /** When false, no −/+ buttons, only the number input. */
+  showButtons?: boolean;
 }) {
-  const { label, value, onChange, step = 1, min = -Infinity, max = Infinity, inputMode = "decimal", decimals = 2, disabled = false } = props;
+  const { label, value, onChange, step = 1, min = -Infinity, max = Infinity, inputMode = "decimal", decimals = 2, disabled = false, showButtons = true } = props;
   const isEditingRef = useRef(false);
   const [raw, setRaw] = useState<string>(() => (Number.isFinite(value) ? String(value) : ""));
 
@@ -89,10 +94,12 @@ function Stepper(props: {
         <span>{label}</span>
         <span className="mono">{Number.isFinite(value) ? value.toFixed(decimals) : "—"}</span>
       </div>
-      <div className="gemEvStepper">
-        <button className="btn btnSecondary gemEvStepBtn" type="button" disabled={disabled} onClick={() => onChange(clamp(value - step, min, max))}>
-          −
-        </button>
+      <div className={`gemEvStepper ${!showButtons ? "gemEvStepperNoButtons" : ""}`}>
+        {showButtons && (
+          <button className="btn btnSecondary gemEvStepBtn" type="button" disabled={disabled} onClick={() => onChange(clamp(value - step, min, max))}>
+            −
+          </button>
+        )}
         <input
           className="input gemEvInput"
           inputMode={inputMode}
@@ -113,9 +120,11 @@ function Stepper(props: {
             }
           }}
         />
-        <button className="btn gemEvStepBtn" type="button" disabled={disabled} onClick={() => onChange(clamp(value + step, min, max))}>
-          +
-        </button>
+        {showButtons && (
+          <button className="btn gemEvStepBtn" type="button" disabled={disabled} onClick={() => onChange(clamp(value + step, min, max))}>
+            +
+          </button>
+        )}
       </div>
     </div>
   );
@@ -150,21 +159,23 @@ export function GemEv() {
     const saved = loadJson<SavedStateV1>(STORAGE_KEY);
     const merged: GameParameters = { ...base, ...(saved?.params ?? {}) };
     const stonks_enabled = saved?.stonks_enabled ?? true;
-    return { params: merged, stonks_enabled };
+    const skill_shards_enabled = saved?.skill_shards_enabled ?? true;
+    return { params: merged, stonks_enabled, skill_shards_enabled };
   }, []);
 
   const [params, setParams] = useState<GameParameters>(initial.params);
   const [stonksEnabled, setStonksEnabled] = useState<boolean>(initial.stonks_enabled);
+  const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
 
   // autosave
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled };
+      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [params, stonksEnabled]);
+  }, [params, stonksEnabled, skillShardsEnabled]);
 
   // ESC closes the chart modal (matches other modules' modal behavior)
   useEffect(() => {
@@ -183,6 +194,9 @@ export function GemEv() {
     // Stonks semantics
     p.stonks_chance = stonksEnabled ? 0.01 : 0.0;
     p.stonks_bonus_gems = 200.0;
+
+    // Skill shards: include in EV only when toggle on
+    if (!skillShardsEnabled) p.skill_shard_chance = 0;
 
     // Fixed desktop constants
     p.founder_gems_base = 10.0;
@@ -216,7 +230,7 @@ export function GemEv() {
     p.d20_bomb_refill_chance = clamp(p.d20_bomb_refill_chance, 0, 1);
 
     // Clamp "levels"
-    p.vip_lounge_level = clampInt(p.vip_lounge_level, 1, 7);
+    p.vip_lounge_level = clampInt(p.vip_lounge_level, 1, 12);
     p.d20_bomb_charges_distributed = clampInt(p.d20_bomb_charges_distributed, 0, 9999);
     p.obelisk_level = clampInt(p.obelisk_level, 0, 999);
     p.founder_enabled = Boolean(p.founder_enabled);
@@ -227,6 +241,12 @@ export function GemEv() {
     p.battery_bomb_recharge_card_level = clampInt(p.battery_bomb_recharge_card_level, 0, 3);
     p.d20_bomb_recharge_card_level = clampInt(p.d20_bomb_recharge_card_level, 0, 3);
     p.founder_bomb_recharge_card_level = clampInt(p.founder_bomb_recharge_card_level, 0, 3);
+
+    // Game speed multiplier (1 = use VIP T10–T12; >1 = override, e.g. 2.1 = 2.1×). Migrate old game_speed_pct.
+    let mult = "game_speed_multiplier" in p ? p.game_speed_multiplier : 1.0;
+    if (mult === 1.0 && "game_speed_pct" in p && (p as { game_speed_pct?: number }).game_speed_pct > 0)
+      mult = 1.0 + clampInt((p as { game_speed_pct: number }).game_speed_pct, 0, 12) / 100.0;
+    p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
 
     // Ensure positive time values
     p.freebie_timer_minutes = clamp(p.freebie_timer_minutes, 0.1, 10_000);
@@ -239,7 +259,7 @@ export function GemEv() {
     p.founder_bomb_speed_duration_seconds = clamp(p.founder_bomb_speed_duration_seconds, 0, 10_000);
 
     return p;
-  }, [params, stonksEnabled]);
+  }, [params, stonksEnabled, skillShardsEnabled]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
@@ -297,7 +317,15 @@ export function GemEv() {
     () => ({
       title: "FOUNDER SUPPLY DROP",
       sections: [
-        { heading: "VIP Lounge", lines: ["Interval: 60 − 2×(Level−1) minutes", "Double: 12% at L2, +6% per level", "Triple: 16% at L7"] },
+        {
+          heading: "VIP Lounge (Tiers 1–12)",
+          lines: [
+            "Interval: 60 − 2×(Level−1) min. Double: 12% at T2, +6% per tier. Triple: 16% at T7, +8% per tier.",
+            "T10: Game Speed +10%, +1% per tier. Multiplicative with bomb recharge times and freebie cooldown (not supply drop).",
+            "T11: Golden Supply Drop 10%, +2% per tier. 5× normal drops; rare rewards (Obelisk bonus, Gifts, etc.) unchanged.",
+            "T12: Gem Bomb Gem Chance +0.5%.",
+          ],
+        },
         { heading: "Rewards (assumptions)", lines: ["Founder Gems: fixed 10 Gems/drop", "Founder Speed: 2× for 5 minutes (time saved → more freebies)", "1/1234 chance: 10 gifts per supply drop"] },
         { heading: "Obelisk", lines: ["Obelisk Level affects bonus gems and Gift-EV multipliers."] },
       ],
@@ -383,8 +411,47 @@ export function GemEv() {
                 max={9999}
                 decimals={1}
               />
+              <div className="gemEvInlineHead">
+                <span className="mono">Freebie timer</span>
+              </div>
+              <div className="gemEvGameSpeedWrap">
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ flex: "1", minWidth: "260px" }}>
+                    <Stepper
+                      label={
+                        <>
+                          Game Speed
+                          <span className="mono" style={{ marginLeft: 4 }}>×</span>
+                        </>
+                      }
+                      value={getGameSpeedMultiplier(effectiveParams)}
+                      onChange={(v) => setParams((s) => ({ ...s, game_speed_multiplier: clamp(v, 1, 10) }))}
+                      step={0.1}
+                      min={1}
+                      max={10}
+                      decimals={1}
+                    />
+                  </div>
+                  <Tooltip
+                    content={{
+                      title: "Game Speed",
+                      sections: [
+                        {
+                          heading: "Stats value",
+                          lines: [
+                            "Game speed as × (e.g. 2× = half freebie timer). Same value as in the Stats screen (Stats button).",
+                            "Decimals allowed (e.g. 2.1×). Multiplicative with freebie cooldown and all bomb recharge times (not supply drop).",
+                            "1× = use VIP T10–T12; set >1 to override.",
+                          ],
+                        },
+                      ],
+                    }}
+                    label="?"
+                  />
+                </div>
+              </div>
               <Stepper
-                label="Freebie Timer (Minutes)"
+                label="Freebie Timer (min) base"
                 value={params.freebie_timer_minutes}
                 onChange={(v) => setParams((s) => ({ ...s, freebie_timer_minutes: v }))}
                 step={0.5}
@@ -392,40 +459,67 @@ export function GemEv() {
                 max={9999}
                 decimals={1}
               />
-              <Stepper
-                label="Freebie Claim (% per Day)"
-                value={params.freebie_claim_percentage}
-                onChange={(v) => setParams((s) => ({ ...s, freebie_claim_percentage: v }))}
-                step={1}
-                min={0}
-                max={100}
-                decimals={1}
-              />
+              <div className="gemEvRow gemEvEffectiveTimerGlow">
+                <span className="mono small">→ Effective freebie timer</span>
+                <span className="mono small">{getEffectiveFreebieTimerMinutes(effectiveParams).toFixed(1)} min</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ flex: "1", minWidth: 0 }}>
+                  <Stepper
+                    label="Freebie Claim (% per Day)"
+                    value={params.freebie_claim_percentage}
+                    onChange={(v) => setParams((s) => ({ ...s, freebie_claim_percentage: v }))}
+                    step={1}
+                    min={0}
+                    max={100}
+                    decimals={1}
+                    showButtons={false}
+                  />
+                </div>
+                <Tooltip
+                  content={{
+                    title: "Freebie Claim %",
+                    lines: [
+                      "Affects only the Freebie Gems (base) bar. Other bars use full freebie rate.",
+                      "Example: enter 66 if you do not claim freebies at night (premise: 8 h sleep → 16 h claim per day ≈ 66%).",
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
 
               <div className="gemEvDivider" />
 
-              <div className="gemEvInlineHead">
-                <Sprite path="sprites/common/skill_shard.png" alt="Skill shards" className="iconSmall" />
-                <span className="mono">Skill Shards (Freebie)</span>
+              <div className="gemEvSkillShardsWrap">
+                <div className="gemEvInlineHead">
+                  <Sprite path="sprites/common/skill_shard.png" alt="Skill shards" className="iconSmall" />
+                  <span className="mono">Skill Shards (Freebie)</span>
+                  <label className="toggle" style={{ margin: 0, marginLeft: "auto" }}>
+                    <input type="checkbox" checked={skillShardsEnabled} onChange={(e) => setSkillShardsEnabled(e.target.checked)} />
+                    Include in EV
+                  </label>
+                </div>
+                <Stepper
+                  label="Skill Shard Chance (%)"
+                  value={params.skill_shard_chance * 100}
+                  onChange={(v) => setParams((s) => ({ ...s, skill_shard_chance: v / 100 }))}
+                  step={1}
+                  min={0}
+                  max={100}
+                  decimals={1}
+                  disabled={!skillShardsEnabled}
+                />
+                <Stepper
+                  label="Skill Shard Value (Gems)"
+                  value={params.skill_shard_value_gems}
+                  onChange={(v) => setParams((s) => ({ ...s, skill_shard_value_gems: v }))}
+                  step={0.5}
+                  min={0}
+                  max={9999}
+                  decimals={1}
+                  disabled={!skillShardsEnabled}
+                />
               </div>
-              <Stepper
-                label="Skill Shard Chance (%)"
-                value={params.skill_shard_chance * 100}
-                onChange={(v) => setParams((s) => ({ ...s, skill_shard_chance: v / 100 }))}
-                step={1}
-                min={0}
-                max={100}
-                decimals={1}
-              />
-              <Stepper
-                label="Skill Shard Value (Gems)"
-                value={params.skill_shard_value_gems}
-                onChange={(v) => setParams((s) => ({ ...s, skill_shard_value_gems: v }))}
-                step={0.5}
-                min={0}
-                max={9999}
-                decimals={1}
-              />
 
               <div className="gemEvDivider" />
 
@@ -491,12 +585,12 @@ export function GemEv() {
             </div>
             <div className="gemEvSectionBody">
               <Stepper
-                label="VIP Lounge Level (1–7)"
+                label="VIP Lounge Level (1–12)"
                 value={params.vip_lounge_level}
-                onChange={(v) => setParams((s) => ({ ...s, vip_lounge_level: clampInt(v, 1, 7) }))}
+                onChange={(v) => setParams((s) => ({ ...s, vip_lounge_level: clampInt(v, 1, 12) }))}
                 step={1}
                 min={1}
-                max={7}
+                max={12}
                 inputMode="numeric"
                 decimals={0}
                 disabled={!params.founder_enabled}
