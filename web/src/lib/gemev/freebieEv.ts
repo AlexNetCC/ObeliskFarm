@@ -12,6 +12,8 @@ export type GameParameters = {
   freebie_gems_base: number;
   freebie_timer_minutes: number;
   freebie_claim_percentage: number; // 0..100
+  /** Game speed as × (e.g. 2 = 2×). 1 = use VIP T10–T12; >1 = override. Freebie/bomb time = base / multiplier. */
+  game_speed_multiplier: number;
 
   // Skill shards
   skill_shard_chance: number; // 0..1
@@ -28,8 +30,8 @@ export type GameParameters = {
   // Refresh
   instant_refresh_chance: number; // 0..1
 
-  // Founder supply drop
-  vip_lounge_level: number; // 1..7
+  // Founder supply drop (VIP Lounge tiers 1..12)
+  vip_lounge_level: number; // 1..12
   founder_gems_base: number; // fixed 10.0 in desktop
   founder_gems_chance: number; // fixed 0.01 in desktop
   obelisk_level: number;
@@ -83,6 +85,7 @@ export function defaultGameParameters(): GameParameters {
     freebie_gems_base: 9.0,
     freebie_timer_minutes: 7.0,
     freebie_claim_percentage: 100.0,
+    game_speed_multiplier: 1.0,
     skill_shard_chance: 0.12,
     skill_shard_value_gems: 12.5,
     stonks_chance: 0.01,
@@ -150,18 +153,61 @@ function rechargeChargeMultiplier(cardLevel: number): number {
 }
 
 export function getFounderDropIntervalMinutes(params: GameParameters): number {
-  return 60.0 - 2.0 * (clampInt(params.vip_lounge_level, 3) - 1);
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+  return 60.0 - 2.0 * (lvl - 1);
 }
 
 export function getDoubleDropChance(params: GameParameters): number {
-  const lvl = clampInt(params.vip_lounge_level, 3);
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
   if (lvl < 2) return 0.0;
   return 0.12 + 0.06 * (lvl - 2);
 }
 
 export function getTripleDropChance(params: GameParameters): number {
-  const lvl = clampInt(params.vip_lounge_level, 3);
-  return lvl >= 7 ? 0.16 : 0.0;
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+  if (lvl < 7) return 0.0;
+  return 0.16 + 0.08 * (lvl - 7); // T7=16%, T8=24%, ..., T12=56%
+}
+
+/** VIP T10: Game speed bonus (0.10–0.12). Used when user multiplier is 1×. */
+function getVIPGameSpeedBonus(params: GameParameters): number {
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+  if (lvl < 10) return 0.0;
+  return (10 + (lvl - 10)) / 100.0; // T10=10%, T11=11%, T12=12%
+}
+
+/** Game speed as (multiplier - 1) for formulas: effectiveTime = base / (1 + bonus) = base / multiplier. */
+export function getGameSpeedBonus(params: GameParameters): number {
+  const mult = "game_speed_multiplier" in params ? clampPositive(params.game_speed_multiplier, 1.0) : 1.0;
+  if (mult > 1.0) return mult - 1.0;
+  return getVIPGameSpeedBonus(params);
+}
+
+/** Effective game speed multiplier for display (1× = no bonus or VIP). */
+export function getGameSpeedMultiplier(params: GameParameters): number {
+  const mult = "game_speed_multiplier" in params ? clampPositive(params.game_speed_multiplier, 1.0) : 1.0;
+  if (mult > 1.0) return mult;
+  return 1.0 + getVIPGameSpeedBonus(params);
+}
+
+/** Effective freebie timer (min): base / game speed multiplier. */
+export function getEffectiveFreebieTimerMinutes(params: GameParameters): number {
+  const base = clampPositive(params.freebie_timer_minutes, 7.0);
+  const mult = getGameSpeedMultiplier(params);
+  return base / mult;
+}
+
+/** VIP T11: Golden Supply Drop 10%, +2% per tier. 5× normal drops, not rare rewards. Returns 0..0.12. */
+export function getGoldenSupplyDropChance(params: GameParameters): number {
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+  if (lvl < 11) return 0.0;
+  return (10 + 2 * (lvl - 11)) / 100.0; // T11=10%, T12=12%
+}
+
+/** VIP T12: +0.5% Gem Bomb Gem Chance. */
+export function getGemBombGemChanceT12Bonus(params: GameParameters): number {
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+  return lvl >= 12 ? 0.005 : 0.0;
 }
 
 export function calculateExpectedRollsPerClaim(params: GameParameters): number {
@@ -181,19 +227,21 @@ export function calculateTotalMultiplier(params: GameParameters): number {
   return calculateExpectedRollsPerClaim(params) * calculateRefreshMultiplier(params);
 }
 
+/** Freebie claims per hour at 100% claim rate (used for all bars except gems_base; gems_base applies claim %). */
 export function calculateFreebiesPerHour(params: GameParameters): number {
   const minutesPerHour = 60.0;
   const timer = clampPositive(params.freebie_timer_minutes, 7.0);
-  const base = minutesPerHour / timer;
-  const claim = clampPositive(params.freebie_claim_percentage, 100.0);
-  return base * (claim / 100.0);
+  const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: shortens freebie cooldown multiplicatively
+  const effectiveTimer = timer / (1.0 + gameSpeedBonus);
+  return minutesPerHour / effectiveTimer;
 }
 
 export function calculateGemsBasePerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
+  const claim = clampPositive(params.freebie_claim_percentage, 100.0) / 100.0; // Claim % only affects gems_base bar
   const expectedRolls = calculateExpectedRollsPerClaim(params);
   const refreshMult = calculateRefreshMultiplier(params);
-  return freebiesPerHour * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
+  return freebiesPerHour * claim * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
 }
 
 export function calculateStonksEvPerHour(params: GameParameters): number {
@@ -234,9 +282,10 @@ export function calculateFounderSpeedBoostPerHour(params: GameParameters): numbe
   const effectiveMinutesPerHour = 60.0 - timeSavedPerHour;
 
   const normalFreebiesPerHour = calculateFreebiesPerHour(params);
-  const baseEffectiveFreebiesPerHour = 60.0 / (clampPositive(params.freebie_timer_minutes, 7.0) * (effectiveMinutesPerHour / 60.0));
-  const claim = clampPositive(params.freebie_claim_percentage, 100.0);
-  const effectiveFreebiesPerHour = baseEffectiveFreebiesPerHour * (claim / 100.0);
+  const gameSpeedBonus = getGameSpeedBonus(params);
+  const effectiveFreebieTimer = clampPositive(params.freebie_timer_minutes, 7.0) / (1.0 + gameSpeedBonus);
+  const baseEffectiveFreebiesPerHour = 60.0 / (effectiveFreebieTimer * (effectiveMinutesPerHour / 60.0));
+  const effectiveFreebiesPerHour = baseEffectiveFreebiesPerHour; // Claim % does not affect founder speed bar
   const additionalFreebies = effectiveFreebiesPerHour - normalFreebiesPerHour;
 
   const expectedRolls = calculateExpectedRollsPerClaim(params);
@@ -382,7 +431,9 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   const singleChance = 1.0 - doubleChance - tripleChance;
   const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
 
-  const baseGems = founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 10.0);
+  const goldenChance = getGoldenSupplyDropChance(params); // 5× normal drops, not rare
+  const baseGems =
+    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 10.0) * (1.0 + 4.0 * goldenChance);
   const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
   const bonusGems =
     founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop;
@@ -397,6 +448,7 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
 
 export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const secondsPerHour = 3600.0;
+  const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: multiplicative with bomb recharge (not supply drop)
 
   // Founder speed uptime fraction (minutes with 2x speed per hour).
   // When founder is disabled, this must not affect bomb recharges.
@@ -414,10 +466,11 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
     speedPct = clamp01(speedMinutesPerHour / 60.0);
   }
 
-  // Weighted effective recharge times (base time for (1-speedPct), half time for speedPct)
+  // Weighted effective recharge times (founder 2× speed); then VIP Game Speed multiplies with all bomb recharges
   function effectiveRecharge(baseSeconds: number): number {
     const s = clampPositive(baseSeconds, 1);
-    return s * (1.0 - speedPct) + (s / 2.0) * speedPct;
+    const afterFounderSpeed = s * (1.0 - speedPct) + (s / 2.0) * speedPct;
+    return afterFounderSpeed / (1.0 + gameSpeedBonus);
   }
 
   const effGem = effectiveRecharge(params.gem_bomb_recharge_seconds);
@@ -502,14 +555,17 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const totalGemBombClicks = bombCycle === "late"
     ? gemTotal + cherryTotal * cherryEffectMult
     : gemTotal;
-  const gemsPerHour = totalGemBombClicks * clamp01(params.gem_bomb_gem_chance);
+  const gemChance = clamp01(params.gem_bomb_gem_chance) + getGemBombGemChanceT12Bonus(params);
+  const gemsPerHour = totalGemBombClicks * gemChance;
   return gemsPerHour;
 }
 
 export function calculateFounderBombBoostPerHour(params: GameParameters): number {
   if (!params.founder_enabled) return 0;
   const secondsPerHour = 3600.0;
-  const dropsPerHour = secondsPerHour / clampPositive(params.founder_bomb_interval_seconds, 87.0);
+  const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: applies to bomb recharge (founder bomb interval)
+  const effectiveInterval = clampPositive(params.founder_bomb_interval_seconds, 87.0) / (1.0 + gameSpeedBonus);
+  const dropsPerHour = secondsPerHour / effectiveInterval;
 
   const effectiveBombsPerCharge = 1.0 / (1.0 - clamp01(params.free_bomb_chance));
   const founderMult = rechargeChargeMultiplier(params.founder_bomb_recharge_card_level);
@@ -525,9 +581,9 @@ export function calculateFounderBombBoostPerHour(params: GameParameters): number
   const effectiveMinutesPerHour = 60.0 - totalTimeSavedMinutes;
 
   const normalFreebiesPerHour = calculateFreebiesPerHour(params);
-  const baseEffectiveFreebiesPerHour = 60.0 / (clampPositive(params.freebie_timer_minutes, 7.0) * (effectiveMinutesPerHour / 60.0));
-  const claim = clampPositive(params.freebie_claim_percentage, 100.0);
-  const effectiveFreebiesPerHour = baseEffectiveFreebiesPerHour * (claim / 100.0);
+  const effectiveFreebieTimer = clampPositive(params.freebie_timer_minutes, 7.0) / (1.0 + gameSpeedBonus);
+  const baseEffectiveFreebiesPerHour = 60.0 / (effectiveFreebieTimer * (effectiveMinutesPerHour / 60.0));
+  const effectiveFreebiesPerHour = baseEffectiveFreebiesPerHour; // Claim % does not affect founder bomb bar
 
   const additionalFreebies = effectiveFreebiesPerHour - normalFreebiesPerHour;
   const expectedRolls = calculateExpectedRollsPerClaim(params);
@@ -550,17 +606,18 @@ export type EvBreakdown = Record<
 
 export function calculateEvBreakdown(params: GameParameters): EvBreakdown {
   const freebiesPerHour = calculateFreebiesPerHour(params);
+  const claim = clampPositive(params.freebie_claim_percentage, 100.0) / 100.0; // Only gems_base bar uses claim
   const baseRolls = 1.0;
   const expectedRolls = calculateExpectedRollsPerClaim(params);
   const refreshMult = calculateRefreshMultiplier(params);
 
-  // Gems base
-  const baseGems = freebiesPerHour * baseRolls * clampPositive(params.freebie_gems_base, 9.0);
-  const jackpotGems = freebiesPerHour * (expectedRolls - baseRolls) * clampPositive(params.freebie_gems_base, 9.0);
+  // Gems base (only bar affected by Freebie Claim %)
+  const baseGems = freebiesPerHour * claim * baseRolls * clampPositive(params.freebie_gems_base, 9.0);
+  const jackpotGems = freebiesPerHour * claim * (expectedRolls - baseRolls) * clampPositive(params.freebie_gems_base, 9.0);
   const refreshGemsBase = baseGems * (refreshMult - 1.0);
   const refreshGemsJackpot = jackpotGems * (refreshMult - 1.0);
 
-  // Stonks (no jackpot)
+  // Stonks (no jackpot; claim % does not apply)
   const baseStonks = freebiesPerHour * clamp01(params.stonks_chance) * clampPositive(params.stonks_bonus_gems, 200.0);
   const refreshStonks = baseStonks * (refreshMult - 1.0);
 
