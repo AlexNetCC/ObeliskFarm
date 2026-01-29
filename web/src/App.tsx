@@ -25,7 +25,7 @@ export function App() {
         { id: "arch" as const, label: "Archaeology Simulator", icon: "sprites/archaeology/archaeology.png" },
         { id: "gemev" as const, label: "Gem EV Calculator", icon: "sprites/common/gem.png" },
         { id: "stargazing" as const, label: "Stargazing Calculator", icon: "sprites/stargazing/stargazing.svg" },
-        { id: "drone" as const, label: "Drone (WIP)", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
+        { id: "drone" as const, label: "Drone (beta)", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
       ] as const,
     [],
   );
