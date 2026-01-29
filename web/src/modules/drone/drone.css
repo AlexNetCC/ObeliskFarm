@@ -126,34 +126,6 @@
   min-width: 24px;
 }
 
-.droneResult {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(15, 23, 42, 0.1);
-}
-
-.droneResultLine {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-
-.droneResultLine:last-child {
-  margin-bottom: 0;
-}
-
-.droneResultValue {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.droneResultValue.good {
-  color: var(--good);
-}
-
 .droneCheckboxRow {
   display: flex;
   align-items: center;
@@ -204,6 +176,11 @@
   cursor: pointer;
 }
 
+.droneStepperBtnLarge {
+  min-width: 44px;
+  font-size: 14px;
+}
+
 .droneStepperBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -211,32 +188,145 @@
 
 .droneStepperValue {
   min-width: 56px;
-  text-align: right;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   font-size: 13px;
-}
-
-.droneFuelCost {
-  padding: 10px 12px;
-}
-
-.droneFuelCostLine {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.droneFuelCostIcon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
 }
 
 .droneSkillIcon {
   width: 20px;
   height: 20px;
   object-fit: contain;
+}
+
+.droneBuffPlotLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.droneBuffIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.droneBuffPlot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.droneBuffPlotSummaryBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.droneBuffPlotSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.droneBuffPlotSummaryLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.droneBuffPlotSummaryValue {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.droneBuffPlotRow {
+  display: grid;
+  grid-template-columns: 1fr minmax(100px, 1fr) 4.5rem 4.5rem;
+  gap: 12px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.droneBuffPlotHeader.droneBuffPlotRow {
+  min-height: 0;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.droneBuffPlotBarHeader {
+  font-size: 0;
+}
+
+.droneBuffPlotRightHeader {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.droneBuffPlotRightHeader .qmark {
+  font-size: 11px;
+}
+
+.droneBuffPlotRight {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.droneBuffPlotLabel {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.droneBuffPlotBarWrap {
+  position: relative;
+  min-width: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.droneBuffPlotValue {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  line-height: 1;
+  order: -1;
+}
+
+.droneBuffPlotBar {
+  height: 14px;
+  min-width: 4px;
+  border-radius: 4px;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.droneBuffPlotBarBg {
+  height: 14px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
 }

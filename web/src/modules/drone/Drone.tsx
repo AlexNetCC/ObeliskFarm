@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./drone.css";
 import { Tooltip } from "../../components/Tooltip";
 import { Collapsible } from "../../components/Collapsible";
-import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
 
 const ELIXIR_BASE_INTERVAL_SEC = 360;
@@ -20,6 +19,35 @@ const ELIXIR_FUEL_DURATION_BASE_SEC = 210; // 3:30
 const ELIXIR_FUEL_DURATION_SEC_PER_GRADE = 10.5; // +0:10.5
 
 const GASOLINE_GUZZLER_FUEL_DURATION_PCT = 20;
+
+const ELIXIR_BUFF_ICONS =
+  "https://static.wikitide.net/shminerwiki/";
+/** Base duration (game time) in seconds. realTimeOnly = duration not affected by game speed (e.g. Fishing Tick). */
+const ELIXIR_BUFFS: Array<{ id: string; label: string; baseSec: number; icon: string; realTimeOnly?: boolean }> = [
+  { id: "2xgs", label: "2× Game Speed", baseSec: 120, icon: `${ELIXIR_BUFF_ICONS}d/d4/Game_Speed_Multiplier.png` },
+  { id: "10xbomb", label: "10× Bomb Recharge", baseSec: 60, icon: `${ELIXIR_BUFF_ICONS}b/ba/Bomb_Recharge_Speed_10x_Buff.png` },
+  { id: "3xcoal", label: "3× Coal Production Speed", baseSec: 240, icon: `${ELIXIR_BUFF_ICONS}7/71/3x_Coal_Production_Speed_Buff.png` },
+  { id: "2xore", label: "2× Ore", baseSec: 180, icon: `${ELIXIR_BUFF_ICONS}2/2c/2x_Ore_Income_Buff.png` },
+  { id: "3xvein", label: "3× Vein Spawn Rate", baseSec: 180, icon: `${ELIXIR_BUFF_ICONS}9/91/3x_Vein_Spawn_Rate_Buff.png` },
+  { id: "autocatch", label: "100% Star Autocatch", baseSec: 300, icon: `${ELIXIR_BUFF_ICONS}8/88/Auto-Catch_Chance.png` },
+  { id: "2xstar", label: "2× Star Spawn Rate", baseSec: 180, icon: `${ELIXIR_BUFF_ICONS}5/5b/2x_Spawn_Rate_Buff.png` },
+  { id: "3xp", label: "3× Experience", baseSec: 240, icon: `${ELIXIR_BUFF_ICONS}2/27/3x_Experience_Buff.png` },
+  { id: "3xsuper", label: "3× Super Star Spawn Rate", baseSec: 180, icon: `${ELIXIR_BUFF_ICONS}7/72/Triple_Super_Star_Chance_Buff.png` },
+  { id: "3xfishing", label: "3× Fishing Tick Speed", baseSec: 120, icon: `${ELIXIR_BUFF_ICONS}8/87/Triple_Fish_Tick_Chance.png`, realTimeOnly: true },
+];
+
+function formatMinSec(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return s === 0 ? `${m}:00` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Heatmap color by relative duration: 0% = cool (blue), 100% = hot (red). */
+function heatmapColor(pct: number): string {
+  const t = Math.max(0, Math.min(1, pct / 100));
+  const hue = 220 * (1 - t);
+  return `hsl(${hue}, 70%, 45%)`;
+}
 
 type ElixirState = {
   gameSpeedMultiplier: number;
@@ -124,10 +152,11 @@ function Stepper(props: {
   min: number;
   max: number;
   step?: number;
+  stepLarge?: number;
   suffix?: string;
   tooltip?: { title: string; lines: string[] };
 }) {
-  const { label, value, onChange, min, max, step = 1, suffix, tooltip } = props;
+  const { label, value, onChange, min, max, step = 1, stepLarge, suffix, tooltip } = props;
   const labelNode = tooltip ? (
     <span className="droneLabel">
       {label}{" "}
@@ -136,10 +165,23 @@ function Stepper(props: {
   ) : (
     <span className="droneLabel">{label}</span>
   );
+  const showLarge = stepLarge != null && stepLarge > step;
+  const displayValue = step === Math.round(step) ? value : Number(value.toFixed(1));
   return (
     <div className="droneRow">
       {labelNode}
       <div className="droneStepperWrap">
+        {showLarge ? (
+          <button
+            type="button"
+            className="btn btnSecondary droneStepperBtn droneStepperBtnLarge"
+            onClick={() => onChange(clamp(value - stepLarge, min, max))}
+            disabled={value <= min}
+            aria-label={`Decrease by ${stepLarge}`}
+          >
+            −{stepLarge}
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn btnSecondary droneStepperBtn"
@@ -150,7 +192,7 @@ function Stepper(props: {
           −
         </button>
         <span className="droneStepperValue">
-          {value}
+          {displayValue}
           {suffix ? suffix : ""}
         </span>
         <button
@@ -162,19 +204,20 @@ function Stepper(props: {
         >
           +
         </button>
+        {showLarge ? (
+          <button
+            type="button"
+            className="btn droneStepperBtn droneStepperBtnLarge"
+            onClick={() => onChange(clamp(value + stepLarge, min, max))}
+            disabled={value >= max}
+            aria-label={`Increase by ${stepLarge}`}
+          >
+            +{stepLarge}
+          </button>
+        ) : null}
       </div>
     </div>
   );
-}
-
-function computeUptime(
-  intervalSec: number,
-  durationSec: number,
-  numBuffs: number,
-): number {
-  if (intervalSec <= 0 || numBuffs <= 0) return 0;
-  const cycleSec = intervalSec * numBuffs;
-  return (durationSec / cycleSec) * 100;
 }
 
 function migrateFromV1(saved: Record<string, unknown>): Partial<ElixirState> {
@@ -239,12 +282,8 @@ export function Drone() {
   const suitLevel = clamp(Math.round(state.elixirSuitLevel), 0, 20);
   const intervalSecBase = Math.max(1, ELIXIR_BASE_INTERVAL_SEC - suitLevel * ELIXIR_SUIT_SEC_PER_LEVEL);
   const intervalSec = intervalSecBase / gameSpeedMult;
-  const baseDurationSec = GAME_SPEED_2X_BUFF_DURATION_SEC / gameSpeedMult;
   const numBuffs = state.fishingUnlocked ? ELIXIR_NUM_BUFFS_WITH_FISHING : ELIXIR_NUM_BUFFS_WITHOUT_FISHING;
   const fueledBuffDurationPct = ELIXIR_FUEL_BUFF_BASE_PCT + state.elixirGradeLevel * ELIXIR_FUEL_BUFF_PCT_PER_GRADE;
-  const fueledDurationSec = state.fueled
-    ? baseDurationSec * (1 + fueledBuffDurationPct / 100)
-    : baseDurationSec;
   const fuelDurationFromGradeSec = ELIXIR_FUEL_DURATION_BASE_SEC + state.elixirGradeLevel * ELIXIR_FUEL_DURATION_SEC_PER_GRADE;
   // Coal Fuel Duration and Gasoline Guzzler are multiplicative: e.g. 1.19 × 1.2
   const fuelDurationGameSec =
@@ -253,37 +292,49 @@ export function Drone() {
     (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1);
   const fuelDurationSecReal = fuelDurationGameSec / gameSpeedMult;
 
-  const uptimeUnfueledPct = computeUptime(intervalSec, baseDurationSec, numBuffs);
-  const uptimeFueledPct = computeUptime(intervalSec, fueledDurationSec, numBuffs);
-  const has100IfGuaranteed = baseDurationSec >= intervalSec;
-  const has100FueledIfGuaranteed = fueledDurationSec >= intervalSec;
+  const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
+  const buffDurations = useMemo(() => {
+    const list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
+    const maxSec = Math.max(
+      ...list.map((b) =>
+        b.realTimeOnly ? b.baseSec * fuelMult : (b.baseSec * fuelMult) / gameSpeedMult,
+      ),
+      1,
+    );
+    return list
+      .map((b) => {
+        const sec = b.realTimeOnly ? b.baseSec * fuelMult : (b.baseSec * fuelMult) / gameSpeedMult;
+        return { ...b, sec, pct: (sec / maxSec) * 100 };
+      })
+      .sort((a, b) => a.sec - b.sec);
+  }, [state.fueled, state.fishingUnlocked, fueledBuffDurationPct, fuelMult, gameSpeedMult]);
 
   return (
     <div className="droneGrid">
-      <Collapsible id="drone-elixir" title="Elixir Drone" defaultExpanded={true}>
-        <div className={`droneGameSpeedToggle ${gameSpeedMult > 1 ? "droneGameSpeedToggleOn" : ""}`}>
-          <NumInput
-            label="Game speed"
-            value={state.gameSpeedMultiplier}
-            onChange={(n) => update({ gameSpeedMultiplier: n })}
-            min={1}
-            max={10}
-            step={0.1}
-            suffix="×"
-            decimals={1}
-            tooltip={{
-              title: "Game speed",
-              lines: [
-                "Current game speed multiplier (e.g. 2 = 2×, 2.1 = 2.1×).",
-                "Time between buffs and fuel duration in real time = game time ÷ this value.",
-              ],
-            }}
-          />
-          <p className="droneHint" style={{ marginTop: 6, marginBottom: 0 }}>
-            When &gt; 1×: time between buffs and fuel duration in real time = game time ÷ speed.
-          </p>
-        </div>
+      <div className={`droneGameSpeedToggle ${gameSpeedMult > 1 ? "droneGameSpeedToggleOn" : ""}`}>
+        <NumInput
+          label="Game speed"
+          value={state.gameSpeedMultiplier}
+          onChange={(n) => update({ gameSpeedMultiplier: n })}
+          min={1}
+          max={10}
+          step={0.1}
+          suffix="×"
+          decimals={1}
+          tooltip={{
+            title: "Game speed",
+            lines: [
+              "Current game speed multiplier (e.g. 2 = 2×, 2.1 = 2.1×).",
+              "Time between buffs and fuel duration in real time = game time ÷ this value.",
+            ],
+          }}
+        />
+        <p className="droneHint" style={{ marginTop: 6, marginBottom: 0 }}>
+          When &gt; 1×: time between buffs and fuel duration in real time = game time ÷ speed.
+        </p>
+      </div>
 
+      <Collapsible id="drone-elixir" title="Elixir Drone" defaultExpanded={true}>
         <div className="droneSection">
           <div className="droneSectionTitle">Settings</div>
 
@@ -294,6 +345,7 @@ export function Drone() {
             min={0}
             max={20}
             step={1}
+            stepLarge={5}
             tooltip={{
               title: "Elixir Suit upgrade level",
               lines: [
@@ -309,16 +361,13 @@ export function Drone() {
             </span>
           </div>
 
-          <div className="droneRow">
-            <span className="droneLabel">2× Game Speed duration</span>
-            <span className="droneStepperValue">
-              {gameSpeedMult > 1
-                ? (GAME_SPEED_2X_BUFF_DURATION_SEC / gameSpeedMult).toFixed(0) + " s (real)"
-                : "120 s (2 min)"}
-            </span>
-          </div>
-
           <div className="droneCheckboxRow">
+            <img
+              src="https://static.wikitide.net/shminerwiki/f/fb/Fishing_Button.png"
+              alt=""
+              className="droneSkillIcon"
+              aria-hidden
+            />
             <input
               id="elixir-fishing"
               type="checkbox"
@@ -340,6 +389,12 @@ export function Drone() {
           </div>
 
           <div className="droneCheckboxRow">
+            <img
+              src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png"
+              alt=""
+              className="droneSkillIcon"
+              aria-hidden
+            />
             <input
               id="elixir-fueled"
               type="checkbox"
@@ -362,6 +417,7 @@ export function Drone() {
                 min={0}
                 max={45}
                 step={1}
+                stepLarge={5}
                 tooltip={{
                   title: "Grade level (fuel buff)",
                   lines: [
@@ -379,7 +435,7 @@ export function Drone() {
         </div>
 
         <div className="droneSection">
-          <div className="droneSectionTitle">Fuel duration (Elixir drone)</div>
+          <div className="droneSectionTitle">Fuel</div>
           <div className="droneRow">
             <span className="droneLabel">1 fuel lasts (game time)</span>
             <span className="droneStepperValue">
@@ -423,6 +479,7 @@ export function Drone() {
             min={0}
             max={COAL_FUEL_DURATION_MAX_LEVEL}
             step={1}
+            stepLarge={5}
             suffix=""
             tooltip={{
               title: "Fuel Duration",
@@ -440,6 +497,7 @@ export function Drone() {
             min={0}
             max={COAL_FUEL_SAVE_MAX_LEVEL}
             step={1}
+            stepLarge={5}
             suffix=""
             tooltip={{
               title: "Fuel Save Chance",
@@ -448,38 +506,110 @@ export function Drone() {
           />
         </div>
 
-        <div className="droneSection droneResult">
-          <div className="droneSectionTitle">Results</div>
-          <div className="droneResultLine">
-            <span>Effective 2× Game Speed duration</span>
-            <span className="droneResultValue">
-              {(state.fueled ? fueledDurationSec : baseDurationSec).toFixed(1)} s
-            </span>
-          </div>
-          <div className="droneResultLine">
-            <span>Average 2× Game Speed uptime</span>
-            <span className={`droneResultValue ${(state.fueled ? uptimeFueledPct : uptimeUnfueledPct) >= 100 ? "good" : ""}`}>
-              {(state.fueled ? uptimeFueledPct : uptimeUnfueledPct).toFixed(1)}%
-            </span>
-          </div>
-          <div className="droneHint">
-            {has100IfGuaranteed
-              ? "If 2× Game Speed were guaranteed every trigger, you would have 100% uptime (duration ≥ interval)."
-              : "For 100% uptime with guaranteed 2× Game Speed: reduce interval to ≤ " +
-                baseDurationSec.toFixed(0) +
-                " s or extend duration to ≥ " +
-                intervalSec.toFixed(0) +
-                " s."}
-            {state.fueled && !has100IfGuaranteed && has100FueledIfGuaranteed && (
-              " With current fueled duration, 100% uptime would be possible if 2× Game Speed were guaranteed."
-            )}
-          </div>
-        </div>
-
-        <div className="droneSection droneFuelCost">
-          <div className="droneFuelCostLine">
-            <img src={assetUrl("sprites/common/gem.png")} alt="" className="droneFuelCostIcon" aria-hidden />
-            <span>5 gems per fuel</span>
+        <div className="droneSection">
+          <div className="droneSectionTitle">Buff durations (real time)</div>
+          <p className="droneHint" style={{ marginBottom: 10 }}>
+            Duration depends on game speed, fueled grade (when fueled), and for 3× Fishing Tick: real time only (Ob 37).
+          </p>
+          {(() => {
+            const totalSec = buffDurations.reduce((s, b) => s + b.sec, 0);
+            const cycleSec = numBuffs * intervalSec;
+            const expectedBuffsActive = numBuffs > 0 && intervalSec > 0
+              ? totalSec / cycleSec
+              : 0;
+            const star = buffDurations.find((b) => b.id === "2xstar");
+            const superStar = buffDurations.find((b) => b.id === "3xsuper");
+            const pStar = cycleSec > 0 && star ? Math.min(1, star.sec / cycleSec) : 0;
+            const pSuper = cycleSec > 0 && superStar ? Math.min(1, superStar.sec / cycleSec) : 0;
+            const starSuperOverlapPct = (pStar * pSuper) * 100;
+            return (
+              <div className="droneBuffPlotSummaryBlock">
+                <div className="droneBuffPlotSummary">
+                  <span className="droneBuffPlotSummaryLabel">
+                    Expected buffs active at once
+                    <Tooltip
+                      content={{
+                        title: "Expected overlap",
+                        lines: [
+                          "With uniform random buffs every interval: average number of buffs active at any time.",
+                          "Formula: sum of all buff durations ÷ (number of buffs × time between buffs).",
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="droneBuffPlotSummaryValue">{expectedBuffsActive.toFixed(2)}</span>
+                </div>
+                <div className="droneBuffPlotSummary">
+                  <span className="droneBuffPlotSummaryLabel">
+                    Star + Super Star overlap
+                    <Tooltip
+                      content={{
+                        title: "Star & Super Star overlap",
+                        lines: [
+                          "Approximate probability that 2× Star Spawn Rate and 3× Super Star Spawn Rate are both active at the same time.",
+                          "Uptime(Star) × Uptime(Super Star), assuming independence.",
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="droneBuffPlotSummaryValue">{starSuperOverlapPct.toFixed(2)}%</span>
+                </div>
+              </div>
+            );
+          })()}
+          <div className="droneBuffPlot">
+            <div className="droneBuffPlotRow droneBuffPlotHeader">
+              <span className="droneBuffPlotLabel" />
+              <span className="droneBuffPlotBarHeader" />
+              <span className="droneBuffPlotRightHeader">
+                <Tooltip
+                  content={{
+                    title: "Overlap",
+                    lines: [
+                      "Probability this buff is still active when the next buff is selected.",
+                      "min(100%, duration ÷ time between buffs).",
+                    ],
+                  }}
+                  label="Overlap"
+                />
+              </span>
+              <span className="droneBuffPlotRightHeader">
+                <Tooltip
+                  content={{
+                    title: "Uptime",
+                    lines: [
+                      "Expected fraction of time this buff is active (100% = always on).",
+                      "Formula: duration ÷ (number of buffs × time between buffs).",
+                    ],
+                  }}
+                  label="Uptime"
+                />
+              </span>
+            </div>
+            {buffDurations.map((b) => {
+              const overlapPct = intervalSec > 0 ? Math.min(100, (b.sec / intervalSec) * 100) : 0;
+              const cycleSec = numBuffs * intervalSec;
+              const uptimePct = cycleSec > 0 ? Math.min(100, (b.sec / cycleSec) * 100) : 0;
+              return (
+                <div key={b.id} className="droneBuffPlotRow">
+                  <span className="droneBuffPlotLabel">
+                    <img src={b.icon} alt="" className="droneBuffIcon" aria-hidden />
+                    {b.label}
+                  </span>
+                  <div className="droneBuffPlotBarWrap">
+                    <span className="droneBuffPlotValue">{formatMinSec(b.sec)}</span>
+                    <div className="droneBuffPlotBarBg">
+                      <div
+                        className="droneBuffPlotBar"
+                        style={{ width: `${b.pct}%`, background: heatmapColor(b.pct) }}
+                      />
+                    </div>
+                  </div>
+                  <span className="droneBuffPlotRight">{overlapPct.toFixed(0)}%</span>
+                  <span className="droneBuffPlotRight">{uptimePct.toFixed(1)}%</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </Collapsible>
