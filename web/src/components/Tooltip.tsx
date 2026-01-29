@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+type TooltipLine = string | ReactNode;
 
 type TooltipContent =
   | {
       title: string;
-      lines: string[];
+      lines: TooltipLine[];
     }
   | {
       title: string;
-      sections: Array<{ heading: string; lines: string[] }>;
+      sections: Array<{ heading: string; lines: TooltipLine[] }>;
     };
 
 function clamp(n: number, min: number, max: number): number {

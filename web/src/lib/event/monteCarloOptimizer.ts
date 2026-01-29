@@ -21,6 +21,8 @@ export interface MCOptimizationResult {
   /** When band mode: effective band and currency/h used for tie-break. */
   bestWaveBand?: number;
   bestCurrencyPerHour?: number;
+  /** Per-tier currency per hour (Tier 1–4) for the best build when band mode. */
+  bestCurrencyPerHourByTier?: { 1: number; 2: number; 3: number; 4: number };
   /** Set when band from fixed step (e.g. 5). */
   waveBandStep?: number;
   /** Set when band from reward milestones. */
@@ -257,6 +259,15 @@ export function monteCarloOptimizeGuided(args: {
     return { playerStats: player, enemyStats: enemy };
   })();
 
+  const bestCurrencyPerHourByTier =
+    bandMode && bestTime > 0
+      ? (() => {
+          const mats = calculateMaterials(bestWave, playerStats);
+          const scale = 3600 / bestTime;
+          return { 1: mats.mat1 * scale, 2: mats.mat2 * scale, 3: mats.mat3 * scale, 4: mats.mat4 * scale };
+        })()
+      : undefined;
+
   const statistics: Record<string, number> = {
     mean_wave: meanWave,
     median_wave: medianWave,
@@ -286,6 +297,7 @@ export function monteCarloOptimizeGuided(args: {
       ? {
           bestWaveBand,
           bestCurrencyPerHour,
+          ...(bestCurrencyPerHourByTier ? { bestCurrencyPerHourByTier } : {}),
           ...(waveBandStep > 0 ? { waveBandStep } : {}),
           ...(useReward ? { tieBreakByRewardMilestones: true } : {}),
         }
@@ -439,6 +451,15 @@ export function bruteForceOptimize(args: {
     return { playerStats: player, enemyStats: enemy };
   })();
 
+  const bestCurrencyPerHourByTier =
+    bandMode && bestTime > 0
+      ? (() => {
+          const mats = calculateMaterials(bestWave, playerStats);
+          const scale = 3600 / bestTime;
+          return { 1: mats.mat1 * scale, 2: mats.mat2 * scale, 3: mats.mat3 * scale, 4: mats.mat4 * scale };
+        })()
+      : undefined;
+
   const statistics: Record<string, number> = {
     mean_wave: meanWave,
     median_wave: medianWave,
@@ -468,6 +489,7 @@ export function bruteForceOptimize(args: {
       ? {
           bestWaveBand,
           bestCurrencyPerHour,
+          ...(bestCurrencyPerHourByTier ? { bestCurrencyPerHourByTier } : {}),
           ...(waveBandStep > 0 ? { waveBandStep } : {}),
           ...(useReward ? { tieBreakByRewardMilestones: true } : {}),
         }

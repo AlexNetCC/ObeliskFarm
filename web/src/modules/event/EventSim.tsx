@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import { formatInt, formatTime } from "../../lib/format";
 import { loadJson, saveJson } from "../../lib/storage";
-import { COSTS, GEM_UPGRADE_NAMES, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
+import { COSTS, GEM_UPGRADE_NAMES, getRewardMilestoneDisplayLabel, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
 import {
   copyState,
   createEmptyState,
@@ -19,7 +19,7 @@ import { currencyIconFilename, gemUpgradeIconFilename, upgradeIconFilename } fro
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 
-type SavedStateV1 = { prestige: number; upgrade_levels: Record<string, number[]>; gem_levels: number[] };
+type SavedStateV1 = { prestige: number; upgrade_levels: Record<string, number[]>; gem_levels: number[]; world_monuments?: number };
 
 export type EventMcComparisonMethodId = "default" | "multiStart3" | "wide" | "stable" | "wideMulti2";
 
@@ -68,6 +68,8 @@ const SHOW_COMPARISON = false;
 
 type UiState = {
   prestige: number;
+  /** World Monuments built (1–4). Rewards except Gifts/Mythic Chests/Skins are ×2 per monument. */
+  worldMonuments: number;
   budget1: string;
   budget2: string;
   budget3: string;
@@ -169,6 +171,7 @@ export function EventSim() {
 
     return {
       prestige: clampInt(saved?.prestige ?? 0, 0, 999),
+      worldMonuments: clampInt(saved?.world_monuments ?? 1, 1, 4),
       budget1: "",
       budget2: "",
       budget3: "",
@@ -250,11 +253,12 @@ export function EventSim() {
     }
   }
 
-  // autosave (matches desktop save schema: prestige + upgrade_levels + gem_levels; NOT budgets)
+  // autosave (matches desktop save schema: prestige + upgrade_levels + gem_levels + world_monuments; NOT budgets)
   useEffect(() => {
     const t = window.setTimeout(() => {
       const payload: SavedStateV1 = {
         prestige: ui.prestige,
+        world_monuments: ui.worldMonuments,
         upgrade_levels: {
           "1": ui.upgrades.levels[1].slice(),
           "2": ui.upgrades.levels[2].slice(),
@@ -266,7 +270,7 @@ export function EventSim() {
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui.prestige, ui.upgrades]);
+  }, [ui.prestige, ui.worldMonuments, ui.upgrades]);
 
   useEffect(() => {
     if (!resetUpgradesArmed) return;
@@ -707,11 +711,355 @@ export function EventSim() {
         <div>
           <h1 className="title">Event Budget Optimizer</h1>
           <p className="subtitle">Saves upgrades/prestige automatically in your browser (localStorage).</p>
+          <div className="worldMonumentsBlock">
+            <span className="worldMonumentsLabel">World Monuments:</span>
+            <span className="mono worldMonumentsValue">{ui.worldMonuments}</span>
+            <div className="worldMonumentsButtons">
+              {[1, 2, 3, 4].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={ui.worldMonuments === n ? "btn" : "btn btnSecondary"}
+                  onClick={() => setUi((s) => ({ ...s, worldMonuments: n }))}
+                  title={`${n} World Monument${n === 1 ? "" : "s"}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <Tooltip
+              content={{
+                title: "World Monuments",
+                sections: [
+                  {
+                    heading: "Reward multiplier",
+                    lines: [
+                      "All rewards except Gifts, Mythic Chests, and Skins are multiplied by ×2 for each World Monument you build.",
+                      "1 monument → ×2, 2 → ×4, 3 → ×8, 4 → ×16.",
+                    ],
+                  },
+                  {
+                    heading: "Saved",
+                    lines: ["This value is saved automatically in this browser."],
+                  },
+                ],
+              }}
+            />
+          </div>
         </div>
         <div className="badge">Budget Optimizer • Guided MC</div>
       </div>
 
-      <div className="grid">
+      <div className="eventSimTop">
+        <div className="budgetBar">
+          <div className="panelHeader" style={{ marginBottom: 6 }}>
+            <h2 className="panelTitle">
+              Currency budget
+              <Tooltip
+                content={{
+                  title: "Currency budget",
+                  sections: [
+                    { heading: "What is this?", lines: ["Enter your available event currencies (Tier 1–4)."] },
+                    { heading: "How it is used", lines: ["The optimizer spends these currencies to suggest which upgrade points to buy."] },
+                  ],
+                }}
+              />
+            </h2>
+            <p className="panelHint"></p>
+          </div>
+
+          <div className="budgetInputs">
+            {[1, 2, 3, 4].map((tier) => {
+              const icon = currencyIconFilename(tier);
+              const v = (tier === 1 ? ui.budget1 : tier === 2 ? ui.budget2 : tier === 3 ? ui.budget3 : ui.budget4) as string;
+              return (
+                <div className="budgetRow" key={tier}>
+                  <Sprite path={icon ? `sprites/event/${icon}` : null} alt={`Currency ${tier}`} className="iconSmall" label={icon ?? ""} />
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    placeholder={`Tier ${tier}`}
+                    value={v}
+                    onChange={(e) =>
+                      setUi((s) => {
+                        const val = e.target.value;
+                        if (tier === 1) return { ...s, budget1: val };
+                        if (tier === 2) return { ...s, budget2: val };
+                        if (tier === 3) return { ...s, budget3: val };
+                        return { ...s, budget4: val };
+                      })
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <Collapsible
+            id="event-player-stats"
+            title={
+              <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
+                <span>Player stats</span>
+                <span className="small">(info only)</span>
+              </span>
+            }
+            defaultExpanded={false}
+          >
+            <div className="small">Derived from your current upgrades/prestige (read-only).</div>
+            <div className="kv kvCompact" style={{ marginTop: 8 }}>
+              <kbd>Attack</kbd>
+                <div className="mono">{formatInt(currentPlayerStats.atk)}</div>
+                <kbd>Health</kbd>
+                <div className="mono">{formatInt(currentPlayerStats.health)}</div>
+                <kbd>Attack speed</kbd>
+                <div className="mono">{currentPlayerStats.atkSpeed.toFixed(2)}</div>
+                <kbd>Walk speed</kbd>
+                <div className="mono">{currentPlayerStats.walkSpeed.toFixed(2)}</div>
+                <kbd>Game speed</kbd>
+                <div className="mono">{currentPlayerStats.gameSpeed.toFixed(2)}</div>
+                <kbd>Crit chance</kbd>
+                <div className="mono">{currentPlayerStats.crit.toFixed(1)}%</div>
+                <kbd>Crit damage</kbd>
+                <div className="mono">{currentPlayerStats.critDmg.toFixed(2)}×</div>
+              <kbd>Block</kbd>
+              <div className="mono">{formatPct01(currentPlayerStats.blockChance, 1)}</div>
+              <kbd>Prestige scale</kbd>
+              <div className="mono">{currentPlayerStats.prestigeBonusScale.toFixed(2)}</div>
+                <kbd>2× money</kbd>
+                <div className="mono">{currentPlayerStats.x2Money.toFixed(2)}</div>
+                <kbd>5× money</kbd>
+              <div className="mono">{currentPlayerStats.x5Money.toFixed(0)}%</div>
+            </div>
+          </Collapsible>
+
+          <div className="btnRow" style={{ marginTop: 0 }}>
+            <button className="btn" onClick={onOptimizeGuidedMc} disabled={running}>
+              Optimize (Guided MC)
+            </button>
+            <Tooltip
+              content={{
+                title: "Optimize (Guided MC)",
+                sections: [
+                  { heading: "How it works", lines: ["Tries many candidate allocations and evaluates them via simulation."] },
+                  { heading: "Total work", lines: ["Total simulations = N candidates × runs per combo."] },
+                ],
+              }}
+            />
+            {running ? (
+              <button className="btn btnSecondary" onClick={onCancel}>
+                Cancel
+              </button>
+            ) : null}
+          </div>
+
+          {running ? (
+            <div className="kv">
+              <kbd>Status</kbd>
+              <div className="mono">Running…</div>
+              <kbd>Progress</kbd>
+              <div className="mono">
+                {progress ? (
+                  <>
+                    {progress.cur}/{progress.total} ({Math.floor((progress.cur / progress.total) * 100)}%)
+                  </>
+                ) : (
+                  <>Starting…</>
+                )}
+              </div>
+              <kbd>Current</kbd>
+              <div className="mono">{progress ? `Wave ${progress.curWave.toFixed(1)}` : "—"}</div>
+              <kbd>Best</kbd>
+              <div className="mono">{progress ? `Wave ${progress.bestWave.toFixed(1)}` : "—"}</div>
+              <kbd>Runs done</kbd>
+              <div className="mono">{progress ? formatInt(progress.cur * ui.mcRunsPerCombo) : "—"}</div>
+              <kbd>Total runs</kbd>
+              <div className="mono">{progress ? formatInt(progress.total * ui.mcRunsPerCombo) : "—"}</div>
+            </div>
+          ) : null}
+
+          <div className="small">
+            <span className="mono">
+              N={ui.mcCandidates} × runs={ui.mcRunsPerCombo} = {formatInt(ui.mcCandidates * ui.mcRunsPerCombo)} event sims
+            </span>
+          </div>
+        </div>
+
+        <div className="panel panelResults">
+          <div className="panelHeader">
+            <h2 className="panelTitle">Results</h2>
+            <p className="panelHint">{result ? "Calculated." : "Run the optimizer to see recommendations."}</p>
+          </div>
+
+          {error ? <div className="error">{error}</div> : null}
+
+          {result ? (
+            <>
+              <div className="kv" style={{ marginTop: 10 }}>
+                <kbd>Estimated wave</kbd>
+                <div className="mono">{result.expectedWave.toFixed(1)}</div>
+                {mcStats?.bestWaveBand != null ? (
+                  <>
+                    <kbd>{mcStats.tieBreakByRewardMilestones ? "Reward milestone" : "Wave band"}</kbd>
+                    <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      Wave {mcStats.bestWaveBand}
+                      {(() => {
+                        const info = getRewardMilestoneDisplayLabel(mcStats.bestWaveBand, ui.worldMonuments);
+                        return info ? (
+                          <>
+                            {" "}
+                            (
+                            <img
+                              src={info.iconUrl}
+                              alt=""
+                              className="iconSmall"
+                              style={{ width: 18, height: 18, verticalAlign: "middle" }}
+                              referrerPolicy="no-referrer"
+                            />
+                            {info.label})
+                          </>
+                        ) : null;
+                      })()}
+                    </div>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <kbd>Currency/h</kbd>
+                      <Tooltip
+                        content={{
+                          title: "Currency/h",
+                          sections: [
+                            {
+                              heading: "What it is",
+                              lines: [
+                                "Income per hour if you continue with the suggested build.",
+                                "How much of each currency type (Tier 1–4) you earn per hour with this build.",
+                              ],
+                            },
+                            ...(mcStats.bestCurrencyPerHourByTier
+                              ? [
+                                  {
+                                    heading: "Per tier (per hour)",
+                                    lines: ([1, 2, 3, 4] as const).map((tier) => {
+                                      const icon = currencyIconFilename(tier);
+                                      const val = formatInt(mcStats.bestCurrencyPerHourByTier![tier]);
+                                      return (
+                                        <span key={tier} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                          <Sprite
+                                            path={icon ? `sprites/event/${icon}` : null}
+                                            alt={`Currency ${tier}`}
+                                            className="iconSmall"
+                                            label={icon ?? ""}
+                                          />
+                                          <span>Tier {tier}: {val}</span>
+                                        </span>
+                                      );
+                                    }),
+                                  },
+                                ]
+                              : []),
+                          ],
+                        }}
+                      />
+                    </span>
+                    <div className="mono">
+                      {Number(mcStats.bestCurrencyPerHour ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </div>
+                  </>
+                ) : null}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <kbd>Estimated time</kbd>
+                  <Tooltip
+                    content={{
+                      title: "Estimated time",
+                      lines: [
+                        "Time (from the optimizer runs) to complete the run with the suggested build.",
+                        "How long the simulated run took with the recommended upgrades.",
+                      ],
+                    }}
+                  />
+                </span>
+                <div className="mono">{formatTime(result.expectedTime)}</div>
+              </div>
+
+              <div className="sectionTitle">Upgrade plan</div>
+              <div className="btnRow">
+                <button className="btn btnGood" onClick={onAddPoints} disabled={!result || appliedSinceLastOptimize}>
+                  {appliedSinceLastOptimize ? "Applied" : "Add Points!"}
+                </button>
+                <Tooltip
+                  content={{
+                    title: "Add Points!",
+                    sections: [
+                      { heading: "What it does", lines: ["Applies the recommended upgrade points to your current upgrade levels."] },
+                      { heading: "Note", lines: ["Disabled after applying, until you run Optimize again."] },
+                    ],
+                  }}
+                />
+              </div>
+              {[1, 2, 3, 4].map((tier) => {
+                const levels = result.upgrades.levels[tier as 1 | 2 | 3 | 4];
+                const initial2 = lastInitialRef.current?.levels?.[tier as 1 | 2 | 3 | 4] ?? null;
+                const picked = levels
+                  .map((lvl, idx) => ({ lvl, idx }))
+                  .filter((x) => (initial2 ? x.lvl > (initial2[x.idx] ?? 0) : x.lvl > 0))
+                  .map((x) => ({ ...x, add: initial2 ? x.lvl - (initial2[x.idx] ?? 0) : x.lvl }));
+                const spent = result.materialsSpent[tier as 1 | 2 | 3 | 4];
+                const remaining = result.materialsRemaining[tier as 1 | 2 | 3 | 4];
+                return (
+                  <div className="tierBlock" key={tier}>
+                    <div className="tierHead">
+                      <p className="tierTitle">Tier {tier}</p>
+                      <p className="small">
+                        Spent {formatInt(spent)} • Remaining {formatInt(remaining)}
+                      </p>
+                    </div>
+                    {picked.length ? (
+                      <ul className="list">
+                        {picked.map(({ idx, add }) => (
+                          <li key={idx}>
+                            <span className="mono">{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono">{add}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="small">No upgrades purchased in this tier.</div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="btnRow" style={{ alignItems: "center", gap: 6 }}>
+                <span className="small" style={{ color: "var(--muted)" }}>Recommendations & MC statistics</span>
+                <Tooltip
+                  content={{
+                    title: "Recommendations & MC statistics",
+                    sections: [
+                      { heading: "Recommendations", lines: result.recommendations },
+                      ...(mcStats
+                        ? [
+                            {
+                              heading: "MC statistics",
+                              lines: [
+                                `Mean wave: ${(mcStats.statistics.mean_wave ?? 0).toFixed(2)}`,
+                                `Std dev wave: ${(mcStats.statistics.std_dev_wave ?? 0).toFixed(2)}`,
+                                `Median wave: ${(mcStats.statistics.median_wave ?? 0).toFixed(2)}`,
+                                `Wave range: ${(mcStats.statistics.min_wave ?? 0).toFixed(2)} - ${(mcStats.statistics.max_wave ?? 0).toFixed(2)}`,
+                                `Mean time: ${(mcStats.statistics.mean_time ?? 0).toFixed(2)}s`,
+                                `Std dev time: ${(mcStats.statistics.std_dev_time ?? 0).toFixed(2)}s`,
+                              ],
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="small">Tip: your inputs are auto-saved in this browser.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="eventSimBottom">
         <div className="panel">
           <div className="panelHeader">
             <h2 className="panelTitle">Current Upgrades</h2>
@@ -721,41 +1069,43 @@ export function EventSim() {
           </div>
 
           <div className="form">
-            <div className="row">
-              <div className="label">
-                <span className="prestigeLabel">
-                  Prestige
-                  <Tooltip
-                    content={{
-                      title: "Prestige",
-                      sections: [
-                        { heading: "What it affects", lines: ["Unlocks upgrades and affects gem upgrade max levels."] },
-                        { heading: "Saved", lines: ["This value is saved automatically in this browser."] },
-                      ],
-                    }}
-                  />
-                </span>
-                <span className="mono prestigeValue">{ui.prestige}</span>
-              </div>
-              <div className="btnRow" style={{ marginTop: 0 }}>
-                <button
-                  className="btn btnSecondary"
-                  type="button"
-                  onClick={() => setUi((s) => ({ ...s, prestige: clampInt(s.prestige - 1, 0, 999) }))}
-                  disabled={ui.prestige <= 0}
-                >
-                  −
-                </button>
-                <button
-                  className="btn"
-                  type="button"
-                  onClick={() => setUi((s) => ({ ...s, prestige: clampInt(s.prestige + 1, 0, 999) }))}
-                  disabled={ui.prestige >= 999}
-                >
-                  +
-                </button>
-                <div className="input" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }}>
-                  <span className="mono">{ui.prestige}</span>
+            <div className="prestigeBlock">
+              <div className="row">
+                <div className="label">
+                  <span className="prestigeLabel">
+                    Prestige
+                    <Tooltip
+                      content={{
+                        title: "Prestige",
+                        sections: [
+                          { heading: "What it affects", lines: ["Unlocks upgrades and affects gem upgrade max levels."] },
+                          { heading: "Saved", lines: ["This value is saved automatically in this browser."] },
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="mono prestigeValue">{ui.prestige}</span>
+                </div>
+                <div className="btnRow" style={{ marginTop: 0 }}>
+                  <button
+                    className="btn btnSecondary"
+                    type="button"
+                    onClick={() => setUi((s) => ({ ...s, prestige: clampInt(s.prestige - 1, 0, 999) }))}
+                    disabled={ui.prestige <= 0}
+                  >
+                    −
+                  </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setUi((s) => ({ ...s, prestige: clampInt(s.prestige + 1, 0, 999) }))}
+                    disabled={ui.prestige >= 999}
+                  >
+                    +
+                  </button>
+                  <div className="input" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }}>
+                    <span className="mono">{ui.prestige}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -869,8 +1219,8 @@ export function EventSim() {
                           className={rowClass}
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "1fr auto auto",
-                            gap: 8,
+                            gridTemplateColumns: "1fr auto",
+                            gap: 10,
                             alignItems: "center",
                             marginBottom: 6,
                             border: "1px solid rgba(15,23,42,0.08)",
@@ -879,54 +1229,89 @@ export function EventSim() {
                             transition: "background-color 120ms ease",
                           }}
                         >
-                          <div>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <Sprite path={icon ? `sprites/event/${icon}` : null} alt={UPGRADE_SHORT_NAMES[t][idx]} label={icon ?? ""} />
-                              <div className="mono">{UPGRADE_SHORT_NAMES[t][idx]}</div>
-                            </div>
-                            <div className="small">
-                              {unlocked ? (
-                                <>
-                                  lvl{" "}
-                                  <span className="heatNum mono" style={heatStyle(lvl)}>
-                                    {lvl}
-                                  </span>{" "}
-                                  / <span className="mono">{max}</span> • next cost <span className="mono">{formatInt(nextCost)}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="pillLocked">LOCKED</span> <span className="lockedText">until prestige {PRESTIGE_UNLOCKED[t][idx]}</span>
-                                </>
-                              )}
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+                            <Sprite path={icon ? `sprites/event/${icon}` : null} alt={UPGRADE_SHORT_NAMES[t][idx]} label={icon ?? ""} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <span className="mono">{UPGRADE_SHORT_NAMES[t][idx]}</span>
+                                {unlocked ? (
+                                  <>
+                                    <span className="small">
+                                      lvl{" "}
+                                      <span className="heatNum mono" style={heatStyle(lvl)}>
+                                        {lvl}
+                                      </span>{" "}
+                                      / <span className="mono">{max}</span> • next <span className="mono">{formatInt(nextCost)}</span>
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="small">
+                                    <span className="pillLocked">LOCKED</span> <span className="lockedText">until prestige {PRESTIGE_UNLOCKED[t][idx]}</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <button
-                            className="btn btnSecondary"
-                            disabled={!unlocked || lvl <= 0}
-                            onClick={() => {
-                              setUi((s) => {
-                                const next = copyState(s.upgrades);
-                                if (next.levels[t][idx] > 0) next.levels[t][idx] -= 1;
-                                return { ...s, upgrades: next };
-                              });
-                            }}
-                          >
-                            −
-                          </button>
-                          <button
-                            className="btn"
-                            disabled={!unlocked || lvl >= max}
-                            onClick={() => {
-                              setUi((s) => {
-                                const next = copyState(s.upgrades);
-                                const max2 = getMaxLevelWithCaps(t, idx, next);
-                                if (next.levels[t][idx] < max2) next.levels[t][idx] += 1;
-                                return { ...s, upgrades: next };
-                              });
-                            }}
-                          >
-                            +
-                          </button>
+                          <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+                            <button
+                              className="btn btnSecondary"
+                              disabled={!unlocked || lvl <= 0}
+                              onClick={() => {
+                                setUi((s) => {
+                                  const next = copyState(s.upgrades);
+                                  next.levels[t][idx] = Math.max(0, next.levels[t][idx] - 5);
+                                  return { ...s, upgrades: next };
+                                });
+                              }}
+                              title="-5"
+                            >
+                              −5
+                            </button>
+                            <button
+                              className="btn btnSecondary"
+                              disabled={!unlocked || lvl <= 0}
+                              onClick={() => {
+                                setUi((s) => {
+                                  const next = copyState(s.upgrades);
+                                  if (next.levels[t][idx] > 0) next.levels[t][idx] -= 1;
+                                  return { ...s, upgrades: next };
+                                });
+                              }}
+                              title="-1"
+                            >
+                              −
+                            </button>
+                            <button
+                              className="btn"
+                              disabled={!unlocked || lvl >= max}
+                              onClick={() => {
+                                setUi((s) => {
+                                  const next = copyState(s.upgrades);
+                                  const max2 = getMaxLevelWithCaps(t, idx, next);
+                                  if (next.levels[t][idx] < max2) next.levels[t][idx] += 1;
+                                  return { ...s, upgrades: next };
+                                });
+                              }}
+                              title="+1"
+                            >
+                              +
+                            </button>
+                            <button
+                              className="btn"
+                              disabled={!unlocked || lvl >= max}
+                              onClick={() => {
+                                setUi((s) => {
+                                  const next = copyState(s.upgrades);
+                                  const max2 = getMaxLevelWithCaps(t, idx, next);
+                                  next.levels[t][idx] = Math.min(max2, next.levels[t][idx] + 5);
+                                  return { ...s, upgrades: next };
+                                });
+                              }}
+                              title="+5"
+                            >
+                              +5
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1083,253 +1468,6 @@ export function EventSim() {
                 />
               </div>
             ) : null}
-          </div>
-        </div>
-
-        <div className="rightColumn">
-          <div className="budgetBar">
-            <div className="panelHeader" style={{ marginBottom: 6 }}>
-              <h2 className="panelTitle">
-                Currency budget
-                <Tooltip
-                  content={{
-                    title: "Currency budget",
-                    sections: [
-                      { heading: "What is this?", lines: ["Enter your available event currencies (Tier 1–4)."] },
-                      { heading: "How it is used", lines: ["The optimizer spends these currencies to suggest which upgrade points to buy."] },
-                    ],
-                  }}
-                />
-              </h2>
-              <p className="panelHint"></p>
-            </div>
-
-            <div className="budgetInputs">
-              {[1, 2, 3, 4].map((tier) => {
-                const icon = currencyIconFilename(tier);
-                const v = (tier === 1 ? ui.budget1 : tier === 2 ? ui.budget2 : tier === 3 ? ui.budget3 : ui.budget4) as string;
-                return (
-                  <div className="budgetRow" key={tier}>
-                    <Sprite path={icon ? `sprites/event/${icon}` : null} alt={`Currency ${tier}`} className="iconSmall" label={icon ?? ""} />
-                    <input
-                      className="input"
-                      inputMode="decimal"
-                      placeholder={`Tier ${tier}`}
-                      value={v}
-                      onChange={(e) =>
-                        setUi((s) => {
-                          const val = e.target.value;
-                          if (tier === 1) return { ...s, budget1: val };
-                          if (tier === 2) return { ...s, budget2: val };
-                          if (tier === 3) return { ...s, budget3: val };
-                          return { ...s, budget4: val };
-                        })
-                      }
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            <Collapsible
-              id="event-player-stats"
-              title={
-                <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
-                  <span>Player stats</span>
-                  <span className="small">(info only)</span>
-                </span>
-              }
-              defaultExpanded={false}
-            >
-              <div className="small">Derived from your current upgrades/prestige (read-only).</div>
-              <div className="kv kvCompact" style={{ marginTop: 8 }}>
-                <kbd>ATK</kbd>
-                <div className="mono">{formatInt(currentPlayerStats.atk)}</div>
-                <kbd>HP</kbd>
-                <div className="mono">{formatInt(currentPlayerStats.health)}</div>
-                <kbd>ATK speed</kbd>
-                <div className="mono">{currentPlayerStats.atkSpeed.toFixed(2)}</div>
-                <kbd>Walk speed</kbd>
-                <div className="mono">{currentPlayerStats.walkSpeed.toFixed(2)}</div>
-                <kbd>Game speed</kbd>
-                <div className="mono">{currentPlayerStats.gameSpeed.toFixed(2)}</div>
-                <kbd>Crit</kbd>
-                <div className="mono">{currentPlayerStats.crit.toFixed(1)}%</div>
-                <kbd>Crit dmg</kbd>
-                <div className="mono">{currentPlayerStats.critDmg.toFixed(2)}×</div>
-                <kbd>Block</kbd>
-                <div className="mono">{formatPct01(currentPlayerStats.blockChance, 1)}</div>
-                <kbd>Prestige scale</kbd>
-                <div className="mono">{currentPlayerStats.prestigeBonusScale.toFixed(2)}</div>
-                <kbd>x2 money</kbd>
-                <div className="mono">{currentPlayerStats.x2Money.toFixed(2)}</div>
-                <kbd>x5 money</kbd>
-                <div className="mono">{currentPlayerStats.x5Money.toFixed(0)}%</div>
-              </div>
-            </Collapsible>
-
-            <div className="btnRow" style={{ marginTop: 0 }}>
-              <button className="btn" onClick={onOptimizeGuidedMc} disabled={running}>
-                Optimize (Guided MC)
-              </button>
-              <Tooltip
-                content={{
-                  title: "Optimize (Guided MC)",
-                  sections: [
-                    { heading: "How it works", lines: ["Tries many candidate allocations and evaluates them via simulation."] },
-                    { heading: "Total work", lines: ["Total simulations = N candidates × runs per combo."] },
-                  ],
-                }}
-              />
-              {running ? (
-                <button className="btn btnSecondary" onClick={onCancel}>
-                  Cancel
-                </button>
-              ) : null}
-            </div>
-
-            {running ? (
-              <div className="kv">
-                <kbd>Status</kbd>
-                <div className="mono">Running…</div>
-                <kbd>Progress</kbd>
-                <div className="mono">
-                  {progress ? (
-                    <>
-                      {progress.cur}/{progress.total} ({Math.floor((progress.cur / progress.total) * 100)}%)
-                    </>
-                  ) : (
-                    <>Starting…</>
-                  )}
-                </div>
-                <kbd>Current</kbd>
-                <div className="mono">{progress ? `Wave ${progress.curWave.toFixed(1)}` : "—"}</div>
-                <kbd>Best</kbd>
-                <div className="mono">{progress ? `Wave ${progress.bestWave.toFixed(1)}` : "—"}</div>
-                <kbd>Runs done</kbd>
-                <div className="mono">{progress ? formatInt(progress.cur * ui.mcRunsPerCombo) : "—"}</div>
-                <kbd>Total runs</kbd>
-                <div className="mono">{progress ? formatInt(progress.total * ui.mcRunsPerCombo) : "—"}</div>
-              </div>
-            ) : null}
-
-            <div className="small">
-              <span className="mono">
-                N={ui.mcCandidates} × runs={ui.mcRunsPerCombo} = {formatInt(ui.mcCandidates * ui.mcRunsPerCombo)} event sims
-              </span>
-            </div>
-          </div>
-
-          <div className="panel panelResults">
-            <div className="panelHeader">
-              <h2 className="panelTitle">Results</h2>
-              <p className="panelHint">{result ? "Calculated." : "Run the optimizer to see recommendations."}</p>
-            </div>
-
-            {error ? <div className="error">{error}</div> : null}
-
-            {result ? (
-              <>
-                <div className="kv" style={{ marginTop: 10 }}>
-                  <kbd>Estimated wave</kbd>
-                  <div className="mono">{result.expectedWave.toFixed(1)}</div>
-                  {mcStats?.bestWaveBand != null ? (
-                    <>
-                      <kbd>{mcStats.tieBreakByRewardMilestones ? "Reward milestone" : "Wave band"}</kbd>
-                      <div className="mono">{mcStats.bestWaveBand}</div>
-                      <kbd>Currency/h</kbd>
-                      <div className="mono">
-                        {Number(mcStats.bestCurrencyPerHour ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </div>
-                    </>
-                  ) : null}
-                  <kbd>Estimated time</kbd>
-                  <div className="mono">{formatTime(result.expectedTime)}</div>
-                  <kbd>Final ATK</kbd>
-                  <div className="mono">{formatInt(result.playerStats.atk)}</div>
-                  <kbd>Final HP</kbd>
-                  <div className="mono">{formatInt(result.playerStats.health)}</div>
-                </div>
-
-                <div className="sectionTitle">Upgrade plan</div>
-                <div className="btnRow">
-                  <button className="btn btnGood" onClick={onAddPoints} disabled={!result || appliedSinceLastOptimize}>
-                    {appliedSinceLastOptimize ? "Applied" : "Add Points!"}
-                  </button>
-                  <Tooltip
-                    content={{
-                      title: "Add Points!",
-                      sections: [
-                        { heading: "What it does", lines: ["Applies the recommended upgrade points to your current upgrade levels."] },
-                        { heading: "Note", lines: ["Disabled after applying, until you run Optimize again."] },
-                      ],
-                    }}
-                  />
-                </div>
-                {[1, 2, 3, 4].map((tier) => {
-                  const levels = result.upgrades.levels[tier as 1 | 2 | 3 | 4];
-                  const initial2 = lastInitialRef.current?.levels?.[tier as 1 | 2 | 3 | 4] ?? null;
-                  const picked = levels
-                    .map((lvl, idx) => ({ lvl, idx }))
-                    .filter((x) => (initial2 ? x.lvl > (initial2[x.idx] ?? 0) : x.lvl > 0))
-                    .map((x) => ({ ...x, add: initial2 ? x.lvl - (initial2[x.idx] ?? 0) : x.lvl }));
-                  const spent = result.materialsSpent[tier as 1 | 2 | 3 | 4];
-                  const remaining = result.materialsRemaining[tier as 1 | 2 | 3 | 4];
-                  return (
-                    <div className="tierBlock" key={tier}>
-                      <div className="tierHead">
-                        <p className="tierTitle">Tier {tier}</p>
-                        <p className="small">
-                          Spent {formatInt(spent)} • Remaining {formatInt(remaining)}
-                        </p>
-                      </div>
-                      {picked.length ? (
-                        <ul className="list">
-                          {picked.map(({ idx, add }) => (
-                            <li key={idx}>
-                              <span className="mono">{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono">{add}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <div className="small">No upgrades purchased in this tier.</div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <div className="sectionTitle">Recommendations</div>
-                <ul className="list">
-                  {result.recommendations.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
-                </ul>
-
-                {mcStats ? (
-                  <>
-                    <div className="sectionTitle">MC statistics</div>
-                    <div className="kv">
-                      <kbd>Mean wave</kbd>
-                      <div className="mono">{(mcStats.statistics.mean_wave ?? 0).toFixed(2)}</div>
-                      <kbd>Std dev wave</kbd>
-                      <div className="mono">{(mcStats.statistics.std_dev_wave ?? 0).toFixed(2)}</div>
-                      <kbd>Median wave</kbd>
-                      <div className="mono">{(mcStats.statistics.median_wave ?? 0).toFixed(2)}</div>
-                      <kbd>Wave range</kbd>
-                      <div className="mono">
-                        {(mcStats.statistics.min_wave ?? 0).toFixed(2)} - {(mcStats.statistics.max_wave ?? 0).toFixed(2)}
-                      </div>
-                      <kbd>Mean time</kbd>
-                      <div className="mono">{(mcStats.statistics.mean_time ?? 0).toFixed(2)}s</div>
-                      <kbd>Std dev time</kbd>
-                      <div className="mono">{(mcStats.statistics.std_dev_time ?? 0).toFixed(2)}s</div>
-                    </div>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <div className="small">Tip: your inputs are auto-saved in this browser.</div>
-            )}
           </div>
         </div>
       </div>

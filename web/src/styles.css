@@ -968,6 +968,21 @@ a:hover {
   white-space: nowrap;
 }
 
+/* Event Sim: top row = Currency budget + Results */
+.eventSimTop {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (min-width: 900px) {
+  .eventSimTop {
+    grid-template-columns: minmax(360px, 420px) 1fr;
+    align-items: start;
+  }
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1048,6 +1063,59 @@ a:hover {
   gap: 10px;
   font-size: 12px;
   color: var(--muted);
+}
+
+/* Event Sim: World Monuments – large, brown */
+.worldMonumentsBlock {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(139, 90, 43, 0.22) 0%, rgba(101, 67, 33, 0.28) 100%);
+  border: 2px solid rgba(139, 90, 43, 0.6);
+  border-radius: 14px;
+}
+
+.worldMonumentsLabel {
+  font-size: 18px;
+  font-weight: 800;
+  color: rgba(60, 40, 20, 0.95);
+  letter-spacing: 0.3px;
+}
+
+.worldMonumentsValue {
+  font-size: 22px;
+  font-weight: 900;
+  color: rgba(50, 32, 16, 0.98);
+}
+
+.worldMonumentsButtons {
+  display: flex;
+  gap: 6px;
+}
+
+.worldMonumentsButtons .btn {
+  min-width: 44px;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* Event Sim: prestige block – very subtle gray tint + light hatching */
+.prestigeBlock {
+  background: rgba(0, 0, 0, 0.03);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.02) 3px,
+    rgba(0, 0, 0, 0.02) 4px
+  );
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .prestigeLabel {

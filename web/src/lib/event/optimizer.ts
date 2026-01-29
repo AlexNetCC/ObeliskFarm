@@ -267,13 +267,13 @@ export function greedyOptimize(args: {
   );
 
   if (wavePusherMode) {
-    recommendations.push(`Final ATK: ${player.atk}`);
-    recommendations.push(`Final HP: ${player.health}`);
+    recommendations.push(`Attack (build): ${player.atk}`);
+    recommendations.push(`Max health (build): ${player.health}`);
     recommendations.push(`Estimated Max Wave: ${sim.avgWave.toFixed(1)}`);
     recommendations.push(`Estimated Time: ${sim.avgTime.toFixed(1)}s per run`);
   } else {
-    recommendations.push(`Final ATK: ${player.atk}`);
-    recommendations.push(`Final HP: ${player.health}`);
+    recommendations.push(`Attack (build): ${player.atk}`);
+    recommendations.push(`Max health (build): ${player.health}`);
     recommendations.push(`Estimated Wave: ${sim.avgWave.toFixed(1)}`);
     recommendations.push(`Estimated Time: ${sim.avgTime.toFixed(1)}s per run`);
   }
