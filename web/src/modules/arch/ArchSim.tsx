@@ -62,6 +62,8 @@ type McLogEntry = {
 
 type TieBreakReport = NonNullable<McLogEntry["mc"]>["tieBreak"];
 
+export type McComparisonMethodId = "default" | "multiStart3";
+
 type McSettings = {
   targetFrag: BlockType;
   // Developer-only tuning (hidden behind a checkbox in UI)
@@ -69,10 +71,21 @@ type McSettings = {
   screeningSims: number;
   refinementSims: number;
   combosMult: number; // multiplier for how many stat distributions are sampled
+  // Compare multiple search methods with same budget; each runs in sequence
+  comparisonEnabled: boolean;
+  comparisonMethods: McComparisonMethodId[];
 };
 
 function defaultMcSettings(): McSettings {
-  return { targetFrag: "common", devTuning: false, screeningSims: 150, refinementSims: 150, combosMult: 2 };
+  return {
+    targetFrag: "common",
+    devTuning: false,
+    screeningSims: 150,
+    refinementSims: 150,
+    combosMult: 2,
+    comparisonEnabled: false,
+    comparisonMethods: ["default", "multiStart3"],
+  };
 }
 
 function Sprite(props: { path: string | null; alt: string; className?: string; label?: string }) {
@@ -174,6 +187,11 @@ export function ArchSim() {
   const [mcRunning, setMcRunning] = useState(false);
   const [mcProgress, setMcProgress] = useState<string | null>(null);
   const [mcActiveMode, setMcActiveMode] = useState<null | "frag" | "XP" | "stage">(null);
+  const [comparisonResult, setComparisonResult] = useState<null | {
+    mode: "stage" | "XP" | "frag";
+    methodResults: Array<{ methodId: McComparisonMethodId; label: string; build: ArchBuild; primary: number }>;
+    winnerId: McComparisonMethodId;
+  }>(null);
   const cancelRef = useRef<{ cancelled: boolean; pool: WorkerPool | null }>({ cancelled: false, pool: null });
   const [mcSettings, setMcSettings] = useState<McSettings>(() => {
     const raw = (loadJson<any>(MC_SETTINGS_KEY) ?? null) as any;
@@ -185,6 +203,10 @@ export function ArchSim() {
       screeningSims: clampInt(Number(raw.screeningSims ?? base.screeningSims), 0, 999999),
       refinementSims: clampInt(Number(raw.refinementSims ?? base.refinementSims), 0, 999999),
       combosMult: clampInt(Number(raw.combosMult ?? base.combosMult), 1, 50),
+      comparisonEnabled: Boolean(raw.comparisonEnabled ?? base.comparisonEnabled),
+      comparisonMethods: Array.isArray(raw.comparisonMethods)
+        ? (raw.comparisonMethods as McComparisonMethodId[]).filter((m) => m === "default" || m === "multiStart3")
+        : base.comparisonMethods,
     };
   });
   function confirmDanger(message: string): boolean {
@@ -608,16 +630,28 @@ export function ArchSim() {
     return v;
   }
 
-  async function runMcOptimizer(mode: "frag" | "XP" | "stage") {
-    if (mcRunning) return;
-    cancelRef.current.cancelled = false;
-    setMcActiveMode(mode);
+  type RunMcOpts = { returnResult?: boolean; seedOffset?: number };
+
+  async function runMcOptimizer(mode: "frag" | "XP" | "stage", opts?: RunMcOpts): Promise<null | {
+    bestBuild: ArchBuild;
+    metrics: McLogEntry["metrics"];
+    objectiveSamples: number[];
+    tieBreak?: TieBreakReport;
+    primary: number;
+  }> {
+    if (mcRunning && !opts?.returnResult) return null;
+    if (!opts?.returnResult) {
+      cancelRef.current.cancelled = false;
+      setMcActiveMode(mode);
+    }
     const hc = typeof navigator !== "undefined" ? Number((navigator as any).hardwareConcurrency ?? 4) : 4;
     const workerCount = clampInt(Math.max(1, hc - 1), 1, 8);
     const pool = createWorkerPool(workerCount);
     cancelRef.current.pool = pool;
-    setMcRunning(true);
-    setMcProgress("Starting…");
+    if (!opts?.returnResult) {
+      setMcRunning(true);
+      setMcProgress("Starting…");
+    }
 
     const archLevel = clampInt(Number(build.archLevel ?? 0), 0, 999);
     // Always enabled (matches desktop; user should not toggle)
@@ -642,7 +676,7 @@ export function ArchSim() {
     const topRatio = 0.05;
     const requireStr = true;
 
-    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
+    const seedBase = ((Date.now() & 0x7fffffff) >>> 0) + (opts?.seedOffset ?? 0);
     const rng = mulberry32(seedBase);
 
     const cardCfg = { blockCards: build.blockCards, polychromeBonus: getPolychromeBonus() };
@@ -841,6 +875,11 @@ export function ArchSim() {
           },
           mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples },
         };
+        if (opts?.returnResult) {
+          const primary =
+            objectiveSamples.length > 0 ? objectiveSamples.reduce((a, b) => a + b, 0) / objectiveSamples.length : 0;
+          return { bestBuild: entry.build, metrics: entry.metrics, objectiveSamples, primary };
+        }
         setMcLog((xs) => [entry, ...xs]);
         setActiveLogId(entry.id);
         setMcProgress("Done.");
@@ -1019,6 +1058,11 @@ export function ArchSim() {
         },
         mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples, tieBreak: tieBreakReport },
       };
+      if (opts?.returnResult) {
+        const primary =
+          objectiveSamples.length > 0 ? objectiveSamples.reduce((a, b) => a + b, 0) / objectiveSamples.length : 0;
+        return { bestBuild: entry.build, metrics: entry.metrics, objectiveSamples, tieBreak: tieBreakReport, primary };
+      }
       setMcLog((xs) => [entry, ...xs]);
       setActiveLogId(entry.id);
       setMcProgress("Done.");
@@ -1031,9 +1075,68 @@ export function ArchSim() {
     } finally {
       pool.terminate();
       cancelRef.current.pool = null;
+      if (!opts?.returnResult) {
+        setMcRunning(false);
+        setMcActiveMode(null);
+      }
+    }
+    return null;
+  }
+
+  async function runComparison(mode: "frag" | "XP" | "stage") {
+    if (mcRunning) return;
+    cancelRef.current.cancelled = false;
+    setComparisonResult(null);
+    setMcActiveMode(mode);
+    setMcRunning(true);
+    const methods = mcSettings.comparisonMethods;
+    if (!methods.length) {
+      setMcProgress("No methods selected for comparison.");
+      setMcRunning(false);
+      setMcActiveMode(null);
+      return;
+    }
+    const methodResults: Array<{ methodId: McComparisonMethodId; label: string; build: ArchBuild; primary: number }> = [];
+    try {
+      for (const methodId of methods) {
+        if (cancelRef.current.cancelled) break;
+        if (methodId === "default") {
+          setMcProgress("Comparison: Default 2-phase…");
+          const r = await runMcOptimizer(mode, { returnResult: true, seedOffset: 0 });
+          if (r) methodResults.push({ methodId: "default", label: "Default 2-phase", build: r.bestBuild, primary: r.primary });
+        } else if (methodId === "multiStart3") {
+          const runs: Array<{ bestBuild: ArchBuild; primary: number }> = [];
+          for (let i = 0; i < 3; i += 1) {
+            if (cancelRef.current.cancelled) break;
+            setMcProgress(`Comparison: Multi-start (${i + 1}/3)…`);
+            const r = await runMcOptimizer(mode, { returnResult: true, seedOffset: (i + 1) * 1_000_000 });
+            if (r) runs.push({ bestBuild: r.bestBuild, primary: r.primary });
+          }
+          if (runs.length > 0) {
+            const best = runs.reduce((a, b) => (a.primary >= b.primary ? a : b));
+            methodResults.push({ methodId: "multiStart3", label: "Multi-start (3 seeds)", build: best.bestBuild, primary: best.primary });
+          }
+        }
+      }
+      if (cancelRef.current.cancelled) throw new Error("cancelled");
+      if (methodResults.length === 0) {
+        setMcProgress("No results from comparison.");
+        return;
+      }
+      const winner = methodResults.reduce((a, b) => (a.primary >= b.primary ? a : b));
+      setComparisonResult({ mode, methodResults, winnerId: winner.methodId });
+      setMcProgress("Done.");
+    } catch (e) {
+      if (String(e).includes("cancelled")) setMcProgress("Cancelled.");
+      else setMcProgress(e instanceof Error ? e.message : String(e));
+    } finally {
       setMcRunning(false);
       setMcActiveMode(null);
     }
+  }
+
+  function applyBuildToCurrent(b: ArchBuild) {
+    setBuild((prev) => ({ ...prev, skillPoints: { ...b.skillPoints } }));
   }
 
   function sampleStats(samples: number[]): { mean: number; std: number; min: number; max: number } {
@@ -2074,7 +2177,12 @@ export function ArchSim() {
                       </div>
                       <div className="small">Objective: maximize average max stage.</div>
                       <div className="btnRow" style={{ marginTop: 10 }}>
-                        <button className="btn" type="button" disabled={mcRunning} onClick={() => runMcOptimizer("stage")}>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={mcRunning}
+                          onClick={() => (mcSettings.comparisonEnabled && mcSettings.comparisonMethods.length >= 1 ? runComparison("stage") : runMcOptimizer("stage"))}
+                        >
                           Run MC
                         </button>
                         {mcRunning ? (
@@ -2107,7 +2215,12 @@ export function ArchSim() {
                       </div>
                       <div className="small">Objective: maximize XP/hour.</div>
                       <div className="btnRow" style={{ marginTop: 10 }}>
-                        <button className="btn" type="button" disabled={mcRunning} onClick={() => runMcOptimizer("XP")}>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={mcRunning}
+                          onClick={() => (mcSettings.comparisonEnabled && mcSettings.comparisonMethods.length >= 1 ? runComparison("XP") : runMcOptimizer("XP"))}
+                        >
                           Run MC
                         </button>
                         {mcRunning ? (
@@ -2174,7 +2287,12 @@ export function ArchSim() {
                         </div>
                       </div>
                       <div className="btnRow" style={{ marginTop: 10 }}>
-                        <button className="btn" type="button" disabled={mcRunning} onClick={() => runMcOptimizer("frag")}>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={mcRunning}
+                          onClick={() => (mcSettings.comparisonEnabled && mcSettings.comparisonMethods.length >= 1 ? runComparison("frag") : runMcOptimizer("frag"))}
+                        >
                           Run MC
                         </button>
                         {mcRunning ? (
@@ -2185,8 +2303,96 @@ export function ArchSim() {
                       </div>
                     </div>
                   </div>
-                </div>
 
+                  <div className="mcCompareSection" style={{ marginTop: 16 }}>
+                    <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={mcSettings.comparisonEnabled}
+                        disabled={mcRunning}
+                        onChange={(e) => setMcSettings((s) => ({ ...s, comparisonEnabled: e.target.checked }))}
+                      />
+                      <span>Compare methods (run selected methods in sequence, same params)</span>
+                      <Tooltip
+                        content={{
+                          title: "Compare methods",
+                          lines: [
+                            "Run multiple search methods with the same screening/refinement params.",
+                            "Each method runs in sequence; results are compared by primary metric.",
+                            "Multi-start runs the 2-phase search 3 times with different RNG seeds and keeps the best.",
+                          ],
+                        }}
+                      />
+                    </label>
+                    {mcSettings.comparisonEnabled ? (
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {(["default", "multiStart3"] as const).map((id) => (
+                          <label key={id} className="toggle" style={{ fontWeight: "normal" }}>
+                            <input
+                              type="checkbox"
+                              checked={mcSettings.comparisonMethods.includes(id)}
+                              disabled={mcRunning}
+                              onChange={(e) => {
+                                if (e.target.checked)
+                                  setMcSettings((s) => ({ ...s, comparisonMethods: [...s.comparisonMethods, id] }));
+                                else
+                                  setMcSettings((s) => ({ ...s, comparisonMethods: s.comparisonMethods.filter((m) => m !== id) }));
+                              }}
+                            />
+                            <span>{id === "default" ? "Default 2-phase" : "Multi-start (3 seeds)"}</span>
+                          </label>
+                        ))}
+                        <p className="small" style={{ margin: 0 }}>
+                          Multi-start runs the same 2-phase search 3 times with different seeds and keeps the best result.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {comparisonResult ? (
+                    <div className="panel" style={{ marginTop: 16, background: "var(--tier2)" }}>
+                      <div className="panelHeader">
+                        <h2 className="panelTitle">Comparison result</h2>
+                        <p className="panelHint">
+                          Primary: {comparisonResult.mode === "stage" ? "avg max stage" : comparisonResult.mode === "XP" ? "XP/h" : "target frag/h"}
+                        </p>
+                      </div>
+                      <table className="mcCompareTable" style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: "left", padding: "4px 8px" }}>Method</th>
+                            <th style={{ textAlign: "right", padding: "4px 8px" }}>Primary</th>
+                            <th style={{ padding: "4px 8px" }} />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {comparisonResult.methodResults.map((row) => (
+                            <tr key={row.methodId}>
+                              <td style={{ padding: "4px 8px" }}>
+                                {row.label}
+                                {row.methodId === comparisonResult.winnerId ? (
+                                  <span className="badge" style={{ marginLeft: 6 }}>best</span>
+                                ) : null}
+                              </td>
+                              <td style={{ textAlign: "right", padding: "4px 8px" }} className="mono">
+                                {row.primary.toFixed(2)}
+                              </td>
+                              <td style={{ padding: "4px 8px" }}>
+                                <button
+                                  type="button"
+                                  className="btn btnSecondary"
+                                  onClick={() => applyBuildToCurrent(row.build)}
+                                >
+                                  Apply
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </div>
                 <div className="mcLogPanel">
                   <div className="mcLogHeader">
                     <div className="mcLogTitle">MC Results Log</div>

@@ -48,3 +48,19 @@ export function getPrestigeWaveRequirement(prestige: number): number {
   return (prestige + 1) * 5;
 }
 
+/** Event reward waves: at these waves you get rewards. Used for tie-break band (highest reward wave reached). */
+export const EVENT_REWARD_WAVES: number[] = [
+  2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50,
+  55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 115, 130, 150, 200, 250,
+];
+
+/** Highest reward wave that is <= wave (0 if wave &lt; first reward). */
+export function getRewardBand(wave: number): number {
+  let band = 0;
+  for (const t of EVENT_REWARD_WAVES) {
+    if (t <= wave) band = t;
+    else break;
+  }
+  return band;
+}
+

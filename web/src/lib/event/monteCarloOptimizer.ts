@@ -1,7 +1,7 @@
 // Ported from ObeliskGemEV/event/monte_carlo_optimizer.py (guided single-core MC).
 
-import { COSTS } from "./constants";
-import { applyUpgrades, runFullSimulation } from "./simulation";
+import { COSTS, getRewardBand } from "./constants";
+import { applyUpgrades, runFullSimulation, calculateMaterials } from "./simulation";
 import { createBaseEnemyStats, type EnemyStats, type PlayerStats } from "./stats";
 import { greedyOptimize, type Budget, type UpgradeState, copyState, createEmptyState, getMaxLevelWithCaps, isUpgradeUnlocked } from "./optimizer";
 import { mulberry32 } from "../rng";
@@ -18,6 +18,13 @@ export interface MCOptimizationResult {
   enemyStats: EnemyStats;
   allResults: Array<{ state: UpgradeState; wave: number; time: number }>;
   statistics: Record<string, number>;
+  /** When band mode: effective band and currency/h used for tie-break. */
+  bestWaveBand?: number;
+  bestCurrencyPerHour?: number;
+  /** Set when band from fixed step (e.g. 5). */
+  waveBandStep?: number;
+  /** Set when band from reward milestones. */
+  tieBreakByRewardMilestones?: boolean;
 }
 
 type Rng = { random: () => number };
@@ -123,6 +130,10 @@ export function monteCarloOptimizeGuided(args: {
   eventRunsPerCombination?: number;
   seedBase?: number | null;
   progressCallback?: ProgressCallback | null;
+  /** Wave band step (e.g. 5): same band → tie-break by currency/h. 0 = off. */
+  waveBandStep?: number | null;
+  /** When true: band = highest reward wave reached (EVENT_REWARD_WAVES), tie-break by currency/h. */
+  useRewardMilestones?: boolean | null;
 }): MCOptimizationResult {
   const {
     budget,
@@ -132,7 +143,12 @@ export function monteCarloOptimizeGuided(args: {
     eventRunsPerCombination = 5,
     seedBase = null,
     progressCallback = null,
+    waveBandStep: waveBandStepArg = null,
+    useRewardMilestones = false,
   } = args;
+  const waveBandStep = waveBandStepArg != null && waveBandStepArg > 0 ? Math.trunc(waveBandStepArg) : 0;
+  const useReward = Boolean(useRewardMilestones);
+  const bandMode = useReward || waveBandStep > 0;
 
   const initialState = initialStateArg ? copyState(initialStateArg) : createEmptyState();
   const nCandidates = Math.max(1, Math.trunc(numRuns));
@@ -164,16 +180,37 @@ export function monteCarloOptimizeGuided(args: {
   let bestState: UpgradeState | null = null;
   let bestWave = -1;
   let bestTime = Number.POSITIVE_INFINITY;
+  let bestWaveBand = -1;
+  let bestCurrencyPerHour = -1;
 
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const cand = candidates[idx];
     const ev = evaluateStateSerial({ state: cand, prestige, runs, seed: seedBaseLocal + 10_000 + (idx + 1) });
     allResults.push({ state: copyState(cand), wave: ev.wave, time: ev.time });
 
-    if (ev.wave > bestWave || (ev.wave === bestWave && ev.time < bestTime)) {
+    const band = useReward ? getRewardBand(ev.wave) : waveBandStep > 0 ? Math.floor(ev.wave / waveBandStep) * waveBandStep : ev.wave;
+    const mats = ev.time > 0 ? calculateMaterials(ev.wave, ev.player) : { mat1: 0, mat2: 0, mat3: 0, mat4: 0 };
+    const totalMats = mats.mat1 + mats.mat2 + mats.mat3 + mats.mat4;
+    const currencyPerHour = ev.time > 0 ? totalMats * (3600 / ev.time) : 0;
+
+    let isBetter: boolean;
+    if (bandMode) {
+      isBetter = band > bestWaveBand || (band === bestWaveBand && currencyPerHour > bestCurrencyPerHour);
+      if (isBetter) {
+        bestWaveBand = band;
+        bestCurrencyPerHour = currencyPerHour;
+      }
+    } else {
+      isBetter = ev.wave > bestWave || (ev.wave === bestWave && ev.time < bestTime);
+    }
+    if (isBetter) {
       bestWave = ev.wave;
       bestTime = ev.time;
       bestState = copyState(cand);
+      if (!bandMode) {
+        bestWaveBand = ev.wave;
+        bestCurrencyPerHour = ev.time > 0 ? totalMats * (3600 / ev.time) : 0;
+      }
     }
 
     if (progressCallback) progressCallback(idx + 1, candidates.length, ev.wave, bestWave);
@@ -245,6 +282,196 @@ export function monteCarloOptimizeGuided(args: {
     enemyStats,
     allResults,
     statistics,
+    ...(bandMode
+      ? {
+          bestWaveBand,
+          bestCurrencyPerHour,
+          ...(waveBandStep > 0 ? { waveBandStep } : {}),
+          ...(useReward ? { tieBreakByRewardMilestones: true } : {}),
+        }
+      : {}),
+  };
+}
+
+/** Build grid of per-tier budget points: 0, step, 2*step, ... up to budget[t]. */
+function budgetGrid(budget: Budget, step: number): Array<{ 1: number; 2: number; 3: number; 4: number }> {
+  const s = Math.max(1, Math.trunc(step));
+  const p1 = [0]; for (let x = s; x <= budget[1]; x += s) p1.push(x);
+  const p2 = [0]; for (let x = s; x <= budget[2]; x += s) p2.push(x);
+  const p3 = [0]; for (let x = s; x <= budget[3]; x += s) p3.push(x);
+  const p4 = [0]; for (let x = s; x <= budget[4]; x += s) p4.push(x);
+  const out: Array<{ 1: number; 2: number; 3: number; 4: number }> = [];
+  for (const a of p1) for (const b of p2) for (const c of p3) for (const d of p4) {
+    out.push({ 1: a, 2: b, 3: c, 4: d });
+  }
+  return out;
+}
+
+/**
+ * Brute-force optimizer: grid over per-tier budgets, greedy allocation per point, then evaluate.
+ * Same selection logic (band + currency/h or wave + time) and return shape as guided MC.
+ */
+export function bruteForceOptimize(args: {
+  budget: Budget;
+  prestige: number;
+  initialState?: UpgradeState | null;
+  /** Budget step per tier (e.g. 200). Grid size = product of (floor(b[t]/step)+1); use larger step for big budgets. */
+  budgetStep?: number;
+  eventRunsPerCombination?: number;
+  seedBase?: number | null;
+  progressCallback?: ProgressCallback | null;
+  waveBandStep?: number | null;
+  useRewardMilestones?: boolean | null;
+  /** Max grid points to try; if grid is larger, step is increased. */
+  maxCandidates?: number;
+}): MCOptimizationResult {
+  const {
+    budget,
+    prestige,
+    initialState: initialStateArg = null,
+    budgetStep = 200,
+    eventRunsPerCombination = 5,
+    seedBase = null,
+    progressCallback = null,
+    waveBandStep: waveBandStepArg = null,
+    useRewardMilestones = false,
+    maxCandidates = 25000,
+  } = args;
+  const waveBandStep = waveBandStepArg != null && waveBandStepArg > 0 ? Math.trunc(waveBandStepArg) : 0;
+  const useReward = Boolean(useRewardMilestones);
+  const bandMode = useReward || waveBandStep > 0;
+  const initialState = initialStateArg ? copyState(initialStateArg) : createEmptyState();
+  const runs = Math.max(1, Math.trunc(eventRunsPerCombination));
+  const seedBaseLocal = (seedBase ?? (Date.now() & 0x7fffffff)) & 0x7fffffff;
+
+  let step = Math.max(1, Math.trunc(budgetStep));
+  let grid = budgetGrid(budget, step);
+  while (grid.length > maxCandidates && step < Math.max(budget[1], budget[2], budget[3], budget[4])) {
+    step = Math.min(step * 2, 99999);
+    grid = budgetGrid(budget, step);
+  }
+
+  const allResults: Array<{ state: UpgradeState; wave: number; time: number }> = [];
+  let bestState: UpgradeState | null = null;
+  let bestWave = -1;
+  let bestTime = Number.POSITIVE_INFINITY;
+  let bestWaveBand = -1;
+  let bestCurrencyPerHour = -1;
+
+  for (let idx = 0; idx < grid.length; idx += 1) {
+    const sub = grid[idx];
+    let cand: UpgradeState;
+    try {
+      const opt = greedyOptimize({
+        budget: { 1: sub[1], 2: sub[2], 3: sub[3], 4: sub[4] },
+        prestige,
+        initialState,
+        seed: seedBaseLocal + idx,
+      });
+      cand = opt.upgrades;
+    } catch {
+      continue;
+    }
+    const ev = evaluateStateSerial({ state: cand, prestige, runs, seed: seedBaseLocal + 50_000 + (idx + 1) });
+    allResults.push({ state: copyState(cand), wave: ev.wave, time: ev.time });
+
+    const band = useReward ? getRewardBand(ev.wave) : waveBandStep > 0 ? Math.floor(ev.wave / waveBandStep) * waveBandStep : ev.wave;
+    const mats = ev.time > 0 ? calculateMaterials(ev.wave, ev.player) : { mat1: 0, mat2: 0, mat3: 0, mat4: 0 };
+    const totalMats = mats.mat1 + mats.mat2 + mats.mat3 + mats.mat4;
+    const currencyPerHour = ev.time > 0 ? totalMats * (3600 / ev.time) : 0;
+
+    let isBetter: boolean;
+    if (bandMode) {
+      isBetter = band > bestWaveBand || (band === bestWaveBand && currencyPerHour > bestCurrencyPerHour);
+      if (isBetter) {
+        bestWaveBand = band;
+        bestCurrencyPerHour = currencyPerHour;
+      }
+    } else {
+      isBetter = ev.wave > bestWave || (ev.wave === bestWave && ev.time < bestTime);
+    }
+    if (isBetter) {
+      bestWave = ev.wave;
+      bestTime = ev.time;
+      bestState = copyState(cand);
+      if (!bandMode) {
+        bestWaveBand = ev.wave;
+        bestCurrencyPerHour = ev.time > 0 ? totalMats * (3600 / ev.time) : 0;
+      }
+    }
+
+    if (progressCallback) progressCallback(idx + 1, grid.length, ev.wave, bestWave);
+  }
+
+  const waves = allResults.map((r) => r.wave);
+  const times = allResults.map((r) => r.time);
+  const wavesSorted = waves.slice().sort((a, b) => a - b);
+  const timesSorted = times.slice().sort((a, b) => a - b);
+  const n = waves.length;
+
+  const meanWave = n ? waves.reduce((a, b) => a + b, 0) / n : 0;
+  const meanTime = n ? times.reduce((a, b) => a + b, 0) / n : 0;
+  const stdDevWave = n > 1 ? Math.sqrt(waves.reduce((acc, w) => acc + (w - meanWave) ** 2, 0) / (n - 1)) : 0;
+  const stdDevTime = n > 1 ? Math.sqrt(times.reduce((acc, t) => acc + (t - meanTime) ** 2, 0) / (n - 1)) : 0;
+  const medianWave = n ? wavesSorted[Math.floor(n / 2)] : 0;
+  const medianTime = n ? timesSorted[Math.floor(n / 2)] : 0;
+  const p5Wave = n ? wavesSorted[Math.floor(n * 0.05)] : 0;
+  const p95Wave = n ? wavesSorted[Math.floor(n * 0.95)] : 0;
+
+  const best = bestState ?? initialState;
+
+  const materialsSpent: Budget = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  const materialsRemaining: Budget = { 1: budget[1], 2: budget[2], 3: budget[3], 4: budget[4] };
+  for (const tier of [1, 2, 3, 4] as const) {
+    for (let uidx = 0; uidx < COSTS[tier].length; uidx += 1) {
+      const initialLevel = initialState.levels[tier][uidx] ?? 0;
+      const finalLevel = best.levels[tier][uidx] ?? 0;
+      for (let level = initialLevel; level < finalLevel; level += 1) {
+        const cost = Math.round(COSTS[tier][uidx] * 1.25 ** level);
+        materialsSpent[tier] += cost;
+        materialsRemaining[tier] -= cost;
+      }
+    }
+  }
+
+  const { playerStats, enemyStats } = (() => {
+    const { player, enemy } = applyUpgrades(best.levels, prestige, best.gemLevels);
+    return { playerStats: player, enemyStats: enemy };
+  })();
+
+  const statistics: Record<string, number> = {
+    mean_wave: meanWave,
+    median_wave: medianWave,
+    std_dev_wave: stdDevWave,
+    min_wave: n ? Math.min(...waves) : 0,
+    max_wave: n ? Math.max(...waves) : 0,
+    p5_wave: p5Wave,
+    p95_wave: p95Wave,
+    mean_time: meanTime,
+    median_time: medianTime,
+    std_dev_time: stdDevTime,
+    min_time: n ? Math.min(...times) : 0,
+    max_time: n ? Math.max(...times) : 0,
+  };
+
+  return {
+    bestState: best,
+    bestWave,
+    bestTime,
+    materialsSpent,
+    materialsRemaining,
+    playerStats,
+    enemyStats,
+    allResults,
+    statistics,
+    ...(bandMode
+      ? {
+          bestWaveBand,
+          bestCurrencyPerHour,
+          ...(waveBandStep > 0 ? { waveBandStep } : {}),
+          ...(useReward ? { tieBreakByRewardMilestones: true } : {}),
+        }
+      : {}),
   };
 }
 

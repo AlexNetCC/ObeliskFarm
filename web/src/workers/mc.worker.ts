@@ -10,6 +10,10 @@ type StartMessage = {
     numCandidates: number;
     runsPerCombo: number;
     seedBase: number | null;
+    /** Wave band step (e.g. 5): same band → tie-break by currency/h. 0 = off. */
+    waveBandStep?: number | null;
+    /** When true: band = highest reward wave reached (EVENT_REWARD_WAVES), tie-break by currency/h. */
+    useRewardMilestones?: boolean | null;
   };
 };
 
@@ -29,7 +33,7 @@ self.onmessage = (ev: MessageEvent<InMessage>) => {
 
   cancelled = false;
 
-  const { budget, prestige, initialState, numCandidates, runsPerCombo, seedBase } = msg.payload;
+  const { budget, prestige, initialState, numCandidates, runsPerCombo, seedBase, waveBandStep, useRewardMilestones } = msg.payload;
 
   try {
     const res = monteCarloOptimizeGuided({
@@ -39,6 +43,8 @@ self.onmessage = (ev: MessageEvent<InMessage>) => {
       numRuns: numCandidates,
       eventRunsPerCombination: runsPerCombo,
       seedBase,
+      waveBandStep: waveBandStep ?? null,
+      useRewardMilestones: useRewardMilestones ?? null,
       progressCallback: (cur, total, curWave, bestWave) => {
         if (cancelled) throw new Error("cancelled");
         if (cur % 10 === 0 || cur === total) {

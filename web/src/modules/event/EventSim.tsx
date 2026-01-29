@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { formatInt, formatTime } from "../../lib/format";
 import { loadJson, saveJson } from "../../lib/storage";
 import { COSTS, GEM_UPGRADE_NAMES, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
@@ -11,7 +12,8 @@ import {
   type UpgradeState,
 } from "../../lib/event/optimizer";
 import { monteCarloOptimizeGuided, type MCOptimizationResult } from "../../lib/event/monteCarloOptimizer";
-import { applyUpgrades, getGemMaxLevel } from "../../lib/event/simulation";
+import { applyUpgrades, getGemMaxLevel, runFullSimulation } from "../../lib/event/simulation";
+import { mulberry32 } from "../../lib/rng";
 import { assetUrl } from "../../lib/assets";
 import { currencyIconFilename, gemUpgradeIconFilename, upgradeIconFilename } from "../../lib/event/icons";
 import { Collapsible } from "../../components/Collapsible";
@@ -19,19 +21,69 @@ import { Tooltip } from "../../components/Tooltip";
 
 type SavedStateV1 = { prestige: number; upgrade_levels: Record<string, number[]>; gem_levels: number[] };
 
+export type EventMcComparisonMethodId = "default" | "multiStart3" | "wide" | "stable" | "wideMulti2";
+
+function getMethodConfig(
+  methodId: EventMcComparisonMethodId,
+  baseN: number,
+  baseR: number
+): { numCandidates: number; runsPerCombo: number; seeds: number } {
+  switch (methodId) {
+    case "default":
+      return { numCandidates: baseN, runsPerCombo: baseR, seeds: 1 };
+    case "multiStart3":
+      return { numCandidates: baseN, runsPerCombo: baseR, seeds: 3 };
+    case "wide":
+      return { numCandidates: Math.min(40000, baseN * 2), runsPerCombo: baseR, seeds: 1 };
+    case "stable":
+      return { numCandidates: baseN, runsPerCombo: Math.min(1000, baseR * 2), seeds: 1 };
+    case "wideMulti2":
+      return { numCandidates: Math.min(40000, baseN * 2), runsPerCombo: baseR, seeds: 2 };
+    default:
+      return { numCandidates: baseN, runsPerCombo: baseR, seeds: 1 };
+  }
+}
+
+function getMethodLabel(methodId: EventMcComparisonMethodId): string {
+  switch (methodId) {
+    case "default":
+      return "Default (1 run)";
+    case "multiStart3":
+      return "Multi-start (3 seeds)";
+    case "wide":
+      return "Wide (2×N)";
+    case "stable":
+      return "Stable (2×runs/combo)";
+    case "wideMulti2":
+      return "Wide + Multi-start (2 seeds)";
+    default:
+      return String(methodId);
+  }
+}
+
+const COMPARISON_METHOD_IDS: EventMcComparisonMethodId[] = ["default", "multiStart3", "wide", "stable", "wideMulti2"];
+
+/** Set to true to show "Developer: Compare algorithms" button and modal. */
+const SHOW_COMPARISON = false;
+
 type UiState = {
   prestige: number;
-  // Budgets (NOT saved, mirroring desktop save behavior)
   budget1: string;
   budget2: string;
   budget3: string;
   budget4: string;
-  // Upgrade editor state (saved)
   upgrades: UpgradeState;
-  // MC controls
   mcCandidates: number;
   mcRunsPerCombo: number;
+  /** Wave band step (e.g. 5): same band → tie-break by currency/h. 0 = off. */
+  waveBandStep: number;
+  /** When true: band = highest reward wave reached (EVENT_REWARD_WAVES), tie-break by currency/h. */
+  useRewardMilestones: boolean;
   devOnlyMcTuning: boolean;
+  // Developer comparison (only used in sub-window)
+  comparisonMethods: EventMcComparisonMethodId[];
+  comparisonReplicates: number;
+  comparisonValidationSims: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:event_budget_save.json:v1";
@@ -124,7 +176,12 @@ export function EventSim() {
       upgrades: base,
       mcCandidates: 2000,
       mcRunsPerCombo: 500,
+      waveBandStep: 0,
+      useRewardMilestones: true,
       devOnlyMcTuning: false,
+      comparisonMethods: ["default", "multiStart3"],
+      comparisonReplicates: 3,
+      comparisonValidationSims: 0,
     };
   }, []);
 
@@ -137,8 +194,53 @@ export function EventSim() {
   const [mcMeta, setMcMeta] = useState<{ startedAt: number; totalSims: number } | null>(null);
   const [appliedSinceLastOptimize, setAppliedSinceLastOptimize] = useState(false);
   const [resetUpgradesArmed, setResetUpgradesArmed] = useState(false);
+  type ComparisonReplicateRow = {
+    methodId: EventMcComparisonMethodId;
+    replicateIndex: number;
+    bestWave: number;
+    validationWave?: number;
+    result: OptimizationResult;
+    statistics: Record<string, number>;
+    bestWaveBand?: number;
+    bestCurrencyPerHour?: number;
+  };
+
+  type ComparisonMethodSummary = {
+    methodId: EventMcComparisonMethodId;
+    label: string;
+    replicates: ComparisonReplicateRow[];
+    summary: {
+      meanBest: number;
+      stdBest: number;
+      minBest: number;
+      maxBest: number;
+      medianBest: number;
+      meanVal?: number;
+      stdVal?: number;
+    };
+  };
+
+  const [comparisonResult, setComparisonResult] = useState<null | {
+    methodResults: ComparisonMethodSummary[];
+    winnerId: EventMcComparisonMethodId;
+  }>(null);
+  const [comparisonWindowOpen, setComparisonWindowOpen] = useState(false);
   const workerRef = useRef<Worker | null>(null);
   const lastInitialRef = useRef<UpgradeState | null>(null);
+  const comparisonRunRef = useRef<{
+    active: boolean;
+    methods: EventMcComparisonMethodId[];
+    methodIndex: number;
+    replicateIndex: number;
+    multiStartRun: number;
+    results: ComparisonReplicateRow[];
+    budget: Budget;
+    prestige: number;
+    baseN: number;
+    baseR: number;
+    replicates: number;
+    validationSims: number;
+  } | null>(null);
 
   function confirmDanger(message: string): boolean {
     try {
@@ -172,6 +274,15 @@ export function EventSim() {
     return () => window.clearTimeout(t);
   }, [resetUpgradesArmed]);
 
+  useEffect(() => {
+    if (!comparisonWindowOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setComparisonWindowOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [comparisonWindowOpen]);
+
   const totalPoints = useMemo(() => {
     return ([1, 2, 3, 4] as const).reduce((acc, tier) => acc + ui.upgrades.levels[tier].reduce((a, b) => a + b, 0), 0);
   }, [ui.upgrades]);
@@ -181,6 +292,202 @@ export function EventSim() {
     const gemLevels = (ui.upgrades.gemLevels ?? [0, 0, 0, 0]) as unknown as [number, number, number, number];
     return applyUpgrades(ui.upgrades.levels as unknown as Record<number, number[]>, prestige, gemLevels).player;
   }, [ui.prestige, ui.upgrades]);
+
+  function ensureWorker() {
+    if (workerRef.current) return;
+    workerRef.current = new Worker(new URL("../../workers/mc.worker.ts", import.meta.url), { type: "module" });
+    workerRef.current.onmessage = (ev: MessageEvent<any>) => {
+      const msg = ev.data;
+      if (msg?.type === "progress") {
+        setProgress(msg.payload);
+        return;
+      }
+      if (msg?.type === "done") {
+        const r: MCOptimizationResult = msg.payload;
+        const bandMode = r.bestWaveBand != null;
+        const byReward = r.tieBreakByRewardMilestones === true;
+        const recs = [
+          "Monte Carlo Optimization (guided MC)",
+          `N=${ui.mcCandidates} candidates, ${ui.mcRunsPerCombo} runs/combo`,
+          `Best Wave: ${r.bestWave.toFixed(1)}`,
+          ...(bandMode
+            ? [
+                byReward
+                  ? `Reward milestone: ${r.bestWaveBand} (tie-break by currency/h)`
+                  : `Wave band: ${r.bestWaveBand} (step ${r.waveBandStep ?? 0}; tie-break by currency/h)`,
+                `Currency/h: ${Number(r.bestCurrencyPerHour).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+              ]
+            : []),
+          `Average Wave: ${(r.statistics.mean_wave ?? 0).toFixed(1)} ± ${(r.statistics.std_dev_wave ?? 0).toFixed(1)}`,
+          `Wave Range: ${(r.statistics.min_wave ?? 0).toFixed(1)} - ${(r.statistics.max_wave ?? 0).toFixed(1)}`,
+          `Median Wave: ${(r.statistics.median_wave ?? 0).toFixed(1)}`,
+        ];
+        const optResult: OptimizationResult = {
+          upgrades: r.bestState,
+          expectedWave: r.bestWave,
+          expectedTime: r.bestTime,
+          materialsSpent: r.materialsSpent,
+          materialsRemaining: r.materialsRemaining,
+          playerStats: r.playerStats,
+          enemyStats: r.enemyStats,
+          recommendations: recs,
+          breakpoints: [],
+        };
+        const comp = comparisonRunRef.current;
+        if (comp?.active) {
+          const cfg = getMethodConfig(comp.methods[comp.methodIndex]!, comp.baseN, comp.baseR);
+          if (comp.multiStartRun + 1 < cfg.seeds) {
+            comp.multiStartRun += 1;
+            workerRef.current?.postMessage({
+              type: "start",
+              payload: {
+                budget: comp.budget,
+                prestige: comp.prestige,
+                initialState: ui.upgrades,
+                numCandidates: cfg.numCandidates,
+                runsPerCombo: cfg.runsPerCombo,
+                seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10 + (comp.multiStartRun + 1),
+                waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
+                useRewardMilestones: ui.useRewardMilestones ?? false,
+              },
+            });
+            setProgress(null);
+            return;
+          }
+          let validationWave: number | undefined;
+          if (comp.validationSims > 0 && r.bestState) {
+            const prestige = comp.prestige;
+            const { player, enemy } = applyUpgrades(r.bestState.levels, prestige, r.bestState.gemLevels);
+            const seed = (Date.now() & 0x7fffffff) + comp.methodIndex * 1000 + comp.replicateIndex;
+            const sim = runFullSimulation(player, enemy, comp.validationSims, mulberry32(seed));
+            validationWave = sim.avgWave;
+          }
+          comp.results.push({
+            methodId: comp.methods[comp.methodIndex]!,
+            replicateIndex: comp.replicateIndex,
+            bestWave: r.bestWave,
+            validationWave,
+            result: optResult,
+            statistics: r.statistics ?? {},
+            bestWaveBand: r.bestWaveBand,
+            bestCurrencyPerHour: r.bestCurrencyPerHour,
+          });
+          comp.replicateIndex += 1;
+          comp.multiStartRun = 0;
+          if (comp.replicateIndex < comp.replicates) {
+            const sameCfg = getMethodConfig(comp.methods[comp.methodIndex]!, comp.baseN, comp.baseR);
+            workerRef.current?.postMessage({
+              type: "start",
+              payload: {
+                budget: comp.budget,
+                prestige: comp.prestige,
+                initialState: ui.upgrades,
+                numCandidates: sameCfg.numCandidates,
+                runsPerCombo: sameCfg.runsPerCombo,
+                seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10,
+                waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
+                useRewardMilestones: ui.useRewardMilestones ?? false,
+              },
+            });
+            setProgress(null);
+            return;
+          }
+          comp.replicateIndex = 0;
+          comp.methodIndex += 1;
+          if (comp.methodIndex < comp.methods.length) {
+            const nextCfg = getMethodConfig(comp.methods[comp.methodIndex]!, comp.baseN, comp.baseR);
+            workerRef.current?.postMessage({
+              type: "start",
+              payload: {
+                budget: comp.budget,
+                prestige: comp.prestige,
+                initialState: ui.upgrades,
+                numCandidates: nextCfg.numCandidates,
+                runsPerCombo: nextCfg.runsPerCombo,
+                seedBase: 1_000_000 + comp.methodIndex * 500,
+                waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
+                useRewardMilestones: ui.useRewardMilestones ?? false,
+              },
+            });
+            setProgress(null);
+            return;
+          }
+          const byMethod = new Map<EventMcComparisonMethodId, ComparisonReplicateRow[]>();
+          for (const row of comp.results) {
+            const arr = byMethod.get(row.methodId) ?? [];
+            arr.push(row);
+            byMethod.set(row.methodId, arr);
+          }
+          function sumStats(values: number[]) {
+            if (!values.length) return { mean: 0, std: 0, min: 0, max: 0, median: 0 };
+            const mean = values.reduce((a, b) => a + b, 0) / values.length;
+            const std = values.length > 1 ? Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / (values.length - 1)) : 0;
+            const sorted = values.slice().sort((a, b) => a - b);
+            return {
+              mean,
+              std,
+              min: Math.min(...values),
+              max: Math.max(...values),
+              median: sorted[Math.floor(sorted.length / 2)] ?? 0,
+            };
+          }
+          const methodResults: ComparisonMethodSummary[] = [];
+          for (const methodId of comp.methods) {
+            const rows = byMethod.get(methodId) ?? [];
+            if (rows.length === 0) continue;
+            const bestWaves = rows.map((x) => x.bestWave);
+            const valWaves = rows.map((x) => x.validationWave).filter((v): v is number => v != null);
+            const sBest = sumStats(bestWaves);
+            const sVal = valWaves.length > 0 ? sumStats(valWaves) : undefined;
+            methodResults.push({
+              methodId,
+              label: getMethodLabel(methodId),
+              replicates: rows,
+              summary: {
+                meanBest: sBest.mean,
+                stdBest: sBest.std,
+                minBest: sBest.min,
+                maxBest: sBest.max,
+                medianBest: sBest.median,
+                meanVal: sVal?.mean,
+                stdVal: sVal?.std,
+              },
+            });
+          }
+          const winner = methodResults.reduce((a, b) => (a.summary.meanBest >= b.summary.meanBest ? a : b), methodResults[0]!);
+          const winnerResult = winner.replicates[0]?.result ?? optResult;
+          setComparisonResult({ methodResults, winnerId: winner.methodId });
+          setResult(winnerResult);
+          setMcStats(r);
+          setAppliedSinceLastOptimize(false);
+          comparisonRunRef.current = null;
+        } else {
+          setResult(optResult);
+          setMcStats(r);
+          setAppliedSinceLastOptimize(false);
+        }
+        setRunning(false);
+        setProgress(null);
+        setMcMeta(null);
+        return;
+      }
+      if (msg?.type === "cancelled") {
+        comparisonRunRef.current = null;
+        setRunning(false);
+        setProgress(null);
+        setMcMeta(null);
+        return;
+      }
+      if (msg?.type === "error") {
+        comparisonRunRef.current = null;
+        setRunning(false);
+        setProgress(null);
+        setMcMeta(null);
+        setError(msg.payload?.message ?? "MC failed.");
+        return;
+      }
+    };
+  }
 
   function onOptimizeGuidedMc() {
     setError(null);
@@ -203,63 +510,12 @@ export function EventSim() {
 
     const prestige = clampInt(ui.prestige, 0, 999);
 
-    // Prefer worker to keep UI responsive. Fallback to main-thread if worker fails.
     try {
       lastInitialRef.current = copyState(ui.upgrades);
-      if (!workerRef.current) {
-        workerRef.current = new Worker(new URL("../../workers/mc.worker.ts", import.meta.url), { type: "module" });
-        workerRef.current.onmessage = (ev: MessageEvent<any>) => {
-          const msg = ev.data;
-          if (msg?.type === "progress") {
-            setProgress(msg.payload);
-            return;
-          }
-          if (msg?.type === "done") {
-            setRunning(false);
-            setProgress(null);
-            setMcMeta(null);
-            const r: MCOptimizationResult = msg.payload;
-            setMcStats(r);
-            setAppliedSinceLastOptimize(false);
-            // Convert to OptimizationResult-ish view (like desktop does)
-            setResult({
-              upgrades: r.bestState,
-              expectedWave: r.bestWave,
-              expectedTime: r.bestTime,
-              materialsSpent: r.materialsSpent,
-              materialsRemaining: r.materialsRemaining,
-              playerStats: r.playerStats,
-              enemyStats: r.enemyStats,
-              recommendations: [
-                "Monte Carlo Optimization (guided MC)",
-                `N=${ui.mcCandidates} candidates, ${ui.mcRunsPerCombo} runs/combo`,
-                `Best Wave: ${r.bestWave.toFixed(1)}`,
-                `Average Wave: ${(r.statistics.mean_wave ?? 0).toFixed(1)} ± ${(r.statistics.std_dev_wave ?? 0).toFixed(1)}`,
-                `Wave Range: ${(r.statistics.min_wave ?? 0).toFixed(1)} - ${(r.statistics.max_wave ?? 0).toFixed(1)}`,
-                `Median Wave: ${(r.statistics.median_wave ?? 0).toFixed(1)}`,
-              ],
-              breakpoints: [],
-            });
-            return;
-          }
-          if (msg?.type === "cancelled") {
-            setRunning(false);
-            setProgress(null);
-            setMcMeta(null);
-            return;
-          }
-          if (msg?.type === "error") {
-            setRunning(false);
-            setProgress(null);
-            setMcMeta(null);
-            setError(msg.payload?.message ?? "MC failed.");
-            return;
-          }
-        };
-      }
-
+      ensureWorker();
+      comparisonRunRef.current = null;
       setRunning(true);
-      setMcMeta({ startedAt: Date.now(), totalSims: Math.max(1, clampInt(ui.mcCandidates, 1, 20000)) * Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 500)) });
+      setMcMeta({ startedAt: Date.now(), totalSims: Math.max(1, clampInt(ui.mcCandidates, 1, 20000)) * Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 2000)) });
       workerRef.current.postMessage({
         type: "start",
         payload: {
@@ -267,8 +523,10 @@ export function EventSim() {
           prestige,
           initialState: ui.upgrades,
           numCandidates: Math.max(1, clampInt(ui.mcCandidates, 1, 20000)),
-          runsPerCombo: Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 500)),
+          runsPerCombo: Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 2000)),
           seedBase: null,
+          waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
+          useRewardMilestones: ui.useRewardMilestones ?? false,
         },
       });
     } catch (e) {
@@ -281,12 +539,32 @@ export function EventSim() {
           prestige,
           initialState: ui.upgrades,
           numRuns: ui.mcCandidates,
-          eventRunsPerCombination: ui.mcRunsPerCombo,
+          eventRunsPerCombination: Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 2000)),
           seedBase: null,
+          waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
+          useRewardMilestones: ui.useRewardMilestones ?? false,
           progressCallback: (cur: number, total2: number, curWave: number, bestWave: number) => {
             if (cur % 25 === 0 || cur === total2) setProgress({ cur, total: total2, curWave, bestWave });
           },
         });
+        const bandMode = r.bestWaveBand != null;
+        const byReward = r.tieBreakByRewardMilestones === true;
+        const recs = [
+          "Monte Carlo Optimization (guided MC)",
+          `N=${ui.mcCandidates} candidates, ${ui.mcRunsPerCombo} runs/combo`,
+          `Best Wave: ${r.bestWave.toFixed(1)}`,
+          ...(bandMode
+            ? [
+                byReward
+                  ? `Reward milestone: ${r.bestWaveBand} (tie-break by currency/h)`
+                  : `Wave band: ${r.bestWaveBand} (step ${r.waveBandStep ?? 0}; tie-break by currency/h)`,
+                `Currency/h: ${Number(r.bestCurrencyPerHour).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+              ]
+            : []),
+          `Average Wave: ${(r.statistics.mean_wave ?? 0).toFixed(1)} ± ${(r.statistics.std_dev_wave ?? 0).toFixed(1)}`,
+          `Wave Range: ${(r.statistics.min_wave ?? 0).toFixed(1)} - ${(r.statistics.max_wave ?? 0).toFixed(1)}`,
+          `Median Wave: ${(r.statistics.median_wave ?? 0).toFixed(1)}`,
+        ];
         setMcStats(r);
         setAppliedSinceLastOptimize(false);
         setResult({
@@ -297,14 +575,7 @@ export function EventSim() {
           materialsRemaining: r.materialsRemaining,
           playerStats: r.playerStats,
           enemyStats: r.enemyStats,
-          recommendations: [
-            "Monte Carlo Optimization (guided MC)",
-            `N=${ui.mcCandidates} candidates, ${ui.mcRunsPerCombo} runs/combo`,
-            `Best Wave: ${r.bestWave.toFixed(1)}`,
-            `Average Wave: ${(r.statistics.mean_wave ?? 0).toFixed(1)} ± ${(r.statistics.std_dev_wave ?? 0).toFixed(1)}`,
-            `Wave Range: ${(r.statistics.min_wave ?? 0).toFixed(1)} - ${(r.statistics.max_wave ?? 0).toFixed(1)}`,
-            `Median Wave: ${(r.statistics.median_wave ?? 0).toFixed(1)}`,
-          ],
+          recommendations: recs,
           breakpoints: [],
         });
       } catch (err) {
@@ -315,6 +586,70 @@ export function EventSim() {
         setMcMeta(null);
       }
     }
+  }
+
+  function onRunComparison() {
+    const methods = (ui.comparisonMethods ?? []).filter((m) => COMPARISON_METHOD_IDS.includes(m));
+    if (methods.length === 0) {
+      setError("Select at least one algorithm in the Developer comparison window.");
+      return;
+    }
+    const budget: Budget = {
+      1: Math.max(0, parseNumber(ui.budget1)),
+      2: Math.max(0, parseNumber(ui.budget2)),
+      3: Math.max(0, parseNumber(ui.budget3)),
+      4: Math.max(0, parseNumber(ui.budget4)),
+    };
+    const total = budget[1] + budget[2] + budget[3] + budget[4];
+    if (total <= 0) {
+      setError("Please enter at least some currency.");
+      return;
+    }
+    const prestige = clampInt(ui.prestige, 0, 999);
+    const baseN = Math.max(1, clampInt(ui.mcCandidates, 1, 20000));
+    const baseR = Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 2000));
+    setError(null);
+    setProgress(null);
+    setComparisonResult(null);
+    lastInitialRef.current = copyState(ui.upgrades);
+    ensureWorker();
+    setRunning(true);
+    const replicates = Math.max(1, clampInt(ui.comparisonReplicates ?? 3, 1, 10));
+    const validationSims = Math.max(0, clampInt(ui.comparisonValidationSims ?? 0, 0, 2000));
+    const totalSims =
+      methods.reduce((sum, m) => {
+        const cfg = getMethodConfig(m, baseN, baseR);
+        return sum + replicates * cfg.seeds * cfg.numCandidates * cfg.runsPerCombo;
+      }, 0) + (validationSims > 0 ? methods.length * replicates * validationSims : 0);
+    setMcMeta({ startedAt: Date.now(), totalSims });
+    comparisonRunRef.current = {
+      active: true,
+      methods,
+      methodIndex: 0,
+      replicateIndex: 0,
+      multiStartRun: 0,
+      results: [],
+      budget,
+      prestige,
+      baseN,
+      baseR,
+      replicates,
+      validationSims,
+    };
+    const firstCfg = getMethodConfig(methods[0]!, baseN, baseR);
+    workerRef.current.postMessage({
+      type: "start",
+      payload: {
+        budget,
+        prestige,
+        initialState: ui.upgrades,
+        numCandidates: firstCfg.numCandidates,
+        runsPerCombo: firstCfg.runsPerCombo,
+        seedBase: 1_000_000,
+        waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
+        useRewardMilestones: ui.useRewardMilestones ?? false,
+      },
+    });
   }
 
   function onCancel() {
@@ -350,6 +685,12 @@ export function EventSim() {
     if (!result) return;
     // Apply recommended levels directly (same intent as "✨ Add Points!" in Tk GUI).
     setUi((s) => ({ ...s, upgrades: copyState(result.upgrades) }));
+    setAppliedSinceLastOptimize(true);
+  }
+
+  function applyComparisonResult(optResult: OptimizationResult) {
+    setUi((s) => ({ ...s, upgrades: copyState(optResult.upgrades) }));
+    setResult(optResult);
     setAppliedSinceLastOptimize(true);
   }
 
@@ -633,10 +974,72 @@ export function EventSim() {
                   className="input"
                   type="number"
                   min={1}
+                  max={2000}
                   step={1}
                   disabled={!ui.devOnlyMcTuning}
                   value={ui.mcRunsPerCombo}
-                  onChange={(e) => setUi((s) => ({ ...s, mcRunsPerCombo: clampInt(Number(e.target.value), 1, 500) }))}
+                  onChange={(e) => setUi((s) => ({ ...s, mcRunsPerCombo: clampInt(Number(e.target.value), 1, 2000) }))}
+                />
+              </div>
+              <label className="toggle" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={ui.useRewardMilestones}
+                  onChange={(e) => setUi((s) => ({ ...s, useRewardMilestones: e.target.checked }))}
+                />
+                <span>
+                  Tie-break by reward milestones (currency/h)
+                  <Tooltip
+                    content={{
+                      title: "Tie-break by reward milestones",
+                      sections: [
+                        {
+                          heading: "What it does",
+                          lines: [
+                            "Band = highest reward wave you reach (e.g. 40 = Seasonal Miner, 42 = 5 Blue Cows).",
+                            "Among builds that reach the same reward wave, the one with more currency per hour wins.",
+                          ],
+                        },
+                        {
+                          heading: "Off",
+                          lines: ["Uncheck to use a fixed wave step instead, or no tie-break (wave + time only)."],
+                        },
+                      ],
+                    }}
+                  />
+                </span>
+              </label>
+              <div className="row">
+                <div className="label">
+                  <span>
+                    Wave band step (if reward milestones off)
+                    <Tooltip
+                      content={{
+                        title: "Wave band step",
+                        sections: [
+                          {
+                            heading: "When to use",
+                            lines: [
+                              "Only used when 'Tie-break by reward milestones' is off.",
+                              "E.g. step 5: waves 40–44 count as same band; tie-break by currency/h.",
+                            ],
+                          },
+                          { heading: "Off", lines: ["0 = no tie-break. Optimizer picks by highest wave and shortest time only."] },
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="mono">{ui.waveBandStep}</span>
+                </div>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  max={20}
+                  step={1}
+                  disabled={ui.useRewardMilestones}
+                  value={ui.waveBandStep}
+                  onChange={(e) => setUi((s) => ({ ...s, waveBandStep: clampInt(Number(e.target.value), 0, 20) }))}
                 />
               </div>
             </div>
@@ -651,6 +1054,28 @@ export function EventSim() {
                 }}
               />
             </label>
+
+            {SHOW_COMPARISON ? (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn btnSecondary"
+                  onClick={() => setComparisonWindowOpen(true)}
+                  disabled={running}
+                >
+                  Developer: Compare algorithms
+                </button>
+                <Tooltip
+                  content={{
+                    title: "Developer: Compare algorithms",
+                    lines: [
+                      "Opens a sub-window to run and compare multiple MC algorithms (e.g. Wide 2×N, Stable 2×runs, Multi-start).",
+                      "For debugging and tuning; results and upgrade differences are shown in the sub-window.",
+                    ],
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -801,6 +1226,16 @@ export function EventSim() {
                 <div className="kv" style={{ marginTop: 10 }}>
                   <kbd>Estimated wave</kbd>
                   <div className="mono">{result.expectedWave.toFixed(1)}</div>
+                  {mcStats?.bestWaveBand != null ? (
+                    <>
+                      <kbd>{mcStats.tieBreakByRewardMilestones ? "Reward milestone" : "Wave band"}</kbd>
+                      <div className="mono">{mcStats.bestWaveBand}</div>
+                      <kbd>Currency/h</kbd>
+                      <div className="mono">
+                        {Number(mcStats.bestCurrencyPerHour ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </div>
+                    </>
+                  ) : null}
                   <kbd>Estimated time</kbd>
                   <div className="mono">{formatTime(result.expectedTime)}</div>
                   <kbd>Final ATK</kbd>
@@ -891,6 +1326,307 @@ export function EventSim() {
           </div>
         </div>
       </div>
+
+      {SHOW_COMPARISON && comparisonWindowOpen
+        ? createPortal(
+            <div
+              className="modalOverlay"
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}
+              onMouseDown={() => setComparisonWindowOpen(false)}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="comparison-modal-title"
+            >
+              <div
+                className="panel"
+                style={{
+                  maxWidth: 960,
+                  maxHeight: "90vh",
+                  overflow: "auto",
+                  margin: 16,
+                  background: "#e3f2fd",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+                  borderRadius: 8,
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="panelHeader" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <h2 id="comparison-modal-title" className="panelTitle">Developer: Compare algorithms</h2>
+                    <p className="panelHint">Run multiple MC algorithms with same base N/runs; compare stats and upgrade suggestions. Algorithms may use 2×N or 2×runs.</p>
+                  </div>
+                  <button type="button" className="btn btnSecondary" onClick={() => setComparisonWindowOpen(false)}>
+                    Close
+                  </button>
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <div className="label" style={{ marginBottom: 8 }}>Algorithms to run (same budget / base params)</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    {COMPARISON_METHOD_IDS.map((id) => {
+                      const methods = ui.comparisonMethods ?? [];
+                      return (
+                        <label key={id} className="toggle" style={{ fontWeight: "normal" }}>
+                          <input
+                            type="checkbox"
+                            checked={methods.includes(id)}
+                            disabled={running}
+                            onChange={(e) => {
+                              if (e.target.checked) setUi((s) => ({ ...s, comparisonMethods: [...(s.comparisonMethods ?? []), id] }));
+                              else setUi((s) => ({ ...s, comparisonMethods: (s.comparisonMethods ?? []).filter((m) => m !== id) }));
+                            }}
+                          />
+                          <span>{getMethodLabel(id)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 12, alignItems: "center" }}>
+                    <div className="row">
+                      <div className="label">
+                        <span>Replicates per algorithm</span>
+                        <span className="mono">{ui.comparisonReplicates ?? 3}</span>
+                      </div>
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        max={10}
+                        disabled={running}
+                        value={ui.comparisonReplicates ?? 3}
+                        onChange={(e) => setUi((s) => ({ ...s, comparisonReplicates: clampInt(Number(e.target.value), 1, 10) }))}
+                      />
+                    </div>
+                    <div className="row">
+                      <div className="label">
+                        <span>Validation sims (0 = off)</span>
+                        <span className="mono">{ui.comparisonValidationSims ?? 0}</span>
+                      </div>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        max={2000}
+                        disabled={running}
+                        value={ui.comparisonValidationSims ?? 0}
+                        onChange={(e) => setUi((s) => ({ ...s, comparisonValidationSims: clampInt(Number(e.target.value), 0, 2000) }))}
+                      />
+                    </div>
+                <span className="small" style={{ maxWidth: 320 }}>
+                  Replicates = how often each algorithm is run (reproducibility). Use 5–10 if the winner varies between runs. Validation = extra sims on best candidate (predictability).
+                </span>
+              </div>
+              <div className="btnRow" style={{ marginTop: 12 }}>
+                <button type="button" className="btn" onClick={onRunComparison} disabled={running || (ui.comparisonMethods ?? []).length === 0}>
+                  Run comparison
+                </button>
+                {running ? (
+                  <button type="button" className="btn btnSecondary" onClick={onCancel}>
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
+              {running && progress ? (
+                <div className="kv" style={{ marginTop: 12 }}>
+                  <kbd>Progress</kbd>
+                  <div className="mono">{progress.cur}/{progress.total} ({Math.floor((progress.cur / progress.total) * 100)}%)</div>
+                  <kbd>Best wave</kbd>
+                  <div className="mono">{progress.bestWave.toFixed(1)}</div>
+                </div>
+              ) : null}
+            </div>
+
+            {comparisonResult ? (
+              <>
+                <div className="sectionTitle" style={{ marginTop: 24 }}>Reproducibility &amp; winner (sustainable best = highest mean across replicates)</div>
+                <p className="small" style={{ marginTop: 4, marginBottom: 8 }}>
+                  Winner can vary between runs when mean differences are small. Use more replicates (e.g. 5–10) for a stable ranking.
+                </p>
+                {(() => {
+                  const sorted = [...comparisonResult.methodResults].sort((a, b) => b.summary.meanBest - a.summary.meanBest);
+                  const first = sorted[0];
+                  const second = sorted[1];
+                  const diff = first && second ? first.summary.meanBest - second.summary.meanBest : 0;
+                  const pooledStd = first && second
+                    ? Math.sqrt((first.summary.stdBest ** 2 + second.summary.stdBest ** 2) / 2)
+                    : 0;
+                  const withinNoise = pooledStd > 0 && diff < 1.5 * pooledStd;
+                  return withinNoise ? (
+                    <p className="small" style={{ marginBottom: 8, padding: "8px 10px", background: "rgba(255,180,0,0.15)", borderRadius: 6 }}>
+                      <strong>Top 2 within noise</strong> (diff = {diff.toFixed(2)}, pooled std ≈ {pooledStd.toFixed(2)}). Run more replicates for a stable ranking, or pick by <strong>lowest Std(val)</strong> for predictability (build generalizes best).
+                    </p>
+                  ) : null;
+                })()}
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse", marginTop: 8 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Method</th>
+                        <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Mean(best)</th>
+                        <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Std(best)</th>
+                        <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Min–Max</th>
+                        <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Median</th>
+                        {comparisonResult.methodResults.some((m) => m.replicates[0]?.bestWaveBand != null) ? (
+                          <>
+                            <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Reward band</th>
+                            <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Currency/h</th>
+                          </>
+                        ) : null}
+                        {comparisonResult.methodResults.some((m) => m.summary.meanVal != null) ? (
+                          <>
+                            <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Mean(val)</th>
+                            <th style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>Std(val)</th>
+                          </>
+                        ) : null}
+                        <th style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)" }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonResult.methodResults.map((row) => {
+                        const rep0 = row.replicates[0];
+                        return (
+                          <tr key={row.methodId}>
+                            <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>
+                              {row.label}
+                              {row.methodId === comparisonResult.winnerId ? <span className="badge" style={{ marginLeft: 6 }}>sustainable best</span> : null}
+                            </td>
+                            <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">{row.summary.meanBest.toFixed(2)}</td>
+                            <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">{row.summary.stdBest.toFixed(2)}</td>
+                            <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">{row.summary.minBest.toFixed(1)}–{row.summary.maxBest.toFixed(1)}</td>
+                            <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">{row.summary.medianBest.toFixed(1)}</td>
+                            {comparisonResult.methodResults.some((m) => m.replicates[0]?.bestWaveBand != null) ? (
+                              <>
+                                <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">
+                                  {rep0?.bestWaveBand != null ? rep0.bestWaveBand : "—"}
+                                </td>
+                                <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">
+                                  {rep0?.bestCurrencyPerHour != null
+                                    ? Number(rep0.bestCurrencyPerHour).toLocaleString(undefined, { maximumFractionDigits: 0 })
+                                    : "—"}
+                                </td>
+                              </>
+                            ) : null}
+                            {comparisonResult.methodResults.some((m) => m.summary.meanVal != null) ? (
+                              <>
+                                <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">
+                                  {row.summary.meanVal != null ? row.summary.meanVal.toFixed(2) : "—"}
+                                </td>
+                                <td style={{ textAlign: "right", padding: "6px 8px", borderBottom: "1px solid var(--border)" }} className="mono">
+                                  {row.summary.stdVal != null ? row.summary.stdVal.toFixed(2) : "—"}
+                                </td>
+                              </>
+                            ) : null}
+                            <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>
+                              {rep0 ? (
+                                <button type="button" className="btn btnSecondary" onClick={() => applyComparisonResult(rep0.result)}>Apply</button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="sectionTitle" style={{ marginTop: 24 }}>Plot: best wave per replicate (reproducibility)</div>
+                <p className="small" style={{ marginTop: 4 }}>Each point = one replicate. Lower std = more reproducible. Sustainable best = highest mean.</p>
+                {(() => {
+                  const W = 700;
+                  const H = 260;
+                  const padL = 50;
+                  const padR = 20;
+                  const padT = 20;
+                  const padB = 36;
+                  const plotW = W - padL - padR;
+                  const plotH = H - padT - padB;
+                  const methods = comparisonResult.methodResults;
+                  const allWaves = methods.flatMap((m) => m.replicates.map((r) => r.bestWave));
+                  const yMin = Math.min(...allWaves, 0);
+                  const yMax = Math.max(...allWaves, 1);
+                  const yRange = yMax - yMin || 1;
+                  const yScale = (v: number) => padT + plotH - ((v - yMin) / yRange) * plotH;
+                  const jitter = 12;
+                  return (
+                    <svg width={W} height={H} style={{ display: "block", marginTop: 8 }} aria-label="Best wave per replicate by algorithm">
+                      <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke="var(--border, #ccc)" strokeWidth={1} />
+                      <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke="var(--border, #ccc)" strokeWidth={1} />
+                      {[yMin, yMin + yRange * 0.25, yMin + yRange * 0.5, yMin + yRange * 0.75, yMax].map((v, i) => (
+                        <g key={i}>
+                          <line x1={padL - 4} y1={yScale(v)} x2={padL} y2={yScale(v)} stroke="var(--border, #ccc)" strokeWidth={1} />
+                          <text x={padL - 8} y={yScale(v) + 4} textAnchor="end" fontSize={10} fill="var(--text, #333)">{v.toFixed(1)}</text>
+                        </g>
+                      ))}
+                      {methods.map((method, mi) => {
+                        const bandW = plotW / methods.length;
+                        const cx = padL + bandW * (mi + 0.5);
+                        const meanY = yScale(method.summary.meanBest);
+                        return (
+                          <g key={method.methodId}>
+                            <line x1={cx - bandW / 2 + jitter} y1={meanY} x2={cx + bandW / 2 - jitter} y2={meanY} stroke="var(--good, #2e7d32)" strokeWidth={2} strokeDasharray="4,2" />
+                            {method.replicates.map((rep, ri) => {
+                              const j = (ri / Math.max(1, method.replicates.length)) * 2 * jitter - jitter;
+                              return (
+                                <circle key={ri} cx={cx + j} cy={yScale(rep.bestWave)} r={4} fill={method.methodId === comparisonResult.winnerId ? "var(--good, #2e7d32)" : "var(--tier2, #64748b)"} />
+                              );
+                            })}
+                            <text x={cx} y={padT + plotH + 20} textAnchor="middle" fontSize={10} fill="var(--text, #333)" style={{ maxWidth: bandW - 8 }}>{method.label}</text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  );
+                })()}
+
+                <div className="sectionTitle" style={{ marginTop: 24 }}>Upgrade comparison (representative = first replicate per algorithm)</div>
+                <p className="small" style={{ marginTop: 4 }}>Each column is one algorithm; differing values are highlighted.</p>
+                <div style={{ overflowX: "auto", marginTop: 8 }}>
+                  <table style={{ width: "100%", minWidth: 400, borderCollapse: "collapse", fontSize: "0.9em" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "4px 8px", borderBottom: "1px solid var(--border)" }}>Upgrade</th>
+                        {comparisonResult.methodResults.map((row) => (
+                          <th key={row.methodId} style={{ textAlign: "right", padding: "4px 8px", borderBottom: "1px solid var(--border)" }}>{row.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {([1, 2, 3, 4] as const).flatMap((tier) => {
+                        const arr = comparisonResult.methodResults[0]?.replicates[0]?.result.upgrades.levels[tier] ?? [];
+                        return arr.map((_, idx) => {
+                          const levels = comparisonResult.methodResults.map((m) => m.replicates[0]?.result.upgrades.levels[tier]?.[idx] ?? 0);
+                          const allSame = levels.length <= 1 || levels.every((l) => l === levels[0]);
+                          const name = UPGRADE_SHORT_NAMES[tier]?.[idx] ?? `[${idx}]`;
+                          return (
+                            <tr key={`${tier}-${idx}`}>
+                              <td style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)" }}>T{tier} {name}</td>
+                              {comparisonResult.methodResults.map((row) => (
+                                <td
+                                  key={row.methodId}
+                                  style={{
+                                    textAlign: "right",
+                                    padding: "4px 8px",
+                                    borderBottom: "1px solid var(--border)",
+                                    backgroundColor: !allSame ? "rgba(255,200,0,0.12)" : undefined,
+                                  }}
+                                  className="mono"
+                                >
+                                  {row.replicates[0]?.result.upgrades.levels[tier]?.[idx] ?? 0}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        });
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
