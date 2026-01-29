@@ -546,9 +546,6 @@ export function GemEv() {
                 max={100}
                 decimals={1}
               />
-              <p className="small" style={{ margin: "4px 0 0" }}>
-                5 rolls (fixed).
-              </p>
 
               <div className="gemEvDivider" />
 
