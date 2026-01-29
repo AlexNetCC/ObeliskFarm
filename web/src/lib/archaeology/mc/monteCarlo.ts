@@ -533,6 +533,8 @@ export function stageSimsDetailed(args: {
   return { max_stage_samples, metrics_samples };
 }
 
+const FRAG_TYPES_ORDER: readonly string[] = ["common", "rare", "epic", "legendary", "mythic"];
+
 export function fragmentSimsSummary(args: {
   stats: any;
   starting_floor: number;
@@ -541,25 +543,34 @@ export function fragmentSimsSummary(args: {
   cardCfg: CardConfig | null;
   seed: number;
   target_frag: string;
-}): { avg_frag_per_hour: number; xp_per_hour: number } {
+}): {
+  avg_frag_per_hour: number;
+  xp_per_hour: number;
+  frag_per_hour_by_type: Record<string, number>;
+} {
   const rng = mulberry32(args.seed >>> 0);
   const sim = new MonteCarloArchaeologySimulator(rng);
-  let sumFrag = 0;
+  const t = String(args.target_frag);
+  const sumsByType: Record<string, number> = {};
+  for (const k of FRAG_TYPES_ORDER) sumsByType[k] = 0;
   let sumXp = 0;
   let sumDur = 0;
-  const t = String(args.target_frag);
   for (let i = 0; i < Math.max(0, Math.trunc(args.n_sims)); i += 1) {
     const r = sim.simulateRun(args.stats, args.starting_floor, { ...args.options, return_block_metrics: false }, args.cardCfg) as McRunMetrics;
-    const frag = Number(r.fragments?.[t] ?? 0);
     const dur = Number(r.run_duration_seconds ?? 1);
     const runs_per_hour = dur > 0 ? 3600.0 / dur : 0;
-    sumFrag += frag * runs_per_hour;
+    for (const k of FRAG_TYPES_ORDER) {
+      const frag = Number(r.fragments?.[k] ?? 0);
+      sumsByType[k] += frag * runs_per_hour;
+    }
     sumXp += Number(r.xp_per_run ?? 0);
     sumDur += dur;
   }
   const n = Math.max(1, Math.trunc(args.n_sims));
-  const avg_frag_per_hour = sumFrag / n;
+  const frag_per_hour_by_type: Record<string, number> = {};
+  for (const k of FRAG_TYPES_ORDER) frag_per_hour_by_type[k] = sumsByType[k] / n;
+  const avg_frag_per_hour = frag_per_hour_by_type[t] ?? 0;
   const xp_per_hour = sumDur > 0 ? (sumXp * 3600.0) / sumDur : 0;
-  return { avg_frag_per_hour, xp_per_hour };
+  return { avg_frag_per_hour, xp_per_hour, frag_per_hour_by_type };
 }
 

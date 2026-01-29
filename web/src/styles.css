@@ -778,6 +778,14 @@ body {
   align-items: center;
 }
 
+.tbBarLineWithIcon {
+  grid-template-columns: auto 1fr auto;
+}
+
+.tbBarFragIcon {
+  flex-shrink: 0;
+}
+
 .tbBar {
   height: 14px;
   border-radius: 999px;

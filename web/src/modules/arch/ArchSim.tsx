@@ -48,6 +48,7 @@ type McLogEntry = {
       primaryMetric: string;
       tiedAtPrimary: number;
       winnerReason: string;
+      targetFrag?: BlockType; // for frag mode: primary metric fragment type
       top3: Array<{
         label: string;
         primary: number;
@@ -211,7 +212,7 @@ export function ArchSim() {
           lines: [
             "Max stage: primary = avg max stage, secondary = fragments/hour, tertiary = XP/hour.",
             "XP/hour: primary = XP/hour, secondary = fragments/hour, tertiary = avg max stage.",
-            "Fragments/hour: primary = fragments/hour, secondary = XP/hour.",
+            "Fragments/hour: primary = target fragment/h, secondary = next-smaller fragment/h, tertiary = next-smaller (e.g. Epic → Rare → Common).",
           ],
         },
         {
@@ -626,6 +627,7 @@ export function ArchSim() {
     const refinementSims = mcSettings.devTuning ? clampInt(Number(mcSettings.refinementSims ?? defaultRefinement), 0, 999999) : defaultRefinement;
     const combosMult = mcSettings.devTuning ? clampInt(Number(mcSettings.combosMult ?? 1), 1, 50) : 1;
     const targetFrag = mcSettings.targetFrag;
+    const FRAG_ORDER: readonly BlockType[] = ["common", "rare", "epic", "legendary", "mythic"];
 
     const caps: Record<Skill, number> = {
       strength: Math.min(archLevel, getSkillPointCap(build, "strength")),
@@ -661,8 +663,11 @@ export function ArchSim() {
           payload: { stats: stats2, starting_floor: 1, n_sims: simN, options, cardCfg, seed, target_frag: targetFrag },
         });
         const fragPerH = Number(out.avg_frag_per_hour ?? 0);
-        const xpPerH = Number(out.xp_per_hour ?? 0);
-        scores.push({ dist, primary: fragPerH, secondary: xpPerH, tertiary: null });
+        const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
+        const idx = FRAG_ORDER.indexOf(targetFrag);
+        const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
+        const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+        scores.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
         return;
       }
       const out = await pool.run({
@@ -717,9 +722,16 @@ export function ArchSim() {
         const tail = hasTertiary ? "tie-break by secondary then tertiary" : hasSecondary ? "tie-break by secondary" : "tie-break (lexicographic)";
         winnerReason = `primary within 3% → ${tail}`;
       } else if (tiedAtPrimary > 1 && mode === "frag") {
-        winnerReason = hasSecondary
-          ? "primary within 3% → tie-break by secondary (xp/h)"
-          : "primary within 3%; winner = highest primary among tied";
+        const idx = FRAG_ORDER.indexOf(targetFrag);
+        const secLabel = idx > 0 ? FRAG_ORDER[idx - 1].toUpperCase() : null;
+        const terLabel = idx > 1 ? FRAG_ORDER[idx - 2].toUpperCase() : null;
+        const tail =
+          hasTertiary && secLabel && terLabel
+            ? `tie-break by ${secLabel}/h then ${terLabel}/h`
+            : hasSecondary && secLabel
+              ? `tie-break by ${secLabel}/h`
+              : "tie-break (lexicographic)";
+        winnerReason = `primary within 3% → ${tail}`;
       }
       const top3 = cands.slice(0, 3).map((c, i) => ({
         label: `#${i + 1}`,
@@ -728,7 +740,15 @@ export function ArchSim() {
         tertiary: c.tertiary ?? undefined,
         dist: candToDistMap(c.dist),
       }));
-      return { mode, epsilon: eps, primaryMetric, tiedAtPrimary, winnerReason, top3 };
+      return {
+        mode,
+        epsilon: eps,
+        primaryMetric,
+        tiedAtPrimary,
+        winnerReason,
+        ...(mode === "frag" ? { targetFrag } : {}),
+        top3,
+      };
     }
 
     try {
@@ -871,8 +891,11 @@ export function ArchSim() {
                   payload: { stats: stats2, starting_floor: 1, n_sims: refinementSims, options, cardCfg, seed: seedBase + 100_000 + a * 100 + j, target_frag: targetFrag },
                 });
                 const fragPerH = Number(out.avg_frag_per_hour ?? 0);
-                const xpPerH = Number(out.xp_per_hour ?? 0);
-                refined.push({ dist, primary: fragPerH, secondary: xpPerH, tertiary: null });
+                const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
+                const idx = FRAG_ORDER.indexOf(targetFrag);
+                const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
+                const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+                refined.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
                 return;
               }
               const out = await pool.run({
@@ -1187,11 +1210,31 @@ export function ArchSim() {
     );
   }
 
+  function getFragIconPath(t: BlockType): string {
+    return t === "common"
+      ? "sprites/archaeology/fragmentcommon.png"
+      : t === "rare"
+        ? "sprites/archaeology/fragmentrare.png"
+        : t === "epic"
+          ? "sprites/archaeology/fragmentepic.png"
+          : t === "legendary"
+            ? "sprites/archaeology/fragmentlegendary.png"
+            : "sprites/archaeology/fragmentmythic.png";
+  }
+
   function renderTieBreakBars(tb: NonNullable<TieBreakReport>): ReactNode {
     if (!tb?.top3?.length) return null;
     // Match desktop visual: grouped horizontal bars with legend outside plot.
     const rows = tb.top3;
-    type Series = { key: string; label: string; barClass: string; valueFmt: (v: number) => string; get: (r: (typeof rows)[number]) => number };
+    const FRAG_ORDER_BAR: readonly BlockType[] = ["common", "rare", "epic", "legendary", "mythic"];
+    type Series = {
+      key: string;
+      label: string;
+      barClass: string;
+      valueFmt: (v: number) => string;
+      get: (r: (typeof rows)[number]) => number;
+      fragType?: BlockType;
+    };
 
     const series: Series[] =
       tb.mode === "stage"
@@ -1204,10 +1247,47 @@ export function ArchSim() {
               { key: "frags", label: "Fragments/h", barClass: "tbBarFrag", valueFmt: (v) => v.toFixed(2), get: (r) => Number(r.secondary ?? 0) },
               { key: "stage", label: "Avg max stage", barClass: "tbBarStage", valueFmt: (v) => v.toFixed(2), get: (r) => Number(r.tertiary ?? 0) },
             ]
-          : [
-              { key: "frags", label: "Fragments/h", barClass: "tbBarFrag", valueFmt: (v) => v.toFixed(2), get: (r) => Number(r.primary ?? 0) },
-              { key: "xp", label: "XP/h", barClass: "tbBarXp", valueFmt: (v) => v.toFixed(1), get: (r) => Number(r.secondary ?? 0) },
-            ];
+          : tb.mode === "frag" && tb.targetFrag
+            ? (() => {
+                const idx = FRAG_ORDER_BAR.indexOf(tb.targetFrag);
+                const arr: Series[] = [
+                  {
+                    key: "primary",
+                    label: `${tb.targetFrag.toUpperCase()}/h`,
+                    barClass: "tbBarFrag",
+                    valueFmt: (v) => v.toFixed(2),
+                    get: (r) => Number(r.primary ?? 0),
+                    fragType: tb.targetFrag,
+                  },
+                ];
+                if (idx > 0) {
+                  const sec = FRAG_ORDER_BAR[idx - 1];
+                  arr.push({
+                    key: "secondary",
+                    label: `${sec.toUpperCase()}/h`,
+                    barClass: "tbBarFrag",
+                    valueFmt: (v) => v.toFixed(2),
+                    get: (r) => Number(r.secondary ?? 0),
+                    fragType: sec,
+                  });
+                }
+                if (idx > 1) {
+                  const ter = FRAG_ORDER_BAR[idx - 2];
+                  arr.push({
+                    key: "tertiary",
+                    label: `${ter.toUpperCase()}/h`,
+                    barClass: "tbBarFrag",
+                    valueFmt: (v) => v.toFixed(2),
+                    get: (r) => Number(r.tertiary ?? 0),
+                    fragType: ter,
+                  });
+                }
+                return arr;
+              })()
+            : [
+                { key: "frags", label: "Fragments/h", barClass: "tbBarFrag", valueFmt: (v) => v.toFixed(2), get: (r) => Number(r.primary ?? 0) },
+                { key: "xp", label: "XP/h", barClass: "tbBarXp", valueFmt: (v) => v.toFixed(1), get: (r) => Number(r.secondary ?? 0) },
+              ];
 
     const maxByKey: Record<string, number> = {};
     for (const s of series) {
@@ -1216,13 +1296,14 @@ export function ArchSim() {
 
     const labelFor = (r: (typeof rows)[number]) => {
       const d = r.dist;
-      const parts: string[] = [];
-      if (d.strength) parts.push(`STR:${d.strength}`);
-      if (d.agility) parts.push(`AGI:${d.agility}`);
-      if (d.perception) parts.push(`PER:${d.perception}`);
-      if (d.intellect) parts.push(`INT:${d.intellect}`);
-      if (d.luck) parts.push(`LCK:${d.luck}`);
-      return `${r.label}: ${parts.join(" | ") || "All 0"}`;
+      const parts = [
+        `STR:${d.strength ?? 0}`,
+        `AGI:${d.agility ?? 0}`,
+        `PER:${d.perception ?? 0}`,
+        `INT:${d.intellect ?? 0}`,
+        `LCK:${d.luck ?? 0}`,
+      ];
+      return `${r.label}: ${parts.join(" | ")}`;
     };
 
     return (
@@ -1238,7 +1319,10 @@ export function ArchSim() {
                     const max = maxByKey[s.key] ?? 1;
                     const pct = Math.max(0, Math.min(1, max > 0 ? v / max : 0));
                     return (
-                      <div key={s.key} className="tbBarLine">
+                      <div key={s.key} className={`tbBarLine ${s.fragType != null ? "tbBarLineWithIcon" : ""}`}>
+                        {s.fragType != null ? (
+                          <Sprite path={getFragIconPath(s.fragType)} alt="" className="iconSmall tbBarFragIcon" />
+                        ) : null}
                         <div className={`tbBar ${s.barClass}`} style={{ width: `${(pct * 100).toFixed(1)}%` }} />
                         <div className="tbValue mono">{s.valueFmt(v)}</div>
                       </div>
@@ -1253,8 +1337,17 @@ export function ArchSim() {
           <div className="tbLegendTitle">Legend</div>
           {series.map((s) => (
             <div key={s.key} className="tbLegendItem">
-              <span className={`tbSwatch ${s.barClass === "tbBarFrag" ? "tbSwatchFrag" : s.barClass === "tbBarXp" ? "tbSwatchXp" : "tbSwatchStage"}`} />{" "}
-              {s.label}
+              {s.fragType != null ? (
+                <>
+                  <Sprite path={getFragIconPath(s.fragType)} alt="" className="iconSmall" />
+                  <span className="tbLegendLabel">{s.label}</span>
+                </>
+              ) : (
+                <>
+                  <span className={`tbSwatch ${s.barClass === "tbBarFrag" ? "tbSwatchFrag" : s.barClass === "tbBarXp" ? "tbSwatchXp" : "tbSwatchStage"}`} />{" "}
+                  {s.label}
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -2328,7 +2421,7 @@ export function ArchSim() {
                                 </>
                               ) : null}
                               <div className="mono" style={{ marginTop: 4 }}>
-                                STR {c.dist.strength} • AGI {c.dist.agility} • PER {c.dist.perception} • INT {c.dist.intellect} • LCK {c.dist.luck}
+                                STR {c.dist.strength ?? 0} • AGI {c.dist.agility ?? 0} • PER {c.dist.perception ?? 0} • INT {c.dist.intellect ?? 0} • LCK {c.dist.luck ?? 0}
                               </div>
                             </li>
                           ))}
