@@ -883,7 +883,7 @@ export function ArchSim() {
         setMcLog((xs) => [entry, ...xs]);
         setActiveLogId(entry.id);
         setMcProgress("Done.");
-        return;
+        return null;
       }
 
       const phase1Sims = screeningSims > 0 ? screeningSims : Math.max(1, refinementSims);

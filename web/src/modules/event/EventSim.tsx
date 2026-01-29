@@ -516,7 +516,12 @@ export function EventSim() {
       comparisonRunRef.current = null;
       setRunning(true);
       setMcMeta({ startedAt: Date.now(), totalSims: Math.max(1, clampInt(ui.mcCandidates, 1, 20000)) * Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 2000)) });
-      workerRef.current.postMessage({
+      const w = workerRef.current;
+      if (!w) {
+        setRunning(false);
+        return;
+      }
+      w.postMessage({
         type: "start",
         payload: {
           budget,
@@ -637,7 +642,9 @@ export function EventSim() {
       validationSims,
     };
     const firstCfg = getMethodConfig(methods[0]!, baseN, baseR);
-    workerRef.current.postMessage({
+    const w = workerRef.current;
+    if (!w) return;
+    w.postMessage({
       type: "start",
       payload: {
         budget,

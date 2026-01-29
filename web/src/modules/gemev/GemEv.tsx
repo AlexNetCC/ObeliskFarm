@@ -214,7 +214,7 @@ export function GemEv() {
     p.jackpot_rolls = 5;
 
     // Total bomb types: derived from checkboxes (10 + founder + veinmorph + megabomb, max 13)
-    const includeFounder = "include_founder_bomb_in_total" in p ? p.include_founder_bomb_in_total : p.founder_enabled;
+    const includeFounder = p.include_founder_bomb_in_total ?? p.founder_enabled;
     const hasVeinmorph = "has_veinmorph_bomb" in p ? p.has_veinmorph_bomb : true;
     const hasMegabomb = "has_megabomb" in p ? p.has_megabomb : false;
     p.total_bomb_types = 10 + (includeFounder ? 1 : 0) + (hasVeinmorph ? 1 : 0) + (hasMegabomb ? 1 : 0);
@@ -244,8 +244,9 @@ export function GemEv() {
 
     // Game speed multiplier (1 = use VIP T10–T12; >1 = override, e.g. 2.1 = 2.1×). Migrate old game_speed_pct.
     let mult = "game_speed_multiplier" in p ? p.game_speed_multiplier : 1.0;
-    if (mult === 1.0 && "game_speed_pct" in p && (p as { game_speed_pct?: number }).game_speed_pct > 0)
-      mult = 1.0 + clampInt((p as { game_speed_pct: number }).game_speed_pct, 0, 12) / 100.0;
+    const gameSpeedPct = (p as { game_speed_pct?: number }).game_speed_pct;
+    if (mult === 1.0 && typeof gameSpeedPct === "number" && gameSpeedPct > 0)
+      mult = 1.0 + clampInt(gameSpeedPct, 0, 12) / 100.0;
     p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
 
     // Ensure positive time values
