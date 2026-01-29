@@ -33,6 +33,8 @@ type McLogEntry = {
     fragmentsPerRunTotal: number;
     xpPerHour: number;
     fragmentsPerHour: number;
+    /** Fragments per hour by type (common, rare, epic, legendary, mythic). Present when MC final sims included per-type data. */
+    fragmentsPerHourByType?: Record<string, number>;
   };
   mc?: {
     // Present only for real MC runs
@@ -805,6 +807,8 @@ export function ArchSim() {
         let sumTotalFrags = 0;
         let sumDur = 0;
         let sampleCount = 0;
+        const sumFragsByType: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
+        const FRAG_TYPES_STAGE = ["common", "rare", "epic", "legendary", "mythic"] as const;
 
         const tasks: Promise<void>[] = [];
         let submitted = 0;
@@ -825,6 +829,7 @@ export function ArchSim() {
               const floors: number[] = out.floors_cleared_samples ?? [];
               const totals: number[] = out.total_fragments_samples ?? [];
               const targ: number[] = out.target_frag_samples ?? [];
+              const runFragsByType = (out as { run_fragments_by_type?: Record<string, number[]> }).run_fragments_by_type ?? {};
               for (let i = 0; i < dur.length; i += 1) {
                 const d = Number(dur[i] ?? 1);
                 const runsPerHour = d > 0 ? 3600.0 / d : 0;
@@ -836,6 +841,7 @@ export function ArchSim() {
                 sumXp += Number(xp[i] ?? 0);
                 sumFloors += Number(floors[i] ?? 0);
                 sumTotalFrags += Number(totals[i] ?? 0);
+                for (const k of FRAG_TYPES_STAGE) sumFragsByType[k] += Number(runFragsByType[k]?.[i] ?? 0);
                 sampleCount += 1;
               }
               done += n;
@@ -853,6 +859,8 @@ export function ArchSim() {
         const avgDur = sampleCount > 0 ? sumDur / sampleCount : 1;
         const xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
         const fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
+        const fragmentsPerHourByType: Record<string, number> = {};
+        if (sumDur > 0) for (const k of FRAG_TYPES_STAGE) fragmentsPerHourByType[k] = (sumFragsByType[k] ?? 0) * (3600.0 / sumDur);
 
         const entry: McLogEntry = {
           id: `mc_${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -872,6 +880,7 @@ export function ArchSim() {
             fragmentsPerRunTotal: avgTotalFrags,
             xpPerHour,
             fragmentsPerHour,
+            fragmentsPerHourByType,
           },
           mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples },
         };
@@ -987,6 +996,8 @@ export function ArchSim() {
       let sumTotalFrags = 0;
       let sumDur = 0;
       let sampleCount = 0;
+      const sumFragsByTypeRef: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
+      const FRAG_TYPES_REF = ["common", "rare", "epic", "legendary", "mythic"] as const;
 
       const tasks: Promise<void>[] = [];
       let submitted = 0;
@@ -1007,6 +1018,7 @@ export function ArchSim() {
             const floors: number[] = out.floors_cleared_samples ?? [];
             const totals: number[] = out.total_fragments_samples ?? [];
             const targ: number[] = out.target_frag_samples ?? [];
+            const runFragsByType = (out as { run_fragments_by_type?: Record<string, number[]> }).run_fragments_by_type ?? {};
             for (let i = 0; i < dur.length; i += 1) {
               const d = Number(dur[i] ?? 1);
               const runsPerHour = d > 0 ? 3600.0 / d : 0;
@@ -1018,6 +1030,7 @@ export function ArchSim() {
               sumXp += Number(xp[i] ?? 0);
               sumFloors += Number(floors[i] ?? 0);
               sumTotalFrags += Number(totals[i] ?? 0);
+              for (const k of FRAG_TYPES_REF) sumFragsByTypeRef[k] += Number(runFragsByType[k]?.[i] ?? 0);
               sampleCount += 1;
             }
             done += n;
@@ -1037,6 +1050,8 @@ export function ArchSim() {
       const avgDur = sampleCount > 0 ? sumDur / sampleCount : 1;
       const xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
       const fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
+      const fragmentsPerHourByTypeRef: Record<string, number> = {};
+      if (sumDur > 0) for (const k of FRAG_TYPES_REF) fragmentsPerHourByTypeRef[k] = (sumFragsByTypeRef[k] ?? 0) * (3600.0 / sumDur);
       const entry: McLogEntry = {
         id: `mc_${Date.now()}_${Math.random().toString(16).slice(2)}`,
         createdAt: Date.now(),
@@ -1055,6 +1070,7 @@ export function ArchSim() {
           fragmentsPerRunTotal: avgTotalFrags,
           xpPerHour,
           fragmentsPerHour,
+          fragmentsPerHourByType: fragmentsPerHourByTypeRef,
         },
         mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples, tieBreak: tieBreakReport },
       };
@@ -2552,6 +2568,18 @@ export function ArchSim() {
                 <div className="mono">{Math.round(openLog.metrics.xpPerHour)}</div>
                 <kbd>Frag/h</kbd>
                 <div className="mono">{openLog.metrics.fragmentsPerHour.toFixed(1)}</div>
+                {openLog.metrics.fragmentsPerHourByType ? (
+                  <>
+                    <kbd>Frag/h by type</kbd>
+                    <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}>
+                      {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => (
+                        <span key={t}>
+                          {t.charAt(0).toUpperCase() + t.slice(1)}: {(openLog.metrics.fragmentsPerHourByType[t] ?? 0).toFixed(1)}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </div>
 
               {openLog.mc ? (

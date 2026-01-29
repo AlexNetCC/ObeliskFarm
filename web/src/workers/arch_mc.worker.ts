@@ -29,6 +29,9 @@ function runStageLite(payload: any) {
   const run_duration_seconds_samples: number[] = [];
   const target_frag_samples: number[] = [];
   const tfrag = payload.targetFrag ? String(payload.targetFrag) : null;
+  const FRAG_TYPES = ["common", "rare", "epic", "legendary", "mythic"] as const;
+  const run_fragments_by_type: Record<string, number[]> = {};
+  for (const k of FRAG_TYPES) run_fragments_by_type[k] = [];
 
   for (let i = 0; i < Math.max(0, Math.trunc(payload.n_sims)); i += 1) {
     const r: any = sim.simulateRun(payload.stats, payload.starting_floor, { ...payload.options, return_block_metrics: false }, payload.cardCfg);
@@ -38,9 +41,18 @@ function runStageLite(payload: any) {
     total_fragments_samples.push(Number(r.total_fragments ?? 0));
     run_duration_seconds_samples.push(Number(r.run_duration_seconds ?? 1));
     if (tfrag) target_frag_samples.push(Number(r.fragments?.[tfrag] ?? 0));
+    for (const k of FRAG_TYPES) run_fragments_by_type[k].push(Number(r.fragments?.[k] ?? 0));
   }
 
-  return { max_stage_samples, floors_cleared_samples, xp_per_run_samples, total_fragments_samples, run_duration_seconds_samples, target_frag_samples: tfrag ? target_frag_samples : null };
+  return {
+    max_stage_samples,
+    floors_cleared_samples,
+    xp_per_run_samples,
+    total_fragments_samples,
+    run_duration_seconds_samples,
+    target_frag_samples: tfrag ? target_frag_samples : null,
+    run_fragments_by_type,
+  };
 }
 
 self.onmessage = async (ev: MessageEvent<Msg>) => {
