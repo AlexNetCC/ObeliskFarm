@@ -2574,7 +2574,7 @@ export function ArchSim() {
                     <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}>
                       {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => (
                         <span key={t}>
-                          {t.charAt(0).toUpperCase() + t.slice(1)}: {(openLog.metrics.fragmentsPerHourByType[t] ?? 0).toFixed(1)}
+                          {t.charAt(0).toUpperCase() + t.slice(1)}: {(openLog.metrics.fragmentsPerHourByType?.[t] ?? 0).toFixed(1)}
                         </span>
                       ))}
                     </div>

@@ -62,7 +62,7 @@ export function App() {
                 )}
                 {(m.id === "event" || m.id === "arch") && (
                   <span className="navWorkingHorse" aria-hidden="true" title="Main module">
-                    !
+                    ❤
                   </span>
                 )}
               </span>
