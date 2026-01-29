@@ -2568,18 +2568,23 @@ export function ArchSim() {
                 <div className="mono">{Math.round(openLog.metrics.xpPerHour)}</div>
                 <kbd>Frag/h</kbd>
                 <div className="mono">{openLog.metrics.fragmentsPerHour.toFixed(1)}</div>
-                {openLog.metrics.fragmentsPerHourByType ? (
-                  <>
-                    <kbd>Frag/h by type</kbd>
-                    <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}>
-                      {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => (
-                        <span key={t}>
-                          {t.charAt(0).toUpperCase() + t.slice(1)}: {(openLog.metrics.fragmentsPerHourByType?.[t] ?? 0).toFixed(1)}
-                        </span>
-                      ))}
-                    </div>
-                  </>
-                ) : null}
+                {(() => {
+                  // fragmentsPerHourByType is optional; narrow once so TS is happy inside .map()
+                  const byType = openLog.metrics.fragmentsPerHourByType;
+                  if (!byType) return null;
+                  return (
+                    <>
+                      <kbd>Frag/h by type</kbd>
+                      <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}>
+                        {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => (
+                          <span key={t}>
+                            {t.charAt(0).toUpperCase() + t.slice(1)}: {(byType[t] ?? 0).toFixed(1)}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {openLog.mc ? (

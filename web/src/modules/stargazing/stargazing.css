@@ -1,3 +1,21 @@
+/* Results first in DOM = on top on mobile; on desktop keep stats left, results right */
+.sgLayoutGrid {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .sgLayoutGrid {
+    grid-template-columns: 420px 1fr;
+    align-items: start;
+  }
+  .sgLayoutGrid .sgLeftPanel {
+    grid-column: 1;
+  }
+  .sgLayoutGrid .rightColumn {
+    grid-column: 2;
+  }
+}
+
 .sgGrid {
   display: grid;
   gap: 10px;

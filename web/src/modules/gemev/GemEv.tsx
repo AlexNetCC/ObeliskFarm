@@ -381,7 +381,50 @@ export function GemEv() {
       </div>
 
       <div className="grid gemEvGrid">
-        {/* Left: parameters */}
+        {/* Results first in DOM so it appears on top in single-column layout */}
+        <div className="rightColumn">
+          <div className="panel panelResults">
+            <div className="panelHeader">
+              <h2 className="panelTitle">Results</h2>
+              <p className="panelHint">Updates instantly.</p>
+            </div>
+
+            <div className="kv" style={{ background: "rgba(227,242,253,0.65)" }}>
+              <kbd>TOTAL</kbd>
+              <div className="mono" style={{ fontWeight: 900 }}>
+                {fmt1(ev.total)} Gem-Equivalent/h
+              </div>
+              <kbd>Gift-EV</kbd>
+              <div className="mono" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontWeight: 900 }}>{fmt1(giftEv)} Gems per Gift</span>
+                <Tooltip content={giftTooltip} />
+              </div>
+            </div>
+
+            <div className="small" style={{ marginTop: 10 }}>
+              Founder supply split: Speed <span className="mono">{fmt1(ev.founder_speed_boost)}</span> • Gems{" "}
+              <span className="mono">{fmt1(ev.founder_gems)}</span>
+            </div>
+            {!params.founder_enabled ? <div className="small" style={{ marginTop: 6 }}>FOUNDER is disabled: all founder-related contributions are set to 0.</div> : null}
+
+            <div className="btnRow" style={{ marginTop: 12, alignItems: "center" }}>
+              <span className="navWorkingHorse gemEvChartArrow" aria-hidden="true" title="Overview chart">
+                →
+              </span>
+              <button className="btn" type="button" onClick={() => setChartOpen(true)}>
+                OVERVIEW CHART
+              </button>
+              <Tooltip
+                content={{
+                  title: "Overview chart",
+                  lines: ["Opens the stacked contributions bar chart (Base / Jackpot / Refresh)."],
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Parameters */}
         <div className="panel gemEvLeftPanel">
           <div className="panelHeader">
             <h2 className="panelTitle">Parameters</h2>
@@ -849,46 +892,6 @@ export function GemEv() {
                   decimals={1}
                 />
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: results + chart */}
-        <div className="rightColumn">
-          <div className="panel panelResults">
-            <div className="panelHeader">
-              <h2 className="panelTitle">Results</h2>
-              <p className="panelHint">Updates instantly.</p>
-            </div>
-
-            <div className="kv" style={{ background: "rgba(227,242,253,0.65)" }}>
-              <kbd>TOTAL</kbd>
-              <div className="mono" style={{ fontWeight: 900 }}>
-                {fmt1(ev.total)} Gem-Equivalent/h
-              </div>
-              <kbd>Gift-EV</kbd>
-              <div className="mono" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontWeight: 900 }}>{fmt1(giftEv)} Gems per Gift</span>
-                <Tooltip content={giftTooltip} />
-              </div>
-            </div>
-
-            <div className="small" style={{ marginTop: 10 }}>
-              Founder supply split: Speed <span className="mono">{fmt1(ev.founder_speed_boost)}</span> • Gems{" "}
-              <span className="mono">{fmt1(ev.founder_gems)}</span>
-            </div>
-            {!params.founder_enabled ? <div className="small" style={{ marginTop: 6 }}>FOUNDER is disabled: all founder-related contributions are set to 0.</div> : null}
-
-            <div className="btnRow" style={{ marginTop: 12 }}>
-              <button className="btn" type="button" onClick={() => setChartOpen(true)}>
-                OVERVIEW CHART
-              </button>
-              <Tooltip
-                content={{
-                  title: "Overview chart",
-                  lines: ["Opens the stacked contributions bar chart (Base / Jackpot / Refresh)."],
-                }}
-              />
             </div>
           </div>
         </div>

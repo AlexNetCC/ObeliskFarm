@@ -11,6 +11,13 @@
     grid-template-columns: 460px 1fr;
     align-items: start;
   }
+  /* Results first in DOM = on top on mobile; on desktop keep Parameters left, Results right */
+  .gemEvGrid .gemEvLeftPanel {
+    grid-column: 1;
+  }
+  .gemEvGrid .rightColumn {
+    grid-column: 2;
+  }
 }
 
 .gemEvLeftPanel {
@@ -173,3 +180,8 @@
   margin-bottom: 8px;
 }
 
+/* Blinking arrow pointing at Overview Chart button (left → right) */
+.gemEvChartArrow {
+  font-size: 1.75em;
+  line-height: 1;
+}

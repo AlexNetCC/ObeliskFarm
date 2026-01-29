@@ -340,7 +340,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
                     fill="rgba(15,23,42,0.85)"
                     style={{ pointerEvents: "none" }}
                   >
-                    Gems: {fmt1(ev.founder_gems)}
+                    Gems only: {fmt1(ev.founder_gems)}
                   </text>
                 ) : null}
               </>

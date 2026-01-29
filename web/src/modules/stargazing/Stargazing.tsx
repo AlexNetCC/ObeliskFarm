@@ -334,8 +334,47 @@ export function Stargazing() {
         <div className="badge">Stars • Super Stars • CTRL+F</div>
       </div>
 
-      <div className="grid">
-        <div className="panel">
+      <div className="grid sgLayoutGrid">
+        <div className="rightColumn">
+          <div className="panel panelResults">
+            <div className="panelHeader">
+              <h2 className="panelTitle">Results</h2>
+              <p className="panelHint">Updates instantly.</p>
+            </div>
+
+            <div className="kv" style={{ background: "rgba(255,255,255,0.92)" }}>
+              <kbd>
+                ⭐ Stars/hour (Online)
+                <Tooltip content={onlineInfo} />
+              </kbd>
+              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_online)}</div>
+              <kbd>⭐ Stars/hour (Offline)</kbd>
+              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_offline)}</div>
+              <kbd>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
+                  <span>Super Stars/hour (Online)</span>
+                </span>
+                <Tooltip content={onlineInfo} />
+              </kbd>
+              <div className="mono sgResultValueOrange">{fmt4(summary.super_stars_per_hour_online)}</div>
+              <kbd>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
+                  <span>Super Stars/hour (Offline)</span>
+                </span>
+              </kbd>
+              <div className="mono sgResultValueOrange">{fmt4(summary.super_stars_per_hour_offline)}</div>
+            </div>
+
+            <div className="small" style={{ marginTop: 10 }}>
+              Spawn events/hour: <span className="mono">{fmt4(summary.star_spawn_rate_per_hour)}</span> • Super-star events/hour:{" "}
+              <span className="mono">{fmt4(summary.super_star_spawn_rate_per_hour)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="panel sgLeftPanel">
           <div className="panelHeader">
             <h2 className="panelTitle">Your stats (from game)</h2>
             <p className="panelHint">Percent inputs are in %.</p>
@@ -664,45 +703,6 @@ export function Stargazing() {
                 {resetArmed ? "Confirm reset" : "Reset to defaults"}
               </button>
               <Tooltip content={{ title: "Reset", lines: ["Restores the default values for all inputs."] }} />
-            </div>
-          </div>
-        </div>
-
-        <div className="rightColumn">
-          <div className="panel panelResults">
-            <div className="panelHeader">
-              <h2 className="panelTitle">Results</h2>
-              <p className="panelHint">Updates instantly.</p>
-            </div>
-
-            <div className="kv" style={{ background: "rgba(255,255,255,0.92)" }}>
-              <kbd>
-                ⭐ Stars/hour (Online)
-                <Tooltip content={onlineInfo} />
-              </kbd>
-              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_online)}</div>
-              <kbd>⭐ Stars/hour (Offline)</kbd>
-              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_offline)}</div>
-              <kbd>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
-                  <span>Super Stars/hour (Online)</span>
-                </span>
-                <Tooltip content={onlineInfo} />
-              </kbd>
-              <div className="mono sgResultValueOrange">{fmt4(summary.super_stars_per_hour_online)}</div>
-              <kbd>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
-                  <span>Super Stars/hour (Offline)</span>
-                </span>
-              </kbd>
-              <div className="mono sgResultValueOrange">{fmt4(summary.super_stars_per_hour_offline)}</div>
-            </div>
-
-            <div className="small" style={{ marginTop: 10 }}>
-              Spawn events/hour: <span className="mono">{fmt4(summary.star_spawn_rate_per_hour)}</span> • Super-star events/hour:{" "}
-              <span className="mono">{fmt4(summary.super_star_spawn_rate_per_hour)}</span>
             </div>
           </div>
         </div>
