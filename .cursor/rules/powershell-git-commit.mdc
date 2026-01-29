@@ -16,6 +16,19 @@ When creating git commits in this repo on Windows/PowerShell:
 
 **If lock persists:** Close Cursor → delete `.git/index.lock` → reopen. If deletion fails (access denied), restart the PC so Cursor releases the handle.
 
+## Fallback: Manual commit in integrated terminal
+
+When Agent-run `git commit` fails (sandbox / index.lock), use this **reliable workflow**:
+
+1. **Agent** stages (`git add ...`) and prepares the commit message. Staging often works (allowlist); commit does not.
+2. **Agent** outputs the exact one-liner for the user to run **manually** in **Cursor’s integrated terminal** (Terminal → New Terminal): `cd "<project-root>"; git commit -m "<title>" -m "<body>"` (if already staged), or `cd "..."; git add ...; git commit ...` otherwise. Use the real workspace path and the prepared message. Example:
+   ```powershell
+   cd "c:\Users\Aris Perrou (PAIA)\Documents\python\Obelisk"; git commit -m "[IMP] git-rule, web: reliable commits + arch sim updates" -m "WHY: Git lock/permission issues. Rule updated..."
+   ```
+3. **User** copies that command into the integrated terminal and runs it. The integrated terminal runs outside the Agent sandbox, so `git commit` succeeds.
+
+The Agent must **always** provide this one-liner when a commit is requested and Agent-side commit fails, so the user can complete the commit manually.
+
 ## Scoped commits (common workflow)
 
 If the user asks to "commit all changes on web" (plus main README), stage **only** `web/**` and `README.md`.
