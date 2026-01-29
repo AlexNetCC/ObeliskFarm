@@ -38,7 +38,11 @@ export type GameParameters = {
 
   // Bombs - general
   free_bomb_chance: number; // 0..1
-  total_bomb_types: number; // int (default 12)
+  total_bomb_types: number; // int; derived from checkboxes when using UI (10 + founder + veinmorph + megabomb, max 13)
+  include_founder_bomb_in_total: boolean;
+  has_veinmorph_bomb: boolean;
+  has_megabomb: boolean;
+  bomb_cycle: "early" | "late"; // early: Cherry → Battery → D20 → Gem; late: Cherry → Gem → Battery → D20
 
   // Recharge cards (0 none, 1 card, 2 gilded, 3 polychrome)
   gem_bomb_recharge_card_level: number;
@@ -94,6 +98,10 @@ export function defaultGameParameters(): GameParameters {
     founder_speed_duration_minutes: 5.0,
     free_bomb_chance: 0.16,
     total_bomb_types: 12,
+    include_founder_bomb_in_total: true,
+    has_veinmorph_bomb: true,
+    has_megabomb: false,
+    bomb_cycle: "early",
     gem_bomb_recharge_card_level: 0,
     cherry_bomb_recharge_card_level: 0,
     battery_bomb_recharge_card_level: 0,
@@ -439,7 +447,11 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const batteryRefillPerClick = clampPositive(params.battery_bomb_charges_per_charge, 2.0) / (totalBombTypes - 1);
   const d20RefillPerClick = (clamp01(params.d20_bomb_refill_chance) * clampPositive(params.d20_bomb_charges_distributed, 42)) / (totalBombTypes - 1);
 
-  // Iterative solution (matches python).
+  // Cherry effect: expected free clicks multiplier = 1 + 2p (p = triple_charge_chance). Used for cycle logic.
+  const cherryEffectMult = 1.0 + 2.0 * clamp01(params.cherry_bomb_triple_charge_chance);
+  const bombCycle = params.bomb_cycle === "late" ? "late" : "early";
+
+  // Iterative solution (matches python). Early cycle: cherry extra → battery detonations (more refills). Late: cherry extra → gem bomb detonations.
   let gemTotal = gemClicks0;
   let cherryTotal = cherryClicks0;
   let batteryTotal = batteryClicks0;
@@ -449,11 +461,16 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const convergenceThreshold = 0.01;
 
   for (let iter = 0; iter < maxIterations; iter += 1) {
+    // Early cycle: cherry's triple-charge bonus is used for extra battery detonations (feeds refills).
+    const effectiveBattery = bombCycle === "early"
+      ? batteryTotal + cherryTotal * (cherryEffectMult - 1)
+      : batteryTotal;
+
     // Battery refills to each bomb (including itself per python comment "self-refill")
-    const batteryToGem = batteryTotal * batteryRefillPerClick;
-    const batteryToCherry = batteryTotal * batteryRefillPerClick;
-    const batteryToBattery = batteryTotal * batteryRefillPerClick;
-    const batteryToD20 = batteryTotal * batteryRefillPerClick;
+    const batteryToGem = effectiveBattery * batteryRefillPerClick;
+    const batteryToCherry = effectiveBattery * batteryRefillPerClick;
+    const batteryToBattery = effectiveBattery * batteryRefillPerClick;
+    const batteryToD20 = effectiveBattery * batteryRefillPerClick;
 
     // D20 refills to each bomb (including itself)
     const d20ToGem = d20Total * d20RefillPerClick;
@@ -481,11 +498,10 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
     d20Total = d20New;
   }
 
-  // Cherry effect: expected free clicks multiplier = 1 + 2p (p = triple_charge_chance)
-  const cherryEffectMult = 1.0 + 2.0 * clamp01(params.cherry_bomb_triple_charge_chance);
-  const cherryFreeGemClicks = cherryTotal * cherryEffectMult;
-
-  const totalGemBombClicks = gemTotal + cherryFreeGemClicks;
+  // Late cycle: cherry effect → extra gem bomb detonations. Early: cherry effect already used in battery refills.
+  const totalGemBombClicks = bombCycle === "late"
+    ? gemTotal + cherryTotal * cherryEffectMult
+    : gemTotal;
   const gemsPerHour = totalGemBombClicks * clamp01(params.gem_bomb_gem_chance);
   return gemsPerHour;
 }

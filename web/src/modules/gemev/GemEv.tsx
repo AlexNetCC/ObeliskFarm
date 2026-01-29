@@ -192,6 +192,18 @@ export function GemEv() {
     p.battery_bomb_charges_per_charge = 2.0;
     p.battery_bomb_cap_increase_chance = 0.001;
     p.founder_bomb_charges_per_drop = 2.0;
+    // Founder bomb speed: fixed 10% chance, 2× for 10 seconds (not editable)
+    p.founder_bomb_speed_chance = 0.10;
+    p.founder_bomb_speed_multiplier = 2.0;
+    p.founder_bomb_speed_duration_seconds = 10.0;
+    // Jackpot: rolls always 5 (not editable)
+    p.jackpot_rolls = 5;
+
+    // Total bomb types: derived from checkboxes (10 + founder + veinmorph + megabomb, max 13)
+    const includeFounder = "include_founder_bomb_in_total" in p ? p.include_founder_bomb_in_total : p.founder_enabled;
+    const hasVeinmorph = "has_veinmorph_bomb" in p ? p.has_veinmorph_bomb : true;
+    const hasMegabomb = "has_megabomb" in p ? p.has_megabomb : false;
+    p.total_bomb_types = 10 + (includeFounder ? 1 : 0) + (hasVeinmorph ? 1 : 0) + (hasMegabomb ? 1 : 0);
 
     // Clamp common percent inputs
     p.freebie_claim_percentage = clamp(p.freebie_claim_percentage, 0, 100);
@@ -202,12 +214,9 @@ export function GemEv() {
     p.gem_bomb_gem_chance = clamp(p.gem_bomb_gem_chance, 0, 1);
     p.cherry_bomb_triple_charge_chance = clamp(p.cherry_bomb_triple_charge_chance, 0, 1);
     p.d20_bomb_refill_chance = clamp(p.d20_bomb_refill_chance, 0, 1);
-    p.founder_bomb_speed_chance = clamp(p.founder_bomb_speed_chance, 0, 1);
 
     // Clamp "levels"
     p.vip_lounge_level = clampInt(p.vip_lounge_level, 1, 7);
-    p.jackpot_rolls = clampInt(p.jackpot_rolls, 1, 999);
-    p.total_bomb_types = clampInt(p.total_bomb_types, 2, 64);
     p.d20_bomb_charges_distributed = clampInt(p.d20_bomb_charges_distributed, 0, 9999);
     p.obelisk_level = clampInt(p.obelisk_level, 0, 999);
     p.founder_enabled = Boolean(p.founder_enabled);
@@ -305,8 +314,27 @@ export function GemEv() {
           lines: ["Chance that a bomb click consumes 0 charges.", "Applies to the entire dump (all charges at once).", "Affects all bomb types."],
         },
         {
-          heading: "Strategy cycle",
-          lines: ["Gem (to create space) → [Cherry → Battery → D20 → Gem] repeat.", "Battery and D20 can recursively refill each other and Cherry."],
+          heading: "Bomb cycle",
+          lines: [
+            "Early: Cherry → Battery → D20 → Gem. Cherry triple-charge bonus counts as extra battery detonations (more refills to all).",
+            "Late: Cherry → Gem → Battery → D20. Cherry triple-charge bonus counts as extra gem bomb detonations (direct gem EV).",
+            "Battery and D20 recursively refill all types regardless of cycle.",
+          ],
+        },
+        {
+          heading: "Total bomb types",
+          lines: [
+            "Count Founder Bomb, Veinmorph, and Megabomb. Base 10 + checked = total (max 13).",
+            "More bomb types = refill is more widely distributed (Battery and D20 spread charges across more targets).",
+          ],
+        },
+        {
+          heading: "Refill",
+          lines: [
+            "Battery bomb: refills all bomb types (Gem, Cherry, Battery, D20, and others) including itself (self-refill).",
+            "D20 bomb: refills all bomb types including itself (self-refill).",
+            "Charges are distributed evenly across all types (divided by total bomb types − 1 in the formula).",
+          ],
         },
       ],
     }),
@@ -424,16 +452,9 @@ export function GemEv() {
                 max={100}
                 decimals={1}
               />
-              <Stepper
-                label="Jackpot Rolls"
-                value={params.jackpot_rolls}
-                onChange={(v) => setParams((s) => ({ ...s, jackpot_rolls: clampInt(v, 1, 9999) }))}
-                step={1}
-                min={1}
-                max={9999}
-                inputMode="numeric"
-                decimals={0}
-              />
+              <p className="small" style={{ margin: "4px 0 0" }}>
+                5 rolls (fixed).
+              </p>
 
               <div className="gemEvDivider" />
 
@@ -497,7 +518,6 @@ export function GemEv() {
           <div className="gemEvSection tierHeader3">
             <div className="gemEvSectionHeader">
               <div className="gemEvSectionTitle">
-                <Sprite path="sprites/event/founderbomb.png" alt="Bombs" className="iconSmall" />
                 <span className="mono">BOMBS</span>
                 <Tooltip content={bombsInfo} />
               </div>
@@ -540,53 +560,74 @@ export function GemEv() {
                   decimals={1}
                   disabled={!params.founder_enabled}
                 />
-                <Stepper
-                  label="Speed Chance (%)"
-                  value={params.founder_bomb_speed_chance * 100}
-                  onChange={(v) => setParams((s) => ({ ...s, founder_bomb_speed_chance: v / 100 }))}
-                  step={1}
-                  min={0}
-                  max={100}
-                  decimals={1}
-                  disabled={!params.founder_enabled}
-                />
-                <Stepper
-                  label="Speed Multiplier"
-                  value={params.founder_bomb_speed_multiplier}
-                  onChange={(v) => setParams((s) => ({ ...s, founder_bomb_speed_multiplier: v }))}
-                  step={0.5}
-                  min={0.1}
-                  max={20}
-                  decimals={1}
-                  disabled={!params.founder_enabled}
-                />
-                <Stepper
-                  label="Speed Duration (Seconds)"
-                  value={params.founder_bomb_speed_duration_seconds}
-                  onChange={(v) => setParams((s) => ({ ...s, founder_bomb_speed_duration_seconds: v }))}
-                  step={1}
-                  min={0}
-                  max={9999}
-                  decimals={1}
-                  disabled={!params.founder_enabled}
-                />
+                <p className="small" style={{ margin: "4px 0 0" }}>
+                  10% chance for 10 s of 2× speed (fixed).
+                </p>
               </div>
 
               <div className="gemEvDivider" />
 
               <div className="gemEvInlineHead">
-                <span className="mono">Cherry → Battery → D20 → Gem Cycle</span>
+                <span className="mono">Bomb cycle</span>
               </div>
-              <Stepper
-                label="Total Bomb Types"
-                value={params.total_bomb_types}
-                onChange={(v) => setParams((s) => ({ ...s, total_bomb_types: clampInt(v, 2, 64) }))}
-                step={1}
-                min={2}
-                max={64}
-                inputMode="numeric"
-                decimals={0}
-              />
+              <div className="gemEvRow" style={{ flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                <label className="toggle" style={{ margin: 0 }}>
+                  <input
+                    type="radio"
+                    name="bomb_cycle"
+                    checked={(params.bomb_cycle ?? "early") === "early"}
+                    onChange={() => setParams((s) => ({ ...s, bomb_cycle: "early" }))}
+                  />
+                  Early: Cherry → Battery → D20 → Gem
+                </label>
+                <label className="toggle" style={{ margin: 0 }}>
+                  <input
+                    type="radio"
+                    name="bomb_cycle"
+                    checked={(params.bomb_cycle ?? "early") === "late"}
+                    onChange={() => setParams((s) => ({ ...s, bomb_cycle: "late" }))}
+                  />
+                  Late: Cherry → Gem → Battery → D20
+                </label>
+              </div>
+
+              <div className="gemEvDivider" />
+
+              <div className="gemEvInlineHead">
+                <span className="mono">Count as bomb types</span>
+              </div>
+              <div className="gemEvRow" style={{ flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                <label className="toggle" style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={params.include_founder_bomb_in_total ?? true}
+                    onChange={(e) => setParams((s) => ({ ...s, include_founder_bomb_in_total: e.target.checked }))}
+                  />
+                  <Sprite path="sprites/event/founderbomb.png" alt="Founder Bomb" className="iconSmall" />
+                  Founder Bomb
+                </label>
+                <label className="toggle" style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={params.has_veinmorph_bomb ?? true}
+                    onChange={(e) => setParams((s) => ({ ...s, has_veinmorph_bomb: e.target.checked }))}
+                  />
+                  <Sprite path="sprites/event/veinmorph.png" alt="Veinmorph" className="iconSmall" label="sprites/event/veinmorph.png" />
+                  Veinmorph
+                </label>
+                <label className="toggle" style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={params.has_megabomb ?? false}
+                    onChange={(e) => setParams((s) => ({ ...s, has_megabomb: e.target.checked }))}
+                  />
+                  <Sprite path="sprites/event/megabomb.png" alt="Megabomb" className="iconSmall" label="sprites/event/megabomb.png" />
+                  Megabomb
+                </label>
+                <span className="mono small" style={{ opacity: 0.9 }}>
+                  Total: {effectiveParams.total_bomb_types}
+                </span>
+              </div>
 
               <div className="gemEvDivider" />
 

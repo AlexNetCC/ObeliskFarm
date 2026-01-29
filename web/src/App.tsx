@@ -5,12 +5,14 @@ import { EventSim } from "./modules/event/EventSim";
 import { ArchSim } from "./modules/arch/ArchSim";
 import { GemEv } from "./modules/gemev/GemEv";
 import { Stargazing } from "./modules/stargazing/Stargazing";
+import { Drone } from "./modules/drone/Drone";
 
-type ModuleId = "event" | "arch" | "gemev" | "stargazing";
+type ModuleId = "event" | "arch" | "gemev" | "stargazing" | "drone";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
-  return <img className={props.className ?? "icon"} src={assetUrl(props.path)} alt={props.alt} />;
+  const src = props.path.startsWith("http://") || props.path.startsWith("https://") ? props.path : assetUrl(props.path);
+  return <img className={props.className ?? "icon"} src={src} alt={props.alt} />;
 }
 
 export function App() {
@@ -23,6 +25,7 @@ export function App() {
         { id: "arch" as const, label: "Archaeology Simulator", icon: "sprites/archaeology/archaeology.png" },
         { id: "gemev" as const, label: "Gem EV Calculator", icon: "sprites/common/gem.png" },
         { id: "stargazing" as const, label: "Stargazing Calculator", icon: "sprites/stargazing/stargazing.svg" },
+        { id: "drone" as const, label: "Drone (WIP)", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
       ] as const,
     [],
   );
@@ -49,6 +52,14 @@ export function App() {
               <Sprite path={m.icon} alt={m.label} className="icon" />
               <span className="navTileLabel">
                 <span>{m.label}</span>
+                {m.id === "drone" && (
+                  <Tooltip
+                    content={{
+                      title: "Work in progress",
+                      lines: ["Please don't click."],
+                    }}
+                  />
+                )}
                 {(m.id === "event" || m.id === "arch") && (
                   <span className="navWorkingHorse" aria-hidden="true" title="Main module">
                     !
@@ -79,7 +90,7 @@ export function App() {
         </div>
       </div>
 
-      {active === "gemev" ? <GemEv /> : active === "event" ? <EventSim /> : active === "arch" ? <ArchSim /> : <Stargazing />}
+      {active === "gemev" ? <GemEv /> : active === "event" ? <EventSim /> : active === "arch" ? <ArchSim /> : active === "drone" ? <Drone /> : <Stargazing />}
     </div>
   );
 }
