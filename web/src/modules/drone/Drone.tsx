@@ -560,20 +560,22 @@ export function Drone() {
           <div className="droneBuffPlot">
             <div className="droneBuffPlotRow droneBuffPlotHeader">
               <span className="droneBuffPlotLabel" />
-              <span className="droneBuffPlotBarHeader" />
+              <span className="droneBuffPlotBarHeader">Duration</span>
               <span className="droneBuffPlotRightHeader">
+                Min/h
                 <Tooltip
                   content={{
-                    title: "Overlap",
+                    title: "Min/h",
                     lines: [
-                      "Probability this buff is still active when the next buff is selected.",
-                      "min(100%, duration ÷ time between buffs).",
+                      "Average minutes per hour this buff is active.",
+                      "Uptime × 60; max 60 min/h.",
                     ],
                   }}
-                  label="Overlap"
+                  label="?"
                 />
               </span>
               <span className="droneBuffPlotRightHeader">
+                Uptime
                 <Tooltip
                   content={{
                     title: "Uptime",
@@ -582,14 +584,14 @@ export function Drone() {
                       "Formula: duration ÷ (number of buffs × time between buffs).",
                     ],
                   }}
-                  label="Uptime"
+                  label="?"
                 />
               </span>
             </div>
             {buffDurations.map((b) => {
-              const overlapPct = intervalSec > 0 ? Math.min(100, (b.sec / intervalSec) * 100) : 0;
               const cycleSec = numBuffs * intervalSec;
               const uptimePct = cycleSec > 0 ? Math.min(100, (b.sec / cycleSec) * 100) : 0;
+              const minPerHour = cycleSec > 0 ? Math.min(60, (b.sec / cycleSec) * 60) : 0;
               return (
                 <div key={b.id} className="droneBuffPlotRow">
                   <span className="droneBuffPlotLabel">
@@ -605,7 +607,7 @@ export function Drone() {
                       />
                     </div>
                   </div>
-                  <span className="droneBuffPlotRight">{overlapPct.toFixed(0)}%</span>
+                  <span className="droneBuffPlotRight">{minPerHour.toFixed(1)}</span>
                   <span className="droneBuffPlotRight">{uptimePct.toFixed(1)}%</span>
                 </div>
               );
