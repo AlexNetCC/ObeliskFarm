@@ -735,7 +735,7 @@ export function EventSim() {
                     heading: "Reward multiplier",
                     lines: [
                       "All rewards except Gifts, Mythic Chests, and Skins are multiplied by ×2 for each World Monument you build.",
-                      "1 monument → ×2, 2 → ×4, 3 → ×8, 4 → ×16.",
+                      "Your Max World 1 = 0 monuments built → ×1. World 2 → ×2, World 3 → ×4, World 4 → ×8.",
                     ],
                   },
                   {

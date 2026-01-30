@@ -159,11 +159,12 @@ export function getRewardMilestoneLabel(wave: number): { label: string; iconUrl:
   return EVENT_REWARD_MILESTONE_INFO[wave] ?? null;
 }
 
-/** Returns display label with monument multiplier applied (×2 per World Monument). Gifts, Mythic Chests, Skins unchanged. */
-export function getRewardMilestoneDisplayLabel(wave: number, worldMonuments: number): { label: string; iconUrl: string } | null {
+/** Returns display label with monument multiplier applied. World 1 = 0 monuments = ×1; World 2 = 1 monument = ×2; World 3 = ×4; World 4 = ×8. Gifts, Mythic Chests, Skins unchanged. */
+export function getRewardMilestoneDisplayLabel(wave: number, maxWorld: number): { label: string; iconUrl: string } | null {
   const info = EVENT_REWARD_MILESTONE_INFO[wave];
   if (!info) return null;
-  const mult = 2 ** Math.max(0, Math.min(4, worldMonuments));
+  const monumentsBuilt = Math.max(0, Math.min(3, maxWorld - 1));
+  const mult = 2 ** monumentsBuilt;
   if (info.monumentMultiplied !== false && info.baseAmount != null && info.unit != null) {
     return { label: `${info.baseAmount * mult} ${info.unit}`, iconUrl: info.iconUrl };
   }
