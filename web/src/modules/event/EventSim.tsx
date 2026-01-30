@@ -712,7 +712,7 @@ export function EventSim() {
           <h1 className="title">Event Budget Optimizer</h1>
           <p className="subtitle">Saves upgrades/prestige automatically in your browser (localStorage).</p>
           <div className="worldMonumentsBlock">
-            <span className="worldMonumentsLabel">World Monuments:</span>
+            <span className="worldMonumentsLabel">Your Max World:</span>
             <span className="mono worldMonumentsValue">{ui.worldMonuments}</span>
             <div className="worldMonumentsButtons">
               {[1, 2, 3, 4].map((n) => (
@@ -729,7 +729,7 @@ export function EventSim() {
             </div>
             <Tooltip
               content={{
-                title: "World Monuments",
+                title: "Your Max World",
                 sections: [
                   {
                     heading: "Reward multiplier",

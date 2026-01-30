@@ -169,4 +169,3 @@ export function getRewardMilestoneDisplayLabel(wave: number, worldMonuments: num
   }
   return { label: info.label, iconUrl: info.iconUrl };
 }
-
