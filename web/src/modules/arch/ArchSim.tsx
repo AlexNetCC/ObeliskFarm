@@ -2181,43 +2181,47 @@ export function ArchSim() {
                       const locked = build.unlockedStage < stageUnlock;
                       const nextCost = getUpgradeCost(key, lvl);
                       return (
-                        <div key={key} className="fragmentUpgradeRow" style={heatStyle(lvl)}>
+                        <div key={key} className="fragmentUpgradeRow" style={locked ? undefined : heatStyle(lvl)}>
                           <div className="fragmentUpgradeTop">
                             <div className="mono" style={{ fontWeight: 900 }}>
                               {info.display_name}
                             </div>
                             <div className="fragmentUpgradeRight upgradeLevel">
-                              <span className="small">lvl</span>{" "}
-                              <span className="heatNum mono" style={heatStyle(lvl)}>
-                                {lvl}
-                              </span>{" "}
-                              <span className="small">/</span> <span className="mono">{maxLvl}</span>
+                              {locked ? (
+                                <span className="small">
+                                  <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {stageUnlock}</span>
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="small">lvl</span>{" "}
+                                  <span className="heatNum mono" style={heatStyle(lvl)}>
+                                    {lvl}
+                                  </span>{" "}
+                                  <span className="small">/</span> <span className="mono">{maxLvl}</span>
+                                </>
+                              )}
                             </div>
-                          </div>
-                          <div className="small">
-                            next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
-                            {locked ? (
-                              <>
-                                {" "}
-                                • <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {stageUnlock}</span>
-                              </>
-                            ) : null}
                           </div>
                           {!locked ? (
-                            <div className="btnRow fragmentUpgradeButtons" style={{ marginTop: 8 }}>
-                              <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -5)} disabled={lvl <= 0 || mcRunning}>
-                                −5
-                              </button>
-                              <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -1)} disabled={lvl <= 0 || mcRunning}>
-                                −
-                              </button>
-                              <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={lvl >= maxLvl || mcRunning}>
-                                +
-                              </button>
-                              <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={lvl >= maxLvl || mcRunning}>
-                                +5
-                              </button>
-                            </div>
+                            <>
+                              <div className="small">
+                                next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
+                              </div>
+                              <div className="btnRow fragmentUpgradeButtons" style={{ marginTop: 8 }}>
+                                <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -5)} disabled={lvl <= 0 || mcRunning}>
+                                  −5
+                                </button>
+                                <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -1)} disabled={lvl <= 0 || mcRunning}>
+                                  −
+                                </button>
+                                <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={lvl >= maxLvl || mcRunning}>
+                                  +
+                                </button>
+                                <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={lvl >= maxLvl || mcRunning}>
+                                  +5
+                                </button>
+                              </div>
+                            </>
                           ) : null}
                         </div>
                       );
@@ -2265,7 +2269,7 @@ export function ArchSim() {
                   const locked = build.unlockedStage < (GEM_UPGRADE_BONUSES[k].stage_unlock ?? 0);
                   const maxed = lvl >= max;
                   return (
-                    <div key={k} className={`gemUpgradeRow ${maxed ? "gemUpgradeMaxed" : ""}`} style={maxed ? undefined : heatStyle(lvl)}>
+                    <div key={k} className={`gemUpgradeRow ${maxed ? "gemUpgradeMaxed" : ""} ${locked ? "gemUpgradeLocked" : ""}`} style={maxed || locked ? undefined : heatStyle(lvl)}>
                       <div className="label" style={{ alignItems: "center" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                           <Sprite path={u.icon} alt={`${k} gem upgrade`} className="iconSmall" />
@@ -2273,35 +2277,37 @@ export function ArchSim() {
                             {u.label}
                           </span>
                         </span>
-                        <span className="mono upgradeLevel">
-                          <span className="small">lvl</span>{" "}
-                          <span className="heatNum mono" style={heatStyle(lvl)}>
-                            {lvl}
-                          </span>{" "}
-                          <span className="small">/</span> <span className="mono">{max}</span>
-                        </span>
-                      </div>
-                      <div className="small" style={{ marginTop: 2 }}>
-                        per level: <span className="mono">{u.perLevel}</span>
-                      </div>
-                      <div className="small">
-                        next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
                         {locked ? (
-                          <>
-                            {" "}
-                            • <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {GEM_UPGRADE_BONUSES[k].stage_unlock}</span>
-                          </>
-                        ) : null}
+                          <span className="small upgradeLevel">
+                            <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {GEM_UPGRADE_BONUSES[k].stage_unlock}</span>
+                          </span>
+                        ) : (
+                          <span className="mono upgradeLevel">
+                            <span className="small">lvl</span>{" "}
+                            <span className="heatNum mono" style={heatStyle(lvl)}>
+                              {lvl}
+                            </span>{" "}
+                            <span className="small">/</span> <span className="mono">{max}</span>
+                          </span>
+                        )}
                       </div>
                       {!locked ? (
-                        <div className="btnRow" style={{ marginTop: 8 }}>
-                          <button className="btn btnSecondary" type="button" onClick={() => setGemUpgrade(k, -1)} disabled={lvl <= 0 || mcRunning}>
-                            −
-                          </button>
-                          <button className="btn" type="button" onClick={() => setGemUpgrade(k, +1)} disabled={lvl >= max || mcRunning}>
-                            +
-                          </button>
-                        </div>
+                        <>
+                          <div className="small" style={{ marginTop: 2 }}>
+                            per level: <span className="mono">{u.perLevel}</span>
+                          </div>
+                          <div className="small">
+                            next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
+                          </div>
+                          <div className="btnRow" style={{ marginTop: 8 }}>
+                            <button className="btn btnSecondary" type="button" onClick={() => setGemUpgrade(k, -1)} disabled={lvl <= 0 || mcRunning}>
+                              −
+                            </button>
+                            <button className="btn" type="button" onClick={() => setGemUpgrade(k, +1)} disabled={lvl >= max || mcRunning}>
+                              +
+                            </button>
+                          </div>
+                        </>
                       ) : null}
                     </div>
                   );
