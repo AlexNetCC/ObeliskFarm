@@ -97,20 +97,19 @@ export function ContribLegend() {
 export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) {
   const { ev, breakdown } = props;
 
+  /** Founder Bomb bar hidden (FOUNDER_BOMB_VISIBLE in GemEv). */
   const categories = [
     "Gems (Base)",
     "Stonks EV",
     "Skill Shards",
     "Founder Supply Drop",
     "Gem Bomb",
-    "Founder Bomb",
   ] as const;
 
   const normalKeys = ["gems_base", "stonks_ev", "skill_shards_ev"] as const;
   const founderSpeed = breakdown.founder_speed_boost;
   const founderGems = breakdown.founder_gems;
   const gemBomb = breakdown.gem_bomb_gems;
-  const founderBomb = breakdown.founder_bomb_boost;
 
   const valuesTop: number[] = [
     ev.gems_base,
@@ -118,7 +117,6 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
     ev.skill_shards_ev,
     ev.founder_speed_boost + ev.founder_gems,
     ev.gem_bomb_gems,
-    ev.founder_bomb_boost,
   ];
   const pcts: number[] = [
     pct(ev.gems_base, ev.total),
@@ -126,14 +124,12 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
     pct(ev.skill_shards_ev, ev.total),
     pct(ev.founder_speed_boost + ev.founder_gems, ev.total),
     pct(ev.gem_bomb_gems, ev.total),
-    pct(ev.founder_bomb_boost, ev.total),
   ];
 
   const stackForIndex = (i: number): { speed: EvBreakdownEntry | null; gems: EvBreakdownEntry | null; entry: EvBreakdownEntry } => {
     if (i <= 2) return { speed: null, gems: null, entry: breakdown[normalKeys[i]!] };
     if (i === 3) return { speed: founderSpeed, gems: founderGems, entry: founderSpeed };
-    if (i === 4) return { speed: null, gems: null, entry: gemBomb };
-    return { speed: null, gems: null, entry: founderBomb };
+    return { speed: null, gems: null, entry: gemBomb };
   };
 
   const maxVal = Math.max(
@@ -141,7 +137,6 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
     ...normalKeys.map((k) => sumEntry(breakdown[k])),
     sumEntry(founderSpeed) + sumEntry(founderGems),
     sumEntry(gemBomb),
-    sumEntry(founderBomb),
   );
 
   // Horizontal bar chart: categories on Y, values on X (bars left to right)

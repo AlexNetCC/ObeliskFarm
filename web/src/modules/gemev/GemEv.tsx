@@ -24,6 +24,8 @@ type SavedStateV1 = {
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+/** Set true to show Founder Bomb section and chart bar again. */
+const FOUNDER_BOMB_VISIBLE = false;
 
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -876,37 +878,40 @@ export function GemEv() {
 
               <div className="gemEvDivider" />
 
-              <div className="gemEvSubSection">
-                <div className="gemEvSubHeader">
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span className="mono" style={{ fontWeight: 900 }}>
-                      Founder Bomb
-                    </span>
-                    <Sprite path="sprites/event/founderbomb.png" alt="Founder Bomb" className="iconSmall" />
+              {FOUNDER_BOMB_VISIBLE ? (
+                <>
+                  <div className="gemEvSubSection">
+                    <div className="gemEvSubHeader">
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="mono" style={{ fontWeight: 900 }}>
+                          Founder Bomb
+                        </span>
+                        <Sprite path="sprites/event/founderbomb.png" alt="Founder Bomb" className="iconSmall" />
+                      </div>
+                      <CardToggles
+                        value={params.founder_bomb_recharge_card_level}
+                        disabled={!params.founder_enabled}
+                        onChange={(lvl) => setParams((s) => ({ ...s, founder_bomb_recharge_card_level: lvl }))}
+                      />
+                    </div>
+
+                    <Stepper
+                      label="Founder Bomb Interval (Seconds)"
+                      value={params.founder_bomb_interval_seconds}
+                      onChange={(v) => setParams((s) => ({ ...s, founder_bomb_interval_seconds: v }))}
+                      step={0.01}
+                      min={0.1}
+                      max={9999}
+                      decimals={2}
+                      disabled={!params.founder_enabled}
+                    />
+                    <p className="small" style={{ margin: "4px 0 0" }}>
+                      10% chance for 10 s of 2× speed (fixed).
+                    </p>
                   </div>
-                  <CardToggles
-                    value={params.founder_bomb_recharge_card_level}
-                    disabled={!params.founder_enabled}
-                    onChange={(lvl) => setParams((s) => ({ ...s, founder_bomb_recharge_card_level: lvl }))}
-                  />
-                </div>
-
-                <Stepper
-                  label="Founder Bomb Interval (Seconds)"
-                  value={params.founder_bomb_interval_seconds}
-                  onChange={(v) => setParams((s) => ({ ...s, founder_bomb_interval_seconds: v }))}
-                  step={0.01}
-                  min={0.1}
-                  max={9999}
-                  decimals={2}
-                  disabled={!params.founder_enabled}
-                />
-                <p className="small" style={{ margin: "4px 0 0" }}>
-                  10% chance for 10 s of 2× speed (fixed).
-                </p>
-              </div>
-
-              <div className="gemEvDivider" />
+                  <div className="gemEvDivider" />
+                </>
+              ) : null}
 
               <div className="gemEvInlineHead">
                 <span className="mono">Bomb cycle</span>

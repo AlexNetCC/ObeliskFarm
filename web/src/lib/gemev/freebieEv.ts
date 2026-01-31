@@ -293,33 +293,9 @@ export function calculateSkillShardsEvPerHour(params: GameParameters): number {
   );
 }
 
-export function calculateFounderSpeedBoostPerHour(params: GameParameters): number {
-  if (!params.founder_enabled) return 0;
-  const founderDropInterval = getFounderDropIntervalMinutes(params);
-  const founderDropsPerHour = 60.0 / founderDropInterval;
-
-  const doubleChance = clamp01(getDoubleDropChance(params));
-  const tripleChance = clamp01(getTripleDropChance(params));
-  const singleChance = 1.0 - doubleChance - tripleChance;
-
-  const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-  const expectedDurationMinutes = expectedDropsPerEvent * clampPositive(params.founder_speed_duration_minutes, 5.0);
-  const speedMult = clampPositive(params.founder_speed_multiplier, 2.0);
-
-  const timeSavedPerEvent = expectedDurationMinutes / speedMult;
-  const timeSavedPerHour = founderDropsPerHour * timeSavedPerEvent;
-  const effectiveMinutesPerHour = 60.0 - timeSavedPerHour;
-
-  const normalFreebiesPerHour = calculateFreebiesPerHour(params);
-  const gameSpeedBonus = getGameSpeedBonus(params);
-  const effectiveFreebieTimer = clampPositive(params.freebie_timer_minutes, 7.0) / (1.0 + gameSpeedBonus);
-  const baseEffectiveFreebiesPerHour = 60.0 / (effectiveFreebieTimer * (effectiveMinutesPerHour / 60.0));
-  const effectiveFreebiesPerHour = baseEffectiveFreebiesPerHour; // Claim % does not affect founder speed bar
-  const additionalFreebies = effectiveFreebiesPerHour - normalFreebiesPerHour;
-
-  const expectedRolls = calculateExpectedRollsPerClaim(params);
-  const refreshMult = calculateRefreshMultiplier(params);
-  return additionalFreebies * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
+/** Founder supply drop 2× speed boost: no longer in EV (user sets Game Speed at top). */
+export function calculateFounderSpeedBoostPerHour(_params: GameParameters): number {
+  return 0;
 }
 
 export function calculateObeliskMultiplier(params: GameParameters): number {
@@ -479,32 +455,16 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const secondsPerHour = 3600.0;
   const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: multiplicative with bomb recharge (not supply drop)
 
-  // Founder speed uptime fraction (minutes with 2x speed per hour).
-  // When founder is disabled, this must not affect bomb recharges.
-  let speedPct = 0;
-  if (params.founder_enabled) {
-    const founderDropInterval = getFounderDropIntervalMinutes(params);
-    const founderDropsPerHour = 60.0 / founderDropInterval;
-
-    const doubleChance = clamp01(getDoubleDropChance(params));
-    const tripleChance = clamp01(getTripleDropChance(params));
-    const singleChance = 1.0 - doubleChance - tripleChance;
-
-    const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-    const speedMinutesPerHour = founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_speed_duration_minutes, 5.0);
-    speedPct = clamp01(speedMinutesPerHour / 60.0);
-  }
-
+  // Founder 2× speed no longer applied to bomb recharge: user already sets Game Speed at top.
   // 10× Bomb Recharge buff (Lootbug + Drone): uptime fraction = min/h ÷ 60; effective recharge ÷ (1 + 9×uptime) so 60 min/h ⇒ ÷10
   const bomb10xMinPerHour = typeof params.bomb_recharge_10x_min_per_hour === "number" ? Math.max(0, params.bomb_recharge_10x_min_per_hour) : 0;
   const bomb10xUptime = bomb10xMinPerHour / 60.0;
   const bomb10xFactor = 1.0 + 9.0 * bomb10xUptime;
 
-  // Weighted effective recharge times (founder 2× speed); then VIP Game Speed; then 10× buff when active
+  // Effective recharge: Game Speed (from params) and 10× buff when active; no Founder 2× speed
   function effectiveRecharge(baseSeconds: number): number {
     const s = clampPositive(baseSeconds, 1);
-    const afterFounderSpeed = s * (1.0 - speedPct) + (s / 2.0) * speedPct;
-    const afterGameSpeed = afterFounderSpeed / (1.0 + gameSpeedBonus);
+    const afterGameSpeed = s / (1.0 + gameSpeedBonus);
     return afterGameSpeed / bomb10xFactor;
   }
 
@@ -595,36 +555,9 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   return gemsPerHour;
 }
 
-export function calculateFounderBombBoostPerHour(params: GameParameters): number {
-  if (!params.founder_enabled) return 0;
-  const secondsPerHour = 3600.0;
-  const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: applies to bomb recharge (founder bomb interval)
-  const effectiveInterval = clampPositive(params.founder_bomb_interval_seconds, 87.0) / (1.0 + gameSpeedBonus);
-  const dropsPerHour = secondsPerHour / effectiveInterval;
-
-  const effectiveBombsPerCharge = 1.0 / (1.0 - clamp01(params.free_bomb_chance));
-  const founderMult = rechargeChargeMultiplier(params.founder_bomb_recharge_card_level);
-  const chargesPerDrop = clampPositive(params.founder_bomb_charges_per_drop, 2.0) * founderMult;
-  const effectiveBombsPerDrop = chargesPerDrop * effectiveBombsPerCharge;
-
-  const expectedSpeedActivations = dropsPerHour * effectiveBombsPerDrop * clamp01(params.founder_bomb_speed_chance);
-  const timeSavedPerActivation = clampPositive(params.founder_bomb_speed_duration_seconds, 10.0) / clampPositive(params.founder_bomb_speed_multiplier, 2.0);
-
-  const totalTimeSavedSeconds = expectedSpeedActivations * timeSavedPerActivation;
-  const totalTimeSavedMinutes = totalTimeSavedSeconds / 60.0;
-
-  const effectiveMinutesPerHour = 60.0 - totalTimeSavedMinutes;
-
-  const normalFreebiesPerHour = calculateFreebiesPerHour(params);
-  const effectiveFreebieTimer = clampPositive(params.freebie_timer_minutes, 7.0) / (1.0 + gameSpeedBonus);
-  const baseEffectiveFreebiesPerHour = 60.0 / (effectiveFreebieTimer * (effectiveMinutesPerHour / 60.0));
-  const effectiveFreebiesPerHour = baseEffectiveFreebiesPerHour; // Claim % does not affect founder bomb bar
-
-  const additionalFreebies = effectiveFreebiesPerHour - normalFreebiesPerHour;
-  const expectedRolls = calculateExpectedRollsPerClaim(params);
-  const refreshMult = calculateRefreshMultiplier(params);
-
-  return additionalFreebies * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
+/** Founder bomb 2× speed procs: no longer in EV (user sets Game Speed at top). */
+export function calculateFounderBombBoostPerHour(_params: GameParameters): number {
+  return 0;
 }
 
 export type EvBreakdownEntry = { base: number; jackpot: number; refresh_base: number; refresh_jackpot: number };
