@@ -1,7 +1,7 @@
 /* Lootbug module layout */
 
 .lootbugGrid {
-  max-width: 560px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 18px;
   display: flex;
@@ -114,15 +114,179 @@
   margin-top: 4px;
 }
 
-.lootbugDerived {
-  margin-top: 10px;
-  padding-top: 10px;
+/* Game Speed: from Gem EV, read-only, grayed but greenish (same visual language) */
+.lootbugGameSpeedReadOnly {
+  border: 2px solid rgba(56, 161, 105, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(56, 161, 105, 0.08);
+  opacity: 0.85;
+  margin-bottom: 8px;
+}
+
+.lootbugGameSpeedValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* IntStepper for Gem Cost Reduction (+/− buttons) */
+.lootbugStepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lootbugStepBtn {
+  padding: 8px 12px;
+  min-width: 36px;
+  font: inherit;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.lootbugStepBtn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.lootbugStepBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lootbugStepperInput {
+  width: 64px;
+  flex-shrink: 0;
+}
+
+/* Lootbug buffs tables */
+.lootbugBuffsSection {
+  overflow-x: auto;
+}
+
+.lootbugTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.lootbugTable th,
+.lootbugTable td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.lootbugTable th {
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lootbugTable th.lootbugTableThRight,
+.lootbugTable th:last-child,
+.lootbugTable td.lootbugTableNum,
+.lootbugTable td.lootbugTablePlaceholder {
+  text-align: right;
+}
+
+.lootbugTable th.lootbugTableThRight {
+  white-space: nowrap;
+}
+
+.lootbugBuffCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lootbugBuffIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.lootbugBuffDuration {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.lootbugNetGemsRow {
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px dashed rgba(15, 23, 42, 0.15);
 }
 
-.lootbugDerivedTitle {
+/* Tooltips: compact and subtle in Lootbug module */
+.lootbugTable th .tooltipWrap {
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.lootbugTable th .qmark {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  padding: 0;
+  font-size: 10px;
+  line-height: 14px;
+  border-radius: 4px;
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.04);
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.lootbugTable th .qmark:hover {
+  border-color: rgba(25, 118, 210, 0.25);
+  background: rgba(25, 118, 210, 0.06);
+  color: rgba(15, 23, 42, 0.7);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.08);
+}
+
+.lootbugStatLabel .tooltipWrap {
+  margin-left: 2px;
+}
+
+.lootbugStatLabel .qmark {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  font-size: 11px;
+  line-height: 16px;
+  border-radius: 5px;
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(15, 23, 42, 0.03);
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.lootbugStatLabel .qmark:hover {
+  border-color: rgba(25, 118, 210, 0.3);
+  background: rgba(25, 118, 210, 0.05);
+  color: rgba(15, 23, 42, 0.75);
+}
+
+/* Tooltip popup: softer look when opened from Lootbug */
+.lootbugSection .tooltipPop {
+  border-radius: 8px;
+  padding: 8px 10px;
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+}
+
+.lootbugSection .tooltipPop .tooltipTitle {
   font-size: 12px;
-  font-weight: 700;
-  color: var(--muted);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.lootbugSection .tooltipPop .tooltipLine {
+  font-size: 11px;
+  line-height: 1.4;
 }

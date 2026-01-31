@@ -562,10 +562,10 @@ export function Drone() {
               <span className="droneBuffPlotLabel" />
               <span className="droneBuffPlotBarHeader">Duration</span>
               <span className="droneBuffPlotRightHeader">
-                Min/h
+                min/h
                 <Tooltip
                   content={{
-                    title: "Min/h",
+                    title: "min/h",
                     lines: [
                       "Average minutes per hour this buff is active.",
                       "Uptime × 60; max 60 min/h.",

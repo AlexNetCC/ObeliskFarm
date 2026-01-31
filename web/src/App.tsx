@@ -6,7 +6,8 @@ import { ArchSim } from "./modules/arch/ArchSim";
 import { GemEv } from "./modules/gemev/GemEv";
 import { Stargazing } from "./modules/stargazing/Stargazing";
 import { Drone } from "./modules/drone/Drone";
-type ModuleId = "event" | "arch" | "gemev" | "stargazing" | "drone";
+import { Lootbug } from "./modules/lootbug/Lootbug";
+type ModuleId = "event" | "arch" | "gemev" | "stargazing" | "drone" | "lootbug";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
@@ -25,7 +26,7 @@ export function App() {
         { id: "gemev" as const, label: "Gem EV Calculator", icon: "sprites/common/gem.png" },
         { id: "stargazing" as const, label: "Stargazing Calculator", icon: "sprites/stargazing/stargazing.svg" },
         { id: "drone" as const, label: "Drone (beta)", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
-        // { id: "lootbug" as const, label: "Lootbug (beta)", icon: "https://static.wikitide.net/shminerwiki/2/27/Blank_Button.png" }, // invis for now
+        { id: "lootbug" as const, label: "Lootbug (beta)", icon: "https://static.wikitide.net/shminerwiki/8/86/Lootbug_Default.png" },
       ] as const,
     [],
   );
@@ -98,6 +99,8 @@ export function App() {
         <ArchSim />
       ) : active === "drone" ? (
         <Drone />
+      ) : active === "lootbug" ? (
+        <Lootbug />
       ) : (
         <Stargazing />
       )}

@@ -24,7 +24,7 @@ The heart of the toolkit is the **Monte Carlo optimization** system:
 - **Archaeology Simulator**
   - Optimizes skill point distribution (STR/AGI/PER/INT/LCK) via MC search.
   - Multiple objectives: max stage reached, XP/hour, or fragments/hour (by fragment type).
-  - Tests thousands of stat distributions and breaks ties intelligently (3% threshold, lexicographic tie-break).
+  - Uses significance tests (Welch, α=0.05) at each step: screening → refinement → tie-break; no fixed percentage threshold.
   - Saves MC run history with detailed metrics and tie-break reports.
   - Also includes gem upgrades, fragment upgrades, and card configuration.
 - **Event Budget Optimizer**
