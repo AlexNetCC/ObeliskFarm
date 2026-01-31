@@ -797,6 +797,7 @@ export function EventSim() {
 
           <Collapsible
             id="event-player-stats"
+            className="eventPlayerStatsDark"
             title={
               <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
                 <span>Player stats</span>
@@ -805,30 +806,31 @@ export function EventSim() {
             }
             defaultExpanded={false}
           >
-            <div className="small">Derived from your current upgrades/prestige (read-only).</div>
-            <div className="kv kvCompact" style={{ marginTop: 8 }}>
-              <kbd>Attack</kbd>
-                <div className="mono">{formatInt(currentPlayerStats.atk)}</div>
-                <kbd>Health</kbd>
-                <div className="mono">{formatInt(currentPlayerStats.health)}</div>
-                <kbd>Attack speed</kbd>
-                <div className="mono">{currentPlayerStats.atkSpeed.toFixed(2)}</div>
-                <kbd>Walk speed</kbd>
-                <div className="mono">{currentPlayerStats.walkSpeed.toFixed(2)}</div>
-                <kbd>Game speed</kbd>
-                <div className="mono">{currentPlayerStats.gameSpeed.toFixed(2)}</div>
-                <kbd>Crit chance</kbd>
-                <div className="mono">{currentPlayerStats.crit.toFixed(1)}%</div>
-                <kbd>Crit damage</kbd>
-                <div className="mono">{currentPlayerStats.critDmg.toFixed(2)}×</div>
-              <kbd>Block</kbd>
+            <div className="eventPlayerStatsDarkInner">
+              <div className="kv kvCompact">
+                <kbd>Max HP</kbd>
+              <div className="mono">{formatInt(currentPlayerStats.health)}</div>
+              <kbd>Attack Damage</kbd>
+              <div className="mono">{formatInt(currentPlayerStats.atk)}</div>
+              <kbd>Attack Speed</kbd>
+              <div className="mono">{currentPlayerStats.atkSpeed.toFixed(2)}</div>
+              <kbd>Move Speed</kbd>
+              <div className="mono">{currentPlayerStats.walkSpeed.toFixed(2)}</div>
+              <kbd>Crit Chance</kbd>
+              <div className="mono">{currentPlayerStats.crit.toFixed(1)}%</div>
+              <kbd>Crit Damage</kbd>
+              <div className="mono">{currentPlayerStats.critDmg.toFixed(2)}×</div>
+              <kbd>2× Currencies</kbd>
+              <div className="mono">{currentPlayerStats.x2Money.toFixed(0)}</div>
+              <kbd>Event Speed</kbd>
+              <div className="mono">{currentPlayerStats.gameSpeed.toFixed(2)}</div>
+              <kbd>Block chance</kbd>
               <div className="mono">{formatPct01(currentPlayerStats.blockChance, 1)}</div>
-              <kbd>Prestige scale</kbd>
-              <div className="mono">{currentPlayerStats.prestigeBonusScale.toFixed(2)}</div>
-                <kbd>2× money</kbd>
-                <div className="mono">{currentPlayerStats.x2Money.toFixed(2)}</div>
-                <kbd>5× money</kbd>
-              <div className="mono">{currentPlayerStats.x5Money.toFixed(0)}%</div>
+              <kbd>Prestige HP/Dmg</kbd>
+              <div className="mono">{(1 + currentPlayerStats.prestigeBonusScale * ui.prestige).toFixed(1)}×</div>
+              <kbd>5× Currencies</kbd>
+              <div className="mono">{currentPlayerStats.x5Money.toFixed(0)}</div>
+              </div>
             </div>
           </Collapsible>
 

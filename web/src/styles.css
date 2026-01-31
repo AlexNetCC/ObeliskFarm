@@ -229,6 +229,43 @@ body {
   padding: 10px 12px 12px;
 }
 
+/* Player stats collapsible: dark panel, white text, monospace */
+.collapseWrap.eventPlayerStatsDark {
+  background: #1a1d23;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  overflow: hidden;
+}
+.collapseWrap.eventPlayerStatsDark .collapseHeader {
+  background: #1a1d23;
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.collapseWrap.eventPlayerStatsDark .collapseToggle {
+  color: #fff;
+}
+.collapseWrap.eventPlayerStatsDark .collapseBody {
+  background: #1a1d23;
+  color: #fff;
+  border-radius: 0 0 12px 12px;
+}
+.collapseWrap.eventPlayerStatsDark .eventPlayerStatsDarkInner,
+.collapseWrap.eventPlayerStatsDark .small,
+.collapseWrap.eventPlayerStatsDark kbd,
+.collapseWrap.eventPlayerStatsDark .mono {
+  color: #e2e8f0;
+}
+.collapseWrap.eventPlayerStatsDark .mono {
+  font-family: var(--mono);
+}
+.collapseWrap.eventPlayerStatsDark .kv {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.collapseWrap.eventPlayerStatsDark .kv kbd {
+  color: #94a3b8;
+}
+
 .archGrid {
   display: grid;
   grid-template-columns: 1fr;
