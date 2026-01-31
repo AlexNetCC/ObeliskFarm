@@ -3,6 +3,7 @@ import "./drone.css";
 import { Tooltip } from "../../components/Tooltip";
 import { Collapsible } from "../../components/Collapsible";
 import { loadJson, saveJson } from "../../lib/storage";
+import { defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const ELIXIR_BASE_INTERVAL_SEC = 360;
 const ELIXIR_SUIT_SEC_PER_LEVEL = 15;
@@ -62,6 +63,13 @@ type ElixirState = {
 
 const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v2";
 const STORAGE_KEY_V1 = "obeliskfarm:web:drone_elixir_save.json:v1";
+const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
+const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+
+function clampInt(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
 
 const DEFAULT: ElixirState = {
   gameSpeedMultiplier: 1,
@@ -278,7 +286,16 @@ export function Drone() {
     [],
   );
 
-  const gameSpeedMult = clamp(state.gameSpeedMultiplier, 1, 10);
+  const gameSpeedMult = (() => {
+    const base = defaultGameParameters();
+    const saved = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
+    const merged: GameParameters = { ...base, ...(saved?.params ?? {}) };
+    let mult = "game_speed_multiplier" in merged ? merged.game_speed_multiplier : 1.0;
+    const gameSpeedPct = (merged as { game_speed_pct?: number }).game_speed_pct;
+    if (mult === 1.0 && typeof gameSpeedPct === "number" && gameSpeedPct > 0)
+      mult = 1.0 + clampInt(gameSpeedPct, 0, 12) / 100.0;
+    return getGameSpeedMultiplier({ ...merged, game_speed_multiplier: clamp(Number(mult), 1.0, 10.0) });
+  })();
   const suitLevel = clamp(Math.round(state.elixirSuitLevel), 0, 20);
   const intervalSecBase = Math.max(1, ELIXIR_BASE_INTERVAL_SEC - suitLevel * ELIXIR_SUIT_SEC_PER_LEVEL);
   const intervalSec = intervalSecBase / gameSpeedMult;
@@ -309,26 +326,44 @@ export function Drone() {
       .sort((a, b) => a.sec - b.sec);
   }, [state.fueled, state.fishingUnlocked, fueledBuffDurationPct, fuelMult, gameSpeedMult]);
 
+  const droneBomb10xMinPerHour = useMemo(() => {
+    const cycleSec = numBuffs * intervalSec;
+    if (cycleSec <= 0) return 0;
+    const b = buffDurations.find((x) => x.id === "10xbomb");
+    if (!b) return 0;
+    return Math.min(60, (b.sec / cycleSec) * 60);
+  }, [numBuffs, intervalSec, buffDurations]);
+
+  useEffect(() => {
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.droneBomb10xMinPerHour = droneBomb10xMinPerHour;
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [droneBomb10xMinPerHour]);
+
   return (
     <div className="droneGrid">
       <div className={`droneGameSpeedToggle ${gameSpeedMult > 1 ? "droneGameSpeedToggleOn" : ""}`}>
-        <NumInput
-          label="Game speed"
-          value={state.gameSpeedMultiplier}
-          onChange={(n) => update({ gameSpeedMultiplier: n })}
-          min={1}
-          max={10}
-          step={0.01}
-          suffix="×"
-          decimals={2}
-          tooltip={{
-            title: "Game speed",
-            lines: [
-              "Current game speed multiplier (e.g. 2 = 2×, 2.1 = 2.1×).",
-              "Time between buffs and fuel duration in real time = game time ÷ this value.",
-            ],
-          }}
-        />
+        <div className="droneGameSpeedReadOnly">
+          <span className="droneLabel">
+            Game speed
+            <Tooltip
+              content={{
+                title: "Game speed",
+                sections: [
+                  {
+                    heading: "Source",
+                    lines: [
+                      "Taken from Gem EV Calculator. Same value as Stats screen.",
+                      "Time between buffs and fuel duration in real time = game time ÷ game speed.",
+                    ],
+                  },
+                  { heading: "Edit", lines: ["Change it in the Gem EV Calculator module."] },
+                ],
+              }}
+            />
+          </span>
+          <span className="droneStepperValue">{gameSpeedMult.toFixed(2)}×</span>
+        </div>
         <p className="droneHint" style={{ marginTop: 6, marginBottom: 0 }}>
           When &gt; 1×: time between buffs and fuel duration in real time = game time ÷ speed.
         </p>

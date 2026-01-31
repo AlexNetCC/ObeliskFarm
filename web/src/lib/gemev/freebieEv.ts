@@ -85,6 +85,9 @@ export type GameParameters = {
   founder_bomb_speed_chance: number; // 0..1
   founder_bomb_speed_multiplier: number;
   founder_bomb_speed_duration_seconds: number;
+
+  /** Optional: combined Lootbug + Drone 10× Bomb Recharge min/h. When set, effective bomb recharge is divided by (1 + 9×uptime) so 60 min/h ⇒ ÷10. */
+  bomb_recharge_10x_min_per_hour?: number;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -492,11 +495,17 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
     speedPct = clamp01(speedMinutesPerHour / 60.0);
   }
 
-  // Weighted effective recharge times (founder 2× speed); then VIP Game Speed multiplies with all bomb recharges
+  // 10× Bomb Recharge buff (Lootbug + Drone): uptime fraction = min/h ÷ 60; effective recharge ÷ (1 + 9×uptime) so 60 min/h ⇒ ÷10
+  const bomb10xMinPerHour = typeof params.bomb_recharge_10x_min_per_hour === "number" ? Math.max(0, params.bomb_recharge_10x_min_per_hour) : 0;
+  const bomb10xUptime = bomb10xMinPerHour / 60.0;
+  const bomb10xFactor = 1.0 + 9.0 * bomb10xUptime;
+
+  // Weighted effective recharge times (founder 2× speed); then VIP Game Speed; then 10× buff when active
   function effectiveRecharge(baseSeconds: number): number {
     const s = clampPositive(baseSeconds, 1);
     const afterFounderSpeed = s * (1.0 - speedPct) + (s / 2.0) * speedPct;
-    return afterFounderSpeed / (1.0 + gameSpeedBonus);
+    const afterGameSpeed = afterFounderSpeed / (1.0 + gameSpeedBonus);
+    return afterGameSpeed / bomb10xFactor;
   }
 
   const effGem = effectiveRecharge(params.gem_bomb_recharge_seconds);

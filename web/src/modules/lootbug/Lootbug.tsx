@@ -21,6 +21,7 @@ const WIKI_ICON = "https://static.wikitide.net/shminerwiki/2/27/Blank_Button.png
 const LOOTBUG_BASE_SPAWN_MIN = 20;
 const STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
+const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 
 type LootbugState = {
   spawnRateMultiplier: number;
@@ -325,6 +326,12 @@ export function Lootbug() {
     return (perHour * 2) / gameSpeed;
   }, [lootbugsPerHour, totalGemWeight, gameSpeed]);
 
+  useEffect(() => {
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [bombRecharge10xMinPerHour]);
+
   const goldenPct = clamp(state.goldenChancePct, 0, 100) / 100;
 
   const gemCost2x = useMemo(() => {
@@ -602,9 +609,14 @@ export function Lootbug() {
                     <Tooltip
                       content={{
                         title: "min/h",
-                        lines: [
-                          "Average minutes per hour this buff is active (real time).",
-                          "Per hour × duration (game min) ÷ game speed; instant buffs show —.",
+                        sections: [
+                          {
+                            heading: "Real time",
+                            lines: [
+                              "Average minutes per hour this buff is active (real time).",
+                              "Formula: per hour × duration (game min) ÷ game speed. Applied once; not double-counted with the duration shown in parentheses.",
+                            ],
+                          },
                         ],
                       }}
                     />
@@ -618,6 +630,7 @@ export function Lootbug() {
                   const durMin = getDurationMinutes(buff.duration);
                   const minPerHour =
                     durMin != null && gameSpeed > 0 ? (perHour * durMin) / gameSpeed : null;
+                  const realDurMin = durMin != null && gameSpeed > 0 ? durMin / gameSpeed : null;
                   return (
                     <tr key={buff.name}>
                       <td>
@@ -625,7 +638,15 @@ export function Lootbug() {
                           <img src={getFreeBuffIcon(buff.name)} alt="" className="lootbugBuffIcon" aria-hidden />
                           <span>{buff.name}</span>
                           {buff.duration ? (
-                            <span className="lootbugBuffDuration"> ({buff.duration})</span>
+                            <span className="lootbugBuffDuration">
+                              {realDurMin != null
+                                ? (() => {
+                                    const m = Math.floor(realDurMin);
+                                    const s = Math.round((realDurMin * 60) % 60);
+                                    return ` (${m}:${String(s).padStart(2, "0")} min)`;
+                                  })()
+                                : ` (${buff.duration})`}
+                            </span>
                           ) : null}
                         </span>
                       </td>
@@ -664,9 +685,14 @@ export function Lootbug() {
                     <Tooltip
                       content={{
                         title: "min/h",
-                        lines: [
-                          "Average minutes per hour this buff is active (real time).",
-                          "Per hour × duration (game min) ÷ game speed; instant buffs show —.",
+                        sections: [
+                          {
+                            heading: "Real time",
+                            lines: [
+                              "Average minutes per hour this buff is active (real time).",
+                              "Formula: per hour × duration (game min) ÷ game speed. Applied once; not double-counted with the duration shown in parentheses.",
+                            ],
+                          },
                         ],
                       }}
                     />
@@ -692,6 +718,7 @@ export function Lootbug() {
                   const durMin = getDurationMinutes(buff.duration);
                   const minPerHour =
                     durMin != null && gameSpeed > 0 ? (perHour * durMin) / gameSpeed : null;
+                  const realDurMin = durMin != null && gameSpeed > 0 ? durMin / gameSpeed : null;
                   const showGemPerHour =
                     buff.name === "10x Bomb Recharge" || buff.name === "2x Game Speed";
                   const actualCost = showGemPerHour ? Math.max(0, buff.cost - state.gemCostReduction) : 0;
@@ -708,7 +735,15 @@ export function Lootbug() {
                           <img src={getGemBuffIcon(buff.name)} alt="" className="lootbugBuffIcon" aria-hidden />
                           <span>{buff.name}</span>
                           {buff.duration ? (
-                            <span className="lootbugBuffDuration"> ({buff.duration})</span>
+                            <span className="lootbugBuffDuration">
+                              {realDurMin != null
+                                ? (() => {
+                                    const m = Math.floor(realDurMin);
+                                    const s = Math.round((realDurMin * 60) % 60);
+                                    return ` (${m}:${String(s).padStart(2, "0")} min)`;
+                                  })()
+                                : ` (${buff.duration})`}
+                            </span>
                           ) : null}
                         </span>
                       </td>

@@ -98,12 +98,12 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
   const { ev, breakdown } = props;
 
   const categories = [
-    "Gems\n(Base)",
-    "Stonks\nEV",
-    "Skill\nShards",
-    "Founder\nSupply\nDrop",
-    "Gem\nBomb",
-    "Founder\nBomb",
+    "Gems (Base)",
+    "Stonks EV",
+    "Skill Shards",
+    "Founder Supply Drop",
+    "Gem Bomb",
+    "Founder Bomb",
   ] as const;
 
   const normalKeys = ["gems_base", "stonks_ev", "skill_shards_ev"] as const;
@@ -136,7 +136,6 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
     return { speed: null, gems: null, entry: founderBomb };
   };
 
-  // Determine max bar height (Founder Supply includes speed + gems).
   const maxVal = Math.max(
     1,
     ...normalKeys.map((k) => sumEntry(breakdown[k])),
@@ -145,29 +144,30 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
     sumEntry(founderBomb),
   );
 
-  // SVG layout
-  const W = 860;
-  const H = 360;
-  const padL = 64;
-  const padR = 16;
-  const padT = 34;
-  const padB = 92;
+  // Horizontal bar chart: categories on Y, values on X (bars left to right)
+  const W = 720;
+  const H = 320;
+  const padL = 140;
+  const padR = 72;
+  const padT = 20;
+  const padB = 24;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
-
-  const barW = 74;
-  const gap = (plotW - categories.length * barW) / Math.max(1, categories.length - 1);
-  const scaleY = plotH / maxVal;
+  const nRows = categories.length;
+  const rowH = plotH / nRows;
+  const barPad = 4;
+  const barH = Math.max(12, rowH - 2 * barPad);
+  const scaleX = plotW / maxVal;
 
   const gridLines = 5;
-  const yTicks = Array.from({ length: gridLines + 1 }, (_, i) => i / gridLines);
+  const xTicks = Array.from({ length: gridLines + 1 }, (_, i) => i / gridLines);
 
-  function yOf(v: number): number {
-    return padT + plotH - v * scaleY;
+  function xOf(v: number): number {
+    return padL + v * scaleX;
   }
 
-  function hOf(v: number): number {
-    return v * scaleY;
+  function wOf(v: number): number {
+    return v * scaleX;
   }
 
   function fillFor(seg: SegmentKey): string {
@@ -191,93 +191,80 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
       aria-label="EV contributions bar chart"
     >
       <defs>
-        {/* Jackpot: diagonal hatch */}
         <pattern id="patJackpot" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="8" height="8" fill={COLORS.jackpot} opacity={0.85} />
           <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.55)" strokeWidth="3" />
         </pattern>
-        {/* Refresh base: dotted */}
         <pattern id="patRefreshBase" width="10" height="10" patternUnits="userSpaceOnUse">
           <rect width="10" height="10" fill={COLORS.refresh_base} opacity={0.85} />
           <circle cx="3" cy="3" r="1.4" fill="rgba(255,255,255,0.65)" />
           <circle cx="8" cy="7" r="1.4" fill="rgba(255,255,255,0.65)" />
         </pattern>
-        {/* Refresh jackpot: cross hatch */}
         <pattern id="patRefreshJackpot" width="10" height="10" patternUnits="userSpaceOnUse">
           <rect width="10" height="10" fill={COLORS.refresh_jackpot} opacity={0.85} />
           <path d="M0 0 L10 10 M10 0 L0 10" stroke="rgba(255,255,255,0.55)" strokeWidth="1.6" />
         </pattern>
       </defs>
 
-      {/* Grid + Y labels */}
-      {yTicks.map((t, i) => {
+      {/* Grid + X labels */}
+      {xTicks.map((t, i) => {
         const v = t * maxVal;
-        const y = yOf(v);
+        const x = xOf(v);
         return (
           <g key={i}>
-            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="rgba(15,23,42,0.08)" strokeDasharray="4 4" />
-            <text x={padL - 10} y={y + 4} textAnchor="end" fontSize={11} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
+            <line x1={x} y1={padT} x2={x} y2={padT + plotH} stroke="rgba(15,23,42,0.08)" strokeDasharray="4 4" />
+            <text x={x} y={padT + plotH + 16} textAnchor="middle" fontSize={10} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
               {v.toFixed(0)}
             </text>
           </g>
         );
       })}
 
-      {/* Axes */}
       <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
-      <line x1={padL} y1={padT + plotH} x2={W - padR} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
+      <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
 
-      {/* Bars */}
       {categories.map((label, i) => {
-        const x0 = padL + i * (barW + gap);
+        const y0 = padT + i * rowH + barPad;
         const { speed, gems, entry } = stackForIndex(i);
 
-        // Build segment list for this bar.
-        const segs: Array<{ key: SegmentKey; v: number; y: number; h: number; bottom: number }> = [];
-        let bottom = 0;
+        const segs: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
+        let left = 0;
         (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).forEach((k) => {
           const v = entry[k];
-          const h = hOf(v);
-          const y = yOf(bottom + v);
-          segs.push({ key: k, v, y, h, bottom });
-          bottom += v;
+          const w = wOf(v);
+          const x = padL + left * scaleX;
+          segs.push({ key: k, v, x, w, left });
+          left += v;
         });
 
         let founderSpeedTotal = 0;
         let founderGemsTotal = 0;
-        let segsGems: Array<{ key: SegmentKey; v: number; y: number; h: number; bottom: number }> = [];
+        let segsGems: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
         if (i === 3 && speed && gems) {
           founderSpeedTotal = sumEntry(speed);
-          // top stack for gems is offset by founderSpeedTotal
-          let b2 = founderSpeedTotal;
+          let left2 = founderSpeedTotal;
           segsGems = (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).map((k) => {
             const v = gems[k];
-            const h = hOf(v);
-            const y = yOf(b2 + v);
-            const out = { key: k, v, y, h, bottom: b2 };
-            b2 += v;
+            const w = wOf(v);
+            const x = padL + left2 * scaleX;
+            const out = { key: k, v, x, w, left: left2 };
+            left2 += v;
             return out;
           });
           founderGemsTotal = sumEntry(gems);
         }
 
-        const totalBarHeight = i === 3 ? founderSpeedTotal + founderGemsTotal : sumEntry(entry);
-        const topY = yOf(totalBarHeight);
-
-        const valueLabel = `${fmt1(valuesTop[i] ?? 0)}\n(${fmt1(pcts[i] ?? 0)}%)`;
-        const valueBoxW = 66;
-        const valueBoxH = 30;
-        const boxX = x0 + barW / 2 - valueBoxW / 2;
-        const boxY = clamp(topY - valueBoxH - 6, 8, padT + plotH - valueBoxH - 2);
+        const totalBarLen = i === 3 ? founderSpeedTotal + founderGemsTotal : sumEntry(entry);
+        const barEndX = padL + wOf(totalBarLen);
+        const labelY = y0 + barH / 2 + 4;
 
         return (
           <g key={i}>
-            {/* bar border */}
             <rect
-              x={x0}
-              y={yOf(totalBarHeight)}
-              width={barW}
-              height={hOf(totalBarHeight)}
+              x={padL}
+              y={y0}
+              width={wOf(totalBarLen)}
+              height={barH}
               fill="none"
               stroke="rgba(15,23,42,0.55)"
               strokeWidth={1}
@@ -288,10 +275,10 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
               s.v > 0 ? (
                 <rect
                   key={s.key}
-                  x={x0}
-                  y={s.y}
-                  width={barW}
-                  height={Math.max(0, s.h)}
+                  x={s.x}
+                  y={y0}
+                  width={Math.max(0, s.w)}
+                  height={barH}
                   fill={fillFor(s.key)}
                   stroke="rgba(15,23,42,0.45)"
                   strokeWidth={0.6}
@@ -303,10 +290,10 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
               s.v > 0 ? (
                 <rect
                   key={`g_${s.key}`}
-                  x={x0}
-                  y={s.y}
-                  width={barW}
-                  height={Math.max(0, s.h)}
+                  x={s.x}
+                  y={y0}
+                  width={Math.max(0, s.w)}
+                  height={barH}
                   fill={fillFor(s.key)}
                   stroke="rgba(15,23,42,0.45)"
                   strokeWidth={0.6}
@@ -314,64 +301,39 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
               ) : null,
             )}
 
-            {/* Founder inner labels (Speed / Gems) */}
-            {i === 3 ? (
-              <>
-                {founderSpeedTotal > 0 && hOf(founderSpeedTotal) >= 26 ? (
-                  <text
-                    x={x0 + barW / 2}
-                    y={yOf(founderSpeedTotal / 2)}
-                    textAnchor="middle"
-                    fontSize={10}
-                    fontWeight={900}
-                    fill="rgba(15,23,42,0.85)"
-                    style={{ pointerEvents: "none" }}
-                  >
-                    Speed: {fmt1(ev.founder_speed_boost)}
-                  </text>
-                ) : null}
-                {founderGemsTotal > 0 && hOf(founderGemsTotal) >= 26 ? (
-                  <text
-                    x={x0 + barW / 2}
-                    y={yOf(founderSpeedTotal + founderGemsTotal / 2)}
-                    textAnchor="middle"
-                    fontSize={10}
-                    fontWeight={900}
-                    fill="rgba(15,23,42,0.85)"
-                    style={{ pointerEvents: "none" }}
-                  >
-                    Gems only: {fmt1(ev.founder_gems)}
-                  </text>
-                ) : null}
-              </>
+            {i === 3 && founderSpeedTotal > 0 && wOf(founderSpeedTotal) >= 40 ? (
+              <text
+                x={padL + wOf(founderSpeedTotal / 2)}
+                y={labelY}
+                textAnchor="middle"
+                fontSize={9}
+                fontWeight={900}
+                fill="rgba(15,23,42,0.9)"
+                style={{ pointerEvents: "none" }}
+              >
+                Speed: {fmt1(ev.founder_speed_boost)}
+              </text>
+            ) : null}
+            {i === 3 && founderGemsTotal > 0 && wOf(founderGemsTotal) >= 40 ? (
+              <text
+                x={padL + wOf(founderSpeedTotal + founderGemsTotal / 2)}
+                y={labelY}
+                textAnchor="middle"
+                fontSize={9}
+                fontWeight={900}
+                fill="rgba(15,23,42,0.9)"
+                style={{ pointerEvents: "none" }}
+              >
+                Gems: {fmt1(ev.founder_gems)}
+              </text>
             ) : null}
 
-            {/* value box */}
-            <rect x={boxX} y={boxY} width={valueBoxW} height={valueBoxH} rx={8} fill="rgba(255,255,255,0.92)" stroke="rgba(71,85,105,0.45)" />
-            <text x={x0 + barW / 2} y={boxY + 12} textAnchor="middle" fontSize={11} fontWeight={900} fill="rgba(15,23,42,0.92)" fontFamily="var(--mono)">
-              {fmt1(valuesTop[i] ?? 0)}
+            <text x={padL - 8} y={labelY} textAnchor="end" fontSize={11} fontWeight={800} fill="rgba(15,23,42,0.85)">
+              {label}
             </text>
-            <text x={x0 + barW / 2} y={boxY + 24} textAnchor="middle" fontSize={10} fontWeight={800} fill="rgba(71,85,105,0.9)">
-              ({fmt1(pcts[i] ?? 0)}%)
+            <text x={barEndX + 8} y={labelY} textAnchor="start" fontSize={10} fontWeight={800} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
+              {fmt1(valuesTop[i] ?? 0)} ({fmt1(pcts[i] ?? 0)}%)
             </text>
-
-            {/* x labels */}
-            <text x={x0 + barW / 2} y={padT + plotH + 22} textAnchor="middle" fontSize={11} fontWeight={900} fill="rgba(15,23,42,0.85)">
-              {label.split("\n")[0]}
-            </text>
-            {label.split("\n").slice(1).map((line, li) => (
-              <text
-                key={li}
-                x={x0 + barW / 2}
-                y={padT + plotH + 22 + (li + 1) * 12}
-                textAnchor="middle"
-                fontSize={11}
-                fontWeight={900}
-                fill="rgba(15,23,42,0.85)"
-              >
-                {line}
-              </text>
-            ))}
           </g>
         );
       })}

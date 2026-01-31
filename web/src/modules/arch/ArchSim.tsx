@@ -234,12 +234,15 @@ export function ArchSim() {
   const [mcRunning, setMcRunning] = useState(false);
   const [mcProgress, setMcProgress] = useState<string | null>(null);
   const [mcActiveMode, setMcActiveMode] = useState<null | "frag" | "XP" | "stage">(null);
+  const [mcCalibrationMsPer100Sims, setMcCalibrationMsPer100Sims] = useState<number | null>(null);
+  const [mcCalibrating, setMcCalibrating] = useState(false);
   const [comparisonResult, setComparisonResult] = useState<null | {
     mode: "stage" | "XP" | "frag";
     methodResults: Array<{ methodId: McComparisonMethodId; label: string; build: ArchBuild; primary: number }>;
     winnerId: McComparisonMethodId;
   }>(null);
   const cancelRef = useRef<{ cancelled: boolean; pool: WorkerPool | null }>({ cancelled: false, pool: null });
+  const mcCalibratedThisOpenRef = useRef(false);
   const [upgradeNextRefId, setUpgradeNextRefId] = useState<string | null>(null);
   const [upgradeNextRunning, setUpgradeNextRunning] = useState(false);
   const [upgradeNextProgress, setUpgradeNextProgress] = useState<string | null>(null);
@@ -286,13 +289,13 @@ export function ArchSim() {
         {
           heading: "When scores are considered tied",
           lines: [
-            "Default: within 3% of the best value (minimum absolute epsilon = 0.01).",
-            "With 'Tie-break w/ significance' on: Welch t-test (α=0.05); candidates not significantly worse than the best count as tied.",
+            "Statistical tests (Welch t-test, α=0.05) decide who counts as tied: candidates not significantly worse than the best on the primary metric.",
+            "No fixed percentage threshold; variance comes from the same MC runs used in screening and refinement.",
           ],
         },
         {
           heading: "Tie-break order",
-          lines: ["Primary → Secondary → Tertiary (each with the same tie threshold or significance test)."],
+          lines: ["Primary → Secondary → Tertiary (same logic at each step)."],
         },
         {
           heading: "Metrics by MC mode",
@@ -304,7 +307,7 @@ export function ArchSim() {
         },
         {
           heading: "What you see here",
-          lines: ["“Tied at primary” = number of candidates within the tie threshold.", "“Winner” = why #1 won (tie-break step)."],
+          lines: ["“Tied at primary” = number of candidates not significantly worse than the best on primary.", "“Winner” = why #1 won (tie-break step)."],
         },
       ],
     }),
@@ -599,6 +602,86 @@ export function ArchSim() {
     const lvl = clampInt(Number(build.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
     return 0.15 * lvl;
   }
+
+  /** Approximate total sim count for current MC params (used for duration estimate). */
+  function getEstimatedTotalSims(
+    archLevel: number,
+    screeningSims: number,
+    refinementSims: number,
+    combosMult: number,
+  ): number {
+    const baseSamples = Math.max(500, Math.max(1, archLevel) * 20);
+    const nSamples = Math.max(1, Math.trunc(baseSamples * 4 * combosMult));
+    const phase1Sims = screeningSims > 0 ? screeningSims : Math.max(1, refinementSims);
+    const phase1Total = nSamples * phase1Sims;
+    const numAnchorsRaw = Math.max(1, Math.trunc(nSamples * 0.05));
+    const perAnchor = clampInt(Math.trunc(refinementSims / 50), 5, 15);
+    const phase2Total = numAnchorsRaw * perAnchor * refinementSims;
+    return phase1Total + phase2Total + 3100;
+  }
+
+  useEffect(() => {
+    if (!mcWindowOpen) {
+      mcCalibratedThisOpenRef.current = false;
+      return;
+    }
+    if (mcRunning || mcCalibratedThisOpenRef.current) return;
+    mcCalibratedThisOpenRef.current = true;
+    setMcCalibrating(true);
+    const hc = typeof navigator !== "undefined" ? Number((navigator as any).hardwareConcurrency ?? 4) : 4;
+    const workerCount = clampInt(Math.max(1, hc - 1), 1, 8);
+    const pool = createWorkerPool(workerCount);
+    const stats = getTotalStats(build);
+    const options = { use_crit: true, enrage_enabled: build.enrageEnabled, flurry_enabled: build.flurryEnabled, quake_enabled: build.quakeEnabled };
+    const cardCfg = { blockCards: build.blockCards, polychromeBonus: getPolychromeBonus() };
+    const run100 = () =>
+      pool.run({
+        type: "stageSummaryWithVariance",
+        payload: { stats, starting_floor: 1, n_sims: 100, options, cardCfg, seed: 0 },
+      });
+    run100()
+      .then(() => {
+        const t0 = performance.now();
+        return run100().then(() => {
+          const elapsed = performance.now() - t0;
+          pool.terminate();
+          setMcCalibrationMsPer100Sims(elapsed);
+        });
+      })
+      .catch(() => {
+        pool.terminate();
+      })
+      .finally(() => {
+        setMcCalibrating(false);
+      });
+  }, [mcWindowOpen, mcRunning]);
+
+  const mcEstimateLabel = useMemo(() => {
+    const defaultScreening = 100;
+    const defaultRefinement = 200;
+    const screeningN = mcSettings.devTuning ? clampInt(Number(mcSettings.screeningSims ?? defaultScreening), 0, 999999) : defaultScreening;
+    const refinementN = mcSettings.devTuning ? clampInt(Number(mcSettings.refinementSims ?? defaultRefinement), 0, 999999) : defaultRefinement;
+    const combosN = mcSettings.devTuning ? clampInt(Number(mcSettings.combosMult ?? 1), 1, 50) : 1;
+    const totalSims = getEstimatedTotalSims(
+      clampInt(Number(build.archLevel ?? 0), 0, 999),
+      screeningN,
+      refinementN,
+      combosN,
+    );
+    const hc = typeof navigator !== "undefined" ? Number((navigator as any).hardwareConcurrency ?? 4) : 4;
+    const workerCount = clampInt(Math.max(1, hc - 1), 1, 8);
+    const estimateSec =
+      mcCalibrationMsPer100Sims != null ? (totalSims * mcCalibrationMsPer100Sims) / (100 * 1000 * workerCount) : null;
+    return mcCalibrating ? "Calibrating…" : estimateSec != null ? `Est. ~${Math.round(estimateSec)} s` : "Est. —";
+  }, [
+    build.archLevel,
+    mcSettings.devTuning,
+    mcSettings.screeningSims,
+    mcSettings.refinementSims,
+    mcSettings.combosMult,
+    mcCalibrationMsPer100Sims,
+    mcCalibrating,
+  ]);
 
   const skills = useMemo(() => ["strength", "agility", "perception", "intellect", "luck"] as const, []);
 
@@ -905,7 +988,7 @@ export function ArchSim() {
       let winnerReason = "highest primary score";
       if (tiedAtPrimary > 1 && (mode === "stage" || mode === "XP")) {
         const tail = hasTertiary ? "tie-break by secondary then tertiary" : hasSecondary ? "tie-break by secondary" : "tie-break (lexicographic)";
-        winnerReason = `primary within 3% → ${tail}`;
+        winnerReason = `primary tied → ${tail}`;
       } else if (tiedAtPrimary > 1 && mode === "frag") {
         const idx = FRAG_ORDER.indexOf(targetFrag);
         const secLabel = idx > 0 ? FRAG_ORDER[idx - 1].toUpperCase() : null;
@@ -916,7 +999,7 @@ export function ArchSim() {
             : hasSecondary && secLabel
               ? `tie-break by ${secLabel}/h`
               : "tie-break (lexicographic)";
-        winnerReason = `primary within 3% → ${tail}`;
+        winnerReason = `primary tied → ${tail}`;
       }
       const top3 = cands.slice(0, 3).map((c, i) => ({
         label: `#${i + 1}`,
@@ -2806,7 +2889,7 @@ export function ArchSim() {
                             content={{
                               title: "Tie-break w/ significance",
                               sections: [
-                                { heading: "When off", lines: ["Ties use a fixed 3% threshold."] },
+                                { heading: "When off", lines: ["Ties use a fixed percentage threshold."] },
                                 { heading: "When on", lines: ["Significance tests at every step (Welch, α=0.05)."] },
                               ],
                             }}
@@ -2845,8 +2928,17 @@ export function ArchSim() {
                           disabled={mcRunning}
                           onClick={() => (mcSettings.comparisonEnabled && mcSettings.comparisonMethods.length >= 1 ? runComparison("stage") : runMcOptimizer("stage"))}
                         >
-                          Run MC
-                        </button>
+                          Run MC <span className="mono">({mcEstimateLabel})</span>
+                        </button>{" "}
+                        <Tooltip
+                          content={{
+                            title: "Estimated run time",
+                            lines: [
+                              "Rough estimate from a short calibration on your device; depends on Screening N, Refinement N, and Combinations above.",
+                              "Actual duration may vary.",
+                            ],
+                          }}
+                        />
                         {mcRunning ? (
                           <button className="btn btnSecondary" type="button" onClick={cancelMc}>
                             Cancel
@@ -2883,8 +2975,17 @@ export function ArchSim() {
                           disabled={mcRunning}
                           onClick={() => (mcSettings.comparisonEnabled && mcSettings.comparisonMethods.length >= 1 ? runComparison("XP") : runMcOptimizer("XP"))}
                         >
-                          Run MC
-                        </button>
+                          Run MC <span className="mono">({mcEstimateLabel})</span>
+                        </button>{" "}
+                        <Tooltip
+                          content={{
+                            title: "Estimated run time",
+                            lines: [
+                              "Rough estimate from a short calibration on your device; depends on Screening N, Refinement N, and Combinations above.",
+                              "Actual duration may vary.",
+                            ],
+                          }}
+                        />
                         {mcRunning ? (
                           <button className="btn btnSecondary" type="button" onClick={cancelMc}>
                             Cancel
@@ -2955,8 +3056,17 @@ export function ArchSim() {
                           disabled={mcRunning}
                           onClick={() => (mcSettings.comparisonEnabled && mcSettings.comparisonMethods.length >= 1 ? runComparison("frag") : runMcOptimizer("frag"))}
                         >
-                          Run MC
-                        </button>
+                          Run MC <span className="mono">({mcEstimateLabel})</span>
+                        </button>{" "}
+                        <Tooltip
+                          content={{
+                            title: "Estimated run time",
+                            lines: [
+                              "Rough estimate from a short calibration on your device; depends on Screening N, Refinement N, and Combinations above.",
+                              "Actual duration may vary.",
+                            ],
+                          }}
+                        />
                         {mcRunning ? (
                           <button className="btn btnSecondary" type="button" onClick={cancelMc}>
                             Cancel

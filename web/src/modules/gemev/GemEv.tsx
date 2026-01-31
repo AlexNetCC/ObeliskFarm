@@ -23,6 +23,7 @@ type SavedStateV1 = {
 };
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
+const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -168,7 +169,6 @@ export function GemEv() {
   const [stonksEnabled, setStonksEnabled] = useState<boolean>(initial.stonks_enabled);
   const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
-
   // autosave
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -178,7 +178,6 @@ export function GemEv() {
     return () => window.clearTimeout(t);
   }, [params, stonksEnabled, skillShardsEnabled]);
 
-  // ESC closes the chart modal (matches other modules' modal behavior)
   useEffect(() => {
     function onKeyDown(ev: KeyboardEvent) {
       if (ev.key === "Escape") setChartOpen(false);
@@ -186,6 +185,13 @@ export function GemEv() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  const external10x = (() => {
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    const lootbug = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
+    const drone = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
+    return { lootbug, drone, total: lootbug + drone };
+  })();
 
   // Apply desktop semantics: stonks is a checkbox and uses fixed chance/bonus when enabled.
   // Also keep "fixed" desktop constants (they exist in params but are not editable in the UI).
@@ -258,6 +264,8 @@ export function GemEv() {
       mult = 1.0 + clampInt(gameSpeedPct, 0, 12) / 100.0;
     p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
 
+    p.bomb_recharge_10x_min_per_hour = external10x.total;
+
     // Ensure positive time values
     p.freebie_timer_minutes = clamp(p.freebie_timer_minutes, 0.1, 10_000);
     p.gem_bomb_recharge_seconds = clamp(p.gem_bomb_recharge_seconds, 0.1, 10_000);
@@ -269,7 +277,7 @@ export function GemEv() {
     p.founder_bomb_speed_duration_seconds = clamp(p.founder_bomb_speed_duration_seconds, 0, 10_000);
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled]);
+  }, [params, stonksEnabled, skillShardsEnabled, external10x.total]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
@@ -423,17 +431,15 @@ export function GemEv() {
             {!params.founder_enabled ? <div className="small" style={{ marginTop: 6 }}>FOUNDER is disabled: all founder-related contributions are set to 0.</div> : null}
 
             <div className="btnRow" style={{ marginTop: 12, alignItems: "center" }}>
-              <span className="navWorkingHorse gemEvChartArrow" aria-hidden="true" title="Overview chart">
-                →
-              </span>
               <button className="btn" type="button" onClick={() => setChartOpen(true)}>
-                OVERVIEW CHART
+                Overview chart
               </button>
               <Tooltip
                 content={{
                   title: "Overview chart",
-                  lines: ["Opens the stacked contributions bar chart (Base / Jackpot / Refresh)."],
+                  lines: ["Opens the stacked contributions bar chart (Base / Jackpot / Refresh). Bars left to right for readability on mobile."],
                 }}
+                label="?"
               />
             </div>
           </div>
@@ -829,6 +835,35 @@ export function GemEv() {
             headerRight={<Tooltip content={bombsInfo} />}
           >
             <div className="gemEvSectionBody">
+              {(external10x.lootbug > 0 || external10x.drone > 0) ? (
+                <div className="gemEvRow gemEvBomb10xGlow">
+                  <span className="mono small" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <img
+                      src="https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png"
+                      alt="10× Bomb Recharge"
+                      className="iconSmall"
+                      style={{ width: 24, height: 24, objectFit: "contain" }}
+                    />
+                    10× Bomb Recharge (Lootbug + Drone)
+                    <Tooltip
+                      content={{
+                        title: "10× Bomb Recharge min/h",
+                        sections: [
+                          {
+                            heading: "Source",
+                            lines: [
+                              "Sum of Lootbug and Elixir Drone 10× Bomb Recharge min/h. Opens Lootbug/Drone to update.",
+                              "Effective bomb recharge in calculations is divided by (1 + 9×uptime); 60 min/h ⇒ ÷10.",
+                            ],
+                          },
+                        ],
+                      }}
+                      label="?"
+                    />
+                  </span>
+                  <span className="mono small">{external10x.total.toFixed(1)} min/h</span>
+                </div>
+              ) : null}
               <Stepper
                 label="Free Bomb Chance (%)"
                 value={params.free_bomb_chance * 100}
@@ -1078,15 +1113,13 @@ export function GemEv() {
             <div className="modalHeader">
               <div>
                 <div className="mono" style={{ fontWeight: 900 }}>
-                  Overview Chart
+                  Overview chart
                 </div>
                 <div className="small">Stacked: Base / Jackpot / Refresh (Base) / Refresh (Jackpot)</div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btnSecondary" type="button" onClick={() => setChartOpen(false)}>
-                  Close
-                </button>
-              </div>
+              <button className="btn btnSecondary" type="button" onClick={() => setChartOpen(false)}>
+                Close
+              </button>
             </div>
             <div className="modalBody">
               <div className="gemEvChartModalGrid">

@@ -101,9 +101,7 @@ type RewardMilestoneEntry = {
   baseAmount?: number;
   /** Unit for display when monumentMultiplied (e.g. "Gems"). */
   unit?: string;
-};
-
-/** Wave → reward label and icon URL for display (e.g. "Wave 40 (Seasonal Miner + Lootbug Skin)" with icon). */
+};/** Wave → reward label and icon URL for display (e.g. "Wave 40 (Seasonal Miner + Lootbug Skin)" with icon). */
 export const EVENT_REWARD_MILESTONE_INFO: Record<number, RewardMilestoneEntry> = {
   2: { label: "20 Gems", iconUrl: `${REWARD_ICON_BASE}/a/aa/Gem.png`, monumentMultiplied: true, baseAmount: 20, unit: "Gems" },
   4: { label: "6 Item Chests", iconUrl: `${REWARD_ICON_BASE}/thumb/a/a8/Item_Chest.png/30px-Item_Chest.png`, monumentMultiplied: true, baseAmount: 6, unit: "Item Chests" },
