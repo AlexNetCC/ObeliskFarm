@@ -20,6 +20,46 @@ function clampInt(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.trunc(n)));
 }
 
+/** Standard normal CDF approximation (Abramowitz & Stegun 26.2.17). */
+function normalCdf(x: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989423 * Math.exp((-x * x) / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return x > 0 ? 1 - p : p;
+}
+
+/** Welch t-test two-tailed p-value for H0: μ1 = μ2. Returns p; p < α ⇒ reject (different). */
+function welchTTestTwoTailed(
+  mean1: number,
+  std1: number,
+  n1: number,
+  mean2: number,
+  std2: number,
+  n2: number,
+): number {
+  if (n1 < 2 || n2 < 2 || !Number.isFinite(std1) || !Number.isFinite(std2)) return 1;
+  const se1 = std1 / Math.sqrt(n1);
+  const se2 = std2 / Math.sqrt(n2);
+  const se = Math.sqrt(se1 * se1 + se2 * se2);
+  if (se <= 0) return 1;
+  const t = Math.abs(mean1 - mean2) / se;
+  const v1 = n1 - 1;
+  const v2 = n2 - 1;
+  const df = (se1 * se1 + se2 * se2) ** 2 / ((se1 * se1 * se1 * se1) / (v1 * v1) + (se2 * se2 * se2 * se2) / (v2 * v2));
+  const dfSafe = Math.max(2, Number.isFinite(df) ? df : 100);
+  // For large df, t ~ N(0,1). Approximate p ≈ 2*(1 - Φ(t)).
+  const p = 2 * (1 - normalCdf(t));
+  return Math.max(0, Math.min(1, p));
+}
+
+function sampleMeanStd(samples: number[]): { mean: number; std: number; n: number } {
+  const n = samples.length;
+  if (n === 0) return { mean: 0, std: 0, n: 0 };
+  const mean = samples.reduce((a, b) => a + b, 0) / n;
+  const variance = samples.reduce((s, x) => s + (x - mean) ** 2, 0) / Math.max(1, n - 1);
+  return { mean, std: Math.sqrt(variance), n };
+}
+
 type McLogEntry = {
   id: string;
   createdAt: number;
@@ -78,6 +118,8 @@ type McSettings = {
   // Compare multiple search methods with same budget; each runs in sequence
   comparisonEnabled: boolean;
   comparisonMethods: McComparisonMethodId[];
+  // Use statistical tests (Welch t-test, α=0.05) to decide ties instead of fixed 3% threshold
+  tieBreakWithSignificance: boolean;
 };
 
 function defaultMcSettings(): McSettings {
@@ -89,6 +131,7 @@ function defaultMcSettings(): McSettings {
     combosMult: 2,
     comparisonEnabled: false,
     comparisonMethods: ["default", "multiStart3"],
+    tieBreakWithSignificance: true,
   };
 }
 
@@ -225,6 +268,7 @@ export function ArchSim() {
       comparisonMethods: Array.isArray(raw.comparisonMethods)
         ? (raw.comparisonMethods as McComparisonMethodId[]).filter((m) => m === "default" || m === "multiStart3")
         : base.comparisonMethods,
+      tieBreakWithSignificance: true, // hidden UI; significance flow always on
     };
   });
   function confirmDanger(message: string): boolean {
@@ -241,11 +285,14 @@ export function ArchSim() {
       sections: [
         {
           heading: "When scores are considered tied",
-          lines: ["Within 3% of the best value (minimum absolute epsilon = 0.01)."],
+          lines: [
+            "Default: within 3% of the best value (minimum absolute epsilon = 0.01).",
+            "With 'Tie-break w/ significance' on: Welch t-test (α=0.05); candidates not significantly worse than the best count as tied.",
+          ],
         },
         {
           heading: "Tie-break order",
-          lines: ["Primary → Secondary → Tertiary (each with the same tie threshold)."],
+          lines: ["Primary → Secondary → Tertiary (each with the same tie threshold or significance test)."],
         },
         {
           heading: "Metrics by MC mode",
@@ -721,8 +768,18 @@ export function ArchSim() {
     const cardCfg = { blockCards: build.blockCards, polychromeBonus: getPolychromeBonus() };
     const options = { use_crit: true, enrage_enabled: build.enrageEnabled, flurry_enabled: build.flurryEnabled, quake_enabled: build.quakeEnabled };
 
-    type Cand = { dist: number[]; primary: number; secondary: number | null; tertiary: number | null };
+    type Cand = {
+      dist: number[];
+      primary: number;
+      secondary: number | null;
+      tertiary: number | null;
+      primaryStd?: number;
+      primaryN?: number;
+      secondaryStd?: number;
+      tertiaryStd?: number;
+    };
     const scores: Cand[] = [];
+    const useSignificance = mcSettings.tieBreakWithSignificance;
 
     const maxPending = Math.max(2, pool.size * 2);
     let completed = 0;
@@ -731,16 +788,73 @@ export function ArchSim() {
       const b2: ArchBuild = { ...build, skillPoints: { strength: dist[0], agility: dist[1], perception: dist[2], intellect: dist[3], luck: dist[4] } };
       const stats2 = getTotalStats(b2);
       if (mode === "frag") {
+        if (useSignificance) {
+          const out = await pool.run({
+            type: "fragmentSummaryWithVariance",
+            payload: { stats: stats2, starting_floor: 1, n_sims: simN, options, cardCfg, seed, target_frag: targetFrag },
+          });
+          const n = out.n ?? 0;
+          const byType = out.frag_per_hour_by_type ?? {};
+          const stdByType = (out as { std_by_type?: Record<string, number> }).std_by_type ?? {};
+          const idx = FRAG_ORDER.indexOf(targetFrag);
+          const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
+          const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+          scores.push({
+            dist,
+            primary: out.avg_frag_per_hour ?? 0,
+            secondary: secondary ?? null,
+            tertiary: tertiary ?? null,
+            primaryStd: out.std_frag_per_hour,
+            primaryN: n,
+            secondaryStd: idx > 0 ? stdByType[FRAG_ORDER[idx - 1]] : undefined,
+            tertiaryStd: idx > 1 ? stdByType[FRAG_ORDER[idx - 2]] : undefined,
+          });
+        } else {
+          const out = await pool.run({
+            type: "fragmentSummary",
+            payload: { stats: stats2, starting_floor: 1, n_sims: simN, options, cardCfg, seed, target_frag: targetFrag },
+          });
+          const fragPerH = Number(out.avg_frag_per_hour ?? 0);
+          const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
+          const idx = FRAG_ORDER.indexOf(targetFrag);
+          const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
+          const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+          scores.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
+        }
+        return;
+      }
+      if (useSignificance) {
         const out = await pool.run({
-          type: "fragmentSummary",
-          payload: { stats: stats2, starting_floor: 1, n_sims: simN, options, cardCfg, seed, target_frag: targetFrag },
+          type: "stageSummaryWithVariance",
+          payload: { stats: stats2, starting_floor: 1, n_sims: simN, options, cardCfg, seed },
         });
-        const fragPerH = Number(out.avg_frag_per_hour ?? 0);
-        const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
-        const idx = FRAG_ORDER.indexOf(targetFrag);
-        const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
-        const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
-        scores.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
+        const avgMaxStage = out.avg_max_stage ?? 0;
+        const fragsPerHour = out.fragments_per_hour ?? 0;
+        const xpPerHour = out.xp_per_hour ?? 0;
+        const n = out.n ?? 0;
+        if (mode === "XP") {
+          scores.push({
+            dist,
+            primary: xpPerHour,
+            secondary: fragsPerHour,
+            tertiary: avgMaxStage,
+            primaryStd: out.std_xp_per_hour,
+            primaryN: n,
+            secondaryStd: out.std_fragments_per_hour,
+            tertiaryStd: out.std_max_stage,
+          });
+        } else {
+          scores.push({
+            dist,
+            primary: avgMaxStage,
+            secondary: fragsPerHour,
+            tertiary: xpPerHour,
+            primaryStd: out.std_max_stage,
+            primaryN: n,
+            secondaryStd: out.std_fragments_per_hour,
+            tertiaryStd: out.std_xp_per_hour,
+          });
+        }
         return;
       }
       const out = await pool.run({
@@ -751,10 +865,8 @@ export function ArchSim() {
       const fragsPerHour = Number(out.fragments_per_hour ?? 0);
       const xpPerHour = Number(out.xp_per_hour ?? 0);
       if (mode === "XP") {
-        // primary XP/h, tie-break by frag/h then avg stage
         scores.push({ dist, primary: xpPerHour, secondary: fragsPerHour, tertiary: avgMaxStage });
       } else {
-        // primary avg stage, tie-break by fragments/h then XP/h (matches desktop intent)
         scores.push({ dist, primary: avgMaxStage, secondary: fragsPerHour, tertiary: xpPerHour });
       }
     };
@@ -965,8 +1077,30 @@ export function ArchSim() {
 
       if (cancelRef.current.cancelled) throw new Error("cancelled");
       scores.sort(makeCompareCand(scores));
-      const numAnchors = Math.max(1, Math.trunc(scores.length * topRatio));
-      const anchors = scores.slice(0, numAnchors);
+      const numAnchorsRaw = Math.max(1, Math.trunc(scores.length * topRatio));
+      let anchors: Cand[];
+      if (useSignificance && scores[0]) {
+        const bestScore = scores[0];
+        const advance = scores.filter(
+          (c) =>
+            c.primaryStd != null &&
+            c.primaryN != null &&
+            bestScore.primaryStd != null &&
+            bestScore.primaryN != null &&
+            welchTTestTwoTailed(
+              bestScore.primary,
+              bestScore.primaryStd,
+              bestScore.primaryN,
+              c.primary,
+              c.primaryStd,
+              c.primaryN,
+            ) >= 0.05,
+        );
+        anchors = advance.slice(0, numAnchorsRaw);
+      } else {
+        anchors = scores.slice(0, numAnchorsRaw);
+      }
+      const numAnchors = anchors.length;
 
       let best: Cand | undefined = scores[0];
       let bestPool: Cand[] = scores;
@@ -985,22 +1119,80 @@ export function ArchSim() {
             const p = (async () => {
               const b2: ArchBuild = { ...build, skillPoints: { strength: dist[0], agility: dist[1], perception: dist[2], intellect: dist[3], luck: dist[4] } };
               const stats2 = getTotalStats(b2);
+              const seedRef = seedBase + 100_000 + a * 100 + j;
               if (mode === "frag") {
+                if (useSignificance) {
+                  const out = await pool.run({
+                    type: "fragmentSummaryWithVariance",
+                    payload: { stats: stats2, starting_floor: 1, n_sims: refinementSims, options, cardCfg, seed: seedRef, target_frag: targetFrag },
+                  });
+                  const n = out.n ?? 0;
+                  const byType = out.frag_per_hour_by_type ?? {};
+                  const stdByType = (out as { std_by_type?: Record<string, number> }).std_by_type ?? {};
+                  const idx = FRAG_ORDER.indexOf(targetFrag);
+                  const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
+                  const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+                  refined.push({
+                    dist,
+                    primary: out.avg_frag_per_hour ?? 0,
+                    secondary: secondary ?? null,
+                    tertiary: tertiary ?? null,
+                    primaryStd: out.std_frag_per_hour,
+                    primaryN: n,
+                    secondaryStd: idx > 0 ? stdByType[FRAG_ORDER[idx - 1]] : undefined,
+                    tertiaryStd: idx > 1 ? stdByType[FRAG_ORDER[idx - 2]] : undefined,
+                  });
+                } else {
+                  const out = await pool.run({
+                    type: "fragmentSummary",
+                    payload: { stats: stats2, starting_floor: 1, n_sims: refinementSims, options, cardCfg, seed: seedRef, target_frag: targetFrag },
+                  });
+                  const fragPerH = Number(out.avg_frag_per_hour ?? 0);
+                  const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
+                  const idx = FRAG_ORDER.indexOf(targetFrag);
+                  const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
+                  const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+                  refined.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
+                }
+                return;
+              }
+              if (useSignificance) {
                 const out = await pool.run({
-                  type: "fragmentSummary",
-                  payload: { stats: stats2, starting_floor: 1, n_sims: refinementSims, options, cardCfg, seed: seedBase + 100_000 + a * 100 + j, target_frag: targetFrag },
+                  type: "stageSummaryWithVariance",
+                  payload: { stats: stats2, starting_floor: 1, n_sims: refinementSims, options, cardCfg, seed: seedRef },
                 });
-                const fragPerH = Number(out.avg_frag_per_hour ?? 0);
-                const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
-                const idx = FRAG_ORDER.indexOf(targetFrag);
-                const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
-                const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
-                refined.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
+                const avgMaxStage = out.avg_max_stage ?? 0;
+                const fragsPerHour = out.fragments_per_hour ?? 0;
+                const xpPerHour = out.xp_per_hour ?? 0;
+                const n = out.n ?? 0;
+                if (mode === "XP") {
+                  refined.push({
+                    dist,
+                    primary: xpPerHour,
+                    secondary: fragsPerHour,
+                    tertiary: avgMaxStage,
+                    primaryStd: out.std_xp_per_hour,
+                    primaryN: n,
+                    secondaryStd: out.std_fragments_per_hour,
+                    tertiaryStd: out.std_max_stage,
+                  });
+                } else {
+                  refined.push({
+                    dist,
+                    primary: avgMaxStage,
+                    secondary: fragsPerHour,
+                    tertiary: xpPerHour,
+                    primaryStd: out.std_max_stage,
+                    primaryN: n,
+                    secondaryStd: out.std_fragments_per_hour,
+                    tertiaryStd: out.std_xp_per_hour,
+                  });
+                }
                 return;
               }
               const out = await pool.run({
                 type: "stageSummary",
-                payload: { stats: stats2, starting_floor: 1, n_sims: refinementSims, options, cardCfg, seed: seedBase + 100_000 + a * 100 + j },
+                payload: { stats: stats2, starting_floor: 1, n_sims: refinementSims, options, cardCfg, seed: seedRef },
               });
               const avgMaxStage = Number(out.avg_max_stage ?? 0);
               const fragsPerHour = Number(out.fragments_per_hour ?? 0);
@@ -1027,7 +1219,52 @@ export function ArchSim() {
         bestPool = bestRefined && bestScreen ? (compareCombined(bestRefined, bestScreen) <= 0 ? refined : scores) : refined.length ? refined : scores;
       }
       if (!best) throw new Error("No candidates");
-      const tieBreakReport = makeTieBreakReport(bestPool, best);
+
+      let tieBreakReport: TieBreakReport;
+      if (useSignificance && best.primaryStd != null && best.primaryN != null) {
+        // Use variance from screening/refinement; no extra runs
+        const topCands = [...bestPool].sort(makeCompareCand(bestPool)).slice(0, 20);
+        let tiedAtPrimary = 1;
+        for (let i = 1; i < topCands.length; i += 1) {
+          const c = topCands[i]!;
+          if (c.primaryStd == null || c.primaryN == null) continue;
+          const p = welchTTestTwoTailed(
+            best.primary,
+            best.primaryStd,
+            best.primaryN,
+            c.primary,
+            c.primaryStd,
+            c.primaryN,
+          );
+          if (p >= 0.05) tiedAtPrimary += 1;
+        }
+        const hasSecondary = (best.secondary ?? 0) > 0 || topCands.some((c) => (c.secondary ?? 0) !== 0);
+        const hasTertiary = (best.tertiary ?? 0) > 0 || topCands.some((c) => (c.tertiary ?? 0) !== 0);
+        const primaryMetric = mode === "stage" ? "avg_max_stage" : mode === "XP" ? "xp_per_hour" : "frag_per_hour";
+        let winnerReason = "highest primary score";
+        if (tiedAtPrimary > 1) {
+          const tail = hasTertiary ? "tie-break by secondary then tertiary" : hasSecondary ? "tie-break by secondary" : "tie-break (lexicographic)";
+          winnerReason = `primary not significantly different (α=0.05) → ${tail}`;
+        }
+        const top3 = topCands.slice(0, 3).map((c, i) => ({
+          label: `#${i + 1}`,
+          primary: c.primary,
+          secondary: c.secondary ?? undefined,
+          tertiary: c.tertiary ?? undefined,
+          dist: candToDistMap(c.dist),
+        }));
+        tieBreakReport = {
+          mode,
+          epsilon: 0,
+          primaryMetric,
+          tiedAtPrimary,
+          winnerReason,
+          ...(mode === "frag" ? { targetFrag } : {}),
+          top3,
+        };
+      } else {
+        tieBreakReport = makeTieBreakReport(bestPool, best);
+      }
 
       const bestBuild: ArchBuild = {
         ...build,
@@ -2551,6 +2788,33 @@ export function ArchSim() {
                       </>
                     );
                   })()}
+
+                  {false && (
+                    <div className="mcDevBox" style={{ marginTop: 8 }}>
+                      <div className="mcDevHeader">
+                        <span className="mono" style={{ fontWeight: 900 }}>Tie-break</span>
+                      </div>
+                      <label className="toggle" style={{ marginTop: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={mcSettings.tieBreakWithSignificance}
+                          onChange={(e) => setMcSettings((s) => ({ ...s, tieBreakWithSignificance: e.target.checked }))}
+                        />
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          Tie-break w/ significance
+                          <Tooltip
+                            content={{
+                              title: "Tie-break w/ significance",
+                              sections: [
+                                { heading: "When off", lines: ["Ties use a fixed 3% threshold."] },
+                                { heading: "When on", lines: ["Significance tests at every step (Welch, α=0.05)."] },
+                              ],
+                            }}
+                          />
+                        </span>
+                      </label>
+                    </div>
+                  )}
 
                   <div className="mcCards">
                     <div className="mcCard mcCardStage">

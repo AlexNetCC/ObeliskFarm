@@ -507,6 +507,60 @@ export function stageSimsSummary(args: {
   return { avg_max_stage, fragments_per_hour, xp_per_hour, stage_counts, max_stage_seen };
 }
 
+/** Like stageSimsSummary but also returns std and n for Welch tests. */
+export function stageSimsSummaryWithVariance(args: {
+  stats: any;
+  starting_floor: number;
+  n_sims: number;
+  options: Omit<McRunOptions, "return_block_metrics">;
+  cardCfg: CardConfig | null;
+  seed: number;
+}): {
+  avg_max_stage: number;
+  std_max_stage: number;
+  fragments_per_hour: number;
+  std_fragments_per_hour: number;
+  xp_per_hour: number;
+  std_xp_per_hour: number;
+  n: number;
+} {
+  const rng = mulberry32(args.seed >>> 0);
+  const sim = new MonteCarloArchaeologySimulator(rng);
+  const max_stages: number[] = [];
+  const frags_per_hour: number[] = [];
+  const xps_per_hour: number[] = [];
+
+  for (let i = 0; i < Math.max(0, Math.trunc(args.n_sims)); i += 1) {
+    const r = sim.simulateRun(args.stats, args.starting_floor, { ...args.options, return_block_metrics: false }, args.cardCfg) as McRunMetrics;
+    const max_stage = Number(r.max_stage_reached ?? 0);
+    const dur = Math.max(1e-6, Number(r.run_duration_seconds ?? 1));
+    const runs_per_hour = 3600 / dur;
+    max_stages.push(max_stage);
+    frags_per_hour.push(Number(r.total_fragments ?? 0) * runs_per_hour);
+    xps_per_hour.push(Number(r.xp_per_run ?? 0) * runs_per_hour);
+  }
+
+  const n = max_stages.length;
+  if (n === 0) {
+    return { avg_max_stage: 0, std_max_stage: 0, fragments_per_hour: 0, std_fragments_per_hour: 0, xp_per_hour: 0, std_xp_per_hour: 0, n: 0 };
+  }
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / n;
+  const variance = (xs: number[], m: number) => xs.reduce((s, x) => s + (x - m) ** 2, 0) / Math.max(1, n - 1);
+  const std = (xs: number[], m: number) => Math.sqrt(variance(xs, m));
+  const avg_max_stage = mean(max_stages);
+  const avg_frag = mean(frags_per_hour);
+  const avg_xp = mean(xps_per_hour);
+  return {
+    avg_max_stage,
+    std_max_stage: std(max_stages, avg_max_stage),
+    fragments_per_hour: avg_frag,
+    std_fragments_per_hour: std(frags_per_hour, avg_frag),
+    xp_per_hour: avg_xp,
+    std_xp_per_hour: std(xps_per_hour, avg_xp),
+    n,
+  };
+}
+
 export function stageSimsDetailed(args: {
   stats: any;
   starting_floor: number;
@@ -659,5 +713,75 @@ export function fragmentSimsSummary(args: {
   const avg_frag_per_hour = frag_per_hour_by_type[t] ?? 0;
   const xp_per_hour = sumDur > 0 ? (sumXp * 3600.0) / sumDur : 0;
   return { avg_frag_per_hour, xp_per_hour, frag_per_hour_by_type };
+}
+
+/** Like fragmentSimsSummary but also returns std and n for primary and by-type (for Welch). */
+export function fragmentSimsSummaryWithVariance(args: {
+  stats: any;
+  starting_floor: number;
+  n_sims: number;
+  options: Omit<McRunOptions, "return_block_metrics">;
+  cardCfg: CardConfig | null;
+  seed: number;
+  target_frag: string;
+}): {
+  avg_frag_per_hour: number;
+  std_frag_per_hour: number;
+  xp_per_hour: number;
+  std_xp_per_hour: number;
+  frag_per_hour_by_type: Record<string, number>;
+  std_by_type: Record<string, number>;
+  n: number;
+} {
+  const rng = mulberry32(args.seed >>> 0);
+  const sim = new MonteCarloArchaeologySimulator(rng);
+  const t = String(args.target_frag);
+  const runs: { fragByType: Record<string, number>; xpPerHour: number }[] = [];
+
+  for (let i = 0; i < Math.max(0, Math.trunc(args.n_sims)); i += 1) {
+    const r = sim.simulateRun(args.stats, args.starting_floor, { ...args.options, return_block_metrics: false }, args.cardCfg) as McRunMetrics;
+    const dur = Math.max(1e-6, Number(r.run_duration_seconds ?? 1));
+    const runs_per_hour = 3600 / dur;
+    const fragByType: Record<string, number> = {};
+    for (const k of FRAG_TYPES_ORDER) {
+      fragByType[k] = Number(r.fragments?.[k] ?? 0) * runs_per_hour;
+    }
+    runs.push({
+      fragByType,
+      xpPerHour: Number(r.xp_per_run ?? 0) * runs_per_hour,
+    });
+  }
+
+  const n = runs.length;
+  if (n === 0) {
+    const empty: Record<string, number> = {};
+    for (const k of FRAG_TYPES_ORDER) empty[k] = 0;
+    return { avg_frag_per_hour: 0, std_frag_per_hour: 0, xp_per_hour: 0, std_xp_per_hour: 0, frag_per_hour_by_type: empty, std_by_type: empty, n: 0 };
+  }
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const variance = (xs: number[], m: number) => xs.reduce((s, x) => s + (x - m) ** 2, 0) / Math.max(1, xs.length - 1);
+  const std = (xs: number[], m: number) => Math.sqrt(variance(xs, m));
+
+  const primaryVals = runs.map((row) => row.fragByType[t] ?? 0);
+  const xpVals = runs.map((row) => row.xpPerHour);
+  const frag_per_hour_by_type: Record<string, number> = {};
+  const std_by_type: Record<string, number> = {};
+  for (const k of FRAG_TYPES_ORDER) {
+    const vals = runs.map((row) => row.fragByType[k] ?? 0);
+    frag_per_hour_by_type[k] = mean(vals);
+    std_by_type[k] = std(vals, frag_per_hour_by_type[k]);
+  }
+  const avg_frag_per_hour = mean(primaryVals);
+  const xp_per_hour = mean(xpVals);
+
+  return {
+    avg_frag_per_hour,
+    std_frag_per_hour: std(primaryVals, avg_frag_per_hour),
+    xp_per_hour,
+    std_xp_per_hour: std(xpVals, xp_per_hour),
+    frag_per_hour_by_type,
+    std_by_type,
+    n,
+  };
 }
 

@@ -1,9 +1,20 @@
-import { blockBreakdownSummary, fragmentSimsSummary, stageSimsDetailed, stageSimsSummary, MonteCarloArchaeologySimulator, type CardConfig } from "../lib/archaeology/mc/monteCarlo";
+import {
+  blockBreakdownSummary,
+  fragmentSimsSummary,
+  fragmentSimsSummaryWithVariance,
+  stageSimsDetailed,
+  stageSimsSummary,
+  stageSimsSummaryWithVariance,
+  MonteCarloArchaeologySimulator,
+  type CardConfig,
+} from "../lib/archaeology/mc/monteCarlo";
 import { mulberry32 } from "../lib/archaeology/mc/prng";
 
 type Msg =
   | { type: "stageSummary"; payload: Parameters<typeof stageSimsSummary>[0] }
+  | { type: "stageSummaryWithVariance"; payload: Parameters<typeof stageSimsSummaryWithVariance>[0] }
   | { type: "fragmentSummary"; payload: Parameters<typeof fragmentSimsSummary>[0] }
+  | { type: "fragmentSummaryWithVariance"; payload: Parameters<typeof fragmentSimsSummaryWithVariance>[0] }
   | { type: "stageDetailed"; payload: Parameters<typeof stageSimsDetailed>[0] }
   | { type: "blockBreakdown"; payload: Parameters<typeof blockBreakdownSummary>[0] }
   | {
@@ -63,8 +74,16 @@ self.onmessage = async (ev: MessageEvent<Msg>) => {
       (self as unknown as Worker).postMessage({ type: "ok", payload: stageSimsSummary(msg.payload) });
       return;
     }
+    if (msg.type === "stageSummaryWithVariance") {
+      (self as unknown as Worker).postMessage({ type: "ok", payload: stageSimsSummaryWithVariance(msg.payload) });
+      return;
+    }
     if (msg.type === "fragmentSummary") {
       (self as unknown as Worker).postMessage({ type: "ok", payload: fragmentSimsSummary(msg.payload) });
+      return;
+    }
+    if (msg.type === "fragmentSummaryWithVariance") {
+      (self as unknown as Worker).postMessage({ type: "ok", payload: fragmentSimsSummaryWithVariance(msg.payload) });
       return;
     }
     if (msg.type === "stageDetailed") {
