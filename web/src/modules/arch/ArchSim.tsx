@@ -206,6 +206,7 @@ export function ArchSim() {
     costType: string;
     meanFloors: number;
     growthPct: number;
+    cost: number | null;
     perCost: number | null;
     significant: boolean;
   }> | null>(null);
@@ -1265,7 +1266,7 @@ export function ArchSim() {
     const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
-    type UpgradeResult = { key: string; displayName: string; costType: string; meanFloors: number; growthPct: number; perCost: number | null; significant: boolean };
+    type UpgradeResult = { key: string; displayName: string; costType: string; meanFloors: number; growthPct: number; cost: number | null; perCost: number | null; significant: boolean };
     const results: UpgradeResult[] = [];
     try {
       setUpgradeNextProgress("Which Upgrade next to maximize Stage Push: Baseline (no upgrade)…");
@@ -1315,6 +1316,7 @@ export function ArchSim() {
           costType,
           meanFloors,
           growthPct,
+          cost,
           perCost,
           significant,
         });
@@ -2066,6 +2068,7 @@ export function ArchSim() {
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Upgrade</th>
                                   <th className="num">Floors/run</th>
                                   <th className="num">Floors/run (+%)</th>
+                                  <th className="num">cost</th>
                                   <th className="num" title="Floors/run (+%) per cost">(+%)/cost</th>
                                 </tr>
                               </thead>
@@ -2078,7 +2081,7 @@ export function ArchSim() {
                                   return (
                                     <Fragment key={ct}>
                                       <tr style={{ backgroundColor: "rgba(15,23,42,0.06)" }}>
-                                        <td colSpan={5} style={{ padding: "6px 8px", fontWeight: 700, color }}>
+                                        <td colSpan={6} style={{ padding: "6px 8px", fontWeight: 700, color }}>
                                           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                                             <Sprite path={icon} alt={ct} className="iconSmall" />
                                             {ct.toUpperCase()}
@@ -2115,6 +2118,7 @@ export function ArchSim() {
                                                   : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
                                               </span>
                                             </td>
+                                            <td className="num">{r.cost != null ? String(r.cost) : "—"}</td>
                                             <td className="num">
                                               {r.perCost != null ? (
                                                 <span
