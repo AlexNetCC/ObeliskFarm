@@ -528,7 +528,9 @@ export function ArchSim() {
 
   type WorkerMsg =
     | { type: "stageSummary"; payload: any }
+    | { type: "stageSummaryWithVariance"; payload: any }
     | { type: "fragmentSummary"; payload: any }
+    | { type: "fragmentSummaryWithVariance"; payload: any }
     | { type: "stageLite"; payload: any }
     | { type: "blockBreakdown"; payload: any };
 
