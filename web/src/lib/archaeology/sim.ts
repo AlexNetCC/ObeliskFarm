@@ -455,19 +455,31 @@ export function calculateRunDurationSeconds(build: ArchBuild, stats: ArchStats, 
   const baseDurationSeconds = totalHits;
   const speedModChance = stats.speed_mod_chance ?? 0;
   const speedHitsAvg = MOD_SPEED_ATTACKS_AVG + (stats.speed_mod_gain ?? 0);
-  const speedModHits = blocksPerRun * speedModChance * speedHitsAvg;
-  const timeSavedFromSpeedMod = speedModHits * 0.5;
+  const speedModHitsTotal = blocksPerRun * speedModChance * speedHitsAvg;
 
-  let flurryTimeSaved = 0;
+  let flurryHitsTotal = 0;
+  let flurryActivations = 0;
   if (build.flurryEnabled) {
     const avada = getAvadaKedaBonus(build.avadaKedaEnabled);
     const baseFlurryCooldown = FLURRY_COOLDOWN + (frag.flurry_cooldown ?? 0) + (frag.ability_cooldown ?? 0) + avada.cooldown_reduction;
     const flurryCooldown = Math.trunc(baseFlurryCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
-    const activations = flurryCooldown > 0 ? baseDurationSeconds / flurryCooldown : 0;
-    flurryTimeSaved = activations * 5; // Python approximation
+    flurryActivations = flurryCooldown > 0 ? baseDurationSeconds / flurryCooldown : 0;
+    const flurryHitsPerActivation = FLURRY_STAMINA_BONUS + (frag.flurry_stamina ?? 0) + avada.duration_bonus;
+    flurryHitsTotal = flurryActivations * flurryHitsPerActivation;
   }
 
-  const runDuration = baseDurationSeconds - timeSavedFromSpeedMod - flurryTimeSaved;
+  // Estimate overlap: Speed Mod hits uniformly distributed; fraction under Flurry
+  const overlapHits = totalHits > 0 && flurryHitsTotal > 0 ? speedModHitsTotal * (flurryHitsTotal / totalHits) : 0;
+
+  // Time saved (multiplicative stacking: 2x × 2x = 4x when both active)
+  const speedModOnlyHits = speedModHitsTotal - overlapHits;
+  const flurryOnlyHits = flurryHitsTotal - overlapHits;
+  const timeSavedSpeedModOnly = speedModOnlyHits * 0.5; // 2x speed
+  const timeSavedFlurryOnly = flurryOnlyHits * 0.5; // 2x speed
+  const timeSavedOverlap = overlapHits * 0.75; // 4x speed: 1s → 0.25s, saves 0.75s
+
+  const totalTimeSaved = timeSavedSpeedModOnly + timeSavedFlurryOnly + timeSavedOverlap;
+  const runDuration = baseDurationSeconds - totalTimeSaved;
   return Math.max(10, runDuration);
 }
 
