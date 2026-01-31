@@ -1823,9 +1823,10 @@ class ArchaeologySimulatorWindow:
         Calculate expected run duration in seconds.
         
         Base: 1 hit = 1 second
-        Speed modifiers:
+        Speed modifiers (multiplicative stacking):
         - Speed Mod: 2x speed for avg 60 hits when triggered
         - Flurry: 2x speed during active (every 120s cooldown)
+        - Both active: 4x speed (2x × 2x)
         
         Returns:
             Run duration in seconds
@@ -1845,6 +1846,8 @@ class ArchaeologySimulatorWindow:
         
         # Add stamina from Flurry
         flurry_active = getattr(self, 'flurry_enabled', None)
+        flurry_hits_per_activation = 0
+        flurry_activations = 0
         if flurry_active and flurry_active.get():
             avada_keda = self._get_avada_keda_bonus()
             base_flurry_cooldown = self.FLURRY_COOLDOWN + frag_bonuses.get('flurry_cooldown', 0) + frag_bonuses.get('ability_cooldown', 0) + avada_keda['cooldown_reduction']
@@ -1855,6 +1858,8 @@ class ArchaeologySimulatorWindow:
             base_duration = total_hits  # 1 hit = 1 second base
             flurry_activations = base_duration / flurry_cooldown
             total_hits += flurry_activations * flurry_stamina
+            # Flurry is active for flurry_stamina hits per activation (5 base + bonuses)
+            flurry_hits_per_activation = flurry_stamina
         
         # Base duration: 1 hit per second
         base_duration_seconds = total_hits
@@ -1865,28 +1870,33 @@ class ArchaeologySimulatorWindow:
         speed_mod_gain_bonus = stats.get('speed_mod_gain', 0)
         speed_mod_hits_avg = self.MOD_SPEED_ATTACKS_AVG + speed_mod_gain_bonus  # Base 60 + Block Bonker bonus
         # Expected speed mod hits per run
-        speed_mod_hits = blocks_per_run * speed_mod_chance * speed_mod_hits_avg
-        # These hits take half the time (2x speed)
-        time_saved_from_speed_mod = speed_mod_hits * 0.5  # Save 0.5s per hit
+        speed_mod_hits_total = blocks_per_run * speed_mod_chance * speed_mod_hits_avg
         
-        # Flurry effect: 2x speed while active
-        # Flurry is active for ~5 hits every cooldown period
-        flurry_time_saved = 0
-        if flurry_active and flurry_active.get():
-            # Flurry gives 2x speed, but we already counted the stamina bonus
-            # The 2x speed is active during the enrage-like window (5 charges)
-            # Actually Flurry is +100% attack speed = 2x speed for some period
-            # Let's estimate: during the run, we get multiple flurry activations
-            # Each activation speeds up some hits
-            avada_keda = self._get_avada_keda_bonus()
-            base_flurry_cooldown = self.FLURRY_COOLDOWN + frag_bonuses.get('flurry_cooldown', 0) + frag_bonuses.get('ability_cooldown', 0) + avada_keda['cooldown_reduction']
-            flurry_cooldown = int(base_flurry_cooldown * self.get_ability_cooldown_multiplier())
-            activations = base_duration_seconds / flurry_cooldown
-            # Assume flurry lasts ~10 seconds at 2x speed = saves 10 seconds per activation
-            # This is an approximation
-            flurry_time_saved = activations * 5  # Save ~5 seconds per activation
+        # Flurry + Speed Mod stacking: need to estimate overlap
+        # Flurry is active for (flurry_activations × flurry_hits_per_activation) hits total
+        flurry_hits_total = flurry_activations * flurry_hits_per_activation if flurry_active and flurry_active.get() else 0
         
-        run_duration = base_duration_seconds - time_saved_from_speed_mod - flurry_time_saved
+        # Estimate overlap: assume Speed Mod hits are uniformly distributed over the run
+        # Fraction of run under Flurry: flurry_hits_total / total_hits
+        # Expected overlap: speed_mod_hits_total × (flurry_hits_total / total_hits)
+        overlap_hits = 0
+        if total_hits > 0 and flurry_hits_total > 0:
+            overlap_hits = speed_mod_hits_total * (flurry_hits_total / total_hits)
+        
+        # Time saved calculation (multiplicative stacking):
+        # - Speed Mod only: (speed_mod_hits_total - overlap_hits) × 0.5s (2x speed)
+        # - Flurry only: (flurry_hits_total - overlap_hits) × 0.5s (2x speed)
+        # - Both active (overlap): overlap_hits × 0.75s (4x speed: 1s → 0.25s, saves 0.75s)
+        speed_mod_only_hits = speed_mod_hits_total - overlap_hits
+        flurry_only_hits = flurry_hits_total - overlap_hits
+        
+        time_saved_speed_mod_only = speed_mod_only_hits * 0.5
+        time_saved_flurry_only = flurry_only_hits * 0.5
+        time_saved_overlap = overlap_hits * 0.75  # 4x speed: saves 0.75s per hit
+        
+        total_time_saved = time_saved_speed_mod_only + time_saved_flurry_only + time_saved_overlap
+        
+        run_duration = base_duration_seconds - total_time_saved
         return max(10, run_duration)  # Minimum 10 seconds
     
     def add_skill_point(self, skill_name):
