@@ -294,6 +294,17 @@ export function ArchSim() {
     return { backgroundColor: bg, borderColor: border };
   }
 
+  function heatGlowStyle(level: number): CSSProperties {
+    const lvl = Math.max(0, Math.trunc(level));
+    if (lvl <= 0) return { color: "rgba(15,23,42,0.6)" };
+    const maxRef = 50;
+    const t = Math.max(0, Math.min(1, Math.log1p(lvl) / Math.log1p(maxRef)));
+    const hue = t < 0.5 ? 120 + (60 - 120) * (t / 0.5) : 60 + (30 - 60) * ((t - 0.5) / 0.5);
+    const color = `hsl(${hue.toFixed(1)}, 75%, 35%)`;
+    const glow = `0 0 8px hsla(${hue.toFixed(1)}, 75%, 45%, 0.9), 0 0 14px hsla(${hue.toFixed(1)}, 75%, 50%, 0.5), 0 0 22px hsla(${hue.toFixed(1)}, 70%, 55%, 0.3)`;
+    return { color, textShadow: glow };
+  }
+
   useEffect(() => {
     const t = window.setTimeout(() => {
       saveJson(STORAGE_KEY, build);
@@ -1213,8 +1224,14 @@ export function ArchSim() {
     return { mean, std: Math.sqrt(variance), min, max };
   }
 
-  function renderHistogramCard(args: { samples: number[]; kind: "stage" | "rate"; title: string; xLabel: string }): ReactNode {
-    const { samples, kind, title, xLabel } = args;
+  function renderHistogramCard(args: {
+    samples: number[];
+    kind: "stage" | "rate";
+    title: ReactNode;
+    xLabel: string;
+    ariaLabel?: string;
+  }): ReactNode {
+    const { samples, kind, title, xLabel, ariaLabel } = args;
     if (!samples.length) return null;
     const W = 560;
     const H = 184; // extra space for x-axis labels
@@ -1323,18 +1340,12 @@ export function ArchSim() {
       }
     }
 
-    const n = samples.length;
-    const pct = n > 0 ? 100 : 0;
-
     return (
       <div className="histCard">
         <div className="histTitle">{title}</div>
-        <div className="histMeta small" style={{ marginTop: 4, marginBottom: 2 }}>
-          <span className="mono">{n.toLocaleString()}</span> simulations ({pct}%)
-        </div>
         <div className="histPlotRow">
           <div className="histYAxis">Frequency</div>
-          <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="histSvg" aria-label={title}>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="histSvg" aria-label={ariaLabel ?? (typeof title === "string" ? title : "Histogram")}>
             {bars}
             {barLabels}
             {/* x axis baseline */}
@@ -2618,10 +2629,11 @@ export function ArchSim() {
                   return (
                     <>
                       <kbd>Frag/h by type</kbd>
-                      <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}>
+                      <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", alignItems: "center" }}>
                         {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => (
-                          <span key={t}>
-                            {t.charAt(0).toUpperCase() + t.slice(1)}: {(byType[t] ?? 0).toFixed(1)}
+                          <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <Sprite path={getFragIconPath(t)} alt={t} className="iconSmall" />
+                            = {(byType[t] ?? 0).toFixed(1)}
                           </span>
                         ))}
                       </div>
@@ -2632,7 +2644,11 @@ export function ArchSim() {
 
               {openLog.metrics.blockBreakdown?.by_type && Object.keys(openLog.metrics.blockBreakdown.by_type).length > 0 ? (
                 <div style={{ marginTop: 12 }}>
-                  <div className="sectionTitle">Block time distribution</div>
+                  <Collapsible
+                    id="arch-result-block-breakdown"
+                    title="Block time distribution"
+                    defaultExpanded={false}
+                  >
                   <p className="small" style={{ marginBottom: 8 }}>Time spent per block type over the run (estimated).</p>
                   <div className="archBlockBreakdownTableWrap">
                     <table className="archBlockBreakdownTable">
@@ -2678,59 +2694,80 @@ export function ArchSim() {
                         .join(" • ")}
                     </p>
                   )}
+                  </Collapsible>
                 </div>
               ) : null}
 
               {openLog.mc ? (
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                  <div className="sectionTitle">MC details</div>
-                  <div className="small">
-                    Objective:{" "}
-                    <span className="mono">
-                      {openLog.mc.objective === "stage"
-                        ? "Max stage"
+                  {(() => {
+                    const b = openLog.build;
+                    const skills = ["strength", "agility", "perception", "intellect", "luck"] as const;
+                    const abbr: Record<(typeof skills)[number], string> = { strength: "STR", agility: "AGI", perception: "PER", intellect: "INT", luck: "LCK" };
+                    const skillTitle = (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          flexWrap: "wrap",
+                          fontSize: 16,
+                          fontWeight: 900,
+                          marginBottom: 6,
+                        }}
+                      >
+                        {skills.map((s) => {
+                          const v = b.skillPoints[s] ?? 0;
+                          return (
+                            <span key={s}>
+                              {abbr[s]}{" "}
+                              <span className="mono" style={heatGlowStyle(v)}>
+                                {v}
+                              </span>
+                            </span>
+                          );
+                        })}
+                        <span style={{ opacity: 0.5, fontWeight: 600 }}>—</span>
+                      </span>
+                    );
+                    const distTitle =
+                      openLog.mc.objective === "stage"
+                        ? "Reached Stage Distribution in Final Simulation (over N=3000)"
                         : openLog.mc.objective === "XP"
-                          ? "XP/hour"
-                          : `${openLog.mc.targetFrag?.toUpperCase() ?? "FRAG"}/hour`}
-                    </span>
-                  </div>
-                  <div className="small">
-                    {(() => {
-                      const s = sampleStats(openLog.mc?.objectiveSamples ?? []);
-                      return (
-                        <>
-                          Mean ± std: <span className="mono">{s.mean.toFixed(2)}</span> ± <span className="mono">{s.std.toFixed(2)}</span> (min{" "}
-                          <span className="mono">{s.min.toFixed(2)}</span>, max <span className="mono">{s.max.toFixed(2)}</span>)
-                        </>
-                      );
-                    })()}
-                  </div>
-                  <div>
-                    {renderHistogramCard({
-                      samples: openLog.mc?.objectiveSamples ?? [],
-                      kind: openLog.mc.objective === "stage" ? "stage" : "rate",
-                      title:
-                        openLog.mc.objective === "stage"
-                          ? "Distribution of Maximum Stage Reached (3000 MC simulations)"
-                          : openLog.mc.objective === "XP"
-                            ? "Distribution of XP per Hour (3000 MC simulations)"
-                            : "Distribution of Fragments per Hour (3000 MC simulations)",
-                      xLabel:
-                        openLog.mc.objective === "stage"
-                          ? "Max Stage Reached"
-                          : openLog.mc.objective === "XP"
-                            ? "XP per Hour"
-                            : "Fragments per Hour",
-                    })}
-                  </div>
+                          ? "XP per Hour Distribution in Final Simulation (over N=3000)"
+                          : "Fragments per Hour Distribution in Final Simulation (over N=3000)";
+                    return (
+                      <div>
+                        {renderHistogramCard({
+                          samples: openLog.mc.objectiveSamples ?? [],
+                          kind: openLog.mc.objective === "stage" ? "stage" : "rate",
+                          title: (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                              {skillTitle}
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(15,23,42,0.7)" }}>
+                                {distTitle}
+                              </span>
+                            </div>
+                          ),
+                          ariaLabel: `STR ${b.skillPoints.strength ?? 0} AGI ${b.skillPoints.agility ?? 0} PER ${b.skillPoints.perception ?? 0} INT ${b.skillPoints.intellect ?? 0} LCK ${b.skillPoints.luck ?? 0} — ${distTitle}`,
+                          xLabel:
+                            openLog.mc.objective === "stage"
+                              ? "Max Stage Reached"
+                              : openLog.mc.objective === "XP"
+                                ? "XP per Hour"
+                                : "Fragments per Hour",
+                        })}
+                      </div>
+                    );
+                  })()}
 
                   {openLog.mc.tieBreak ? (
-                    <div style={{ marginTop: 6 }}>
-                      <div className="sectionTitle">
-                        <span>
-                          Tie-break <Tooltip content={TIEBREAK_TOOLTIP} />
-                        </span>
-                      </div>
+                    <Collapsible
+                      id="arch-result-tiebreak"
+                      title="Tie-break"
+                      defaultExpanded={false}
+                      headerRight={<Tooltip content={TIEBREAK_TOOLTIP} />}
+                    >
                       <div className="small">
                         Tied at primary: <span className="mono">{openLog.mc.tieBreak.tiedAtPrimary}</span> • Winner:{" "}
                         <span className="mono">{openLog.mc.tieBreak.winnerReason}</span>
@@ -2760,7 +2797,7 @@ export function ArchSim() {
                           ))}
                         </ul>
                       ) : null}
-                    </div>
+                    </Collapsible>
                   ) : null}
                 </div>
               ) : null}
