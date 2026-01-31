@@ -1,6 +1,6 @@
 # ObeliskFarm Calculator
 
-> ⚠️ **Data based on OB32 (Obelisk Level 32)** - All calculations and game data are based on OB32. Results may vary for different progression levels.
+> ⚠️ **Data based on OB34 (Obelisk Level 34)** - All calculations and game data are based on OB34. Results may vary for different progression levels.
 
 An interactive calculator toolkit for the Android game **Idle Obelisk Miner**.
 

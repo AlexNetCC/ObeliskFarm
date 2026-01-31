@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
@@ -197,6 +197,19 @@ export function ArchSim() {
     winnerId: McComparisonMethodId;
   }>(null);
   const cancelRef = useRef<{ cancelled: boolean; pool: WorkerPool | null }>({ cancelled: false, pool: null });
+  const [upgradeNextRefId, setUpgradeNextRefId] = useState<string | null>(null);
+  const [upgradeNextRunning, setUpgradeNextRunning] = useState(false);
+  const [upgradeNextProgress, setUpgradeNextProgress] = useState<string | null>(null);
+  const [upgradeNextResults, setUpgradeNextResults] = useState<Array<{
+    key: string;
+    displayName: string;
+    costType: string;
+    meanFloors: number;
+    growthPct: number;
+    perCost: number | null;
+    significant: boolean;
+  }> | null>(null);
+  const upgradeNextCancelRef = useRef(false);
   const [mcSettings, setMcSettings] = useState<McSettings>(() => {
     const raw = (loadJson<any>(MC_SETTINGS_KEY) ?? null) as any;
     const base = defaultMcSettings();
@@ -290,6 +303,15 @@ export function ArchSim() {
     const t = Math.max(0, Math.min(1, Math.log1p(Math.max(0, level)) / Math.log1p(maxRef)));
     const hue = t < 0.5 ? 120 + (60 - 120) * (t / 0.5) : 60 + (30 - 60) * ((t - 0.5) / 0.5);
     const bg = `hsla(${hue.toFixed(1)}, 85%, 70%, ${a.toFixed(3)})`;
+    const border = `hsla(${hue.toFixed(1)}, 85%, 38%, 0.35)`;
+    return { backgroundColor: bg, borderColor: border };
+  }
+
+  /** Red (bad) to green (good) heatmap for pct 0..100 */
+  function heatStyleRedGreen(pct: number): CSSProperties {
+    const t = Math.max(0, Math.min(100, pct)) / 100;
+    const hue = t * 120;
+    const bg = `hsla(${hue.toFixed(1)}, 85%, 70%, 0.25)`;
     const border = `hsla(${hue.toFixed(1)}, 85%, 38%, 0.35)`;
     return { backgroundColor: bg, borderColor: border };
   }
@@ -1207,6 +1229,107 @@ export function ArchSim() {
     setBuild((prev) => ({ ...prev, skillPoints: { ...b.skillPoints } }));
   }
 
+  async function runUpgradeNext() {
+    const refEntry = upgradeNextRefId ? stageLogEntries.find((e) => e.id === upgradeNextRefId) ?? null : stageLogEntries[0] ?? null;
+    if (!refEntry) {
+      setUpgradeNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
+      return;
+    }
+    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const baseBuild: ArchBuild = {
+      ...refEntry.build,
+      skillPoints: {
+        strength: winnerDist.strength ?? 0,
+        agility: winnerDist.agility ?? 0,
+        perception: winnerDist.perception ?? 0,
+        intellect: winnerDist.intellect ?? 0,
+        luck: winnerDist.luck ?? 0,
+      },
+    };
+    const unlockedUpgrades = sortedFragmentUpgrades.filter(([key, info]) => {
+      const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
+      const maxLvl = clampInt(Number(info.max_level ?? 0), 0, 999);
+      const lvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, maxLvl);
+      return baseBuild.unlockedStage >= stageUnlock && lvl < maxLvl;
+    });
+    if (unlockedUpgrades.length === 0) {
+      setUpgradeNextProgress("No upgrades to evaluate (all maxed or locked).");
+      return;
+    }
+    setUpgradeNextRunning(true);
+    setUpgradeNextProgress(null);
+    setUpgradeNextResults(null);
+    upgradeNextCancelRef.current = false;
+    const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
+    const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
+    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
+    const N_SIMS = 3000;
+    type UpgradeResult = { key: string; displayName: string; costType: string; meanFloors: number; growthPct: number; perCost: number | null; significant: boolean };
+    const results: UpgradeResult[] = [];
+    try {
+      setUpgradeNextProgress("Which Upgrade Next: Baseline (no upgrade)…");
+      const baseStats = getTotalStats(baseBuild);
+      const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+      const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
+      const baseOut = await pool.run({
+        type: "stageLite",
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+      });
+      const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+      const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
+      const baseMeanFloors = baseStatsRes.mean;
+      const baseStd = baseStatsRes.std;
+
+      for (let i = 0; i < unlockedUpgrades.length; i += 1) {
+        if (upgradeNextCancelRef.current) break;
+        const [key, info] = unlockedUpgrades[i]!;
+        setUpgradeNextProgress(`Which Upgrade Next: ${i + 1}/${unlockedUpgrades.length} — ${(info as any).display_name ?? key}`);
+        const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, 999);
+        const cost = getUpgradeCost(key, curLvl);
+        const variantBuild: ArchBuild = {
+          ...baseBuild,
+          fragmentUpgradeLevels: { ...baseBuild.fragmentUpgradeLevels, [key]: curLvl + 1 },
+        };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + i + 1, targetFrag: null },
+        });
+        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanFloors = varStats.mean;
+        const growthPct = baseMeanFloors > 0 ? ((meanFloors - baseMeanFloors) / baseMeanFloors) * 100 : 0;
+        const perCost = cost != null && cost > 0 ? growthPct / cost : null;
+        const costType = String((info as any)?.cost_type ?? "misc");
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        results.push({
+          key,
+          displayName: (info as any).display_name ?? key,
+          costType,
+          meanFloors,
+          growthPct,
+          perCost,
+          significant,
+        });
+      }
+      results.sort((a, b) => b.growthPct - a.growthPct);
+      setUpgradeNextResults(results);
+      setUpgradeNextProgress(upgradeNextCancelRef.current ? "Cancelled." : "Done.");
+    } catch (e) {
+      setUpgradeNextProgress(e instanceof Error ? e.message : String(e));
+    } finally {
+      pool.terminate();
+      setUpgradeNextRunning(false);
+    }
+  }
+
   function sampleStats(samples: number[]): { mean: number; std: number; min: number; max: number } {
     if (!samples.length) return { mean: 0, std: 0, min: 0, max: 0 };
     let sum = 0;
@@ -1527,6 +1650,7 @@ export function ArchSim() {
   }
 
   const visibleMcLog = useMemo(() => mcLog.filter((e) => e.mcType !== "det"), [mcLog]);
+  const stageLogEntries = useMemo(() => visibleMcLog.filter((e) => e.mcType === "stage"), [visibleMcLog]);
   const activeLog = useMemo(() => (activeLogId ? visibleMcLog.find((x) => x.id === activeLogId) ?? null : null), [activeLogId, visibleMcLog]);
   const openLog = useMemo(() => (openLogId ? visibleMcLog.find((x) => x.id === openLogId) ?? null : null), [openLogId, visibleMcLog]);
 
@@ -1832,6 +1956,196 @@ export function ArchSim() {
             headerRight={<Sprite path="sprites/common/skill_shard.png" alt="Fragment upgrades" className="iconSmall" />}
           >
             <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
+              <Collapsible
+                id="arch-which-upgrade-next"
+                title="Which Upgrade Next?"
+                defaultExpanded={false}
+                className="archWhichUpgradeNext"
+                headerRight={
+                  <Tooltip
+                    content={{
+                      title: "Which Upgrade Next?",
+                      sections: [
+                        {
+                          heading: "Prerequisite",
+                          lines: [
+                            "Requires a Stage Push MC result in the log.",
+                            "Uses the Top #1 skill build from the selected result.",
+                          ],
+                        },
+                        {
+                          heading: "What it does",
+                          lines: [
+                            "For each unlocked, non-maxed fragment upgrade, simulates +1 level with N=3000 runs.",
+                            "Ranks by mean floors/run. Best upgrade is shown first.",
+                            "* = not statistically significant (95% CI includes 0).",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                }
+              >
+                <div className="small" style={{ marginBottom: 8 }}>
+                  {stageLogEntries.length === 0 ? (
+                    <div className="pillLocked" style={{ padding: 8 }}>
+                      Run a Stage Push MC first. No Stage result in the log.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                        <label className="small">
+                          Reference:
+                          <select
+                            className="mono"
+                            style={{ marginLeft: 6 }}
+                            value={upgradeNextRefId ?? stageLogEntries[0]?.id ?? ""}
+                            onChange={(e) => setUpgradeNextRefId(e.target.value || null)}
+                            disabled={upgradeNextRunning || mcRunning}
+                          >
+                            {stageLogEntries.map((e) => (
+                              <option key={e.id} value={e.id}>
+                                {e.label} — {e.metrics.floorsPerRun.toFixed(2)} floors/run ({new Date(e.createdAt).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => runUpgradeNext()}
+                          disabled={upgradeNextRunning || mcRunning || stageLogEntries.length === 0}
+                        >
+                          {upgradeNextRunning ? "Running…" : "Run (N=3000)"}
+                        </button>
+                        {upgradeNextRunning ? (
+                          <button className="btn btnSecondary" type="button" onClick={() => { upgradeNextCancelRef.current = true; }} disabled={!upgradeNextRunning}>
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                      {upgradeNextProgress ? (
+                        <div className="small mono" style={{ marginBottom: 8 }}>
+                          {upgradeNextProgress}
+                        </div>
+                      ) : null}
+                      {upgradeNextResults && upgradeNextResults.length > 0 ? (() => {
+                        const rs = upgradeNextResults;
+                        const FRAG_ORDER = ["common", "rare", "epic", "legendary", "mythic"] as const;
+                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
+                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
+                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
+                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
+                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v));
+                        const minPerCost = perCostVals.length > 0 ? Math.min(...perCostVals) : 0;
+                        const maxPerCost = perCostVals.length > 0 ? Math.max(...perCostVals) : 0;
+                        const heatPct = (v: number, lo: number, hi: number) =>
+                          hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        let rowNum = 0;
+                        return (
+                          <div className="small">
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next upgrade (by fragment type, sorted by Floors/run +%):</div>
+                            <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                              <span
+                                style={{
+                                  color: "hsl(120, 75%, 35%)",
+                                  textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9), 0 0 14px hsla(120, 75%, 50%, 0.5)",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                GREEN = GOOD
+                              </span>
+                              <span title="95% confidence; two-sample comparison (baseline vs variant, N=3000 each)">
+                                * = not statistically significant
+                              </span>
+                            </div>
+                            <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Upgrade</th>
+                                  <th className="num">Floors/run</th>
+                                  <th className="num">Floors/run (+%)</th>
+                                  <th className="num" title="Floors/run (+%) per cost">(+%)/cost</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {FRAG_ORDER.map((ct) => {
+                                  const group = rs.filter((r) => r.costType === ct).sort((a, b) => b.growthPct - a.growthPct);
+                                  if (group.length === 0) return null;
+                                  const color = BLOCK_COLORS[ct as keyof typeof BLOCK_COLORS] ?? "#666";
+                                  const icon = `sprites/archaeology/block_${ct}_t1.png`;
+                                  return (
+                                    <Fragment key={ct}>
+                                      <tr style={{ backgroundColor: "rgba(15,23,42,0.06)" }}>
+                                        <td colSpan={5} style={{ padding: "6px 8px", fontWeight: 700, color }}>
+                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                            <Sprite path={icon} alt={ct} className="iconSmall" />
+                                            {ct.toUpperCase()}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                      {group.map((r) => {
+                                        rowNum += 1;
+                                        return (
+                                          <tr key={r.key}>
+                                            <td style={{ paddingRight: 12 }}>{rowNum}</td>
+                                            <td style={{ paddingRight: 12 }}>{r.displayName}</td>
+                                            <td className="num">
+                                              <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4 }}>
+                                                {r.meanFloors.toFixed(3)}
+                                              </span>
+                                            </td>
+                                            <td className="num">
+                                              <span
+                                                style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                                title={
+                                                  !r.significant
+                                                    ? "Not statistically significant (95% CI includes 0)"
+                                                    : r.growthPct < 0
+                                                      ? "(too much variance / rather negative)"
+                                                      : undefined
+                                                }
+                                              >
+                                                {!r.significant
+                                                  ? "*"
+                                                  : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
+                                              </span>
+                                            </td>
+                                            <td className="num">
+                                              {r.perCost != null ? (
+                                                <span
+                                                  style={{ ...heatStyleRedGreen(heatPct(r.perCost, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                                  title={
+                                                    !r.significant
+                                                      ? "Not statistically significant (95% CI includes 0)"
+                                                      : r.perCost < 0
+                                                        ? "(too much variance / rather negative)"
+                                                        : undefined
+                                                  }
+                                                >
+                                                  {!r.significant || r.perCost < 0 ? "*" : r.perCost.toFixed(4)}
+                                                </span>
+                                              ) : (
+                                                "—"
+                                              )}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })() : null}
+                    </>
+                  )}
+                </div>
+              </Collapsible>
+
               <div className="small" style={{ marginBottom: 10 }}>
                 Unlock gating uses <span className="mono">unlockedStage</span>.
               </div>
