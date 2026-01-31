@@ -439,7 +439,7 @@ export function Stargazing() {
               </div>
             </div>
 
-            <div className="sgSection tierHeader1">
+            <div className="sgSection tierHeader3">
               <div className="sgSectionHeader">
                 <div className="sgSectionTitle">
                   <span className="mono">⭐ Star Multipliers</span>
@@ -539,15 +539,16 @@ export function Stargazing() {
               </div>
             </div>
 
-            <div className="sgSection tierHeader3">
+            <div className="sgSection tierHeader1">
               <div className="sgSectionHeader">
                 <div className="sgSectionTitle">
-                  <span className="mono">🌟 Super Star Stats</span>
+                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
+                  <span className="mono">SS Stats</span>
                 </div>
               </div>
               <div className="sgRows">
                 <Stepper
-                  label="Super Star Spawn Rate Multiplier (x)"
+                  label="SS Spawn Rate Multiplier (x)"
                   spritePaths={["sprites/stargazing/Super_Star_Spawn_Rate_Multiplier.png"]}
                   spriteAlt="Super Star Spawn Rate Multiplier"
                   spriteLabel="sprites/stargazing/Super_Star_Spawn_Rate_Multiplier.png"
@@ -559,7 +560,7 @@ export function Stargazing() {
                   decimals={2}
                 />
                 <Stepper
-                  label="Triple Super Star Chance (%)"
+                  label="Triple SS Chance (%)"
                   value={ui.triple_super_star_chance}
                   onChange={(v) => setUi((s) => ({ ...s, triple_super_star_chance: v }))}
                   step={0.5}
@@ -568,7 +569,7 @@ export function Stargazing() {
                   decimals={2}
                 />
                 <Stepper
-                  label="Super Star 10× Chance (%)"
+                  label="SS 10× Chance (%)"
                   spritePaths={["sprites/stargazing/Super_Star_10x_Spawn_Chance.png"]}
                   spriteAlt="Super Star 10x Spawn Chance"
                   spriteLabel="sprites/stargazing/Super_Star_10x_Spawn_Chance.png"
@@ -582,7 +583,7 @@ export function Stargazing() {
 
                 <div className="row2">
                   <Stepper
-                    label="Super Star Supernova Chance (%)"
+                    label="SS Supernova Chance (%)"
                     spritePaths={["sprites/stargazing/Star_Supernova_Chance.png"]}
                     spriteAlt="Super Star Supernova Chance"
                     spriteLabel="sprites/stargazing/Star_Supernova_Chance.png"
@@ -606,7 +607,7 @@ export function Stargazing() {
 
                 <div className="row2">
                   <Stepper
-                    label="Super Star Supergiant Chance (%)"
+                    label="SS Supergiant Chance (%)"
                     spritePaths={["sprites/stargazing/Super_Star_Supergiant_Chance.png"]}
                     spriteAlt="Super Star Supergiant Chance"
                     spriteLabel="sprites/stargazing/Super_Star_Supergiant_Chance.png"
@@ -630,7 +631,7 @@ export function Stargazing() {
 
                 <div className="row2">
                   <Stepper
-                    label="Super Star Radiant Chance (%)"
+                    label="SS Radiant Chance (%)"
                     spritePaths={["sprites/stargazing/Super_Star_Radiant_Chance.png"]}
                     spriteAlt="Super Star Radiant Chance"
                     spriteLabel="sprites/stargazing/Super_Star_Radiant_Chance.png"
