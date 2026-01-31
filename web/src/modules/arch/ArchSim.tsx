@@ -1268,7 +1268,7 @@ export function ArchSim() {
     type UpgradeResult = { key: string; displayName: string; costType: string; meanFloors: number; growthPct: number; perCost: number | null; significant: boolean };
     const results: UpgradeResult[] = [];
     try {
-      setUpgradeNextProgress("Which Upgrade Next: Baseline (no upgrade)…");
+      setUpgradeNextProgress("Which Upgrade next to maximize Stage Push: Baseline (no upgrade)…");
       const baseStats = getTotalStats(baseBuild);
       const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
@@ -1284,7 +1284,7 @@ export function ArchSim() {
       for (let i = 0; i < unlockedUpgrades.length; i += 1) {
         if (upgradeNextCancelRef.current) break;
         const [key, info] = unlockedUpgrades[i]!;
-        setUpgradeNextProgress(`Which Upgrade Next: ${i + 1}/${unlockedUpgrades.length} — ${(info as any).display_name ?? key}`);
+        setUpgradeNextProgress(`Which Upgrade next to maximize Stage Push: ${i + 1}/${unlockedUpgrades.length} — ${(info as any).display_name ?? key}`);
         const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, 999);
         const cost = getUpgradeCost(key, curLvl);
         const variantBuild: ArchBuild = {
@@ -1958,7 +1958,7 @@ export function ArchSim() {
             <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
               <Collapsible
                 id="arch-which-upgrade-next"
-                title="Which Upgrade Next?"
+                title="Which Upgrade next to maximize Stage Push?"
                 defaultExpanded={false}
                 className="archWhichUpgradeNext"
                 headerRight={
@@ -2092,8 +2092,11 @@ export function ArchSim() {
                                             <td style={{ paddingRight: 12 }}>{rowNum}</td>
                                             <td style={{ paddingRight: 12 }}>{r.displayName}</td>
                                             <td className="num">
-                                              <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4 }}>
-                                                {r.meanFloors.toFixed(3)}
+                                              <span
+                                                style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                                title={!r.significant ? "Not statistically significant (95% CI includes 0)" : undefined}
+                                              >
+                                                {!r.significant ? "*" : r.meanFloors.toFixed(3)}
                                               </span>
                                             </td>
                                             <td className="num">
