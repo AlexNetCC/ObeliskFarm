@@ -535,6 +535,93 @@ export function stageSimsDetailed(args: {
 
 const FRAG_TYPES_ORDER: readonly string[] = ["common", "rare", "epic", "legendary", "mythic"];
 
+/** Aggregated block breakdown for UI (time share %, destroyed/run, avg hits/block). */
+export type BlockBreakdownAggregate = {
+  by_type: Record<
+    string,
+    {
+      blocks_destroyed_per_run: number;
+      time_seconds_per_run: number;
+      time_share: number; // 0..1
+      avg_hits_per_block: number;
+    }
+  >;
+  total_time_seconds_per_run: number;
+  most_time_type: string | null;
+  most_avg_hits_type: string | null;
+  note: string | null;
+};
+
+export function blockBreakdownSummary(args: {
+  stats: any;
+  starting_floor: number;
+  n_sims: number;
+  options: Omit<McRunOptions, "return_block_metrics">;
+  cardCfg: CardConfig | null;
+  seed: number;
+}): BlockBreakdownAggregate {
+  const out = stageSimsDetailed({
+    ...args,
+    includeBlockMetrics: true,
+  });
+  const samples = out.metrics_samples ?? [];
+  const timeSumByType: Record<string, number> = {};
+  const blocksSumByType: Record<string, number> = {};
+  let runsWithData = 0;
+  let note: string | null = null;
+
+  for (const m of samples) {
+    const bb = m?.block_breakdown;
+    if (!bb?.by_type || typeof bb.by_type !== "object") continue;
+    runsWithData += 1;
+    note = note ?? bb.note ?? null;
+    for (const [bt, vals] of Object.entries(bb.by_type)) {
+      if (!vals || typeof vals !== "object") continue;
+      const t = Number(vals.time_seconds_est ?? 0) || 0;
+      const b = Number(vals.blocks_destroyed_est ?? 0) || 0;
+      timeSumByType[bt] = (timeSumByType[bt] ?? 0) + t;
+      blocksSumByType[bt] = (blocksSumByType[bt] ?? 0) + b;
+    }
+  }
+
+  if (runsWithData <= 0) {
+    return { by_type: {}, total_time_seconds_per_run: 0, most_time_type: null, most_avg_hits_type: null, note };
+  }
+
+  const totalTimeAvg =
+    Object.values(timeSumByType).reduce((a, b) => a + b, 0) / runsWithData;
+  const ordered: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
+  const by_type: BlockBreakdownAggregate["by_type"] = {};
+
+  for (const bt of ordered) {
+    const tAvg = (timeSumByType[bt] ?? 0) / runsWithData;
+    const bAvg = (blocksSumByType[bt] ?? 0) / runsWithData;
+    if (tAvg <= 0 && bAvg <= 0) continue;
+    by_type[bt] = {
+      blocks_destroyed_per_run: bAvg,
+      time_seconds_per_run: tAvg,
+      time_share: totalTimeAvg > 0 ? tAvg / totalTimeAvg : 0,
+      avg_hits_per_block: bAvg > 0 ? tAvg / bAvg : 0,
+    };
+  }
+
+  const keys = Object.keys(by_type);
+  const most_time_type = keys.length
+    ? keys.reduce((best, k) => (by_type[k].time_seconds_per_run > by_type[best].time_seconds_per_run ? k : best), keys[0])
+    : null;
+  const most_avg_hits_type = keys.length
+    ? keys.reduce((best, k) => (by_type[k].avg_hits_per_block > by_type[best].avg_hits_per_block ? k : best), keys[0])
+    : null;
+
+  return {
+    by_type,
+    total_time_seconds_per_run: totalTimeAvg,
+    most_time_type,
+    most_avg_hits_type,
+    note,
+  };
+}
+
 export function fragmentSimsSummary(args: {
   stats: any;
   starting_floor: number;

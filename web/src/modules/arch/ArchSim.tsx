@@ -35,6 +35,8 @@ type McLogEntry = {
     fragmentsPerHour: number;
     /** Fragments per hour by type (common, rare, epic, legendary, mythic). Present when MC final sims included per-type data. */
     fragmentsPerHourByType?: Record<string, number>;
+    /** Block time distribution (MC only). Time share % per block type, destroyed/run, avg hits/block. */
+    blockBreakdown?: import("../../lib/archaeology/mc/monteCarlo").BlockBreakdownAggregate;
   };
   mc?: {
     // Present only for real MC runs
@@ -853,6 +855,20 @@ export function ArchSim() {
         await Promise.all(tasks);
         if (cancelRef.current.cancelled) throw new Error("cancelled");
 
+        let blockBreakdownEarly: McLogEntry["metrics"]["blockBreakdown"] = undefined;
+        try {
+          setMcProgress("Block breakdown…");
+          const bb = await pool.run({
+            type: "blockBreakdown",
+            payload: { stats: bestStats, starting_floor: 1, n_sims: 100, options, cardCfg, seed: seedBase + 999_999 },
+          });
+          if (bb?.by_type && Object.keys(bb.by_type).length > 0) blockBreakdownEarly = bb;
+        } catch {
+          /* non-fatal */
+        }
+
+        if (cancelRef.current.cancelled) throw new Error("cancelled");
+
         const avgFloors = sampleCount > 0 ? sumFloors / sampleCount : 0;
         const avgXp = sampleCount > 0 ? sumXp / sampleCount : 0;
         const avgTotalFrags = sampleCount > 0 ? sumTotalFrags / sampleCount : 0;
@@ -881,6 +897,7 @@ export function ArchSim() {
             xpPerHour,
             fragmentsPerHour,
             fragmentsPerHourByType,
+            blockBreakdown: blockBreakdownEarly,
           },
           mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples },
         };
@@ -1043,6 +1060,28 @@ export function ArchSim() {
 
       if (cancelRef.current.cancelled) throw new Error("cancelled");
 
+      // Block breakdown (100 sims for time distribution per block type)
+      let blockBreakdown: McLogEntry["metrics"]["blockBreakdown"] = undefined;
+      try {
+        setMcProgress("Block breakdown…");
+        const bb = await pool.run({
+          type: "blockBreakdown",
+          payload: {
+            stats: bestStats,
+            starting_floor: 1,
+            n_sims: 100,
+            options,
+            cardCfg,
+            seed: seedBase + 999_999,
+          },
+        });
+        if (bb?.by_type && Object.keys(bb.by_type).length > 0) blockBreakdown = bb;
+      } catch {
+        // Non-fatal; continue without block breakdown
+      }
+
+      if (cancelRef.current.cancelled) throw new Error("cancelled");
+
       // Save entry (MC averages from final samples)
       const avgFloors = sampleCount > 0 ? sumFloors / sampleCount : 0;
       const avgXp = sampleCount > 0 ? sumXp / sampleCount : 0;
@@ -1071,6 +1110,7 @@ export function ArchSim() {
           xpPerHour,
           fragmentsPerHour,
           fragmentsPerHourByType: fragmentsPerHourByTypeRef,
+          blockBreakdown,
         },
         mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples, tieBreak: tieBreakReport },
       };
@@ -2589,6 +2629,57 @@ export function ArchSim() {
                   );
                 })()}
               </div>
+
+              {openLog.metrics.blockBreakdown?.by_type && Object.keys(openLog.metrics.blockBreakdown.by_type).length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div className="sectionTitle">Block time distribution</div>
+                  <p className="small" style={{ marginBottom: 8 }}>Time spent per block type over the run (estimated).</p>
+                  <div className="archBlockBreakdownTableWrap">
+                    <table className="archBlockBreakdownTable">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th>Block</th>
+                          <th className="num">Destroyed/run</th>
+                          <th className="num">Time/run (s)</th>
+                          <th className="num">Share</th>
+                          <th className="num">Avg hits/block</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(["dirt", "common", "rare", "epic", "legendary", "mythic"] as const).map((bt) => {
+                          const v = openLog.metrics.blockBreakdown!.by_type[bt];
+                          if (!v || (v.blocks_destroyed_per_run < 0.01 && v.time_seconds_per_run < 0.5)) return null;
+                          return (
+                            <tr key={bt}>
+                              <td>
+                                <Sprite path={`sprites/archaeology/block_${bt}_t1.png`} alt={bt} className="iconSmall" />
+                              </td>
+                              <td>{bt.charAt(0).toUpperCase() + bt.slice(1)}</td>
+                              <td className="num mono">{v.blocks_destroyed_per_run.toFixed(1)}</td>
+                              <td className="num mono">{v.time_seconds_per_run.toFixed(0)}</td>
+                              <td className="num mono">{(v.time_share * 100).toFixed(1)}%</td>
+                              <td className="num mono">{v.avg_hits_per_block.toFixed(1)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {(openLog.metrics.blockBreakdown.most_time_type || openLog.metrics.blockBreakdown.most_avg_hits_type) && (
+                    <p className="small" style={{ marginTop: 6, color: "var(--muted)" }}>
+                      {[
+                        openLog.metrics.blockBreakdown.most_time_type &&
+                          `Most time: ${openLog.metrics.blockBreakdown.most_time_type.charAt(0).toUpperCase() + openLog.metrics.blockBreakdown.most_time_type.slice(1)}`,
+                        openLog.metrics.blockBreakdown.most_avg_hits_type &&
+                          `Highest avg hits/block: ${openLog.metrics.blockBreakdown.most_avg_hits_type.charAt(0).toUpperCase() + openLog.metrics.blockBreakdown.most_avg_hits_type.slice(1)}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    </p>
+                  )}
+                </div>
+              ) : null}
 
               {openLog.mc ? (
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>

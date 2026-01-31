@@ -634,6 +634,42 @@ body {
   text-align: right;
 }
 
+.archBlockBreakdownTableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+}
+
+.archBlockBreakdownTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.archBlockBreakdownTable thead th {
+  background: rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 700;
+}
+
+.archBlockBreakdownTable thead th.num {
+  text-align: right;
+}
+
+.archBlockBreakdownTable tbody td {
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.archBlockBreakdownTable th.num,
+.archBlockBreakdownTable td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .mcLogTable tbody tr.mcActionsRow td {
   border-top: 0;
   padding-top: 6px;

@@ -1,10 +1,11 @@
-import { fragmentSimsSummary, stageSimsDetailed, stageSimsSummary, MonteCarloArchaeologySimulator, type CardConfig } from "../lib/archaeology/mc/monteCarlo";
+import { blockBreakdownSummary, fragmentSimsSummary, stageSimsDetailed, stageSimsSummary, MonteCarloArchaeologySimulator, type CardConfig } from "../lib/archaeology/mc/monteCarlo";
 import { mulberry32 } from "../lib/archaeology/mc/prng";
 
 type Msg =
   | { type: "stageSummary"; payload: Parameters<typeof stageSimsSummary>[0] }
   | { type: "fragmentSummary"; payload: Parameters<typeof fragmentSimsSummary>[0] }
   | { type: "stageDetailed"; payload: Parameters<typeof stageSimsDetailed>[0] }
+  | { type: "blockBreakdown"; payload: Parameters<typeof blockBreakdownSummary>[0] }
   | {
       type: "stageLite";
       payload: {
@@ -68,6 +69,10 @@ self.onmessage = async (ev: MessageEvent<Msg>) => {
     }
     if (msg.type === "stageDetailed") {
       (self as unknown as Worker).postMessage({ type: "ok", payload: stageSimsDetailed(msg.payload) });
+      return;
+    }
+    if (msg.type === "blockBreakdown") {
+      (self as unknown as Worker).postMessage({ type: "ok", payload: blockBreakdownSummary(msg.payload) });
       return;
     }
     if (msg.type === "stageLite") {
