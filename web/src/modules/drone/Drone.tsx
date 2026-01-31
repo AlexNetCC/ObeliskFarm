@@ -318,9 +318,9 @@ export function Drone() {
           onChange={(n) => update({ gameSpeedMultiplier: n })}
           min={1}
           max={10}
-          step={0.1}
+          step={0.01}
           suffix="×"
-          decimals={1}
+          decimals={2}
           tooltip={{
             title: "Game speed",
             lines: [
