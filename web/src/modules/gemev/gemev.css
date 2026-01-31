@@ -32,6 +32,17 @@
   margin-bottom: 12px;
 }
 
+/* Main GemEv Collapsibles (Freebie, Founder, Bombs): tier colors + margin, no extra padding */
+.collapseWrap.gemEvSection {
+  padding: 0;
+}
+.collapseWrap.gemEvSection .collapseHeader {
+  border-radius: 8px 8px 0 0;
+}
+.collapseWrap.gemEvSection .collapseBody {
+  padding-top: 10px;
+}
+
 .gemEvSectionHeader {
   display: flex;
   justify-content: space-between;

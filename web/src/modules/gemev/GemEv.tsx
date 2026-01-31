@@ -331,7 +331,7 @@ export function GemEv() {
 
   const founderInfo = useMemo(
     () => ({
-      title: "FOUNDER SUPPLY DROP",
+      title: "Founder / VIP",
       sections: [
         {
           heading: "VIP Lounge (Tiers 1–12)",
@@ -446,15 +446,18 @@ export function GemEv() {
             <p className="panelHint">Autosaved in this browser.</p>
           </div>
 
-          <div className="gemEvSection tierHeader1">
-            <div className="gemEvSectionHeader">
-              <div className="gemEvSectionTitle">
+          <Collapsible
+            id="gemev-freebie"
+            title="FREEBIE"
+            defaultExpanded={false}
+            className="gemEvSection tierHeader1"
+            headerRight={
+              <>
                 <Sprite path="sprites/common/gem.png" alt="Freebie" className="iconSmall" />
-                <span className="mono">FREEBIE</span>
                 <Tooltip content={freebieInfo} />
-              </div>
-            </div>
-
+              </>
+            }
+          >
             <div className="gemEvSectionBody">
               <Stepper
                 label={
@@ -552,7 +555,7 @@ export function GemEv() {
               <Collapsible
                 id="gemev-skill-shards"
                 title="Skill Shards (Freebie)"
-                defaultExpanded={true}
+                defaultExpanded={false}
                 headerRight={
                   <>
                     <Sprite path="sprites/common/skill_shard.png" alt="Skill shards" className="iconSmall" />
@@ -599,7 +602,7 @@ export function GemEv() {
               <Collapsible
                 id="gemev-stonks"
                 title="Stonks (Freebie)"
-                defaultExpanded={true}
+                defaultExpanded={false}
                 headerRight={
                   <>
                     <Sprite path="sprites/common/stonks_tree.png" alt="Stonks" className="iconSmall" />
@@ -770,24 +773,28 @@ export function GemEv() {
                 decimals={1}
               />
             </div>
-          </div>
+          </Collapsible>
 
-          <div className="gemEvSection tierHeader2">
-            <div className="gemEvSectionHeader">
-              <div className="gemEvSectionTitle">
+          <Collapsible
+            id="gemev-founder"
+            title="Founder / VIP"
+            defaultExpanded={false}
+            className="gemEvSection tierHeader2"
+            headerRight={
+              <>
                 <Sprite path="sprites/event/founderbomb.png" alt="Founder" className="iconSmall" />
-                <span className="mono">FOUNDER SUPPLY DROP</span>
                 <Tooltip content={founderInfo} />
-              </div>
-              <label className="toggle" style={{ margin: 0 }}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(params.founder_enabled)}
-                  onChange={(e) => setParams((s) => ({ ...s, founder_enabled: e.target.checked }))}
-                />
-                FOUNDER enabled
-              </label>
-            </div>
+                <label className="toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(params.founder_enabled)}
+                    onChange={(e) => setParams((s) => ({ ...s, founder_enabled: e.target.checked }))}
+                  />
+                  FOUNDER enabled
+                </label>
+              </>
+            }
+          >
             <div className="gemEvSectionBody">
               <Stepper
                 label="VIP Lounge Level (1–12)"
@@ -812,15 +819,15 @@ export function GemEv() {
                 disabled={!params.founder_enabled}
               />
             </div>
-          </div>
+          </Collapsible>
 
-          <div className="gemEvSection tierHeader3">
-            <div className="gemEvSectionHeader">
-              <div className="gemEvSectionTitle">
-                <span className="mono">BOMBS</span>
-                <Tooltip content={bombsInfo} />
-              </div>
-            </div>
+          <Collapsible
+            id="gemev-bombs"
+            title="BOMBS"
+            defaultExpanded={false}
+            className="gemEvSection tierHeader3"
+            headerRight={<Tooltip content={bombsInfo} />}
+          >
             <div className="gemEvSectionBody">
               <Stepper
                 label="Free Bomb Chance (%)"
@@ -1061,7 +1068,7 @@ export function GemEv() {
                 />
               </div>
             </div>
-          </div>
+          </Collapsible>
         </div>
       </div>
 

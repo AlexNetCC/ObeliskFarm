@@ -5,9 +5,10 @@ export function Collapsible(props: {
   title: React.ReactNode;
   defaultExpanded?: boolean;
   headerRight?: React.ReactNode;
+  className?: string;
   children: React.ReactNode;
 }) {
-  const { id, title, defaultExpanded, headerRight, children } = props;
+  const { id, title, defaultExpanded, headerRight, className, children } = props;
 
   const storageKey = useMemo(() => `obeliskfarm:web:ui:collapse:${id}`, [id]);
   const [expanded, setExpanded] = useState<boolean>(() => {
@@ -30,7 +31,7 @@ export function Collapsible(props: {
   }, [expanded, storageKey]);
 
   return (
-    <div className="collapseWrap">
+    <div className={className ? `collapseWrap ${className}` : "collapseWrap"}>
       <div className="collapseHeader">
         <button className="collapseToggle" type="button" onClick={() => setExpanded((x) => !x)} aria-expanded={expanded}>
           {expanded ? "▼" : "▶"}
