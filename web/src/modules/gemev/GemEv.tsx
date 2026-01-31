@@ -488,10 +488,10 @@ export function GemEv() {
                       }
                       value={getGameSpeedMultiplier(effectiveParams)}
                       onChange={(v) => setParams((s) => ({ ...s, game_speed_multiplier: clamp(v, 1, 10) }))}
-                      step={0.1}
+                      step={0.01}
                       min={1}
                       max={10}
-                      decimals={1}
+                      decimals={2}
                     />
                   </div>
                   <Tooltip
@@ -860,10 +860,10 @@ export function GemEv() {
                   label="Founder Bomb Interval (Seconds)"
                   value={params.founder_bomb_interval_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, founder_bomb_interval_seconds: v }))}
-                  step={1}
+                  step={0.01}
                   min={0.1}
                   max={9999}
-                  decimals={1}
+                  decimals={2}
                   disabled={!params.founder_enabled}
                 />
                 <p className="small" style={{ margin: "4px 0 0" }}>
@@ -952,10 +952,10 @@ export function GemEv() {
                   label="Recharge (Seconds)"
                   value={params.gem_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, gem_bomb_recharge_seconds: v }))}
-                  step={1}
+                  step={0.01}
                   min={0.1}
                   max={9999}
-                  decimals={1}
+                  decimals={2}
                 />
                 <Stepper
                   label="Gem Chance per Charge (%)"
@@ -985,10 +985,10 @@ export function GemEv() {
                   label="Recharge (Seconds)"
                   value={params.cherry_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_recharge_seconds: v }))}
-                  step={1}
+                  step={0.01}
                   min={0.1}
                   max={9999}
-                  decimals={1}
+                  decimals={2}
                 />
                 <Stepper
                   label="3× Charges Chance (%)"
@@ -1018,10 +1018,10 @@ export function GemEv() {
                   label="Recharge (Seconds)"
                   value={params.battery_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, battery_bomb_recharge_seconds: v }))}
-                  step={1}
+                  step={0.01}
                   min={0.1}
                   max={9999}
-                  decimals={1}
+                  decimals={2}
                 />
               </div>
 
@@ -1042,10 +1042,10 @@ export function GemEv() {
                   label="Recharge (Seconds)"
                   value={params.d20_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, d20_bomb_recharge_seconds: v }))}
-                  step={1}
+                  step={0.01}
                   min={0.1}
                   max={9999}
-                  decimals={1}
+                  decimals={2}
                 />
                 <Stepper
                   label="Charges Distributed"
