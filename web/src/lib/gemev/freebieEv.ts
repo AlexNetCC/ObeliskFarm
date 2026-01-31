@@ -19,9 +19,17 @@ export type GameParameters = {
   skill_shard_chance: number; // 0..1
   skill_shard_value_gems: number;
 
-  // Stonks
+  // Stonks (only on first roll per claim; Super only when Stonks hit, Ultra only when Super hit)
   stonks_chance: number; // 0..1
   stonks_bonus_gems: number;
+  stonks_multiplier: number; // e.g. 2.1
+  super_stonks_chance: number; // 0..1, conditional on Stonks
+  super_stonks_bonus_gems: number;
+  super_stonks_multiplier: number;
+  ultra_stonks_chance: number; // 0..1, conditional on Super Stonks
+  ultra_stonks_bonus_gems: number;
+  ultra_stonks_multiplier: number;
+  stonks_all_multiplier: number; // applied to sum of all three
 
   // Jackpot
   jackpot_chance: number; // 0..1
@@ -90,6 +98,14 @@ export function defaultGameParameters(): GameParameters {
     skill_shard_value_gems: 12.5,
     stonks_chance: 0.01,
     stonks_bonus_gems: 200.0,
+    stonks_multiplier: 1.0,
+    super_stonks_chance: 0.0,
+    super_stonks_bonus_gems: 0.0,
+    super_stonks_multiplier: 1.0,
+    ultra_stonks_chance: 0.0,
+    ultra_stonks_bonus_gems: 0.0,
+    ultra_stonks_multiplier: 1.0,
+    stonks_all_multiplier: 1.0,
     jackpot_chance: 0.08, // 5% + 3%
     jackpot_rolls: 5,
     instant_refresh_chance: 0.05,
@@ -247,8 +263,18 @@ export function calculateGemsBasePerHour(params: GameParameters): number {
 export function calculateStonksEvPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const refreshMult = calculateRefreshMultiplier(params);
-  const stonksEvPerClaim = clamp01(params.stonks_chance) * clampPositive(params.stonks_bonus_gems, 200.0);
-  return freebiesPerHour * refreshMult * stonksEvPerClaim;
+  const sc = clamp01(params.stonks_chance);
+  const ssc = clamp01(params.super_stonks_chance ?? 0);
+  const usc = clamp01(params.ultra_stonks_chance ?? 0);
+  const stonksPerClaim =
+    sc * clampPositive(params.stonks_bonus_gems, 200.0) * clampPositive(params.stonks_multiplier ?? 1.0, 0);
+  const superPerClaim =
+    sc * ssc * clampPositive(params.super_stonks_bonus_gems ?? 0, 0) * clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
+  const ultraPerClaim =
+    sc * ssc * usc * clampPositive(params.ultra_stonks_bonus_gems ?? 0, 0) * clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
+  const sumPerClaim = stonksPerClaim + superPerClaim + ultraPerClaim;
+  const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
+  return freebiesPerHour * refreshMult * sumPerClaim * allMult;
 }
 
 export function calculateSkillShardsEvPerHour(params: GameParameters): number {
@@ -617,8 +643,19 @@ export function calculateEvBreakdown(params: GameParameters): EvBreakdown {
   const refreshGemsBase = baseGems * (refreshMult - 1.0);
   const refreshGemsJackpot = jackpotGems * (refreshMult - 1.0);
 
-  // Stonks (no jackpot; claim % does not apply)
-  const baseStonks = freebiesPerHour * clamp01(params.stonks_chance) * clampPositive(params.stonks_bonus_gems, 200.0);
+  // Stonks (no jackpot; claim % does not apply; sum of Stonks + Super + Ultra, then × stonks_all_multiplier)
+  const sc = clamp01(params.stonks_chance);
+  const ssc = clamp01(params.super_stonks_chance ?? 0);
+  const usc = clamp01(params.ultra_stonks_chance ?? 0);
+  const stonksPerClaim =
+    sc * clampPositive(params.stonks_bonus_gems, 200.0) * clampPositive(params.stonks_multiplier ?? 1.0, 0);
+  const superPerClaim =
+    sc * ssc * clampPositive(params.super_stonks_bonus_gems ?? 0, 0) * clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
+  const ultraPerClaim =
+    sc * ssc * usc * clampPositive(params.ultra_stonks_bonus_gems ?? 0, 0) * clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
+  const sumPerClaim = stonksPerClaim + superPerClaim + ultraPerClaim;
+  const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
+  const baseStonks = freebiesPerHour * sumPerClaim * allMult;
   const refreshStonks = baseStonks * (refreshMult - 1.0);
 
   // Skill shards (jackpot applies)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./gemev.css";
+import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
@@ -191,9 +192,17 @@ export function GemEv() {
   const effectiveParams = useMemo<GameParameters>(() => {
     const p: GameParameters = { ...params };
 
-    // Stonks semantics
+    // Stonks semantics (toggle sets base chance; multipliers from params)
     p.stonks_chance = stonksEnabled ? 0.01 : 0.0;
     p.stonks_bonus_gems = 200.0;
+    p.stonks_multiplier = clamp(p.stonks_multiplier ?? 1.0, 0, 999);
+    p.super_stonks_chance = clamp(p.super_stonks_chance ?? 0, 0, 1);
+    p.super_stonks_bonus_gems = clamp(p.super_stonks_bonus_gems ?? 0, 0, 99999);
+    p.super_stonks_multiplier = clamp(p.super_stonks_multiplier ?? 1.0, 0, 999);
+    p.ultra_stonks_chance = clamp(p.ultra_stonks_chance ?? 0, 0, 1);
+    p.ultra_stonks_bonus_gems = clamp(p.ultra_stonks_bonus_gems ?? 0, 0, 99999);
+    p.ultra_stonks_multiplier = clamp(p.ultra_stonks_multiplier ?? 1.0, 0, 999);
+    p.stonks_all_multiplier = clamp(p.stonks_all_multiplier ?? 1.0, 0, 999);
 
     // Skill shards: include in EV only when toggle on
     if (!skillShardsEnabled) p.skill_shard_chance = 0;
@@ -307,7 +316,13 @@ export function GemEv() {
       title: "FREEBIE Parameters",
       sections: [
         { heading: "Base", lines: ["Freebie Gems (Base), Freebie Timer, Claim % (per day)."] },
-        { heading: "Special drops", lines: ["Skill Shards: chance + gem-equivalent value.", "Stonks: 1% chance for +200 Gems (toggle)."] },
+        {
+          heading: "Special drops",
+          lines: [
+            "Skill Shards: chance + gem-equivalent value.",
+            "Stonks: collapsible section. Stonks (1% chance, 200 Gems base) + multiplier. Super Stonks only when Stonks hit; Ultra only when Super hit. Each tier has its own multiplier; Stonks all multiplier applies to the sum.",
+          ],
+        },
         { heading: "Multipliers", lines: ["Jackpot: chance for additional rolls.", "Refresh: chance for instant refresh (geometric series)."] },
       ],
     }),
@@ -534,47 +549,196 @@ export function GemEv() {
 
               <div className="gemEvDivider" />
 
-              <div className="gemEvSkillShardsWrap">
-                <div className="gemEvInlineHead">
-                  <Sprite path="sprites/common/skill_shard.png" alt="Skill shards" className="iconSmall" />
-                  <span className="mono">Skill Shards (Freebie)</span>
-                  <label className="toggle" style={{ margin: 0, marginLeft: "auto" }}>
+              <Collapsible
+                id="gemev-skill-shards"
+                title="Skill Shards (Freebie)"
+                defaultExpanded={true}
+                headerRight={
+                  <>
+                    <Sprite path="sprites/common/skill_shard.png" alt="Skill shards" className="iconSmall" />
+                    <Tooltip
+                      content={{
+                        title: "Why include Skill Shards in EV",
+                        lines: ["Skill Shards have a gem-equivalent value (from selling or from the value of upgrades they enable). Including them makes the total EV comparable across different sources of income."],
+                      }}
+                      label="?"
+                    />
+                  </>
+                }
+              >
+                <div className="gemEvSectionBody" style={{ paddingTop: 4 }}>
+                  <label className="toggle" style={{ marginBottom: 8 }}>
                     <input type="checkbox" checked={skillShardsEnabled} onChange={(e) => setSkillShardsEnabled(e.target.checked)} />
                     Include in EV
                   </label>
+                  <Stepper
+                    label="Skill Shard Chance (%)"
+                    value={params.skill_shard_chance * 100}
+                    onChange={(v) => setParams((s) => ({ ...s, skill_shard_chance: v / 100 }))}
+                    step={1}
+                    min={0}
+                    max={100}
+                    decimals={1}
+                    disabled={!skillShardsEnabled}
+                  />
+                  <Stepper
+                    label="Skill Shard Value (Gems)"
+                    value={params.skill_shard_value_gems}
+                    onChange={(v) => setParams((s) => ({ ...s, skill_shard_value_gems: v }))}
+                    step={0.5}
+                    min={0}
+                    max={9999}
+                    decimals={1}
+                    disabled={!skillShardsEnabled}
+                  />
                 </div>
-                <Stepper
-                  label="Skill Shard Chance (%)"
-                  value={params.skill_shard_chance * 100}
-                  onChange={(v) => setParams((s) => ({ ...s, skill_shard_chance: v / 100 }))}
-                  step={1}
-                  min={0}
-                  max={100}
-                  decimals={1}
-                  disabled={!skillShardsEnabled}
-                />
-                <Stepper
-                  label="Skill Shard Value (Gems)"
-                  value={params.skill_shard_value_gems}
-                  onChange={(v) => setParams((s) => ({ ...s, skill_shard_value_gems: v }))}
-                  step={0.5}
-                  min={0}
-                  max={9999}
-                  decimals={1}
-                  disabled={!skillShardsEnabled}
-                />
-              </div>
+              </Collapsible>
 
               <div className="gemEvDivider" />
 
-              <div className="gemEvInlineHead">
-                <Sprite path="sprites/common/stonks_tree.png" alt="Stonks" className="iconSmall" />
-                <span className="mono">Stonks (Freebie)</span>
-              </div>
-              <label className="toggle" style={{ marginTop: 4 }}>
-                <input type="checkbox" checked={stonksEnabled} onChange={(e) => setStonksEnabled(e.target.checked)} />
-                Stonks enabled (1% chance, 200 Gems bonus)
-              </label>
+              <Collapsible
+                id="gemev-stonks"
+                title="Stonks (Freebie)"
+                defaultExpanded={true}
+                headerRight={
+                  <>
+                    <Sprite path="sprites/common/stonks_tree.png" alt="Stonks" className="iconSmall" />
+                    <Tooltip
+                      content={{
+                        title: "Source of values",
+                        lines: ["Take the chance, bonus, and multiplier values from the Chest Stats area (Stats button)."],
+                      }}
+                      label="?"
+                    />
+                  </>
+                }
+              >
+                <div className="gemEvSectionBody" style={{ paddingTop: 4 }}>
+                  {/* Tier 1: Stonks (lightest green) */}
+                  <div className="gemEvStonksTier gemEvStonksTier1">
+                    <div className="gemEvInlineHead">
+                      <span className="mono">Stonks</span>
+                    </div>
+                    <label className="toggle" style={{ marginTop: 4 }}>
+                      <input type="checkbox" checked={stonksEnabled} onChange={(e) => setStonksEnabled(e.target.checked)} />
+                      Stonks enabled (1% chance, 200 Gems base)
+                    </label>
+                    <Stepper
+                      label="Stonks multiplier (×)"
+                      value={params.stonks_multiplier ?? 1}
+                      onChange={(v) => setParams((s) => ({ ...s, stonks_multiplier: v }))}
+                      step={0.1}
+                      min={0}
+                      max={999}
+                      decimals={1}
+                      disabled={!stonksEnabled}
+                    />
+                  </div>
+
+                  {/* Tier 2: Super Stonks (medium green) */}
+                  <div className="gemEvStonksTier gemEvStonksTier2">
+                    <div className="gemEvInlineHead">
+                      <span className="mono">Super Stonks</span>
+                      <Tooltip
+                        content={{
+                          title: "Super Stonks",
+                          lines: ["Only rolls when Stonks triggered on the same claim (first roll)."],
+                        }}
+                        label="?"
+                      />
+                    </div>
+                    <Stepper
+                      label="Super Stonks chance (%)"
+                      value={(params.super_stonks_chance ?? 0) * 100}
+                      onChange={(v) => setParams((s) => ({ ...s, super_stonks_chance: v / 100 }))}
+                      step={0.5}
+                      min={0}
+                      max={100}
+                      decimals={1}
+                    />
+                    <Stepper
+                      label="Super Stonks bonus (Gems)"
+                      value={params.super_stonks_bonus_gems ?? 0}
+                      onChange={(v) => setParams((s) => ({ ...s, super_stonks_bonus_gems: v }))}
+                      step={10}
+                      min={0}
+                      max={99999}
+                      decimals={0}
+                    />
+                    <Stepper
+                      label="Super Stonks multiplier (×)"
+                      value={params.super_stonks_multiplier ?? 1}
+                      onChange={(v) => setParams((s) => ({ ...s, super_stonks_multiplier: v }))}
+                      step={0.1}
+                      min={0}
+                      max={999}
+                      decimals={1}
+                    />
+                  </div>
+
+                  {/* Tier 3: Ultra Stonks (darkest green) */}
+                  <div className="gemEvStonksTier gemEvStonksTier3">
+                    <div className="gemEvInlineHead">
+                      <span className="mono">Ultra Stonks</span>
+                      <Tooltip
+                        content={{
+                          title: "Ultra Stonks",
+                          lines: ["Only rolls when Super Stonks triggered on the same claim."],
+                        }}
+                        label="?"
+                      />
+                    </div>
+                    <Stepper
+                      label="Ultra Stonks chance (%)"
+                      value={(params.ultra_stonks_chance ?? 0) * 100}
+                      onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_chance: v / 100 }))}
+                      step={0.5}
+                      min={0}
+                      max={100}
+                      decimals={1}
+                    />
+                    <Stepper
+                      label="Ultra Stonks bonus (Gems)"
+                      value={params.ultra_stonks_bonus_gems ?? 0}
+                      onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_bonus_gems: v }))}
+                      step={10}
+                      min={0}
+                      max={99999}
+                      decimals={0}
+                    />
+                    <Stepper
+                      label="Ultra Stonks multiplier (×)"
+                      value={params.ultra_stonks_multiplier ?? 1}
+                      onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_multiplier: v }))}
+                      step={0.1}
+                      min={0}
+                      max={999}
+                      decimals={1}
+                    />
+                  </div>
+
+                  {/* Stonks all multiplier */}
+                  <div className="gemEvInlineHead" style={{ marginTop: 4 }}>
+                    <span className="mono">Stonks all multiplier</span>
+                    <Tooltip
+                      content={{
+                        title: "Stonks all multiplier",
+                        lines: ["Applied to the sum of Stonks + Super Stonks + Ultra Stonks EV."],
+                      }}
+                      label="?"
+                    />
+                  </div>
+                  <Stepper
+                    label="Stonks all multiplier (×)"
+                    value={params.stonks_all_multiplier ?? 1}
+                    onChange={(v) => setParams((s) => ({ ...s, stonks_all_multiplier: v }))}
+                    step={0.1}
+                    min={0}
+                    max={999}
+                    decimals={1}
+                  />
+                </div>
+              </Collapsible>
 
               <div className="gemEvDivider" />
 
@@ -773,6 +937,7 @@ export function GemEv() {
                       Gem Bomb
                     </span>
                     <Sprite path="sprites/event/gembomb.png" alt="Gem Bomb" className="iconSmall" />
+                    <Tooltip content={{ title: "Gem Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
                   </div>
                   <CardToggles value={params.gem_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, gem_bomb_recharge_card_level: lvl }))} />
                 </div>
@@ -805,6 +970,7 @@ export function GemEv() {
                       Cherry Bomb
                     </span>
                     <Sprite path="sprites/event/cherrybomb.png" alt="Cherry Bomb" className="iconSmall" />
+                    <Tooltip content={{ title: "Cherry Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
                   </div>
                   <CardToggles value={params.cherry_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, cherry_bomb_recharge_card_level: lvl }))} />
                 </div>
@@ -837,6 +1003,7 @@ export function GemEv() {
                       Battery Bomb
                     </span>
                     <Sprite path="sprites/common/battery_bomb.png" alt="Battery Bomb" className="iconSmall" label="sprites/common/battery_bomb.png" />
+                    <Tooltip content={{ title: "Battery Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
                   </div>
                   <CardToggles value={params.battery_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, battery_bomb_recharge_card_level: lvl }))} />
                 </div>
@@ -860,6 +1027,7 @@ export function GemEv() {
                       D20 Bomb
                     </span>
                     <Sprite path="sprites/common/d20_bomb.png" alt="D20 Bomb" className="iconSmall" label="sprites/common/d20_bomb.png" />
+                    <Tooltip content={{ title: "D20 Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
                   </div>
                   <CardToggles value={params.d20_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, d20_bomb_recharge_card_level: lvl }))} />
                 </div>
