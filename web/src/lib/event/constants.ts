@@ -6,7 +6,7 @@ export const UPGRADE_SHORT_NAMES: Record<number, string[]> = {
     "Health +2",
     "Attack speed +0.02",
     "Move speed +0.03",
-    "Game speed +2%",
+    "Event Speed +3%",
     "Crit chance +1%",
     "Attack+1 Health+2",
     "Tier 1 caps +1",
@@ -26,7 +26,7 @@ export const UPGRADE_SHORT_NAMES: Record<number, string[]> = {
     "Attack +2",
     "Attack speed +0.02",
     "Crit chance +1%",
-    "Game speed +3%",
+    "Event Speed +3%",
     "Attack+3 Health+3",
     "Tier 3 caps +1",
     "5× drop +3%",
@@ -68,7 +68,7 @@ export const COSTS: Record<number, number[]> = {
   4: [10, 12, 15, 20, 50, 250, 500, 150],
 };
 
-export const GEM_UPGRADE_NAMES = ["+10% Damage", "+10% Max health", "+125% Event game speed", "2× Event currencies"] as const;
+export const GEM_UPGRADE_NAMES = ["+10% Damage", "+10% Max health", "+125% Event Speed", "2× Event currencies"] as const;
 
 export function getPrestigeWaveRequirement(prestige: number): number {
   return (prestige + 1) * 5;
