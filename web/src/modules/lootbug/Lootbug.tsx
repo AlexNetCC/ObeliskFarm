@@ -17,6 +17,8 @@ import {
   getWeight,
 } from "../../lib/lootbug/constants";
 
+const DEFAULT_ACTIVE_GEM_BUFFS = ["2x Game Speed", "10x Bomb Recharge"];
+
 const WIKI_ICON = "https://static.wikitide.net/shminerwiki/2/27/Blank_Button.png";
 const LOOTBUG_BASE_SPAWN_MIN = 20;
 const STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
@@ -29,6 +31,7 @@ type LootbugState = {
   goldenChancePct: number;
   gemCostReduction: number;
   lootMultiplier: number;
+  activeGemBuffs: string[];
 };
 
 const DEFAULT: LootbugState = {
@@ -37,6 +40,7 @@ const DEFAULT: LootbugState = {
   goldenChancePct: 0,
   gemCostReduction: 0,
   lootMultiplier: 1,
+  activeGemBuffs: DEFAULT_ACTIVE_GEM_BUFFS,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -122,8 +126,9 @@ function IntStepper(props: {
   onChange: (n: number) => void;
   min?: number;
   max?: number;
+  suffix?: string;
 }) {
-  const { label, value, onChange, min = 0, max = 999 } = props;
+  const { label, value, onChange, min = 0, max = 999, suffix } = props;
   const isEditingRef = useRef(false);
   const [raw, setRaw] = useState<string>(() => String(clampInt(value, min, max)));
 
@@ -166,6 +171,7 @@ function IntStepper(props: {
           onBlur={() => commit()}
           onKeyDown={(e) => e.key === "Enter" && commit()}
         />
+        {suffix ? <span className="lootbugSuffix">{suffix}</span> : null}
         <button
           type="button"
           className="lootbugStepBtn"
@@ -254,6 +260,11 @@ export function Lootbug() {
     s.goldenChancePct = clamp(s.goldenChancePct, 0, 100);
     s.gemCostReduction = clampInt(s.gemCostReduction, 0, 999);
     s.lootMultiplier = clamp(s.lootMultiplier, 0.1, 5);
+    const validNames = new Set(GEM_BUFFS.map((b) => b.name));
+    s.activeGemBuffs = Array.isArray(s.activeGemBuffs)
+      ? s.activeGemBuffs.filter((name) => validNames.has(name))
+      : [...DEFAULT_ACTIVE_GEM_BUFFS];
+    if (s.activeGemBuffs.length === 0) s.activeGemBuffs = [...DEFAULT_ACTIVE_GEM_BUFFS];
     return s;
   });
 
@@ -290,7 +301,9 @@ export function Lootbug() {
     () => FREE_BUFFS.reduce((s, b) => s + getWeight(b), 0),
     [],
   );
-  const totalGemWeight = useMemo(
+  const activeGemBuffs = Array.isArray(state.activeGemBuffs) ? state.activeGemBuffs : DEFAULT_ACTIVE_GEM_BUFFS;
+  const buyGemBuffsSet = useMemo(() => new Set(activeGemBuffs), [activeGemBuffs]);
+  const totalGemWeightAll = useMemo(
     () => GEM_BUFFS.reduce((s, b) => s + getWeight(b), 0),
     [],
   );
@@ -312,45 +325,42 @@ export function Lootbug() {
     const freePerHour =
       totalFreeWeight > 0 ? (lootbugsPerHour * getWeight(free2x)) / totalFreeWeight : 0;
     const gemPerHour =
-      totalGemWeight > 0 ? (lootbugsPerHour * getWeight(gem2x)) / totalGemWeight : 0;
+      totalGemWeightAll > 0 ? (lootbugsPerHour * getWeight(gem2x)) / totalGemWeightAll : 0;
     const freeMinPerHour = (freePerHour * 2) / gameSpeed;
     const gemMinPerHour = (gemPerHour * 10) / gameSpeed;
     return freeMinPerHour + gemMinPerHour;
-  }, [lootbugsPerHour, totalFreeWeight, totalGemWeight, gameSpeed]);
+  }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed]);
 
   const bombRecharge10xMinPerHour = useMemo(() => {
     if (gameSpeed <= 0) return 0;
     const buff = GEM_BUFFS.find((b) => b.name === "10x Bomb Recharge");
-    if (!buff || totalGemWeight <= 0) return 0;
-    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeight;
+    if (!buff || totalGemWeightAll <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
     return (perHour * 2) / gameSpeed;
-  }, [lootbugsPerHour, totalGemWeight, gameSpeed]);
-
-  useEffect(() => {
-    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
-    ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
-    saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour]);
+  }, [lootbugsPerHour, totalGemWeightAll, gameSpeed]);
 
   const goldenPct = clamp(state.goldenChancePct, 0, 100) / 100;
 
-  const gemCost2x = useMemo(() => {
-    const buff = GEM_BUFFS.find((b) => b.name === "2x Game Speed");
-    if (!buff || totalGemWeight <= 0) return 0;
-    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeight;
-    const actualCost = Math.max(0, buff.cost - state.gemCostReduction);
-    return perHour * actualCost * (1 - goldenPct);
-  }, [lootbugsPerHour, totalGemWeight, state.gemCostReduction, goldenPct]);
+  const totalGemCostPerHour = useMemo(() => {
+    if (totalGemWeightAll <= 0) return 0;
+    let sum = 0;
+    for (const buff of GEM_BUFFS) {
+      if (!buyGemBuffsSet.has(buff.name)) continue;
+      const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
+      const actualCost = Math.max(0, buff.cost - state.gemCostReduction);
+      sum += perHour * actualCost * (1 - goldenPct);
+    }
+    return sum;
+  }, [lootbugsPerHour, totalGemWeightAll, state.gemCostReduction, goldenPct, buyGemBuffsSet]);
 
-  const gemCost10x = useMemo(() => {
-    const buff = GEM_BUFFS.find((b) => b.name === "10x Bomb Recharge");
-    if (!buff || totalGemWeight <= 0) return 0;
-    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeight;
-    const actualCost = Math.max(0, buff.cost - state.gemCostReduction);
-    return perHour * actualCost * (1 - goldenPct);
-  }, [lootbugsPerHour, totalGemWeight, state.gemCostReduction, goldenPct]);
+  const netGemsPerHour = gemsPerHour - totalGemCostPerHour;
 
-  const netGemsPerHour = gemsPerHour - gemCost2x - gemCost10x;
+  useEffect(() => {
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; lootbugNetGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
+    ext.lootbugNetGemsPerHour = netGemsPerHour;
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [bombRecharge10xMinPerHour, netGemsPerHour]);
 
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
@@ -358,7 +368,8 @@ export function Lootbug() {
     "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
 
   return (
-    <div className="lootbugGrid">
+    <div className="container">
+      <div className="lootbugGrid">
       <div className="lootbugIntro">
         <p>
           Lootbugs spawn on the main screen every 20 game minutes (base). Tap to claim a free reward,
@@ -400,13 +411,11 @@ export function Lootbug() {
                       {
                         heading: "Source",
                         lines: [
-                          "Taken from Gem EV Calculator. Same value as Stats screen. Lootbugs spawn every 20 game minutes; game speed affects real-time spawn rate.",
+                          "Taken from Gem EV Calculator. Same value as Stats screen.",
+                          "Lootbugs spawn every 20 game minutes; game speed affects real-time spawn rate.",
                         ],
                       },
-                      {
-                        heading: "Edit",
-                        lines: ["Change it in the Gem EV Calculator module."],
-                      },
+                      { heading: "Edit", lines: ["Change it in the Gem EV Calculator module."] },
                     ],
                   }}
                 />
@@ -437,42 +446,75 @@ export function Lootbug() {
               </span>
             </div>
           )}
-          {STATS.map((stat) => (
-            <NumInput
-              key={stat.id}
-              label={
-                <span className="lootbugStatLabel">
-                  <img src={WIKI_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-                  <span className="lootbugLabel">
-                    {stat.label}{" "}
-                    <Tooltip
-                      content={{
-                        title: stat.label,
-                        sections: [
-                          { heading: "Description", lines: [stat.description] },
-                          { heading: "Sources", lines: stat.sources },
-                        ],
-                      }}
-                    />
+          {STATS.map((stat) =>
+            stat.id === "goldenChancePct" ? (
+              <IntStepper
+                key={stat.id}
+                label={
+                  <span className="lootbugStatLabel">
+                    <img src={WIKI_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                    <span className="lootbugLabel">
+                      {stat.label}{" "}
+                      <Tooltip
+                        content={{
+                          title: stat.label,
+                          sections: [
+                            {
+                              heading: "Description",
+                              lines: stat.description.split(/(?<=\.)\s+/).map((s) => s.trim()).filter(Boolean),
+                            },
+                            { heading: "Sources", lines: stat.sources },
+                          ],
+                        }}
+                      />
+                    </span>
                   </span>
-                </span>
-              }
-              value={state[stat.id] as number}
-              onChange={(n) => update({ [stat.id]: n })}
-              min={stat.id === "spawnRateMultiplier" || stat.id === "lootMultiplier" ? 0.1 : 0}
-              max={
-                stat.id === "tripleChancePct" || stat.id === "goldenChancePct"
-                  ? 100
-                  : stat.id === "spawnRateMultiplier"
-                    ? 20
-                    : stat.id === "lootMultiplier"
-                      ? 5
-                      : 100
-              }
-              decimals={stat.decimals ?? 0}
-              suffix={stat.suffix}
-            />
-          ))}
+                }
+                value={Math.round(state.goldenChancePct)}
+                onChange={(n) => update({ goldenChancePct: clamp(n, 0, 100) })}
+                min={0}
+                max={100}
+              />
+            ) : (
+              <NumInput
+                key={stat.id}
+                label={
+                  <span className="lootbugStatLabel">
+                    <img src={WIKI_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                    <span className="lootbugLabel">
+                      {stat.label}{" "}
+                      <Tooltip
+                        content={{
+                          title: stat.label,
+                          sections: [
+                            {
+                              heading: "Description",
+                              lines: stat.description.split(/(?<=\.)\s+/).map((s) => s.trim()).filter(Boolean),
+                            },
+                            { heading: "Sources", lines: stat.sources },
+                          ],
+                        }}
+                      />
+                    </span>
+                  </span>
+                }
+                value={state[stat.id] as number}
+                onChange={(n) => update({ [stat.id]: n })}
+                min={stat.id === "spawnRateMultiplier" || stat.id === "lootMultiplier" ? 0.1 : 0}
+                max={
+                  stat.id === "tripleChancePct" || stat.id === "goldenChancePct"
+                    ? 100
+                    : stat.id === "spawnRateMultiplier"
+                      ? 20
+                      : stat.id === "lootMultiplier"
+                        ? 5
+                        : 100
+                }
+                decimals={stat.decimals ?? 0}
+                suffix={stat.suffix}
+              />
+            )
+          )}
           <IntStepper
             label={
               <span className="lootbugStatLabel">
@@ -501,87 +543,91 @@ export function Lootbug() {
 
       <Collapsible id="lootbug-gains" title="Lootbug gains" defaultExpanded={true}>
         <div className="lootbugSection">
-          <div className="lootbugRow">
-            <span className="lootbugStatLabel">
-              <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-              <span className="lootbugLabel">
-                Gems (raw) / h
-                <Tooltip
-                  content={{
-                    title: "Gems (raw) / h",
-                    lines: [
-                      "Raw gems from +2 Gems free buff per hour.",
-                      "Per hour × 2 × Loot multiplier.",
-                    ],
-                  }}
-                />
+          <div className="lootbugGemsBlock">
+            <div className="lootbugRow">
+              <span className="lootbugStatLabel">
+                <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                <span className="lootbugLabel">
+                  Gems (raw) / h
+                  <Tooltip
+                    content={{
+                      title: "Gems (raw) / h",
+                      lines: [
+                        "Raw gems from +2 Gems free buff per hour.",
+                        "Per hour × 2 × Loot multiplier.",
+                      ],
+                    }}
+                  />
+                </span>
               </span>
-            </span>
-            <span className="lootbugValue">{gemsPerHour.toFixed(1)}</span>
+              <span className="lootbugValue">{gemsPerHour.toFixed(1)}</span>
+            </div>
+            <div className="lootbugRow lootbugNetGemsRow">
+              <span className="lootbugStatLabel">
+                <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                <span className="lootbugLabel">
+                  Net gems / h
+                  <Tooltip
+                    content={{
+                      title: "Net gems / h",
+                      lines: [
+                        "Gems (raw) minus Gem/h spent on 2× Game Speed and 10× Bomb Recharge.",
+                        "Raw gems + (negative Gem/h) = net gems after costs.",
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span
+                className="lootbugValue"
+                style={
+                  netGemsPerHour < 0
+                    ? { color: "var(--bad)" }
+                    : netGemsPerHour > 0
+                      ? { color: "var(--good)" }
+                      : undefined
+                }
+              >
+                {netGemsPerHour.toFixed(1)}
+              </span>
+            </div>
           </div>
-          <div className="lootbugRow">
-            <span className="lootbugStatLabel">
-              <img src={GAME_SPEED_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-              <span className="lootbugLabel">
-                2× Game Speed / h
-                <Tooltip
-                  content={{
-                    title: "2× Game Speed / h",
-                    lines: [
-                      "Total min/h with 2× Game Speed active (free + gem buff).",
-                      "Free buff (2 min) + Gem buff (10 min) added together.",
-                    ],
-                  }}
-                />
+          <div className="lootbugBuffsBlock">
+            <div className="lootbugRow">
+              <span className="lootbugStatLabel">
+                <img src={GAME_SPEED_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                <span className="lootbugLabel">
+                  2× Game Speed / h
+                  <Tooltip
+                    content={{
+                      title: "2× Game Speed / h",
+                      lines: [
+                        "Total min/h with 2× Game Speed active (free + gem buff).",
+                        "Free buff (2 min) + Gem buff (10 min) added together.",
+                      ],
+                    }}
+                  />
+                </span>
               </span>
-            </span>
-            <span className="lootbugValue">{gameSpeed2xMinPerHour.toFixed(2)} min</span>
-          </div>
-          <div className="lootbugRow">
-            <span className="lootbugStatLabel">
-              <img src={BOMB_RECHARGE_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-              <span className="lootbugLabel">
-                10× Bomb Recharge / h
-                <Tooltip
-                  content={{
-                    title: "10× Bomb Recharge / h",
-                    lines: [
-                      "Min/h with 10× Bomb Recharge active (gem buff, 2 min duration).",
-                    ],
-                  }}
-                />
+              <span className="lootbugValue">{gameSpeed2xMinPerHour.toFixed(2)} min</span>
+            </div>
+            <div className="lootbugRow">
+              <span className="lootbugStatLabel">
+                <img src={BOMB_RECHARGE_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                <span className="lootbugLabel">
+                  10× Bomb Recharge / h
+                  <Tooltip
+                    content={{
+                      title: "10× Bomb Recharge / h",
+                      lines: [
+                        "Min/h with 10× Bomb Recharge active (gem buff, 2 min duration).",
+                      ],
+                    }}
+                  />
+                </span>
               </span>
-            </span>
-            <span className="lootbugValue">{bombRecharge10xMinPerHour.toFixed(2)} min</span>
-          </div>
-          <div className="lootbugRow lootbugNetGemsRow">
-            <span className="lootbugStatLabel">
-              <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-              <span className="lootbugLabel">
-                Net gems / h
-                <Tooltip
-                  content={{
-                    title: "Net gems / h",
-                    lines: [
-                      "Gems (raw) minus Gem/h spent on 2× Game Speed and 10× Bomb Recharge.",
-                      "Raw gems + (negative Gem/h) = net gems after costs.",
-                    ],
-                  }}
-                />
-              </span>
-            </span>
-            <span
-              className="lootbugValue"
-              style={
-                netGemsPerHour < 0
-                  ? { color: "var(--bad)", fontWeight: 700 }
-                  : netGemsPerHour > 0
-                    ? { color: "var(--good)", fontWeight: 700 }
-                    : undefined
-              }
-            >
-              {netGemsPerHour.toFixed(1)}
-            </span>
+              <span className="lootbugValue">{bombRecharge10xMinPerHour.toFixed(2)} min</span>
+            </div>
           </div>
         </div>
       </Collapsible>
@@ -664,9 +710,24 @@ export function Lootbug() {
 
       <Collapsible id="lootbug-gem-buffs" title="Gem buffs" defaultExpanded={true}>
         <div className="lootbugSection lootbugBuffsSection">
+          <p className="lootbugHint" style={{ marginBottom: 10 }}>
+            Per hour and min/h use the full pool (all buffs can appear). Toggle Buy for buffs you pay for; only those count toward Gem/h and net gems.
+          </p>
           <table className="lootbugTable">
               <thead>
                 <tr>
+                  <th className="lootbugTableThActive">
+                    Buy
+                    <Tooltip
+                      content={{
+                        title: "Buy",
+                        lines: [
+                          "When checked, you pay for this buff when it appears (Gem/h).",
+                          "Per hour and min/h are always from the full pool.",
+                        ],
+                      }}
+                    />
+                  </th>
                   <th>Buff</th>
                   <th className="lootbugTableThRight">
                     Per hour
@@ -674,8 +735,8 @@ export function Lootbug() {
                       content={{
                         title: "Per hour",
                         lines: [
-                          "Average occurrences of this buff per hour.",
-                          "Includes weightings: lootbugs/h × (weight ÷ total weight).",
+                          "Average occurrences of this buff per hour (full pool, independent of Buy).",
+                          "Formula: lootbugs/h × (weight ÷ total weight of all gem buffs).",
                         ],
                       }}
                     />
@@ -689,8 +750,8 @@ export function Lootbug() {
                           {
                             heading: "Real time",
                             lines: [
-                              "Average minutes per hour this buff is active (real time).",
-                              "Formula: per hour × duration (game min) ÷ game speed. Applied once; not double-counted with the duration shown in parentheses.",
+                              "Average minutes per hour this buff is active (real time). From full pool.",
+                              "Formula: per hour × duration (game min) ÷ game speed.",
                             ],
                           },
                         ],
@@ -700,36 +761,57 @@ export function Lootbug() {
                   <th className="lootbugTableThRight">
                     Gem/h
                     <Tooltip
-                  content={{
-                    title: "Gem/h",
-                    lines: [
-                      "Gems spent per hour for this buff (negative = cost).",
-                      "Per hour × actual cost × (1 − Golden Lootbug %); Golden = free.",
-                    ],
-                  }}
+                      content={{
+                        title: "Gem/h",
+                        sections: [
+                          {
+                            heading: "Cost",
+                            lines: [
+                              "Gems spent per hour for this buff when you Buy it.",
+                              "Per hour × actual cost × (1 − Golden Lootbug %). Golden = free.",
+                            ],
+                          },
+                        ],
+                      }}
                     />
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {GEM_BUFFS.map((buff) => {
+                  const isBuy = buyGemBuffsSet.has(buff.name);
                   const weight = getWeight(buff);
-                  const perHour = totalGemWeight > 0 ? (lootbugsPerHour * weight) / totalGemWeight : 0;
+                  const perHour =
+                    totalGemWeightAll > 0 ? (lootbugsPerHour * weight) / totalGemWeightAll : 0;
                   const durMin = getDurationMinutes(buff.duration);
                   const minPerHour =
                     durMin != null && gameSpeed > 0 ? (perHour * durMin) / gameSpeed : null;
                   const realDurMin = durMin != null && gameSpeed > 0 ? durMin / gameSpeed : null;
-                  const showGemPerHour =
-                    buff.name === "10x Bomb Recharge" || buff.name === "2x Game Speed";
-                  const actualCost = showGemPerHour ? Math.max(0, buff.cost - state.gemCostReduction) : 0;
+                  const actualCost = isBuy ? Math.max(0, buff.cost - state.gemCostReduction) : 0;
                   const gemCostWithGolden =
-                    showGemPerHour && actualCost > 0
-                      ? perHour * actualCost * (1 - goldenPct)
-                      : 0;
-                  const gemPerHour =
-                    showGemPerHour && gemCostWithGolden > 0 ? -gemCostWithGolden : null;
+                    isBuy && actualCost > 0 ? perHour * actualCost * (1 - goldenPct) : 0;
+                  const gemPerHourDisplay =
+                    isBuy && gemCostWithGolden > 0 ? -gemCostWithGolden : null;
+                  function toggleBuy() {
+                    setState((s) => {
+                      const list = Array.isArray(s.activeGemBuffs) ? s.activeGemBuffs : DEFAULT_ACTIVE_GEM_BUFFS;
+                      const next = list.includes(buff.name)
+                        ? list.filter((n) => n !== buff.name)
+                        : [...list, buff.name];
+                      return { ...s, activeGemBuffs: next };
+                    });
+                  }
                   return (
-                    <tr key={buff.name}>
+                    <tr key={buff.name} className={!isBuy ? "lootbugRowInactive" : undefined}>
+                      <td className="lootbugTableThActive">
+                        <input
+                          type="checkbox"
+                          checked={isBuy}
+                          onChange={toggleBuy}
+                          aria-label={`${buff.name} buy`}
+                          className="lootbugCheckbox"
+                        />
+                      </td>
                       <td>
                         <span className="lootbugBuffCell">
                           <img src={getGemBuffIcon(buff.name)} alt="" className="lootbugBuffIcon" aria-hidden />
@@ -754,17 +836,17 @@ export function Lootbug() {
                       <td
                         className="lootbugTableNum lootbugGemPerHour"
                         style={
-                          gemPerHour != null && gemPerHour < 0
-                            ? { color: heatmapRed(gemPerHour), fontWeight: 600 }
+                          gemPerHourDisplay != null && gemPerHourDisplay < 0
+                            ? { color: heatmapRed(gemPerHourDisplay) }
                             : undefined
                         }
                       >
-                        {!showGemPerHour
+                        {!isBuy
                           ? "—"
                           : actualCost === 0 || gemCostWithGolden === 0
                             ? "FREE"
-                            : gemPerHour != null
-                              ? gemPerHour.toFixed(1)
+                            : gemPerHourDisplay != null
+                              ? gemPerHourDisplay.toFixed(1)
                               : "—"}
                       </td>
                     </tr>
@@ -774,6 +856,7 @@ export function Lootbug() {
             </table>
         </div>
       </Collapsible>
+      </div>
     </div>
   );
 }
