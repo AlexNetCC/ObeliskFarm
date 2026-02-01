@@ -1,4 +1,5 @@
 import type { EvBreakdown, EvBreakdownEntry, TotalEv } from "../../lib/gemev/freebieEv";
+import { assetUrl } from "../../lib/assets";
 
 type SegmentKey = "base" | "jackpot" | "refresh_base" | "refresh_jackpot";
 
@@ -79,7 +80,6 @@ function LegendSwatch(props: { kind: SegmentKey }) {
 
 export function ContribLegend() {
   const legendItems: Array<{ label: string; key: SegmentKey }> = [
-    { label: "Base", key: "base" },
     { label: "Jackpot", key: "jackpot" },
     { label: "Refresh (Base)", key: "refresh_base" },
     { label: "Refresh (Jackpot)", key: "refresh_jackpot" },
@@ -176,13 +176,14 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
   const range = maxVal - minVal;
 
   // Horizontal bar chart: categories on Y, values on X (bars left to right; origin at 0 when minVal < 0)
-  const W = 720;
+  // W / padR chosen so right-side value labels (barEndX + 8 + text) stay inside viewBox and are not clipped
+  const W = 800;
   const nExtra = (hasLootbug ? 1 : 0) + (hasDroneFuel ? 1 : 0);
   const H = 320 + nExtra * 40;
   const padL = 140;
-  const padR = 72;
+  const padR = 152;
   const padT = 20;
-  const padB = 24;
+  const padB = 56;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const nRows = categories.length;
@@ -209,19 +210,23 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
     return "url(#patRefreshJackpot)";
   }
 
+  const gemIconUrl = assetUrl("sprites/common/gem.png");
+
   return (
-    <svg
-      width="100%"
-      viewBox={`0 0 ${W} ${H}`}
-      style={{
-        display: "block",
-        background: "#ffffff",
-        borderRadius: 10,
-        border: "1px solid rgba(15,23,42,0.10)",
-      }}
-      role="img"
-      aria-label="EV contributions bar chart"
-    >
+    <>
+      <svg
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        style={{
+          display: "block",
+          background: "#ffffff",
+          borderRadius: "0 0 10px 10px",
+          border: "1px solid rgba(15,23,42,0.10)",
+          borderTop: "none",
+        }}
+        role="img"
+        aria-label="EV contributions bar chart"
+      >
       <defs>
         <pattern id="patJackpot" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="8" height="8" fill={COLORS.jackpot} opacity={0.85} />
@@ -263,6 +268,12 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
       )}
       <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
       <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
+
+      {/* X-axis unit: Gem/h inside plot (extra padB gives gap from axis/tick labels) */}
+      <g aria-hidden="true">
+        <image href={gemIconUrl} x={W / 2 - 18} y={H - 14} width={16} height={16} />
+        <text x={W / 2 - 2} y={H - 2} textAnchor="start" fontSize={10} fontWeight={800} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">/h</text>
+      </g>
 
       {categories.map((label, i) => {
         const y0 = padT + i * rowH + barPad;
@@ -476,7 +487,8 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
           </g>
         );
       })}
-    </svg>
+      </svg>
+    </>
   );
 }
 

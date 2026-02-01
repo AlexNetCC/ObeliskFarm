@@ -123,7 +123,7 @@ export function Items() {
             </div>
             <div className="itemsRow itemsDurationRow">
               <span className="itemsLabel">
-                Base duration (you enter)
+                Base duration (bomb's tooltip)
                 <Tooltip
                   content={{
                     title: "Base duration",

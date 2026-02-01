@@ -1161,11 +1161,11 @@ export function GemEv() {
               </button>
             </div>
             <div className="modalBody">
-              <div className="gemEvChartModalGrid">
-                <div>
-                  <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} />
+              <div className="gemEvChartBlock">
+                <div className="gemEvChartLegendTop">
+                  <ContribLegend />
                 </div>
-                <ContribLegend />
+                <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} />
               </div>
             </div>
           </div>

@@ -1741,24 +1741,26 @@ a:hover {
    Gem EV chart modal layout
    ============================ */
 
-.gemEvChartModalGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  align-items: start;
+.gemEvChartBlock {
+  min-width: 800px;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: hidden;
 }
 
-@media (min-width: 980px) {
-  .gemEvChartModalGrid {
-    grid-template-columns: 1fr 240px;
-  }
+.gemEvChartLegendTop {
+  padding: 12px 12px 8px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .gemEvLegend {
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.92);
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .gemEvLegendRow {
