@@ -19,7 +19,6 @@ import {
 
 const DEFAULT_ACTIVE_GEM_BUFFS = ["2x Game Speed", "10x Bomb Recharge"];
 
-const WIKI_ICON = "https://static.wikitide.net/shminerwiki/2/27/Blank_Button.png";
 const LOOTBUG_BASE_SPAWN_MIN = 20;
 const STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -452,7 +451,6 @@ export function Lootbug() {
                 key={stat.id}
                 label={
                   <span className="lootbugStatLabel">
-                    <img src={WIKI_ICON} alt="" className="lootbugStatIcon" aria-hidden />
                     <span className="lootbugLabel">
                       {stat.label}{" "}
                       <Tooltip
@@ -480,7 +478,6 @@ export function Lootbug() {
                 key={stat.id}
                 label={
                   <span className="lootbugStatLabel">
-                    <img src={WIKI_ICON} alt="" className="lootbugStatIcon" aria-hidden />
                     <span className="lootbugLabel">
                       {stat.label}{" "}
                       <Tooltip
@@ -518,7 +515,6 @@ export function Lootbug() {
           <IntStepper
             label={
               <span className="lootbugStatLabel">
-                <img src={WIKI_ICON} alt="" className="lootbugStatIcon" aria-hidden />
                 <span className="lootbugLabel">
                   Lootbug Gem Cost Reduction{" "}
                   <Tooltip

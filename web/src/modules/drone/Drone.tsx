@@ -570,36 +570,38 @@ export function Drone() {
               ],
             }}
           />
-          <div className="droneRow droneFuelGemsRow">
-            <span className="droneFuelGemsLabel">
-              <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
-              <span className="droneLabel">
-                Fuel cost (100% uptime)
-              <Tooltip
-                content={{
-                  title: "Fuel cost (100% uptime)",
-                  sections: [
-                    {
-                      heading: "Meaning",
-                      lines: [
-                        "Average gems per hour spent on fuel to keep the Elixir Drone fueled 100% of the time.",
+          {state.fueled ? (
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      sections: [
+                        {
+                          heading: "Meaning",
+                          lines: [
+                            "Average gems per hour spent on fuel to keep the Elixir Drone fueled 100% of the time.",
+                          ],
+                        },
+                        {
+                          heading: "Formula",
+                          lines: [
+                            "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                          ],
+                        },
                       ],
-                    },
-                    {
-                      heading: "Formula",
-                      lines: [
-                        "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
-                      ],
-                    },
-                  ],
-                }}
-              />
+                    }}
+                  />
+                </span>
               </span>
-            </span>
-            <span className="droneFuelGemsValue" aria-label={`${fuelGemsPerHour.toFixed(1)} gems per hour cost`}>
-              −{fuelGemsPerHour.toFixed(1)}
-            </span>
-          </div>
+              <span className="droneFuelGemsValue" aria-label={`${fuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{fuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <div className="droneSection">

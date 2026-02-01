@@ -1242,70 +1242,72 @@ export function EventSim() {
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                             {unlocked ? (
-                              <span className="eventUpgradeLevelBadge mono" style={heatStyle(lvl)} title={`Level ${lvl} / ${max}`}>
-                                {lvl}/{max}
-                              </span>
+                              <>
+                                <span className="eventUpgradeLevelBadge mono" style={heatStyle(lvl)} title={`Level ${lvl} / ${max}`}>
+                                  {lvl}/{max}
+                                </span>
+                                <button
+                                  className="btn btnSecondary"
+                                  disabled={lvl <= 0}
+                                  onClick={() => {
+                                    setUi((s) => {
+                                      const next = copyState(s.upgrades);
+                                      next.levels[t][idx] = Math.max(0, next.levels[t][idx] - 5);
+                                      return { ...s, upgrades: next };
+                                    });
+                                  }}
+                                  title="-5"
+                                >
+                                  −5
+                                </button>
+                                <button
+                                  className="btn btnSecondary"
+                                  disabled={lvl <= 0}
+                                  onClick={() => {
+                                    setUi((s) => {
+                                      const next = copyState(s.upgrades);
+                                      if (next.levels[t][idx] > 0) next.levels[t][idx] -= 1;
+                                      return { ...s, upgrades: next };
+                                    });
+                                  }}
+                                  title="-1"
+                                >
+                                  −
+                                </button>
+                                <button
+                                  className="btn"
+                                  disabled={lvl >= max}
+                                  onClick={() => {
+                                    setUi((s) => {
+                                      const next = copyState(s.upgrades);
+                                      const max2 = getMaxLevelWithCaps(t, idx, next);
+                                      if (next.levels[t][idx] < max2) next.levels[t][idx] += 1;
+                                      return { ...s, upgrades: next };
+                                    });
+                                  }}
+                                  title="+1"
+                                >
+                                  +
+                                </button>
+                                <button
+                                  className="btn"
+                                  disabled={lvl >= max}
+                                  onClick={() => {
+                                    setUi((s) => {
+                                      const next = copyState(s.upgrades);
+                                      const max2 = getMaxLevelWithCaps(t, idx, next);
+                                      next.levels[t][idx] = Math.min(max2, next.levels[t][idx] + 5);
+                                      return { ...s, upgrades: next };
+                                    });
+                                  }}
+                                  title="+5"
+                                >
+                                  +5
+                                </button>
+                              </>
                             ) : (
                               <span className="eventUpgradeLevelBadge small">—</span>
                             )}
-                            <button
-                              className="btn btnSecondary"
-                              disabled={!unlocked || lvl <= 0}
-                              onClick={() => {
-                                setUi((s) => {
-                                  const next = copyState(s.upgrades);
-                                  next.levels[t][idx] = Math.max(0, next.levels[t][idx] - 5);
-                                  return { ...s, upgrades: next };
-                                });
-                              }}
-                              title="-5"
-                            >
-                              −5
-                            </button>
-                            <button
-                              className="btn btnSecondary"
-                              disabled={!unlocked || lvl <= 0}
-                              onClick={() => {
-                                setUi((s) => {
-                                  const next = copyState(s.upgrades);
-                                  if (next.levels[t][idx] > 0) next.levels[t][idx] -= 1;
-                                  return { ...s, upgrades: next };
-                                });
-                              }}
-                              title="-1"
-                            >
-                              −
-                            </button>
-                            <button
-                              className="btn"
-                              disabled={!unlocked || lvl >= max}
-                              onClick={() => {
-                                setUi((s) => {
-                                  const next = copyState(s.upgrades);
-                                  const max2 = getMaxLevelWithCaps(t, idx, next);
-                                  if (next.levels[t][idx] < max2) next.levels[t][idx] += 1;
-                                  return { ...s, upgrades: next };
-                                });
-                              }}
-                              title="+1"
-                            >
-                              +
-                            </button>
-                            <button
-                              className="btn"
-                              disabled={!unlocked || lvl >= max}
-                              onClick={() => {
-                                setUi((s) => {
-                                  const next = copyState(s.upgrades);
-                                  const max2 = getMaxLevelWithCaps(t, idx, next);
-                                  next.levels[t][idx] = Math.min(max2, next.levels[t][idx] + 5);
-                                  return { ...s, upgrades: next };
-                                });
-                              }}
-                              title="+5"
-                            >
-                              +5
-                            </button>
                           </div>
                         </div>
                       );
