@@ -9,6 +9,11 @@ const COLORS: Record<SegmentKey, string> = {
   refresh_jackpot: "#C73E1D",
 };
 
+/** Gem Bomb bar: light gray hatched segment for 10× Bomb Recharge impact (limited uptime). */
+const GEM_BOMB_10X_BG = "rgba(0,0,0,0.06)";
+const GEM_BOMB_10X_HATCH = "rgba(0,0,0,0.08)";
+
+
 function sumEntry(e: EvBreakdownEntry): number {
   return e.base + e.jackpot + e.refresh_base + e.refresh_jackpot;
 }
@@ -94,16 +99,23 @@ export function ContribLegend() {
   );
 }
 
-export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) {
-  const { ev, breakdown } = props;
+export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lootbugNetGemsPerHour?: number; droneFuelGemsPerHour?: number; gemBomb10xImpact?: number }) {
+  const { ev, breakdown, lootbugNetGemsPerHour, droneFuelGemsPerHour, gemBomb10xImpact } = props;
 
   /** Founder Bomb bar hidden (FOUNDER_BOMB_VISIBLE in GemEv). */
-  const categories = [
+  const categoriesBase = [
     "Gems (Base)",
     "Stonks EV",
     "Skill Shards",
     "Founder Supply Drop",
     "Gem Bomb",
+  ] as const;
+  const hasLootbug = typeof lootbugNetGemsPerHour === "number";
+  const hasDroneFuel = typeof droneFuelGemsPerHour === "number";
+  const categories = [
+    ...categoriesBase,
+    ...(hasLootbug ? ["Lootbug Gems (raw)"] as const : []),
+    ...(hasDroneFuel ? ["Drone Fuel"] as const : []),
   ] as const;
 
   const normalKeys = ["gems_base", "stonks_ev", "skill_shards_ev"] as const;
@@ -111,19 +123,33 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
   const founderGems = breakdown.founder_gems;
   const gemBomb = breakdown.gem_bomb_gems;
 
-  const valuesTop: number[] = [
+  const valuesTopBase: number[] = [
     ev.gems_base,
     ev.stonks_ev,
     ev.skill_shards_ev,
     ev.founder_speed_boost + ev.founder_gems,
     ev.gem_bomb_gems,
   ];
-  const pcts: number[] = [
+  const valuesTop = [
+    ...valuesTopBase,
+    ...(hasLootbug ? [lootbugNetGemsPerHour!] : []),
+    ...(hasDroneFuel ? [droneFuelGemsPerHour!] : []),
+  ];
+  const totalForPct =
+    ev.total +
+    (hasLootbug && typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0) +
+    (hasDroneFuel && typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0);
+  const pctsBase: number[] = [
     pct(ev.gems_base, ev.total),
     pct(ev.stonks_ev, ev.total),
     pct(ev.skill_shards_ev, ev.total),
     pct(ev.founder_speed_boost + ev.founder_gems, ev.total),
     pct(ev.gem_bomb_gems, ev.total),
+  ];
+  const pcts = [
+    ...pctsBase,
+    ...(hasLootbug ? [totalForPct !== 0 ? pct(lootbugNetGemsPerHour!, totalForPct) : 0] : []),
+    ...(hasDroneFuel ? [totalForPct !== 0 ? pct(droneFuelGemsPerHour!, totalForPct) : 0] : []),
   ];
 
   const stackForIndex = (i: number): { speed: EvBreakdownEntry | null; gems: EvBreakdownEntry | null; entry: EvBreakdownEntry } => {
@@ -132,16 +158,24 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
     return { speed: null, gems: null, entry: gemBomb };
   };
 
-  const maxVal = Math.max(
+  const maxValPos = Math.max(
     1,
     ...normalKeys.map((k) => sumEntry(breakdown[k])),
     sumEntry(founderSpeed) + sumEntry(founderGems),
     sumEntry(gemBomb),
   );
+  const extraMin = [hasLootbug ? lootbugNetGemsPerHour : null, hasDroneFuel ? droneFuelGemsPerHour : null].filter(
+    (v): v is number => typeof v === "number",
+  );
+  const minVal = extraMin.length > 0 ? Math.min(0, ...extraMin) : 0;
+  const maxVal =
+    extraMin.length > 0 ? Math.max(maxValPos, ...valuesTop.filter((v) => v > 0), -minVal) : maxValPos;
+  const range = maxVal - minVal;
 
-  // Horizontal bar chart: categories on Y, values on X (bars left to right)
+  // Horizontal bar chart: categories on Y, values on X (bars left to right; origin at 0 when minVal < 0)
   const W = 720;
-  const H = 320;
+  const nExtra = (hasLootbug ? 1 : 0) + (hasDroneFuel ? 1 : 0);
+  const H = 320 + nExtra * 40;
   const padL = 140;
   const padR = 72;
   const padT = 20;
@@ -152,17 +186,17 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
   const rowH = plotH / nRows;
   const barPad = 4;
   const barH = Math.max(12, rowH - 2 * barPad);
-  const scaleX = plotW / maxVal;
+  const scaleX = range > 0 ? plotW / range : plotW;
 
   const gridLines = 5;
-  const xTicks = Array.from({ length: gridLines + 1 }, (_, i) => i / gridLines);
+  const xTicks = Array.from({ length: gridLines + 1 }, (_, i) => minVal + (i / gridLines) * range);
 
   function xOf(v: number): number {
-    return padL + v * scaleX;
+    return padL + (v - minVal) * scaleX;
   }
 
   function wOf(v: number): number {
-    return v * scaleX;
+    return Math.abs(v) * scaleX;
   }
 
   function fillFor(seg: SegmentKey): string {
@@ -199,38 +233,54 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
           <rect width="10" height="10" fill={COLORS.refresh_jackpot} opacity={0.85} />
           <path d="M0 0 L10 10 M10 0 L0 10" stroke="rgba(255,255,255,0.55)" strokeWidth="1.6" />
         </pattern>
+        <pattern id="pat10xBomb" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="8" height="8" fill={GEM_BOMB_10X_BG} />
+          <line x1="0" y1="0" x2="0" y2="8" stroke={GEM_BOMB_10X_HATCH} strokeWidth="1.2" />
+        </pattern>
       </defs>
 
       {/* Grid + X labels */}
       {xTicks.map((t, i) => {
-        const v = t * maxVal;
-        const x = xOf(v);
+        const x = xOf(t);
         return (
           <g key={i}>
             <line x1={x} y1={padT} x2={x} y2={padT + plotH} stroke="rgba(15,23,42,0.08)" strokeDasharray="4 4" />
             <text x={x} y={padT + plotH + 16} textAnchor="middle" fontSize={10} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
-              {v.toFixed(0)}
+              {t.toFixed(0)}
             </text>
           </g>
         );
       })}
-
+      {minVal < 0 && (
+        <line x1={xOf(0)} y1={padT} x2={xOf(0)} y2={padT + plotH} stroke="rgba(15,23,42,0.35)" strokeWidth={1.2} />
+      )}
       <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
       <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
 
       {categories.map((label, i) => {
         const y0 = padT + i * rowH + barPad;
-        const { speed, gems, entry } = stackForIndex(i);
+        const isLootbugRow = hasLootbug && i === 5;
+        const isDroneFuelRow = hasDroneFuel && i === 5 + (hasLootbug ? 1 : 0);
+        const isGemBombRow = i === 4;
+        const { speed, gems, entry } = isLootbugRow || isDroneFuelRow ? { speed: null, gems: null, entry: null! } : stackForIndex(i);
 
         const segs: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
         let left = 0;
-        (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).forEach((k) => {
-          const v = entry[k];
-          const w = wOf(v);
-          const x = padL + left * scaleX;
-          segs.push({ key: k, v, x, w, left });
-          left += v;
-        });
+        if (!isLootbugRow && !isDroneFuelRow && entry) {
+          if (isGemBombRow && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0) {
+            const basePart = Math.max(0, sumEntry(entry) - gemBomb10xImpact);
+            segs.push({ key: "base", v: basePart, x: xOf(0), w: wOf(basePart), left: 0 });
+            // 10× part drawn separately below with GEM_BOMB_10X_COLOR
+          } else {
+            (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).forEach((k) => {
+              const v = entry[k];
+              const w = wOf(v);
+              const x = xOf(left);
+              segs.push({ key: k, v, x, w, left });
+              left += v;
+            });
+          }
+        }
 
         let founderSpeedTotal = 0;
         let founderGemsTotal = 0;
@@ -241,7 +291,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
           segsGems = (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).map((k) => {
             const v = gems[k];
             const w = wOf(v);
-            const x = padL + left2 * scaleX;
+            const x = xOf(left2);
             const out = { key: k, v, x, w, left: left2 };
             left2 += v;
             return out;
@@ -249,22 +299,68 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
           founderGemsTotal = sumEntry(gems);
         }
 
-        const totalBarLen = i === 3 ? founderSpeedTotal + founderGemsTotal : sumEntry(entry);
-        const barEndX = padL + wOf(totalBarLen);
+        const totalBarLen = isLootbugRow
+          ? (typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0)
+          : isDroneFuelRow
+            ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
+            : i === 3
+              ? founderSpeedTotal + founderGemsTotal
+              : sumEntry(entry);
+        const barStartX = isLootbugRow
+          ? (typeof lootbugNetGemsPerHour === "number" ? Math.min(0, lootbugNetGemsPerHour) : 0)
+          : isDroneFuelRow
+            ? (typeof droneFuelGemsPerHour === "number" ? Math.min(0, droneFuelGemsPerHour) : 0)
+            : 0;
+        const barLen =
+          isLootbugRow && typeof lootbugNetGemsPerHour === "number"
+            ? Math.abs(lootbugNetGemsPerHour)
+            : isDroneFuelRow && typeof droneFuelGemsPerHour === "number"
+              ? Math.abs(droneFuelGemsPerHour)
+              : totalBarLen;
+        const barEndX = xOf(
+          isLootbugRow && typeof lootbugNetGemsPerHour === "number"
+            ? Math.max(0, lootbugNetGemsPerHour)
+            : isDroneFuelRow && typeof droneFuelGemsPerHour === "number"
+              ? Math.max(0, droneFuelGemsPerHour)
+              : totalBarLen,
+        );
         const labelY = y0 + barH / 2 + 4;
 
         return (
           <g key={i}>
             <rect
-              x={padL}
+              x={isLootbugRow || isDroneFuelRow ? xOf(barStartX) : xOf(0)}
               y={y0}
-              width={wOf(totalBarLen)}
+              width={wOf(barLen)}
               height={barH}
               fill="none"
               stroke="rgba(15,23,42,0.55)"
               strokeWidth={1}
               rx={2}
             />
+
+            {isLootbugRow && typeof lootbugNetGemsPerHour === "number" && lootbugNetGemsPerHour !== 0 ? (
+              <rect
+                x={xOf(Math.min(0, lootbugNetGemsPerHour))}
+                y={y0}
+                width={wOf(Math.abs(lootbugNetGemsPerHour))}
+                height={barH}
+                fill={COLORS.base}
+                stroke="rgba(15,23,42,0.45)"
+                strokeWidth={0.6}
+              />
+            ) : null}
+            {isDroneFuelRow && typeof droneFuelGemsPerHour === "number" && droneFuelGemsPerHour !== 0 ? (
+              <rect
+                x={xOf(Math.min(0, droneFuelGemsPerHour))}
+                y={y0}
+                width={wOf(Math.abs(droneFuelGemsPerHour))}
+                height={barH}
+                fill={COLORS.base}
+                stroke="rgba(15,23,42,0.45)"
+                strokeWidth={0.6}
+              />
+            ) : null}
 
             {segs.map((s) =>
               s.v > 0 ? (
@@ -280,6 +376,34 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
                 />
               ) : null,
             )}
+
+            {isGemBombRow && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 ? (
+              <>
+                <rect
+                  x={xOf(sumEntry(entry) - gemBomb10xImpact)}
+                  y={y0}
+                  width={wOf(gemBomb10xImpact)}
+                  height={barH}
+                  fill="url(#pat10xBomb)"
+                  stroke="rgba(15,23,42,0.45)"
+                  strokeWidth={0.6}
+                />
+                {wOf(gemBomb10xImpact) >= 52 ? (
+                  <text
+                    x={xOf(sumEntry(entry) - gemBomb10xImpact) + wOf(gemBomb10xImpact) / 2}
+                    y={labelY - 5}
+                    textAnchor="middle"
+                    fontSize={8}
+                    fontWeight={800}
+                    fill="rgba(15,23,42,0.75)"
+                    style={{ pointerEvents: "none" }}
+                  >
+                    <tspan x={xOf(sumEntry(entry) - gemBomb10xImpact) + wOf(gemBomb10xImpact) / 2} dy="0">10× Bomb</tspan>
+                    <tspan x={xOf(sumEntry(entry) - gemBomb10xImpact) + wOf(gemBomb10xImpact) / 2} dy="10">Recharge</tspan>
+                  </text>
+                ) : null}
+              </>
+            ) : null}
 
             {segsGems.map((s) =>
               s.v > 0 ? (
@@ -298,7 +422,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
 
             {i === 3 && founderSpeedTotal > 0 && wOf(founderSpeedTotal) >= 40 ? (
               <text
-                x={padL + wOf(founderSpeedTotal / 2)}
+                x={xOf(founderSpeedTotal / 2)}
                 y={labelY}
                 textAnchor="middle"
                 fontSize={9}
@@ -307,19 +431,6 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown }) 
                 style={{ pointerEvents: "none" }}
               >
                 Speed: {fmt1(ev.founder_speed_boost)}
-              </text>
-            ) : null}
-            {i === 3 && founderGemsTotal > 0 && wOf(founderGemsTotal) >= 40 ? (
-              <text
-                x={padL + wOf(founderSpeedTotal + founderGemsTotal / 2)}
-                y={labelY}
-                textAnchor="middle"
-                fontSize={9}
-                fontWeight={900}
-                fill="rgba(15,23,42,0.9)"
-                style={{ pointerEvents: "none" }}
-              >
-                Gems: {fmt1(ev.founder_gems)}
               </text>
             ) : null}
 

@@ -6,6 +6,7 @@ import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
   calculateEvBreakdown,
+  calculateGemBombGemsPerHour,
   calculateGiftEvBreakdown,
   calculateGiftEvPerGift,
   calculateTotalEvPerHour,
@@ -171,6 +172,11 @@ export function GemEv() {
   const [stonksEnabled, setStonksEnabled] = useState<boolean>(initial.stonks_enabled);
   const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
+  const [lootbugNetGemsPerHour, setLootbugNetGemsPerHour] = useState(0);
+  useEffect(() => {
+    const ext = loadJson<{ lootbugNetGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    setLootbugNetGemsPerHour(typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0);
+  }, []);
   // autosave
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -188,12 +194,20 @@ export function GemEv() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const external10x = (() => {
-    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
-    const lootbug = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
-    const drone = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
-    return { lootbug, drone, total: lootbug + drone };
+  const external = (() => {
+    const ext = loadJson<{
+      lootbugBomb10xMinPerHour?: number;
+      droneBomb10xMinPerHour?: number;
+      lootbugNetGemsPerHour?: number;
+      droneFuelGemsPerHour?: number;
+    }>(GEMEV_EXTERNAL_KEY);
+    const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
+    const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
+    const lootbugNetGemsPerHour = typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0;
+    const droneFuelGemsPerHour = typeof ext?.droneFuelGemsPerHour === "number" ? ext.droneFuelGemsPerHour : 0;
+    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour };
   })();
+  const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
   // Apply desktop semantics: stonks is a checkbox and uses fixed chance/bonus when enabled.
   // Also keep "fixed" desktop constants (they exist in params but are not editable in the UI).
@@ -285,6 +299,24 @@ export function GemEv() {
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
   const giftEv = useMemo(() => calculateGiftEvPerGift(effectiveParams), [effectiveParams]);
   const giftBreakdown = useMemo(() => calculateGiftEvBreakdown(effectiveParams), [effectiveParams]);
+
+  const gemBomb10xImpact = useMemo(() => {
+    const without10x = calculateGemBombGemsPerHour({ ...effectiveParams, bomb_recharge_10x_min_per_hour: 0 });
+    return Math.max(0, ev.gem_bomb_gems - without10x);
+  }, [effectiveParams, ev.gem_bomb_gems]);
+
+  useEffect(() => {
+    const ext = loadJson<{
+      lootbugBomb10xMinPerHour?: number;
+      droneBomb10xMinPerHour?: number;
+      lootbugNetGemsPerHour?: number;
+    }>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.gemBomb10xImpact = gemBomb10xImpact;
+    ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [gemBomb10xImpact]);
+
+  const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour;
 
   const marginal = useMemo(() => {
     const p2: GameParameters = { ...effectiveParams, freebie_gems_base: effectiveParams.freebie_gems_base + 1.0 };
@@ -417,7 +449,7 @@ export function GemEv() {
             <div className="kv" style={{ background: "rgba(227,242,253,0.65)" }}>
               <kbd>TOTAL</kbd>
               <div className="mono" style={{ fontWeight: 900 }}>
-                {fmt1(ev.total)} Gem-Equivalent/h
+                {fmt1(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
               </div>
               <kbd>Gift-EV</kbd>
               <div className="mono" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -447,13 +479,7 @@ export function GemEv() {
           </div>
         </div>
 
-        {/* Parameters */}
-        <div className="panel gemEvLeftPanel">
-          <div className="panelHeader">
-            <h2 className="panelTitle">Parameters</h2>
-            <p className="panelHint">Autosaved in this browser.</p>
-          </div>
-
+        <div className="gemEvLeftPanel">
           <Collapsible
             id="gemev-freebie"
             title="FREEBIE"
@@ -1129,7 +1155,7 @@ export function GemEv() {
             <div className="modalBody">
               <div className="gemEvChartModalGrid">
                 <div>
-                  <ContribBarChart ev={ev} breakdown={breakdown} />
+                  <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} />
                 </div>
                 <ContribLegend />
               </div>
