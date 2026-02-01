@@ -89,12 +89,13 @@ export function Items() {
   })();
 
 
-  /** Chests per hour = freebies/h (Gem EV) + Lootbug free buff "+1 Item Chest" per hour. */
-  const ext = loadJson<{ freebiesPerHour?: number; lootbugItemChestsPerHour?: number; chaosTotemImpact?: number }>(GEMEV_EXTERNAL_KEY);
+  /** Chests per hour = freebies/h (Gem EV) + stonks chests/h (when stonks enabled in Gem EV) + Lootbug "+1 Item Chest" per hour. */
+  const ext = loadJson<{ freebiesPerHour?: number; stonksChestsPerHour?: number; lootbugItemChestsPerHour?: number; chaosTotemImpact?: number }>(GEMEV_EXTERNAL_KEY);
   const freebiesPerHour = typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0;
+  const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
   const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
   const chaosTotemImpact = typeof ext?.chaosTotemImpact === "number" ? ext.chaosTotemImpact : 0;
-  const chestsPerHour = freebiesPerHour + lootbugItemChestsPerHour;
+  const chestsPerHour = freebiesPerHour + stonksChestsPerHour + lootbugItemChestsPerHour;
 
   /** Expected chests per Gift: base (1/12 × 32.5) × Lucky multiplier (3×/50× rolls). FYI only. */
   const expectedChestsPerGift = CHESTS_PER_GIFT_BASE * calculateLuckyMultiplier();
@@ -148,9 +149,22 @@ export function Items() {
                 <Tooltip
                   content={{
                     title: "Chests per hour",
-                    lines: [
-                      "Freebies per hour (Gem EV; 1 freebie = 1 chest) plus Lootbug free buff \"+1 Item Chest\" per hour.",
-                      "Lootbug chest gain is included when the Lootbug module has been opened.",
+                    sections: [
+                      {
+                        heading: "Summands",
+                        lines: [
+                          "Freebies: freebie events per hour from Gem EV (1 freebie = 1 chest).",
+                          "Stonks: when enabled in Gem EV, chests from stonks procs (only when Stonks is checked).",
+                          "Lootbug: free buff \"+1 Item Chest\" per hour.",
+                          "Open Gem EV and Lootbug to refresh.",
+                        ],
+                      },
+                      {
+                        heading: "Freebies",
+                        lines: [
+                          "Freebie rate uses game speed and freebie timer. In Gem EV, refresh and jackpot affect rewards per freebie, not the event count.",
+                        ],
+                      },
                     ],
                   }}
                 />
@@ -168,6 +182,15 @@ export function Items() {
                       }}
                       title={`Freebies: ${freebiesPerHour.toFixed(2)}/h`}
                     />
+                    {stonksChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarStonks"
+                        style={{
+                          width: `${(stonksChestsPerHour / chestsPerHour) * 100}%`,
+                        }}
+                        title={`Stonks: ${stonksChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
                     <div
                       className="itemsChestsBarSeg itemsChestsBarLootbug"
                       style={{
@@ -183,6 +206,12 @@ export function Items() {
                   <span className="itemsChestsBarLegendSwatch itemsChestsBarFreebies" />
                   Freebies
                 </span>
+                {stonksChestsPerHour > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarStonks" />
+                    Stonks
+                  </span>
+                ) : null}
                 <span className="itemsChestsBarLegendItem">
                   <span className="itemsChestsBarLegendSwatch itemsChestsBarLootbug" />
                   Lootbug
@@ -192,9 +221,9 @@ export function Items() {
           </div>
           <div className="itemsRow">
             <span className="itemsLabel">Items per hour (from chests)</span>
-            <span className="itemsValue mono">{itemsPerHourFromChests.toFixed(2)}</span>
+            <span className="itemsValue mono itemsPerHourGlow">{itemsPerHourFromChests.toFixed(2)}</span>
           </div>
-          <Collapsible id="items-chests-per-gift" title="Chests per Gift (FYI)" defaultExpanded={false}>
+          <Collapsible id="items-chests-per-gift" title="Chests per Gift (FYI)" defaultExpanded={false} className="itemsChestsPerGiftCollapsible">
             <div className="itemsSection itemsChestsPerGiftSection">
               <div className="itemsRow">
                 <span className="itemsLabel">
