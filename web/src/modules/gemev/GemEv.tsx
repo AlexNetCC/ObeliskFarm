@@ -324,8 +324,9 @@ export function GemEv() {
     ext.gemBomb10xImpact = gemBomb10xImpact;
     ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
     ext.freebiesPerHour = freebiesPerHour;
+    ext.chaosTotemImpact = chaosTotemImpact;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [gemBomb10xImpact, freebiesPerHour]);
+  }, [gemBomb10xImpact, freebiesPerHour, chaosTotemImpact]);
 
   const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour;
 

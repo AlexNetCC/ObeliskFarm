@@ -338,6 +338,13 @@ export function Lootbug() {
     return (perHour * 2) / gameSpeed;
   }, [lootbugsPerHour, totalGemWeightAll, gameSpeed]);
 
+  /** Free buff "+1 Item Chest" per hour; written to external for Items / Chests module. */
+  const lootbugItemChestsPerHour = useMemo(() => {
+    const buff = FREE_BUFFS.find((b) => b.name === "+1 Item Chest");
+    if (!buff || totalFreeWeight <= 0) return 0;
+    return (lootbugsPerHour * getWeight(buff)) / totalFreeWeight;
+  }, [lootbugsPerHour, totalFreeWeight]);
+
   const goldenPct = clamp(state.goldenChancePct, 0, 100) / 100;
 
   const totalGemCostPerHour = useMemo(() => {
@@ -355,11 +362,12 @@ export function Lootbug() {
   const netGemsPerHour = gemsPerHour - totalGemCostPerHour;
 
   useEffect(() => {
-    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; lootbugNetGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; lootbugNetGemsPerHour?: number; lootbugItemChestsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
     ext.lootbugNetGemsPerHour = netGemsPerHour;
+    ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, netGemsPerHour]);
+  }, [bombRecharge10xMinPerHour, netGemsPerHour, lootbugItemChestsPerHour]);
 
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";

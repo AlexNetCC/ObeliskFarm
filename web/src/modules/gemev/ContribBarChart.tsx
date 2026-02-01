@@ -17,6 +17,10 @@ const GEM_BOMB_10X_HATCH = "rgba(0,0,0,0.08)";
 const CHAOS_TOTEM_BG = "rgba(0,0,0,0.05)";
 const CHAOS_TOTEM_HATCH = "rgba(0,0,0,0.10)";
 
+const BOMB_RECHARGE_10X_ICON = "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
+const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
+const SEGMENT_ICON_SIZE = 12;
+
 
 function sumEntry(e: EvBreakdownEntry): number {
   return e.base + e.jackpot + e.refresh_base + e.refresh_jackpot;
@@ -406,19 +410,17 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
                   stroke="rgba(15,23,42,0.45)"
                   strokeWidth={0.6}
                 />
-                {wOf(gemBomb10xImpact) >= 52 ? (
-                  <text
-                    x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2}
-                    y={labelY - 5}
-                    textAnchor="middle"
-                    fontSize={8}
-                    fontWeight={800}
-                    fill="rgba(15,23,42,0.75)"
+                {wOf(gemBomb10xImpact) >= SEGMENT_ICON_SIZE + 4 ? (
+                  <image
+                    href={BOMB_RECHARGE_10X_ICON}
+                    x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2 - SEGMENT_ICON_SIZE / 2}
+                    y={y0 + barH / 2 - SEGMENT_ICON_SIZE / 2}
+                    width={SEGMENT_ICON_SIZE}
+                    height={SEGMENT_ICON_SIZE}
+                    preserveAspectRatio="xMidYMid meet"
                     style={{ pointerEvents: "none" }}
-                  >
-                    <tspan x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2} dy="0">10× Bomb</tspan>
-                    <tspan x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2} dy="10">Recharge</tspan>
-                  </text>
+                    aria-hidden
+                  />
                 ) : null}
               </>
             ) : null}
@@ -433,18 +435,17 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
                   stroke="rgba(15,23,42,0.45)"
                   strokeWidth={0.6}
                 />
-                {wOf(chaosTotemImpact) >= 48 ? (
-                  <text
-                    x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0)) + wOf(chaosTotemImpact) / 2}
-                    y={labelY}
-                    textAnchor="middle"
-                    fontSize={8}
-                    fontWeight={800}
-                    fill="rgba(15,23,42,0.75)"
+                {wOf(chaosTotemImpact) >= SEGMENT_ICON_SIZE + 4 ? (
+                  <image
+                    href={CHAOS_TOTEM_ICON}
+                    x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0)) + wOf(chaosTotemImpact) / 2 - SEGMENT_ICON_SIZE / 2}
+                    y={y0 + barH / 2 - SEGMENT_ICON_SIZE / 2}
+                    width={SEGMENT_ICON_SIZE}
+                    height={SEGMENT_ICON_SIZE}
+                    preserveAspectRatio="xMidYMid meet"
                     style={{ pointerEvents: "none" }}
-                  >
-                    Chaos Totem
-                  </text>
+                    aria-hidden
+                  />
                 ) : null}
               </>
             ) : null}

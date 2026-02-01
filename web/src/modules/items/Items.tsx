@@ -3,16 +3,19 @@ import "./items.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { loadJson, saveJson } from "../../lib/storage";
-import { defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateLuckyMultiplier, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
+const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
+
+/** Base: one of 12 Gift outcomes is "25–40 Item Chests" (avg 32.5). Lucky multiplier (3×/50× rolls) applied. */
+const CHESTS_PER_GIFT_BASE = 32.5 / 12;
 
 type ItemsState = {
   chaosTotemDurationMin: number;
   chaosTotemDurationSec: number;
-  chaosTotemUptimePct: number;
   chaosTotemObtainChance: number; // stored for later /h calc
   /** Items obtained from opening one Item Chest. */
   itemsPerChest: number;
@@ -23,7 +26,6 @@ const STORAGE_KEY = "obeliskfarm:web:items_save.json:v1";
 const DEFAULT: ItemsState = {
   chaosTotemDurationMin: 2,
   chaosTotemDurationSec: 30,
-  chaosTotemUptimePct: 0,
   chaosTotemObtainChance: 4.6,
   itemsPerChest: 1,
 };
@@ -86,23 +88,39 @@ export function Items() {
     return getGameSpeedMultiplier({ ...merged, game_speed_multiplier: clamp(Number(mult), 1.0, 10.0) });
   })();
 
-  useEffect(() => {
-    const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
-    ext.chaosTotemUptimePct = state.chaosTotemUptimePct;
-    saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [state.chaosTotemUptimePct]);
 
-  /** Chests per hour = freebies/h from Gem EV (1 freebie = 1 chest). */
-  const extFreebies = loadJson<{ freebiesPerHour?: number }>(GEMEV_EXTERNAL_KEY);
-  const chestsPerHour =
-    typeof extFreebies?.freebiesPerHour === "number" ? extFreebies.freebiesPerHour : 0;
+  /** Chests per hour = freebies/h (Gem EV) + Lootbug free buff "+1 Item Chest" per hour. */
+  const ext = loadJson<{ freebiesPerHour?: number; lootbugItemChestsPerHour?: number; chaosTotemImpact?: number }>(GEMEV_EXTERNAL_KEY);
+  const freebiesPerHour = typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0;
+  const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
+  const chaosTotemImpact = typeof ext?.chaosTotemImpact === "number" ? ext.chaosTotemImpact : 0;
+  const chestsPerHour = freebiesPerHour + lootbugItemChestsPerHour;
+
+  /** Expected chests per Gift: base (1/12 × 32.5) × Lucky multiplier (3×/50× rolls). FYI only. */
+  const expectedChestsPerGift = CHESTS_PER_GIFT_BASE * calculateLuckyMultiplier();
 
   const itemsPerHourFromChests = state.itemsPerChest * chestsPerHour;
+
+  /** Expected Chaos Totem uptime: real min/h from chests; Gem EV uses this (not a manual estimate). */
+  const chaosTotemsPerHour = itemsPerHourFromChests * (state.chaosTotemObtainChance / 100);
+  const durationGameMin = state.chaosTotemDurationMin + state.chaosTotemDurationSec / 60;
+  const expectedUptimeMinPerHour =
+    chaosTotemsPerHour * (durationGameMin / gameSpeedMult);
+  const expectedUptimeFraction = Math.min(1, Math.max(0, expectedUptimeMinPerHour / 60));
+
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.chaosTotemUptimePct = expectedUptimeFraction * 100;
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [expectedUptimeFraction]);
 
   return (
     <div className="itemsGrid">
       <div className="itemsChestsBlock">
-        <h3 className="itemsBlockTitle">Chests</h3>
+        <div className="itemsBlockHeader">
+          <img src={CHEST_ICON} alt="" className="itemsItemIcon" aria-hidden />
+          <h3 className="itemsBlockTitle">Chests</h3>
+        </div>
         <div className="itemsSection">
           <div className="itemsRow">
             <span className="itemsLabel">
@@ -110,7 +128,7 @@ export function Items() {
               <Tooltip
                 content={{
                   title: "Items per chest",
-                  lines: ["Average number of items you get from opening one Item Chest."],
+                  lines: ["Items you get from opening a Chest (increased by Store Gem-Upgrade) ."],
                 }}
               />
             </span>
@@ -123,25 +141,78 @@ export function Items() {
               aria-label="Items per chest"
             />
           </div>
-          <div className="itemsRow">
-            <span className="itemsLabel">
-              Chests per hour
-              <Tooltip
-                content={{
-                  title: "Chests per hour",
-                  lines: [
-                    "Computed from Gem EV: freebies per hour (1 freebie = 1 chest).",
-                    "Update Gem EV parameters to change this value.",
-                  ],
-                }}
-              />
-            </span>
-            <span className="itemsValue mono">{chestsPerHour.toFixed(2)}</span>
+          <div className="itemsChestsBarBlock">
+            <div className="itemsRow itemsChestsBarHeader">
+              <span className="itemsLabel">
+                Chests per hour
+                <Tooltip
+                  content={{
+                    title: "Chests per hour",
+                    lines: [
+                      "Freebies per hour (Gem EV; 1 freebie = 1 chest) plus Lootbug free buff \"+1 Item Chest\" per hour.",
+                      "Lootbug chest gain is included when the Lootbug module has been opened.",
+                    ],
+                  }}
+                />
+              </span>
+              <span className="itemsValue mono">{chestsPerHour.toFixed(2)}</span>
+            </div>
+            <div className="itemsChestsBarWrap">
+              <div className="itemsChestsBarBg">
+                {chestsPerHour > 0 ? (
+                  <>
+                    <div
+                      className="itemsChestsBarSeg itemsChestsBarFreebies"
+                      style={{
+                        width: `${(freebiesPerHour / chestsPerHour) * 100}%`,
+                      }}
+                      title={`Freebies: ${freebiesPerHour.toFixed(2)}/h`}
+                    />
+                    <div
+                      className="itemsChestsBarSeg itemsChestsBarLootbug"
+                      style={{
+                        width: `${(lootbugItemChestsPerHour / chestsPerHour) * 100}%`,
+                      }}
+                      title={`Lootbug: ${lootbugItemChestsPerHour.toFixed(2)}/h`}
+                    />
+                  </>
+                ) : null}
+              </div>
+              <div className="itemsChestsBarLegend">
+                <span className="itemsChestsBarLegendItem">
+                  <span className="itemsChestsBarLegendSwatch itemsChestsBarFreebies" />
+                  Freebies
+                </span>
+                <span className="itemsChestsBarLegendItem">
+                  <span className="itemsChestsBarLegendSwatch itemsChestsBarLootbug" />
+                  Lootbug
+                </span>
+              </div>
+            </div>
           </div>
           <div className="itemsRow">
             <span className="itemsLabel">Items per hour (from chests)</span>
             <span className="itemsValue mono">{itemsPerHourFromChests.toFixed(2)}</span>
           </div>
+          <Collapsible id="items-chests-per-gift" title="Chests per Gift (FYI)" defaultExpanded={false}>
+            <div className="itemsSection itemsChestsPerGiftSection">
+              <div className="itemsRow">
+                <span className="itemsLabel">
+                  Expected chests per Gift
+                  <Tooltip
+                    content={{
+                      title: "Expected chests per Gift",
+                      lines: [
+                        "One of 12 base Gift outcomes is \"25–40 Item Chests\" (avg 32.5). Base: 32.5 ÷ 12.",
+                        "Lucky multiplier (1/20 for 3×, 1/2500 for 50×) applied to quantities. FYI only.",
+                      ],
+                    }}
+                  />
+                </span>
+                <span className="itemsValue mono itemsChestsPerGiftValue">{expectedChestsPerGift.toFixed(2)}</span>
+              </div>
+            </div>
+          </Collapsible>
         </div>
       </div>
 
@@ -223,33 +294,6 @@ export function Items() {
             </div>
             <div className="itemsRow">
               <span className="itemsLabel">
-                Estimated Uptime
-                <Tooltip
-                  content={{
-                    title: "Uptime (estimate)",
-                    sections: [
-                      {
-                        heading: "Meaning",
-                        lines: ["Your estimated fraction of time Chaos Totem is active (0–100%). Used for Gem EV bomb recharge."],
-                      },
-                    ],
-                  }}
-                />
-              </span>
-              <input
-                className="itemsInput"
-                type="number"
-                min={0}
-                max={100}
-                step={5}
-                value={state.chaosTotemUptimePct}
-                onChange={(e) => update({ chaosTotemUptimePct: clamp(Number(e.target.value) || 0, 0, 100) })}
-                aria-label="Chaos Totem uptime percent"
-              />
-              <span className="itemsSuffix">%</span>
-            </div>
-            <div className="itemsRow">
-              <span className="itemsLabel">
                 Average Chaos Totems / h
                 <Tooltip
                   content={{
@@ -262,7 +306,43 @@ export function Items() {
                 />
               </span>
               <span className="itemsValue mono">
-                {(itemsPerHourFromChests * (state.chaosTotemObtainChance / 100)).toFixed(2)}
+                {chaosTotemsPerHour.toFixed(2)}
+              </span>
+            </div>
+            <div className="itemsRow">
+              <span className="itemsLabel">
+                Expected Uptime
+                <Tooltip
+                  content={{
+                    title: "Expected Uptime",
+                    lines: [
+                      "Expected real-time minutes per hour Chaos Totem is active. Gem EV uses this for bomb recharge.",
+                      "Formula: Chaos Totems/h × (base duration in game min ÷ game speed).",
+                    ],
+                  }}
+                />
+              </span>
+              <span className="itemsValue mono">
+                {expectedUptimeMinPerHour.toFixed(2)} min
+              </span>
+            </div>
+            <div className="itemsRow">
+              <span className="itemsLabel">
+                → Gem EV (FYI)
+                <Tooltip
+                  content={{
+                    title: "Gem EV (FYI)",
+                    lines: [
+                      "Contribution of this Chaos Totem uptime to total Gem EV per hour.",
+                      "Value comes from Gem EV module; open or refresh Gem EV to see it.",
+                    ],
+                  }}
+                />
+              </span>
+              <span
+                className={`itemsValue mono ${chaosTotemImpact > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
+              >
+                {chaosTotemImpact > 0 ? `+${chaosTotemImpact.toFixed(1)} Gem/h` : "—"}
               </span>
             </div>
           </div>

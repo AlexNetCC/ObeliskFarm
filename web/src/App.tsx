@@ -29,7 +29,7 @@ export function App() {
         { id: "stargazing" as const, label: "Stargazing Calculator", icon: "sprites/stargazing/stargazing.svg" },
         { id: "drone" as const, label: "Drone", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
         { id: "lootbug" as const, label: "Lootbug", icon: "https://static.wikitide.net/shminerwiki/8/86/Lootbug_Default.png" },
-        { id: "items" as const, label: "Items", icon: "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png" },
+        { id: "items" as const, label: "Items / Chests", icon: "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png" },
       ] as const,
     [],
   );
