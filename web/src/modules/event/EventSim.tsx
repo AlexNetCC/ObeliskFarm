@@ -1216,21 +1216,7 @@ export function EventSim() {
                       const icon = upgradeIconFilename(tier, idx);
                       const rowClass = unlocked ? "" : "lockedRow";
                       return (
-                        <div
-                          key={idx}
-                          className={rowClass}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr auto",
-                            gap: 10,
-                            alignItems: "center",
-                            marginBottom: 6,
-                            border: "1px solid rgba(15,23,42,0.08)",
-                            borderRadius: 8,
-                            padding: "6px 8px",
-                            transition: "background-color 120ms ease",
-                          }}
-                        >
+                        <div key={idx} className={`eventUpgradeRow ${rowClass}`}>
                           <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
                             <Sprite path={icon ? `sprites/event/${icon}` : null} alt={UPGRADE_SHORT_NAMES[t][idx]} label={icon ?? ""} />
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1254,7 +1240,14 @@ export function EventSim() {
                               </div>
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                            {unlocked ? (
+                              <span className="eventUpgradeLevelBadge mono" style={heatStyle(lvl)} title={`Level ${lvl} / ${max}`}>
+                                {lvl}/{max}
+                              </span>
+                            ) : (
+                              <span className="eventUpgradeLevelBadge small">—</span>
+                            )}
                             <button
                               className="btn btnSecondary"
                               disabled={!unlocked || lvl <= 0}

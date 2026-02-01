@@ -50,6 +50,53 @@ body {
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
+@media (max-width: 739px) {
+  .topNav {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .topNavBrand {
+    flex: 1;
+    min-width: 0;
+  }
+  .topNavToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    border-radius: 10px;
+    border: 1px solid rgba(25, 118, 210, 0.35);
+    background: rgba(227, 242, 253, 0.85);
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .topNavToggle:hover {
+    background: rgba(187, 222, 251, 0.95);
+  }
+  .topNavBrand {
+    flex: 1;
+  }
+  .topNav:not(.navExpanded) .topNavButtons {
+    display: none;
+  }
+  .topNavButtons {
+    width: 100%;
+  }
+}
+
+@media (min-width: 740px) {
+  .topNavToggle {
+    display: none;
+  }
+}
+
 .topNavBrand {
   max-width: 1100px;
   margin: 0 auto;
@@ -1473,6 +1520,34 @@ a:hover {
 .small {
   color: var(--muted);
   font-size: 12px;
+}
+
+/* Event Sim: upgrade row – level + buttons; on mobile stack so level is not cramped */
+.eventUpgradeRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 6px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  padding: 6px 8px;
+  transition: background-color 120ms ease;
+}
+
+@media (max-width: 640px) {
+  .eventUpgradeRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.eventUpgradeLevelBadge {
+  font-size: 13px;
+  font-weight: 800;
+  min-width: 2.8em;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .lockedRow {

@@ -17,6 +17,7 @@ function Sprite(props: { path: string; alt: string; className?: string }) {
 
 export function App() {
   const [active, setActive] = useState<ModuleId>("event");
+  const [navExpanded, setNavExpanded] = useState(false);
 
   const modules = useMemo(
     () =>
@@ -33,7 +34,7 @@ export function App() {
 
   return (
     <div className="appShell">
-      <div className="topNav">
+      <div className={`topNav ${navExpanded ? "navExpanded" : ""}`}>
         <div className="topNavBrand">
           <Sprite path="sprites/common/gem.png" alt="ObeliskFarm" className="icon" />
           <div>
@@ -41,7 +42,15 @@ export function App() {
             <div className="topNavSubtitle">Choose a module.</div>
           </div>
         </div>
-
+        <button
+          type="button"
+          className="topNavToggle"
+          onClick={() => setNavExpanded((v) => !v)}
+          aria-expanded={navExpanded}
+          aria-label={navExpanded ? "Close menu" : "Open menu"}
+        >
+          {navExpanded ? "✕" : "☰"}
+        </button>
         <div className="topNavButtons">
           {modules.map((m) => (
             <button
