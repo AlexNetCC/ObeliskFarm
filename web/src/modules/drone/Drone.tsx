@@ -65,6 +65,9 @@ const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v2";
 const STORAGE_KEY_V1 = "obeliskfarm:web:drone_elixir_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
+/** 1 fuel = 5 gems (in-game cost). */
+const GEMS_PER_FUEL = 5;
 
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -231,7 +234,7 @@ function Stepper(props: {
 function migrateFromV1(saved: Record<string, unknown>): Partial<ElixirState> {
   const out: Partial<ElixirState> = {};
   if (typeof saved.elixirSuitLevel === "number") {
-    if (typeof saved.numRandomBuffs === "number") {
+    if (typeof saved.numRandomBuffs === "number" && typeof saved.fishingUnlocked !== "boolean") {
       out.fishingUnlocked = saved.numRandomBuffs >= ELIXIR_NUM_BUFFS_WITH_FISHING;
     }
     if (typeof saved.gameSpeedMultiplier !== "number" && typeof saved.gameSpeed2xActive === "boolean") {
@@ -251,7 +254,7 @@ function migrateFromV1(saved: Record<string, unknown>): Partial<ElixirState> {
     );
     out.elixirGradeLevel = clamp(out.elixirGradeLevel, 0, 45);
   }
-  if (typeof saved.numRandomBuffs === "number") {
+  if (typeof saved.numRandomBuffs === "number" && typeof saved.fishingUnlocked !== "boolean") {
     out.fishingUnlocked = saved.numRandomBuffs >= ELIXIR_NUM_BUFFS_WITH_FISHING;
   }
   if (typeof saved.fuelDurationMultPct === "number") {
@@ -274,6 +277,10 @@ export function Drone() {
     s.gameSpeedMultiplier = clamp(s.gameSpeedMultiplier, 1, 10);
     s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_FUEL_DURATION_MAX_LEVEL);
     s.fuelSaveChanceUpgradeLevel = clamp(s.fuelSaveChanceUpgradeLevel, 0, COAL_FUEL_SAVE_MAX_LEVEL);
+    // Restore checkboxes from saved so they persist (avoid undefined from old saves)
+    s.fishingUnlocked = typeof migrated.fishingUnlocked === "boolean" ? migrated.fishingUnlocked : DEFAULT.fishingUnlocked;
+    s.fueled = typeof migrated.fueled === "boolean" ? migrated.fueled : DEFAULT.fueled;
+    s.gasolineGuzzler = typeof migrated.gasolineGuzzler === "boolean" ? migrated.gasolineGuzzler : DEFAULT.gasolineGuzzler;
     return s;
   });
 
@@ -334,11 +341,29 @@ export function Drone() {
     return Math.min(60, (b.sec / cycleSec) * 60);
   }, [numBuffs, intervalSec, buffDurations]);
 
+  /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. */
+  const fuelGemsPerHour = useMemo(() => {
+    if (fuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / fuelDurationSecReal;
+    const saveChance = state.fuelSaveChanceUpgradeLevel / 100;
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel]);
+
   useEffect(() => {
-    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.droneBomb10xMinPerHour = droneBomb10xMinPerHour;
+    ext.droneFuelGemsPerHour = state.fueled ? fuelGemsPerHour : 0;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, state.fueled]);
+
+  /** Drone's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
+  const drone10xGemEvPerHour = (() => {
+    const ext = loadJson<{ gemBomb10xImpact?: number; total10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    const total10x = typeof ext?.total10xMinPerHour === "number" ? ext.total10xMinPerHour : 0;
+    const impact = typeof ext?.gemBomb10xImpact === "number" ? ext.gemBomb10xImpact : 0;
+    if (total10x <= 0) return 0;
+    return impact * (droneBomb10xMinPerHour / total10x);
+  })();
 
   return (
     <div className="droneGrid">
@@ -417,7 +442,8 @@ export function Drone() {
               content={{
                 title: "Random buff count",
                 lines: [
-                  "With Fishing: 10 random buffs. Without (pre-Ob 37): 9 buffs (no 3× Fishing Tick Speed).",
+                  "With Fishing: 10 random buffs.",
+                  "Without (pre-Ob 37): 9 buffs (no 3× Fishing Tick Speed).",
                 ],
               }}
             />
@@ -518,7 +544,10 @@ export function Drone() {
             suffix=""
             tooltip={{
               title: "Fuel Duration",
-              lines: ["Coal Upgrade: Fuel Duration +1% per level, max 20. Effective: +" + state.fuelDurationUpgradeLevel + "%."],
+              lines: [
+                "Coal Upgrade: Fuel Duration +1% per level, max 20.",
+                "Effective: +" + state.fuelDurationUpgradeLevel + "%.",
+              ],
             }}
           />
           <div className="droneRow">
@@ -536,9 +565,41 @@ export function Drone() {
             suffix=""
             tooltip={{
               title: "Fuel Save Chance",
-              lines: ["Coal Upgrade: Fuel Save Chance +1% per level, max 20."],
+              lines: [
+                "Coal Upgrade: Fuel Save Chance +1% per level, max 20.",
+              ],
             }}
           />
+          <div className="droneRow droneFuelGemsRow">
+            <span className="droneFuelGemsLabel">
+              <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+              <span className="droneLabel">
+                Fuel cost (100% uptime)
+              <Tooltip
+                content={{
+                  title: "Fuel cost (100% uptime)",
+                  sections: [
+                    {
+                      heading: "Meaning",
+                      lines: [
+                        "Average gems per hour spent on fuel to keep the Elixir Drone fueled 100% of the time.",
+                      ],
+                    },
+                    {
+                      heading: "Formula",
+                      lines: [
+                        "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                      ],
+                    },
+                  ],
+                }}
+              />
+              </span>
+            </span>
+            <span className="droneFuelGemsValue" aria-label={`${fuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+              −{fuelGemsPerHour.toFixed(1)}
+            </span>
+          </div>
         </div>
 
         <div className="droneSection">
@@ -565,9 +626,19 @@ export function Drone() {
                     <Tooltip
                       content={{
                         title: "Expected overlap",
-                        lines: [
-                          "With uniform random buffs every interval: average number of buffs active at any time.",
-                          "Formula: sum of all buff durations ÷ (number of buffs × time between buffs).",
+                        sections: [
+                          {
+                            heading: "Meaning",
+                            lines: [
+                              "With uniform random buffs every interval: average number of buffs active at any time.",
+                            ],
+                          },
+                          {
+                            heading: "Formula",
+                            lines: [
+                              "Sum of all buff durations ÷ (number of buffs × time between buffs).",
+                            ],
+                          },
                         ],
                       }}
                     />
@@ -580,14 +651,49 @@ export function Drone() {
                     <Tooltip
                       content={{
                         title: "Star & Super Star overlap",
-                        lines: [
-                          "Approximate probability that 2× Star Spawn Rate and 3× Super Star Spawn Rate are both active at the same time.",
-                          "Uptime(Star) × Uptime(Super Star), assuming independence.",
+                        sections: [
+                          {
+                            heading: "Meaning",
+                            lines: [
+                              "Approximate probability that 2× Star Spawn Rate and 3× Super Star Spawn Rate are both active at the same time.",
+                            ],
+                          },
+                          {
+                            heading: "Formula",
+                            lines: [
+                              "Uptime(Star) × Uptime(Super Star), assuming independence.",
+                            ],
+                          },
                         ],
                       }}
                     />
                   </span>
                   <span className="droneBuffPlotSummaryValue">{starSuperOverlapPct.toFixed(2)}%</span>
+                </div>
+                <div className="droneBuffPlotSummary">
+                  <span className="droneBuffPlotSummaryLabel">
+                    10× Bomb Recharge (Drone) → Gem EV/h
+                    <Tooltip
+                      content={{
+                        title: "10× Bomb Recharge (Drone) → Gem EV/h",
+                        sections: [
+                          {
+                            heading: "Meaning",
+                            lines: [
+                              "Share of Gem EV per hour from the 10× Bomb Recharge buff that comes from the Elixir Drone.",
+                            ],
+                          },
+                          {
+                            heading: "Source",
+                            lines: [
+                              "Read from Gem EV module. Open Gem EV once so its 10× impact is saved; then this shows the Drone share.",
+                            ],
+                          },
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="droneBuffPlotSummaryValue">{drone10xGemEvPerHour.toFixed(1)}</span>
                 </div>
               </div>
             );
@@ -601,9 +707,15 @@ export function Drone() {
                 <Tooltip
                   content={{
                     title: "min/h",
-                    lines: [
-                      "Average minutes per hour this buff is active.",
-                      "Uptime × 60; max 60 min/h.",
+                    sections: [
+                      {
+                        heading: "Meaning",
+                        lines: ["Average minutes per hour this buff is active."],
+                      },
+                      {
+                        heading: "Formula",
+                        lines: ["Uptime × 60; max 60 min/h."],
+                      },
                     ],
                   }}
                   label="?"
@@ -614,9 +726,19 @@ export function Drone() {
                 <Tooltip
                   content={{
                     title: "Uptime",
-                    lines: [
-                      "Expected fraction of time this buff is active (100% = always on).",
-                      "Formula: duration ÷ (number of buffs × time between buffs).",
+                    sections: [
+                      {
+                        heading: "Meaning",
+                        lines: [
+                          "Expected fraction of time this buff is active (100% = always on).",
+                        ],
+                      },
+                      {
+                        heading: "Formula",
+                        lines: [
+                          "Duration ÷ (number of buffs × time between buffs).",
+                        ],
+                      },
                     ],
                   }}
                   label="?"

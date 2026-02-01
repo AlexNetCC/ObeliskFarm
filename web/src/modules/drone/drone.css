@@ -93,6 +93,22 @@
   margin-bottom: 0;
 }
 
+.droneFuelGemsRow {
+  align-items: center;
+}
+
+.droneFuelGemsLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.droneFuelGemsValue {
+  color: #c62828;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 .droneGameSpeedReadOnly {
   display: grid;
   grid-template-columns: 1fr auto;
