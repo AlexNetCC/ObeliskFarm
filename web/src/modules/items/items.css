@@ -9,6 +9,24 @@
   gap: 14px;
 }
 
+.itemsChestsBlock {
+  border: 2px solid rgba(15, 23, 42, 0.2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.itemsBlockTitle {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.itemsChestsBlock .itemsSection {
+  margin-top: 0;
+}
+
 .itemsGameSpeedToggle {
   border: 2px solid rgba(15, 23, 42, 0.2);
   border-radius: 12px;

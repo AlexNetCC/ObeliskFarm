@@ -1,46 +1,47 @@
 // Ported (minimally) from ObeliskGemEV/event/constants.py
 
+/** Labels match in-game Event Results (Upgrade column). Use \n for two-line upgrade names. */
 export const UPGRADE_SHORT_NAMES: Record<number, string[]> = {
   1: [
-    "Attack +1",
-    "Health +2",
-    "Attack speed +0.02",
-    "Move speed +0.03",
-    "Event Speed +3%",
-    "Crit chance +1%",
-    "Attack+1 Health+2",
-    "Tier 1 caps +1",
-    "Prestige +1%",
-    "Attack+3 Health+3",
+    "+1 Attack Damage",
+    "+2 Maximum Health",
+    "+0.02 Attack Speed",
+    "+0.03 Move Speed",
+    "+3% Event Game Speed",
+    "+1% Crit Chance\n+0.10 Crit Damage",
+    "+1 Attack Damage\n+2 Maximum Health",
+    "+1 Tier 1 Upgrade Caps",
+    "+1% Prestige Bonus",
+    "+3 Attack Damage\n+3 Maximum Health",
   ],
   2: [
-    "Health +3",
-    "Enemy attack speed -0.02",
-    "Enemy attack -1",
-    "Enemy crit -1%",
-    "Attack+1 Attack speed+0.01",
-    "Tier 2 caps +1",
-    "Prestige +2%",
+    "+3 Maximum Health",
+    "-0.02 Enemy Attack Speed",
+    "-1 Enemy Attack Damage",
+    "-1% Enemy Crit Chance\n-0.10 Enemy Crit Damage",
+    "+1 Attack Damage\n+0.01 Attack Speed",
+    "+1 Tier 2 Upgrade Caps",
+    "+2% Prestige Bonus",
   ],
   3: [
-    "Attack +2",
-    "Attack speed +0.02",
-    "Crit chance +1%",
-    "Event Speed +3%",
-    "Attack+3 Health+3",
-    "Tier 3 caps +1",
-    "5× drop +3%",
-    "Health+5 Attack speed+0.03",
+    "+2 Attack Damage",
+    "+0.02 Attack Speed",
+    "+1% Crit Chance",
+    "+5% Event Game Speed",
+    "+3 Attack Damage\n+3 Maximum Health",
+    "+1 Tier 3 Upgrade Caps",
+    "+3% 5x Drop Chance",
+    "+5 Maximum Health\n+0.03 Attack Speed",
   ],
   4: [
-    "Block +1%",
-    "Health +5",
-    "Crit damage +0.10",
-    "Attack speed+0.02 Move speed+0.02",
-    "Health+4 Attack+4",
-    "Tier 4 caps +1",
-    "Cap of caps +1",
-    "Health+10 Attack speed+0.05",
+    "1% Block Chance",
+    "+5 Maximum Health",
+    "+0.10 Crit Damage\n-0.10 Enemy Crit Damage",
+    "+0.02 Attack Speed\n+0.02 Move Speed",
+    "+4 Maximum Health\n+4 Attack Damage",
+    "+1 Tier 4 Upgrade Caps",
+    "+1 Cap of Cap Upgrades",
+    "+10 Maximum Health\n+0.05 Attack Speed",
   ],
 };
 
@@ -68,7 +69,7 @@ export const COSTS: Record<number, number[]> = {
   4: [10, 12, 15, 20, 50, 250, 500, 150],
 };
 
-export const GEM_UPGRADE_NAMES = ["+10% Damage", "+10% Max health", "+125% Event Speed", "2× Event currencies"] as const;
+export const GEM_UPGRADE_NAMES = ["+10% Damage", "+10% Maximum Health", "+125% Event Game Speed", "2x Event Currencies"] as const;
 
 export function getPrestigeWaveRequirement(prestige: number): number {
   return (prestige + 1) * 5;

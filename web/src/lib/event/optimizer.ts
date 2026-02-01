@@ -74,7 +74,7 @@ export function formatUpgradeSummary(state: UpgradeState): string {
   for (const tier of [1, 2, 3, 4] as const) {
     const tierUpgrades: string[] = [];
     state.levels[tier].forEach((lvl, idx) => {
-      if (lvl > 0) tierUpgrades.push(`${UPGRADE_SHORT_NAMES[tier][idx]}: ${lvl}`);
+      if (lvl > 0) tierUpgrades.push(`${UPGRADE_SHORT_NAMES[tier][idx].replace(/\n/g, " / ")}: ${lvl}`);
     });
     if (tierUpgrades.length) lines.push(`Tier ${tier}: ${tierUpgrades.join(", ")}`);
   }

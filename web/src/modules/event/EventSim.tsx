@@ -1017,7 +1017,7 @@ export function EventSim() {
                       <ul className="list">
                         {picked.map(({ idx, add }) => (
                           <li key={idx}>
-                            <span className="mono">{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono">{add}</span>
+                            <span className="mono" style={{ whiteSpace: "pre-line" }}>{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono">{add}</span>
                           </li>
                         ))}
                       </ul>
@@ -1218,10 +1218,10 @@ export function EventSim() {
                       return (
                         <div key={idx} className={`eventUpgradeRow ${rowClass}`}>
                           <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
-                            <Sprite path={icon ? `sprites/event/${icon}` : null} alt={UPGRADE_SHORT_NAMES[t][idx]} label={icon ?? ""} />
+                            <Sprite path={icon ? `sprites/event/${icon}` : null} alt={UPGRADE_SHORT_NAMES[t][idx].replace(/\n/g, ", ")} label={icon ?? ""} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                <span className="mono">{UPGRADE_SHORT_NAMES[t][idx]}</span>
+                                <span className="mono" style={{ whiteSpace: "pre-line" }}>{UPGRADE_SHORT_NAMES[t][idx]}</span>
                                 {unlocked ? (
                                   <>
                                     <span className="small">
@@ -1740,7 +1740,7 @@ export function EventSim() {
                           const name = UPGRADE_SHORT_NAMES[tier]?.[idx] ?? `[${idx}]`;
                           return (
                             <tr key={`${tier}-${idx}`}>
-                              <td style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)" }}>T{tier} {name}</td>
+                              <td style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)", whiteSpace: "pre-line" }}>T{tier} {name}</td>
                               {comparisonResult.methodResults.map((row) => (
                                 <td
                                   key={row.methodId}

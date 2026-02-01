@@ -14,6 +14,8 @@ type ItemsState = {
   chaosTotemDurationSec: number;
   chaosTotemUptimePct: number;
   chaosTotemObtainChance: number; // stored for later /h calc
+  /** Items obtained from opening one Item Chest. */
+  itemsPerChest: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:items_save.json:v1";
@@ -23,6 +25,7 @@ const DEFAULT: ItemsState = {
   chaosTotemDurationSec: 30,
   chaosTotemUptimePct: 0,
   chaosTotemObtainChance: 4.6,
+  itemsPerChest: 1,
 };
 
 function clampInt(n: number, min: number, max: number): number {
@@ -33,6 +36,13 @@ function clampInt(n: number, min: number, max: number): number {
 function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, n));
+}
+
+function parseDecimal(raw: string): number {
+  const cleaned = raw.trim().replaceAll(",", ".").replaceAll(" ", "");
+  if (!cleaned) return 0;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
 }
 
 export function Items() {
@@ -82,8 +92,59 @@ export function Items() {
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [state.chaosTotemUptimePct]);
 
+  /** Chests per hour = freebies/h from Gem EV (1 freebie = 1 chest). */
+  const extFreebies = loadJson<{ freebiesPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+  const chestsPerHour =
+    typeof extFreebies?.freebiesPerHour === "number" ? extFreebies.freebiesPerHour : 0;
+
+  const itemsPerHourFromChests = state.itemsPerChest * chestsPerHour;
+
   return (
     <div className="itemsGrid">
+      <div className="itemsChestsBlock">
+        <h3 className="itemsBlockTitle">Chests</h3>
+        <div className="itemsSection">
+          <div className="itemsRow">
+            <span className="itemsLabel">
+              Items per chest
+              <Tooltip
+                content={{
+                  title: "Items per chest",
+                  lines: ["Average number of items you get from opening one Item Chest."],
+                }}
+              />
+            </span>
+            <input
+              className="itemsInput"
+              type="text"
+              inputMode="decimal"
+              value={state.itemsPerChest}
+              onChange={(e) => update({ itemsPerChest: Math.max(0, parseDecimal(e.target.value)) })}
+              aria-label="Items per chest"
+            />
+          </div>
+          <div className="itemsRow">
+            <span className="itemsLabel">
+              Chests per hour
+              <Tooltip
+                content={{
+                  title: "Chests per hour",
+                  lines: [
+                    "Computed from Gem EV: freebies per hour (1 freebie = 1 chest).",
+                    "Update Gem EV parameters to change this value.",
+                  ],
+                }}
+              />
+            </span>
+            <span className="itemsValue mono">{chestsPerHour.toFixed(2)}</span>
+          </div>
+          <div className="itemsRow">
+            <span className="itemsLabel">Items per hour (from chests)</span>
+            <span className="itemsValue mono">{itemsPerHourFromChests.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
       <div className={`itemsGameSpeedToggle ${gameSpeedMult > 1 ? "itemsGameSpeedToggleOn" : ""}`}>
         <div className="itemsGameSpeedReadOnly">
           <span className="itemsLabel">
@@ -187,7 +248,23 @@ export function Items() {
               />
               <span className="itemsSuffix">%</span>
             </div>
-            {/* Obtain chance stored in state for later /h calculation; not shown for now */}
+            <div className="itemsRow">
+              <span className="itemsLabel">
+                Average Chaos Totems / h
+                <Tooltip
+                  content={{
+                    title: "Average Chaos Totems / h",
+                    lines: [
+                      "Expected Chaos Totems per hour from Item Chests.",
+                      "Formula: Items per hour (from chests) × (obtain chance ÷ 100).",
+                    ],
+                  }}
+                />
+              </span>
+              <span className="itemsValue mono">
+                {(itemsPerHourFromChests * (state.chaosTotemObtainChance / 100)).toFixed(2)}
+              </span>
+            </div>
           </div>
         </div>
       </Collapsible>

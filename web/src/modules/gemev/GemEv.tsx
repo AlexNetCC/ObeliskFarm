@@ -6,6 +6,7 @@ import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
   calculateEvBreakdown,
+  calculateFreebiesPerHour,
   calculateGemBombGemsPerHour,
   calculateGiftEvBreakdown,
   calculateGiftEvPerGift,
@@ -299,6 +300,7 @@ export function GemEv() {
   }, [params, stonksEnabled, skillShardsEnabled, external10x.total, external.chaosTotemUptimePct]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
+  const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
   const giftEv = useMemo(() => calculateGiftEvPerGift(effectiveParams), [effectiveParams]);
   const giftBreakdown = useMemo(() => calculateGiftEvBreakdown(effectiveParams), [effectiveParams]);
@@ -321,8 +323,9 @@ export function GemEv() {
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.gemBomb10xImpact = gemBomb10xImpact;
     ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
+    ext.freebiesPerHour = freebiesPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [gemBomb10xImpact]);
+  }, [gemBomb10xImpact, freebiesPerHour]);
 
   const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour;
 
