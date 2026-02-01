@@ -10,6 +10,7 @@ import {
   calculateGemBombGemsPerHour,
   calculateGiftEvBreakdown,
   calculateGiftEvPerGift,
+  calculateStonksChestsPerHour,
   calculateTotalEvPerHour,
   defaultGameParameters,
   getEffectiveFreebieTimerMinutes,
@@ -315,6 +316,12 @@ export function GemEv() {
     return Math.max(0, ev.gem_bomb_gems - withoutChaos);
   }, [effectiveParams, ev.gem_bomb_gems]);
 
+  /** When stonks is enabled: expected chests/h from stonks procs (base + super + ultra, all multis). */
+  const stonksChestsPerHour = useMemo(() => {
+    if (!stonksEnabled) return 0;
+    return calculateStonksChestsPerHour(effectiveParams);
+  }, [stonksEnabled, effectiveParams]);
+
   useEffect(() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
@@ -324,13 +331,15 @@ export function GemEv() {
       total10xMinPerHour?: number;
       freebiesPerHour?: number;
       chaosTotemImpact?: number;
+      stonksChestsPerHour?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.gemBomb10xImpact = gemBomb10xImpact;
     ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
     ext.freebiesPerHour = freebiesPerHour;
     ext.chaosTotemImpact = chaosTotemImpact;
+    ext.stonksChestsPerHour = stonksChestsPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [gemBomb10xImpact, freebiesPerHour, chaosTotemImpact]);
+  }, [gemBomb10xImpact, freebiesPerHour, chaosTotemImpact, stonksChestsPerHour]);
 
   const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour;
 
