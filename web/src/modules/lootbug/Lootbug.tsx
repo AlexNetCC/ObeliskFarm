@@ -454,7 +454,7 @@ export function Lootbug() {
             </div>
           )}
           {STATS.map((stat) =>
-            stat.id === "goldenChancePct" ? (
+            (stat.id as string) === "goldenChancePct" ? (
               <IntStepper
                 key={stat.id}
                 label={

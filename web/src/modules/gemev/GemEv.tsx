@@ -320,6 +320,10 @@ export function GemEv() {
       lootbugBomb10xMinPerHour?: number;
       droneBomb10xMinPerHour?: number;
       lootbugNetGemsPerHour?: number;
+      gemBomb10xImpact?: number;
+      total10xMinPerHour?: number;
+      freebiesPerHour?: number;
+      chaosTotemImpact?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.gemBomb10xImpact = gemBomb10xImpact;
     ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
