@@ -283,6 +283,24 @@ export function calculateStonksEvPerHour(params: GameParameters): number {
   return freebiesPerHour * refreshMult * sumPerClaim * allMult;
 }
 
+/** Expected Item Chests per hour from stonks procs. In-game: base stonks 20 chests; super/ultra same base per proc, each tier uses its multiplier. */
+const STONKS_CHESTS_BASE = 20;
+
+export function calculateStonksChestsPerHour(params: GameParameters): number {
+  const freebiesPerHour = calculateFreebiesPerHour(params);
+  const sc = clamp01(params.stonks_chance);
+  const ssc = clamp01(params.super_stonks_chance ?? 0);
+  const usc = clamp01(params.ultra_stonks_chance ?? 0);
+  const stonksMult = clampPositive(params.stonks_multiplier ?? 1.0, 0);
+  const superMult = clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
+  const ultraMult = clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
+  const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
+  const baseChests = freebiesPerHour * sc * STONKS_CHESTS_BASE * stonksMult;
+  const superChests = freebiesPerHour * sc * ssc * STONKS_CHESTS_BASE * superMult;
+  const ultraChests = freebiesPerHour * sc * ssc * usc * STONKS_CHESTS_BASE * ultraMult;
+  return (baseChests + superChests + ultraChests) * allMult;
+}
+
 export function calculateSkillShardsEvPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const expectedRolls = calculateExpectedRollsPerClaim(params);
