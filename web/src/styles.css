@@ -1632,16 +1632,19 @@ a:hover {
   position: fixed;
   z-index: 9999;
   width: min(420px, calc(100vw - 24px));
+  max-width: 100%;
+  box-sizing: border-box;
   background: #ffffff;
   border: 1px solid rgba(44, 62, 80, 0.25);
   border-radius: 10px;
   padding: 10px 12px;
   box-shadow: 0 10px 24px rgba(44, 62, 80, 0.20);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .tooltipTitle {
-  /* Keep emphasis via color, avoid heavy bold by default. */
-  font-weight: 700;
+  font-weight: 600;
   color: #1976d2;
   font-size: 13px;
   margin-bottom: 6px;
@@ -1652,8 +1655,7 @@ a:hover {
 }
 
 .tooltipHeading {
-  /* Avoid heavy bold in tooltip text; headings can still be slightly emphasized. */
-  font-weight: 700;
+  font-weight: 600;
   font-size: 12px;
   color: rgba(15, 23, 42, 0.86);
   margin-bottom: 3px;
@@ -1663,6 +1665,8 @@ a:hover {
   font-size: 12px;
   color: rgba(15, 23, 42, 0.78);
   line-height: 1.35;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .tierHeader1 {
