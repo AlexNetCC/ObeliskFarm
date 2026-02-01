@@ -98,23 +98,15 @@
   text-overflow: ellipsis;
 }
 
-.sgStepper {
-  display: grid;
-  /* Use fixed-ish buttons + minmax input so the input can shrink without overflow */
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
-  gap: 8px;
-  align-items: center;
+.sgInputWrap {
   min-width: 0;
+  max-width: 140px;
 }
 
-.sgStepper .input {
+.sgInputWrap .input {
+  width: 100%;
   min-width: 0;
-}
-
-.sgBtn {
-  padding: 8px 10px;
-  line-height: 1;
-  min-width: 40px;
+  box-sizing: border-box;
 }
 
 .sgHeaderIcon {

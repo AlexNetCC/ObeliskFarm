@@ -356,6 +356,26 @@ export function Drone() {
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [droneBomb10xMinPerHour, fuelGemsPerHour, state.fueled]);
 
+  /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
+  const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
+    const cycleSec = numBuffs * intervalSec;
+    if (cycleSec <= 0) return { drone2xStarUptimeFraction: 0, drone3xSuperUptimeFraction: 0 };
+    const star = buffDurations.find((b) => b.id === "2xstar");
+    const super_ = buffDurations.find((b) => b.id === "3xsuper");
+    return {
+      drone2xStarUptimeFraction: star ? Math.min(1, star.sec / cycleSec) : 0,
+      drone3xSuperUptimeFraction: super_ ? Math.min(1, super_.sec / cycleSec) : 0,
+    };
+  }, [numBuffs, intervalSec, buffDurations]);
+
+  const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
+    ext.drone2xStarUptimeFraction = drone2xStarUptimeFraction;
+    ext.drone3xSuperUptimeFraction = drone3xSuperUptimeFraction;
+    saveJson(STARGAZING_EXTERNAL_KEY, ext);
+  }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction]);
+
   /** Drone's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
   const drone10xGemEvPerHour = (() => {
     const ext = loadJson<{ gemBomb10xImpact?: number; total10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);

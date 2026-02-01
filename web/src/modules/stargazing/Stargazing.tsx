@@ -36,6 +36,7 @@ type SavedStateV1 = {
 };
 
 const STORAGE_KEY = "obeliskfarm:web:stargazing_save.json:v1";
+const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
 
 function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -103,7 +104,7 @@ function Stepper(props: {
   } = props;
   const [raw, setRaw] = useState<string>(Number.isFinite(value) ? String(value) : "");
 
-  // Keep input in sync when value changes via +/- buttons or external state updates.
+  // Keep input in sync when value changes via external state updates.
   useEffect(() => {
     setRaw(Number.isFinite(value) ? String(value) : "");
   }, [value]);
@@ -139,18 +140,7 @@ function Stepper(props: {
         </div>
         <span className="mono">{Number.isFinite(value) ? value.toFixed(decimals) : "—"}</span>
       </div>
-      <div className="sgStepper">
-        <button
-          className="btn btnSecondary sgBtn"
-          type="button"
-          onClick={() => {
-            const v = clamp(value - step, min, max);
-            onChange(v);
-            setRaw(String(v));
-          }}
-        >
-          −
-        </button>
+      <div className="sgInputWrap">
         <input
           className="input"
           inputMode={inputMode}
@@ -171,17 +161,6 @@ function Stepper(props: {
             }
           }}
         />
-        <button
-          className="btn sgBtn"
-          type="button"
-          onClick={() => {
-            const v = clamp(value + step, min, max);
-            onChange(v);
-            setRaw(String(v));
-          }}
-        >
-          +
-        </button>
       </div>
     </div>
   );
@@ -251,15 +230,29 @@ export function Stargazing() {
     return () => window.clearTimeout(t);
   }, [resetArmed]);
 
+  /** Drone Elixir buffs: 2× Star Spawn Rate and 3× Super Star Spawn Rate (multiply when overlapping). From Drone module. */
+  const droneBuffs = (() => {
+    const ext = loadJson<{ drone2xStarUptimeFraction?: number; drone3xSuperUptimeFraction?: number }>(STARGAZING_EXTERNAL_KEY);
+    return {
+      drone2xStarUptimeFraction: typeof ext?.drone2xStarUptimeFraction === "number" ? Math.min(1, Math.max(0, ext.drone2xStarUptimeFraction)) : 0,
+      drone3xSuperUptimeFraction: typeof ext?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, ext.drone3xSuperUptimeFraction)) : 0,
+    };
+  })();
+
   const stats = useMemo<PlayerStats>(() => {
     const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
+    const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
+    const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
+    // Drone 2× Star: effective = base × (1 + uptime); 3× Super Star: effective = base × (1 + 2×uptime). When both overlap they multiply in-game.
+    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffs.drone2xStarUptimeFraction);
+    const super_star_spawn_rate_mult = baseSuperMult * (1 + 2 * droneBuffs.drone3xSuperUptimeFraction);
     return {
       floor_clears_per_hour,
-      star_spawn_rate_mult: clamp(ui.star_spawn_rate_mult, 0, 1_000_000),
+      star_spawn_rate_mult,
       auto_catch_chance: clamp(ui.auto_catch_chance, 0, 100) / 100,
       double_star_chance: clamp(ui.double_star_chance, 0, 100) / 100,
       triple_star_chance: clamp(ui.triple_star_chance, 0, 100) / 100,
-      super_star_spawn_rate_mult: clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000),
+      super_star_spawn_rate_mult,
       triple_super_star_chance: clamp(ui.triple_super_star_chance, 0, 100) / 100,
       super_star_10x_chance: clamp(ui.super_star_10x_chance, 0, 100) / 100,
       star_supernova_chance: clamp(ui.star_supernova_chance, 0, 100) / 100,
@@ -278,7 +271,7 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF]);
+  }, [ui, ctrlF, droneBuffs.drone2xStarUptimeFraction, droneBuffs.drone3xSuperUptimeFraction]);
 
   const summary = useMemo(() => {
     const calc = new StargazingCalculator(stats);
@@ -371,6 +364,33 @@ export function Stargazing() {
               Spawn events/hour: <span className="mono">{fmt4(summary.star_spawn_rate_per_hour)}</span> • Super-star events/hour:{" "}
               <span className="mono">{fmt4(summary.super_star_spawn_rate_per_hour)}</span>
             </div>
+            {(droneBuffs.drone2xStarUptimeFraction > 0 || droneBuffs.drone3xSuperUptimeFraction > 0) && (
+              <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  Includes Drone Elixir: 2× Star Spawn, 3× Super Star Spawn
+                  <Tooltip
+                    content={{
+                      title: "Drone Elixir buffs",
+                      sections: [
+                        {
+                          heading: "Source",
+                          lines: [
+                            "Rates above use uptime from the Drone module (Elixir 2× Star Spawn Rate, 3× Super Star Spawn Rate).",
+                            "Open Drone to refresh.",
+                          ],
+                        },
+                        {
+                          heading: "Overlap",
+                          lines: [
+                            "In-game, when both buffs are active they multiply. We apply average uptime (equivalent effect).",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

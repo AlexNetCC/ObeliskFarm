@@ -112,12 +112,24 @@
   font-size: inherit;
 }
 
+.itemsChaosTotemGemEvRow {
+  font-size: 12px;
+  color: var(--good);
+}
+
+.itemsChaosTotemGemEvRow .itemsLabel,
+.itemsChaosTotemGemEvRow .itemsValue {
+  font-size: inherit;
+  font-weight: 600;
+  color: inherit;
+}
+
 .itemsChaosTotemGemEv {
   color: var(--good);
 }
 
 .itemsChaosTotemGemEvMuted {
-  color: rgba(15, 23, 42, 0.5);
+  color: rgba(46, 125, 50, 0.55);
 }
 
 .itemsGameSpeedToggle {

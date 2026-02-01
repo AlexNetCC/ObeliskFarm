@@ -64,7 +64,7 @@ export function App() {
               <Sprite path={m.icon} alt={m.label} className="icon" />
               <span className="navTileLabel">
                 <span>{m.label}</span>
-                {(m.id === "event" || m.id === "arch") && (
+                {(m.id === "event" || m.id === "arch" || m.id === "gemev") && (
                   <span className="navWorkingHorse" aria-hidden="true" title="Main module">
                     ❤
                   </span>

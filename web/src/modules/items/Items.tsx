@@ -326,7 +326,7 @@ export function Items() {
                 {expectedUptimeMinPerHour.toFixed(2)} min
               </span>
             </div>
-            <div className="itemsRow">
+            <div className="itemsRow itemsChaosTotemGemEvRow">
               <span className="itemsLabel">
                 → Gem EV (FYI)
                 <Tooltip
