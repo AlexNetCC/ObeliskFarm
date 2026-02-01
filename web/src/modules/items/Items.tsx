@@ -89,13 +89,14 @@ export function Items() {
   })();
 
 
-  /** Chests per hour = freebies/h (Gem EV) + stonks chests/h (when stonks enabled in Gem EV) + Lootbug "+1 Item Chest" per hour. */
-  const ext = loadJson<{ freebiesPerHour?: number; stonksChestsPerHour?: number; lootbugItemChestsPerHour?: number; chaosTotemImpact?: number }>(GEMEV_EXTERNAL_KEY);
-  const freebiesPerHour = typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0;
+  /** Chests per hour = freebie chests/h (Gem EV; jackpot=5 chests, refresh=+1 chest) + stonks chests/h + Lootbug "+1 Item Chest" per hour. */
+  const ext = loadJson<{ freebiesPerHour?: number; freebieChestsPerHour?: number; stonksChestsPerHour?: number; lootbugItemChestsPerHour?: number; chaosTotemImpact?: number }>(GEMEV_EXTERNAL_KEY);
+  const freebieChestsPerHour =
+    typeof ext?.freebieChestsPerHour === "number" ? ext.freebieChestsPerHour : (typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0);
   const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
   const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
   const chaosTotemImpact = typeof ext?.chaosTotemImpact === "number" ? ext.chaosTotemImpact : 0;
-  const chestsPerHour = freebiesPerHour + stonksChestsPerHour + lootbugItemChestsPerHour;
+  const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour;
 
   /** Expected chests per Gift: base (1/12 × 32.5) × Lucky multiplier (3×/50× rolls). FYI only. */
   const expectedChestsPerGift = CHESTS_PER_GIFT_BASE * calculateLuckyMultiplier();
@@ -153,16 +154,16 @@ export function Items() {
                       {
                         heading: "Summands",
                         lines: [
-                          "Freebies: freebie events per hour from Gem EV (1 freebie = 1 chest).",
-                          "Stonks: when enabled in Gem EV, chests from stonks procs (only when Stonks is checked).",
+                          "Freebies: effective chests from freebie rolls (1 roll = 1 chest, jackpot = 5 chests, refresh = +1 chest).",
+                          "Stonks: when enabled in Gem EV, chests from stonks procs.",
                           "Lootbug: free buff \"+1 Item Chest\" per hour.",
                           "Open Gem EV and Lootbug to refresh.",
                         ],
                       },
                       {
-                        heading: "Freebies",
+                        heading: "Freebies (jackpot & refresh)",
                         lines: [
-                          "Freebie rate uses game speed and freebie timer. In Gem EV, refresh and jackpot affect rewards per freebie, not the event count.",
+                          "Jackpot: 5 chests instead of 1. Refresh: 1 extra roll = 1 extra chest. Both scale freebie chests per hour.",
                         ],
                       },
                     ],
@@ -178,9 +179,9 @@ export function Items() {
                     <div
                       className="itemsChestsBarSeg itemsChestsBarFreebies"
                       style={{
-                        width: `${(freebiesPerHour / chestsPerHour) * 100}%`,
+                        width: `${(freebieChestsPerHour / chestsPerHour) * 100}%`,
                       }}
-                      title={`Freebies: ${freebiesPerHour.toFixed(2)}/h`}
+                      title={`Freebies: ${freebieChestsPerHour.toFixed(2)}/h`}
                     />
                     {stonksChestsPerHour > 0 ? (
                       <div

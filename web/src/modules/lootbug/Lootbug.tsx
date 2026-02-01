@@ -47,6 +47,18 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+/** Format decimal minutes as m:ss (e.g. 5.5 → "5:30"). */
+function formatMinSec(minDecimal: number): string {
+  if (!Number.isFinite(minDecimal) || minDecimal < 0) return "0:00";
+  let m = Math.floor(minDecimal);
+  let s = Math.round((minDecimal - m) * 60);
+  if (s >= 60) {
+    s = 0;
+    m += 1;
+  }
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 /** Red heatmap for negative values: more negative = stronger red. */
 function heatmapRed(gemPerHour: number): string {
   if (gemPerHour >= 0) return "inherit";
@@ -369,6 +381,15 @@ export function Lootbug() {
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [bombRecharge10xMinPerHour, netGemsPerHour, lootbugItemChestsPerHour]);
 
+  /** Lootbug's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
+  const lootbug10xGemEvPerHour = (() => {
+    const ext = loadJson<{ gemBomb10xImpact?: number; total10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    const total10x = typeof ext?.total10xMinPerHour === "number" ? ext.total10xMinPerHour : 0;
+    const impact = typeof ext?.gemBomb10xImpact === "number" ? ext.gemBomb10xImpact : 0;
+    if (total10x <= 0) return 0;
+    return impact * (bombRecharge10xMinPerHour / total10x);
+  })();
+
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
   const BOMB_RECHARGE_ICON =
@@ -575,8 +596,9 @@ export function Lootbug() {
                     content={{
                       title: "Net gems / h",
                       lines: [
-                        "Gems (raw) minus Gem/h spent on 2× Game Speed and 10× Bomb Recharge.",
-                        "Raw gems + (negative Gem/h) = net gems after costs.",
+                        "Gems (raw) per hour minus all Gem/h costs for buffs you have set to Buy.",
+                        "Costs include 2× Game Speed, 10× Bomb Recharge, and any other gem buff you pay for.",
+                        "Raw gems − total Gem/h spent = net gems after costs.",
                       ],
                     }}
                   />
@@ -614,27 +636,46 @@ export function Lootbug() {
                     />
                   </span>
                 </span>
-                <span className="lootbugValue">{gameSpeed2xMinPerHour.toFixed(2)} min</span>
+                <span className="lootbugValue">{formatMinSec(gameSpeed2xMinPerHour)} min</span>
               </div>
             )}
             {buyGemBuffsSet.has("10x Bomb Recharge") && (
-              <div className="lootbugRow">
-                <span className="lootbugStatLabel">
-                  <img src={BOMB_RECHARGE_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+              <>
+                <div className="lootbugRow">
+                  <span className="lootbugStatLabel">
+                    <img src={BOMB_RECHARGE_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                    <span className="lootbugLabel">
+                      10× Bomb Recharge / h
+                      <Tooltip
+                        content={{
+                          title: "10× Bomb Recharge / h",
+                          lines: [
+                            "Min/h with 10× Bomb Recharge active (gem buff, 2 min duration).",
+                          ],
+                        }}
+                      />
+                    </span>
+                  </span>
+                  <span className="lootbugValue">{formatMinSec(bombRecharge10xMinPerHour)} min</span>
+                </div>
+                <div className="lootbugRow lootbugGemEvRow">
                   <span className="lootbugLabel">
-                    10× Bomb Recharge / h
+                    → Gem EV / h
                     <Tooltip
                       content={{
-                        title: "10× Bomb Recharge / h",
+                        title: "Gem EV / h",
                         lines: [
-                          "Min/h with 10× Bomb Recharge active (gem buff, 2 min duration).",
+                          "Share of Gem EV per hour from the 10× Bomb Recharge buff that comes from Lootbug.",
+                          "Value comes from Gem EV module; open or refresh Gem EV to see it.",
                         ],
                       }}
                     />
                   </span>
-                </span>
-                <span className="lootbugValue">{bombRecharge10xMinPerHour.toFixed(2)} min</span>
-              </div>
+                  <span className={`lootbugValue ${lootbug10xGemEvPerHour > 0 ? "lootbugGemEvValue" : "lootbugGemEvValueMuted"}`}>
+                    {lootbug10xGemEvPerHour > 0 ? `+${lootbug10xGemEvPerHour.toFixed(1)} Gem/h` : "—"}
+                  </span>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -6,6 +6,7 @@ import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
   calculateEvBreakdown,
+  calculateFreebieChestsPerHour,
   calculateFreebiesPerHour,
   calculateGemBombGemsPerHour,
   calculateGiftEvBreakdown,
@@ -302,6 +303,7 @@ export function GemEv() {
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);
+  const freebieChestsPerHour = useMemo(() => calculateFreebieChestsPerHour(effectiveParams), [effectiveParams]);
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
   const giftEv = useMemo(() => calculateGiftEvPerGift(effectiveParams), [effectiveParams]);
   const giftBreakdown = useMemo(() => calculateGiftEvBreakdown(effectiveParams), [effectiveParams]);
@@ -330,16 +332,18 @@ export function GemEv() {
       gemBomb10xImpact?: number;
       total10xMinPerHour?: number;
       freebiesPerHour?: number;
+      freebieChestsPerHour?: number;
       chaosTotemImpact?: number;
       stonksChestsPerHour?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.gemBomb10xImpact = gemBomb10xImpact;
     ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
     ext.freebiesPerHour = freebiesPerHour;
+    ext.freebieChestsPerHour = freebieChestsPerHour;
     ext.chaosTotemImpact = chaosTotemImpact;
     ext.stonksChestsPerHour = stonksChestsPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [gemBomb10xImpact, freebiesPerHour, chaosTotemImpact, stonksChestsPerHour]);
+  }, [gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour]);
 
   const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour;
 

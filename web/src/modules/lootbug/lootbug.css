@@ -56,6 +56,27 @@
   margin-bottom: 0;
 }
 
+.lootbugGemEvRow {
+  font-size: 11px;
+  color: var(--good);
+  margin-bottom: 4px;
+}
+
+.lootbugGemEvRow .lootbugLabel,
+.lootbugGemEvRow .lootbugValue {
+  font-size: inherit;
+  font-weight: 600;
+  color: inherit;
+}
+
+.lootbugGemEvValue {
+  color: var(--good);
+}
+
+.lootbugGemEvValueMuted {
+  color: rgba(46, 125, 50, 0.55);
+}
+
 .lootbugLabel {
   font-size: 13px;
   color: var(--text);

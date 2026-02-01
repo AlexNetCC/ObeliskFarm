@@ -258,6 +258,14 @@ export function calculateFreebiesPerHour(params: GameParameters): number {
   return minutesPerHour / effectiveTimer;
 }
 
+/** Expected freebie chests per hour: 1 roll = 1 chest, jackpot = 5 chests, refresh = +1 chest (extra roll). So freebiesPerHour × expectedRolls × refreshMult. */
+export function calculateFreebieChestsPerHour(params: GameParameters): number {
+  const freebiesPerHour = calculateFreebiesPerHour(params);
+  const refreshMult = calculateRefreshMultiplier(params);
+  const expectedRolls = calculateExpectedRollsPerClaim(params);
+  return freebiesPerHour * expectedRolls * refreshMult;
+}
+
 export function calculateGemsBasePerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const claim = clampPositive(params.freebie_claim_percentage, 100.0) / 100.0; // Claim % only affects gems_base bar
@@ -286,8 +294,10 @@ export function calculateStonksEvPerHour(params: GameParameters): number {
 /** Expected Item Chests per hour from stonks procs. In-game: base stonks 20 chests; super/ultra same base per proc, each tier uses its multiplier. */
 const STONKS_CHESTS_BASE = 20;
 
+/** Refresh: instant refresh gives extra rolls per hour (more stonks chances), same as stonks gems. Stonks has no jackpot (procs on first roll per claim). */
 export function calculateStonksChestsPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
+  const refreshMult = calculateRefreshMultiplier(params);
   const sc = clamp01(params.stonks_chance);
   const ssc = clamp01(params.super_stonks_chance ?? 0);
   const usc = clamp01(params.ultra_stonks_chance ?? 0);
@@ -295,9 +305,10 @@ export function calculateStonksChestsPerHour(params: GameParameters): number {
   const superMult = clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
   const ultraMult = clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
   const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
-  const baseChests = freebiesPerHour * sc * STONKS_CHESTS_BASE * stonksMult;
-  const superChests = freebiesPerHour * sc * ssc * STONKS_CHESTS_BASE * superMult;
-  const ultraChests = freebiesPerHour * sc * ssc * usc * STONKS_CHESTS_BASE * ultraMult;
+  const effectiveRate = freebiesPerHour * refreshMult;
+  const baseChests = effectiveRate * sc * STONKS_CHESTS_BASE * stonksMult;
+  const superChests = effectiveRate * sc * ssc * STONKS_CHESTS_BASE * superMult;
+  const ultraChests = effectiveRate * sc * ssc * usc * STONKS_CHESTS_BASE * ultraMult;
   return (baseChests + superChests + ultraChests) * allMult;
 }
 
