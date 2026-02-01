@@ -589,41 +589,45 @@ export function Lootbug() {
             </div>
           </div>
           <div className="lootbugBuffsBlock">
-            <div className="lootbugRow">
-              <span className="lootbugStatLabel">
-                <img src={GAME_SPEED_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-                <span className="lootbugLabel">
-                  2× Game Speed / h
-                  <Tooltip
-                    content={{
-                      title: "2× Game Speed / h",
-                      lines: [
-                        "Total min/h with 2× Game Speed active (free + gem buff).",
-                        "Free buff (2 min) + Gem buff (10 min) added together.",
-                      ],
-                    }}
-                  />
+            {buyGemBuffsSet.has("2x Game Speed") && (
+              <div className="lootbugRow">
+                <span className="lootbugStatLabel">
+                  <img src={GAME_SPEED_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                  <span className="lootbugLabel">
+                    2× Game Speed / h
+                    <Tooltip
+                      content={{
+                        title: "2× Game Speed / h",
+                        lines: [
+                          "Total min/h with 2× Game Speed active (free + gem buff).",
+                          "Free buff (2 min) + Gem buff (10 min) added together.",
+                        ],
+                      }}
+                    />
+                  </span>
                 </span>
-              </span>
-              <span className="lootbugValue">{gameSpeed2xMinPerHour.toFixed(2)} min</span>
-            </div>
-            <div className="lootbugRow">
-              <span className="lootbugStatLabel">
-                <img src={BOMB_RECHARGE_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-                <span className="lootbugLabel">
-                  10× Bomb Recharge / h
-                  <Tooltip
-                    content={{
-                      title: "10× Bomb Recharge / h",
-                      lines: [
-                        "Min/h with 10× Bomb Recharge active (gem buff, 2 min duration).",
-                      ],
-                    }}
-                  />
+                <span className="lootbugValue">{gameSpeed2xMinPerHour.toFixed(2)} min</span>
+              </div>
+            )}
+            {buyGemBuffsSet.has("10x Bomb Recharge") && (
+              <div className="lootbugRow">
+                <span className="lootbugStatLabel">
+                  <img src={BOMB_RECHARGE_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                  <span className="lootbugLabel">
+                    10× Bomb Recharge / h
+                    <Tooltip
+                      content={{
+                        title: "10× Bomb Recharge / h",
+                        lines: [
+                          "Min/h with 10× Bomb Recharge active (gem buff, 2 min duration).",
+                        ],
+                      }}
+                    />
+                  </span>
                 </span>
-              </span>
-              <span className="lootbugValue">{bombRecharge10xMinPerHour.toFixed(2)} min</span>
-            </div>
+                <span className="lootbugValue">{bombRecharge10xMinPerHour.toFixed(2)} min</span>
+              </div>
+            )}
           </div>
         </div>
       </Collapsible>

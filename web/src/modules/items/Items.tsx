@@ -162,7 +162,7 @@ export function Items() {
             </div>
             <div className="itemsRow">
               <span className="itemsLabel">
-                Uptime (estimate)
+                Estimated Uptime
                 <Tooltip
                   content={{
                     title: "Uptime (estimate)",
