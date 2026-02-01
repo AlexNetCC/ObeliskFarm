@@ -7,7 +7,8 @@ import { GemEv } from "./modules/gemev/GemEv";
 import { Stargazing } from "./modules/stargazing/Stargazing";
 import { Drone } from "./modules/drone/Drone";
 import { Lootbug } from "./modules/lootbug/Lootbug";
-type ModuleId = "event" | "arch" | "gemev" | "stargazing" | "drone" | "lootbug";
+import { Items } from "./modules/items/Items";
+type ModuleId = "event" | "arch" | "gemev" | "stargazing" | "drone" | "lootbug" | "items";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
@@ -28,6 +29,7 @@ export function App() {
         { id: "stargazing" as const, label: "Stargazing Calculator", icon: "sprites/stargazing/stargazing.svg" },
         { id: "drone" as const, label: "Drone", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
         { id: "lootbug" as const, label: "Lootbug", icon: "https://static.wikitide.net/shminerwiki/8/86/Lootbug_Default.png" },
+        { id: "items" as const, label: "Items", icon: "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png" },
       ] as const,
     [],
   );
@@ -102,6 +104,8 @@ export function App() {
         <Drone />
       ) : active === "lootbug" ? (
         <Lootbug />
+      ) : active === "items" ? (
+        <Items />
       ) : (
         <Stargazing />
       )}

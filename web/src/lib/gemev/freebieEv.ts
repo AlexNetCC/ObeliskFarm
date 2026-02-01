@@ -88,6 +88,9 @@ export type GameParameters = {
 
   /** Optional: combined Lootbug + Drone 10× Bomb Recharge min/h. When set, effective bomb recharge is divided by (1 + 9×uptime) so 60 min/h ⇒ ÷10. */
   bomb_recharge_10x_min_per_hour?: number;
+
+  /** Optional: Chaos Totem uptime fraction 0..1 (Bomb Recharge Rate 2× when active). Multiplicative with other bomb recharge effects. */
+  chaos_totem_uptime?: number;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -460,12 +463,14 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const bomb10xMinPerHour = typeof params.bomb_recharge_10x_min_per_hour === "number" ? Math.max(0, params.bomb_recharge_10x_min_per_hour) : 0;
   const bomb10xUptime = bomb10xMinPerHour / 60.0;
   const bomb10xFactor = 1.0 + 9.0 * bomb10xUptime;
+  const chaosTotemUptime = Math.max(0, Math.min(1, params.chaos_totem_uptime ?? 0));
+  const chaosTotemFactor = 1.0 + chaosTotemUptime; // 2× rate when active ⇒ effective rate = 1 + uptime
 
-  // Effective recharge: Game Speed (from params) and 10× buff when active; no Founder 2× speed
+  // Effective recharge: Game Speed, 10× buff, Chaos Totem (2× rate when active); no Founder 2× speed
   function effectiveRecharge(baseSeconds: number): number {
     const s = clampPositive(baseSeconds, 1);
     const afterGameSpeed = s / (1.0 + gameSpeedBonus);
-    return afterGameSpeed / bomb10xFactor;
+    return afterGameSpeed / bomb10xFactor / chaosTotemFactor;
   }
 
   const effGem = effectiveRecharge(params.gem_bomb_recharge_seconds);

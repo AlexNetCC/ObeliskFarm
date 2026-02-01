@@ -12,6 +12,9 @@ const COLORS: Record<SegmentKey, string> = {
 /** Gem Bomb bar: light gray hatched segment for 10× Bomb Recharge impact (limited uptime). */
 const GEM_BOMB_10X_BG = "rgba(0,0,0,0.06)";
 const GEM_BOMB_10X_HATCH = "rgba(0,0,0,0.08)";
+/** Chaos Totem segment: slightly darker hatch to distinguish from 10×. */
+const CHAOS_TOTEM_BG = "rgba(0,0,0,0.05)";
+const CHAOS_TOTEM_HATCH = "rgba(0,0,0,0.10)";
 
 
 function sumEntry(e: EvBreakdownEntry): number {
@@ -99,8 +102,8 @@ export function ContribLegend() {
   );
 }
 
-export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lootbugNetGemsPerHour?: number; droneFuelGemsPerHour?: number; gemBomb10xImpact?: number }) {
-  const { ev, breakdown, lootbugNetGemsPerHour, droneFuelGemsPerHour, gemBomb10xImpact } = props;
+export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lootbugNetGemsPerHour?: number; droneFuelGemsPerHour?: number; gemBomb10xImpact?: number; chaosTotemImpact?: number }) {
+  const { ev, breakdown, lootbugNetGemsPerHour, droneFuelGemsPerHour, gemBomb10xImpact, chaosTotemImpact } = props;
 
   /** Founder Bomb bar hidden (FOUNDER_BOMB_VISIBLE in GemEv). */
   const categoriesBase = [
@@ -237,6 +240,10 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
           <rect width="8" height="8" fill={GEM_BOMB_10X_BG} />
           <line x1="0" y1="0" x2="0" y2="8" stroke={GEM_BOMB_10X_HATCH} strokeWidth="1.2" />
         </pattern>
+        <pattern id="patChaosTotem" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
+          <rect width="6" height="6" fill={CHAOS_TOTEM_BG} />
+          <line x1="0" y1="0" x2="0" y2="6" stroke={CHAOS_TOTEM_HATCH} strokeWidth="1" />
+        </pattern>
       </defs>
 
       {/* Grid + X labels */}
@@ -267,10 +274,10 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
         const segs: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
         let left = 0;
         if (!isLootbugRow && !isDroneFuelRow && entry) {
-          if (isGemBombRow && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0) {
-            const basePart = Math.max(0, sumEntry(entry) - gemBomb10xImpact);
+          if (isGemBombRow && (typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 || typeof chaosTotemImpact === "number" && chaosTotemImpact > 0)) {
+            const basePart = Math.max(0, sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0));
             segs.push({ key: "base", v: basePart, x: xOf(0), w: wOf(basePart), left: 0 });
-            // 10× part drawn separately below with GEM_BOMB_10X_COLOR
+            // 10× and Chaos Totem parts drawn separately below
           } else {
             (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).forEach((k) => {
               const v = entry[k];
@@ -380,7 +387,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
             {isGemBombRow && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 ? (
               <>
                 <rect
-                  x={xOf(sumEntry(entry) - gemBomb10xImpact)}
+                  x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0))}
                   y={y0}
                   width={wOf(gemBomb10xImpact)}
                   height={barH}
@@ -390,7 +397,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
                 />
                 {wOf(gemBomb10xImpact) >= 52 ? (
                   <text
-                    x={xOf(sumEntry(entry) - gemBomb10xImpact) + wOf(gemBomb10xImpact) / 2}
+                    x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2}
                     y={labelY - 5}
                     textAnchor="middle"
                     fontSize={8}
@@ -398,8 +405,34 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
                     fill="rgba(15,23,42,0.75)"
                     style={{ pointerEvents: "none" }}
                   >
-                    <tspan x={xOf(sumEntry(entry) - gemBomb10xImpact) + wOf(gemBomb10xImpact) / 2} dy="0">10× Bomb</tspan>
-                    <tspan x={xOf(sumEntry(entry) - gemBomb10xImpact) + wOf(gemBomb10xImpact) / 2} dy="10">Recharge</tspan>
+                    <tspan x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2} dy="0">10× Bomb</tspan>
+                    <tspan x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2} dy="10">Recharge</tspan>
+                  </text>
+                ) : null}
+              </>
+            ) : null}
+            {isGemBombRow && typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 ? (
+              <>
+                <rect
+                  x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0))}
+                  y={y0}
+                  width={wOf(chaosTotemImpact)}
+                  height={barH}
+                  fill="url(#patChaosTotem)"
+                  stroke="rgba(15,23,42,0.45)"
+                  strokeWidth={0.6}
+                />
+                {wOf(chaosTotemImpact) >= 48 ? (
+                  <text
+                    x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0)) + wOf(chaosTotemImpact) / 2}
+                    y={labelY}
+                    textAnchor="middle"
+                    fontSize={8}
+                    fontWeight={800}
+                    fill="rgba(15,23,42,0.75)"
+                    style={{ pointerEvents: "none" }}
+                  >
+                    Chaos Totem
                   </text>
                 ) : null}
               </>

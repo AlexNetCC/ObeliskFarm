@@ -200,12 +200,14 @@ export function GemEv() {
       droneBomb10xMinPerHour?: number;
       lootbugNetGemsPerHour?: number;
       droneFuelGemsPerHour?: number;
+      chaosTotemUptimePct?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
     const lootbugNetGemsPerHour = typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0;
     const droneFuelGemsPerHour = typeof ext?.droneFuelGemsPerHour === "number" ? ext.droneFuelGemsPerHour : 0;
-    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour };
+    const chaosTotemUptimePct = typeof ext?.chaosTotemUptimePct === "number" ? ext.chaosTotemUptimePct : 0;
+    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
@@ -281,6 +283,7 @@ export function GemEv() {
     p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
 
     p.bomb_recharge_10x_min_per_hour = external10x.total;
+    p.chaos_totem_uptime = Math.max(0, Math.min(1, (external.chaosTotemUptimePct ?? 0) / 100));
 
     // Ensure positive time values
     p.freebie_timer_minutes = clamp(p.freebie_timer_minutes, 0.1, 10_000);
@@ -293,7 +296,7 @@ export function GemEv() {
     p.founder_bomb_speed_duration_seconds = clamp(p.founder_bomb_speed_duration_seconds, 0, 10_000);
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, external10x.total]);
+  }, [params, stonksEnabled, skillShardsEnabled, external10x.total, external.chaosTotemUptimePct]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
@@ -303,6 +306,11 @@ export function GemEv() {
   const gemBomb10xImpact = useMemo(() => {
     const without10x = calculateGemBombGemsPerHour({ ...effectiveParams, bomb_recharge_10x_min_per_hour: 0 });
     return Math.max(0, ev.gem_bomb_gems - without10x);
+  }, [effectiveParams, ev.gem_bomb_gems]);
+
+  const chaosTotemImpact = useMemo(() => {
+    const withoutChaos = calculateGemBombGemsPerHour({ ...effectiveParams, chaos_totem_uptime: 0 });
+    return Math.max(0, ev.gem_bomb_gems - withoutChaos);
   }, [effectiveParams, ev.gem_bomb_gems]);
 
   useEffect(() => {
@@ -1155,7 +1163,7 @@ export function GemEv() {
             <div className="modalBody">
               <div className="gemEvChartModalGrid">
                 <div>
-                  <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} />
+                  <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} />
                 </div>
                 <ContribLegend />
               </div>
