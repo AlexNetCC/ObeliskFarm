@@ -1,9 +1,9 @@
 // Ported from ObeliskGemEV/event/monte_carlo_optimizer.py (guided single-core MC).
 
-import { COSTS, getRewardBand } from "./constants";
+import { COSTS, getPrestigeWaveRequirement, getRewardBand } from "./constants";
 import { applyUpgrades, runFullSimulation, calculateMaterials } from "./simulation";
 import { createBaseEnemyStats, type EnemyStats, type PlayerStats } from "./stats";
-import { greedyOptimize, type Budget, type UpgradeState, copyState, createEmptyState, getMaxLevelWithCaps, isUpgradeUnlocked } from "./optimizer";
+import { greedyOptimize, type Budget, type UpgradeState, copyState, createEmptyState, getMaxLevelWithCaps, isUpgradeUnlocked, canAllocateUpgrade } from "./optimizer";
 import { mulberry32 } from "../rng";
 
 export type ProgressCallback = (currentRun: number, totalRuns: number, currentWave: number, bestWave: number) => void;
@@ -81,6 +81,7 @@ function buildCandidateState(args: {
     const affordable: Array<{ tier: 1 | 2 | 3 | 4; idx: number; cost: number; eff: number }> = [];
 
     for (const a of available) {
+      if (!canAllocateUpgrade(a.tier, a.idx, state)) continue;
       const currentLevel = state.levels[a.tier][a.idx];
       const maxLevel = getMaxLevelWithCaps(a.tier, a.idx, state);
       if (currentLevel >= maxLevel) continue;
@@ -122,6 +123,64 @@ function evaluateStateSerial(args: { state: UpgradeState; prestige: number; runs
   const { player, enemy } = applyUpgrades(state.levels, prestige, state.gemLevels);
   const sim = runFullSimulation(player, enemy, Math.max(1, runs), rng);
   return { wave: sim.avgWave, time: sim.avgTime, player, enemy };
+}
+
+export interface PrestigeReachMcResult {
+  probability: number;
+  successCount: number;
+  totalRuns: number;
+  targetWave: number;
+  meanWave: number;
+  budget: Budget;
+}
+
+/** MC: with this budget (e.g. from 1h farming), how often do we reach the next prestige wave? */
+export function prestigeReachMc(args: {
+  budget: Budget;
+  prestige: number;
+  /** If set, use this as target wave instead of (prestige+1)*5. */
+  targetWave?: number | null;
+  initialState?: UpgradeState | null;
+  numRuns?: number;
+  runsPerCombo?: number;
+  seedBase?: number | null;
+}): PrestigeReachMcResult {
+  const {
+    budget,
+    prestige,
+    targetWave: targetWaveArg = null,
+    initialState = null,
+    numRuns = 500,
+    runsPerCombo = 5,
+    seedBase = null,
+  } = args;
+  const targetWave = targetWaveArg != null ? targetWaveArg : getPrestigeWaveRequirement(prestige);
+  const state0 = initialState ? copyState(initialState) : createEmptyState();
+  const seed = (seedBase ?? (Date.now() & 0x7fffffff)) & 0x7fffffff;
+  let successCount = 0;
+  let waveSum = 0;
+
+  for (let i = 0; i < numRuns; i += 1) {
+    const opt = greedyOptimize({
+      budget: { 1: budget[1], 2: budget[2], 3: budget[3], 4: budget[4] },
+      prestige,
+      targetWave,
+      initialState: state0,
+      seed: seed + i * 1000,
+    });
+    const ev = evaluateStateSerial({ state: opt.upgrades, prestige, runs: runsPerCombo, seed: seed + i * 2000 + 1 });
+    waveSum += ev.wave;
+    if (ev.wave >= targetWave) successCount += 1;
+  }
+
+  return {
+    probability: successCount / numRuns,
+    successCount,
+    totalRuns: numRuns,
+    targetWave,
+    meanWave: waveSum / numRuns,
+    budget: { 1: budget[1], 2: budget[2], 3: budget[3], 4: budget[4] },
+  };
 }
 
 export function monteCarloOptimizeGuided(args: {

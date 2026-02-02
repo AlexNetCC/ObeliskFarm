@@ -75,6 +75,11 @@ export function getPrestigeWaveRequirement(prestige: number): number {
   return (prestige + 1) * 5;
 }
 
+/** Next prestige wave strictly after this wave (prestige milestones are 5, 10, 15, …). */
+export function getNextPrestigeWaveAfter(wave: number): number {
+  return Math.ceil((wave + 0.01) / 5) * 5;
+}
+
 /** Event reward waves: at these waves you get rewards. Used for tie-break band (highest reward wave reached). */
 export const EVENT_REWARD_WAVES: number[] = [
   2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50,

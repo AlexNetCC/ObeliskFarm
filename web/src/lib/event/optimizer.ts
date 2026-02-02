@@ -52,6 +52,13 @@ export function isUpgradeUnlocked(tier: 1 | 2 | 3 | 4, idx: number, prestige: nu
   return prestige >= PRESTIGE_UNLOCKED[tier][idx];
 }
 
+/** Within a tier, you can only allocate to an upgrade if the previous upgrade has at least 1 point. */
+export function canAllocateUpgrade(tier: 1 | 2 | 3 | 4, idx: number, state: UpgradeState): boolean {
+  if (idx <= 0) return true;
+  const prevLevel = state.levels[tier][idx - 1] ?? 0;
+  return prevLevel >= 1;
+}
+
 export function getMaxLevelWithCaps(tier: 1 | 2 | 3 | 4, upgradeIdx: number, state: UpgradeState): number {
   const baseMax = MAX_LEVELS[tier][upgradeIdx];
   const capIdx = CAP_UPGRADES[tier] - 1;
@@ -178,6 +185,7 @@ export function greedyOptimize(args: {
     for (const tier of [1, 2, 3, 4] as const) {
       for (const [idx, priority, category] of tierPriorities[tier]) {
         if (!isUpgradeUnlocked(tier, idx, prestige)) continue;
+        if (!canAllocateUpgrade(tier, idx, state)) continue;
 
         const currentLevel = state.levels[tier][idx];
         const maxLevel = getMaxLevelWithCaps(tier, idx, state);

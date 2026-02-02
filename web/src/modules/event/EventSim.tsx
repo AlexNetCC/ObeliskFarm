@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import { formatInt, formatTime } from "../../lib/format";
 import { loadJson, saveJson } from "../../lib/storage";
-import { COSTS, GEM_UPGRADE_NAMES, getRewardMilestoneDisplayLabel, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
+import { COSTS, GEM_UPGRADE_NAMES, getPrestigeWaveRequirement, getRewardMilestoneDisplayLabel, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
 import {
+  canAllocateUpgrade,
   copyState,
   createEmptyState,
   getMaxLevelWithCaps,
@@ -11,8 +12,8 @@ import {
   type OptimizationResult,
   type UpgradeState,
 } from "../../lib/event/optimizer";
-import { monteCarloOptimizeGuided, type MCOptimizationResult } from "../../lib/event/monteCarloOptimizer";
-import { applyUpgrades, getGemMaxLevel, runFullSimulation } from "../../lib/event/simulation";
+import { monteCarloOptimizeGuided, prestigeReachMc, type MCOptimizationResult, type PrestigeReachMcResult } from "../../lib/event/monteCarloOptimizer";
+import { applyUpgrades, calculateMaterials, getGemMaxLevel, runFullSimulation } from "../../lib/event/simulation";
 import { mulberry32 } from "../../lib/rng";
 import { assetUrl } from "../../lib/assets";
 import { currencyIconFilename, gemUpgradeIconFilename, upgradeIconFilename } from "../../lib/event/icons";
@@ -197,6 +198,10 @@ export function EventSim() {
   const [mcMeta, setMcMeta] = useState<{ startedAt: number; totalSims: number } | null>(null);
   const [appliedSinceLastOptimize, setAppliedSinceLastOptimize] = useState(false);
   const [resetUpgradesArmed, setResetUpgradesArmed] = useState(false);
+  const PRESTIGE_REACH_HOURS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+  const [prestigeReachMcResult, setPrestigeReachMcResult] = useState<PrestigeReachMcResult[] | null>(null);
+  const [prestigeReachMcRunning, setPrestigeReachMcRunning] = useState(false);
+  const PRESTIGE_REACH_SIGNIFICANT = 0.95;
   type ComparisonReplicateRow = {
     methodId: EventMcComparisonMethodId;
     replicateIndex: number;
@@ -462,11 +467,13 @@ export function EventSim() {
           const winnerResult = winner.replicates[0]?.result ?? optResult;
           setComparisonResult({ methodResults, winnerId: winner.methodId });
           setResult(winnerResult);
+          setPrestigeReachMcResult(null);
           setMcStats(r);
           setAppliedSinceLastOptimize(false);
           comparisonRunRef.current = null;
         } else {
           setResult(optResult);
+          setPrestigeReachMcResult(null);
           setMcStats(r);
           setAppliedSinceLastOptimize(false);
         }
@@ -508,6 +515,7 @@ export function EventSim() {
     const total = budget[1] + budget[2] + budget[3] + budget[4];
     if (total <= 0) {
       setResult(null);
+      setPrestigeReachMcResult(null);
       setError("Please enter at least some currency.");
       return;
     }
@@ -576,6 +584,7 @@ export function EventSim() {
         ];
         setMcStats(r);
         setAppliedSinceLastOptimize(false);
+        setPrestigeReachMcResult(null);
         setResult({
           upgrades: r.bestState,
           expectedWave: r.bestWave,
@@ -678,6 +687,7 @@ export function EventSim() {
     next.levels[4].fill(0);
     setUi((s) => ({ ...s, upgrades: next }));
     setResult(null);
+    setPrestigeReachMcResult(null);
     setMcStats(null);
     setError(null);
   }
@@ -702,6 +712,7 @@ export function EventSim() {
   function applyComparisonResult(optResult: OptimizationResult) {
     setUi((s) => ({ ...s, upgrades: copyState(optResult.upgrades) }));
     setResult(optResult);
+    setPrestigeReachMcResult(null);
     setAppliedSinceLastOptimize(true);
   }
 
@@ -1054,6 +1065,129 @@ export function EventSim() {
                   }}
                 />
               </div>
+
+              {(() => {
+                const budget1h: Budget =
+                  mcStats?.bestCurrencyPerHourByTier != null
+                    ? {
+                        1: Math.round(mcStats.bestCurrencyPerHourByTier[1]),
+                        2: Math.round(mcStats.bestCurrencyPerHourByTier[2]),
+                        3: Math.round(mcStats.bestCurrencyPerHourByTier[3]),
+                        4: Math.round(mcStats.bestCurrencyPerHourByTier[4]),
+                      }
+                    : (() => {
+                        const mats = calculateMaterials(result.expectedWave, result.playerStats);
+                        const scale = result.expectedTime > 0 ? 3600 / result.expectedTime : 0;
+                        return {
+                          1: Math.round(mats.mat1 * scale),
+                          2: Math.round(mats.mat2 * scale),
+                          3: Math.round(mats.mat3 * scale),
+                          4: Math.round(mats.mat4 * scale),
+                        };
+                      })();
+                const targetWave = getPrestigeWaveRequirement(ui.prestige + 1);
+                const nextPrestigeLabel = ui.prestige + 1;
+                return (
+                  <Collapsible
+                    id="event-prestige-1h"
+                    title={
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        Will I reach next prestige in X hours farming?
+                        <Tooltip
+                          content={{
+                            title: "Next prestige in 1h",
+                            sections: [
+                              {
+                                heading: "What it does",
+                                lines: [
+                                  "Assumes you apply the suggested build (Add Points) and farm 1h with it.",
+                                  "Currency from that 1h is then spent on more upgrades (greedy). MC checks whether that stronger build reaches the next prestige wave.",
+                                ],
+                              },
+                              {
+                                heading: "Budget shown",
+                                lines: ["Per-tier currency after 1h with the suggested build (expected wave and time)."],
+                              },
+                              {
+                                heading: "1h … 8h",
+                                lines: [
+                                  "Runs MC for 1h through 8h budget (e.g. overnight) so you can see how chances improve.",
+                                  "If 8h chance is still ≤ 95%, shows: Not even 8 hours farming will yield next Prestige!",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </span>
+                    }
+                    defaultExpanded={false}
+                  >
+                    <div className="small" style={{ marginBottom: 8 }}>
+                      Budget after 1h (from suggested build’s currency/h): Tier 1 {formatInt(budget1h[1])}, Tier 2 {formatInt(budget1h[2])}, Tier 3 {formatInt(budget1h[3])}, Tier 4 {formatInt(budget1h[4])}.
+                    </div>
+                    <div className="small" style={{ marginBottom: 8 }}>
+                      Next prestige (you are {ui.prestige}): wave <span className="mono">{targetWave}</span> for prestige {nextPrestigeLabel}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        className="btn"
+                        disabled={prestigeReachMcRunning}
+                        onClick={() => {
+                          setPrestigeReachMcRunning(true);
+                          setPrestigeReachMcResult(null);
+                          setTimeout(() => {
+                            try {
+                              const initial = copyState(result.upgrades);
+                              const run = (budget: Budget) =>
+                                prestigeReachMc({
+                                  budget,
+                                  prestige: ui.prestige,
+                                  targetWave,
+                                  initialState: copyState(initial),
+                                  numRuns: 500,
+                                  runsPerCombo: 5,
+                                });
+                              const results: PrestigeReachMcResult[] = [];
+                              for (let h = 1; h <= 8; h += 1) {
+                                const budgetH: Budget = {
+                                  1: budget1h[1] * h,
+                                  2: budget1h[2] * h,
+                                  3: budget1h[3] * h,
+                                  4: budget1h[4] * h,
+                                };
+                                results.push(run(budgetH));
+                              }
+                              setPrestigeReachMcResult(results);
+                            } finally {
+                              setPrestigeReachMcRunning(false);
+                            }
+                          }, 0);
+                        }}
+                      >
+                        {prestigeReachMcRunning ? "Running MC…" : "Run MC"}
+                      </button>
+                      {prestigeReachMcResult ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {prestigeReachMcResult[7].probability <= PRESTIGE_REACH_SIGNIFICANT ? (
+                            <div className="mono" style={{ color: "var(--muted)" }}>
+                              Not even 8 hours farming will yield next Prestige!
+                            </div>
+                          ) : null}
+                          {PRESTIGE_REACH_HOURS.map((h, i) => {
+                            const r = prestigeReachMcResult[i]!;
+                            return (
+                              <div key={h} className="mono">
+                                {h}h: {r.successCount}/{r.totalRuns} runs reached wave ≥ {r.targetWave} →{" "}
+                                <strong>{(r.probability * 100).toFixed(1)}%</strong> chance. Mean wave: {r.meanWave.toFixed(1)}.
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  </Collapsible>
+                );
+              })()}
             </>
           ) : (
             <div className="small">Tip: your inputs are auto-saved in this browser.</div>
@@ -1210,6 +1344,7 @@ export function EventSim() {
                   <div className="small">
                     {levels.map((lvl, idx) => {
                       const unlocked = ui.prestige >= PRESTIGE_UNLOCKED[t][idx];
+                      const canAdd = canAllocateUpgrade(t, idx, tempState);
                       const max = getMaxLevelWithCaps(t, idx, tempState);
                       const baseCost = COSTS[t][idx];
                       const nextCost = Math.round(baseCost * 1.25 ** lvl);
@@ -1276,31 +1411,33 @@ export function EventSim() {
                                 </button>
                                 <button
                                   className="btn"
-                                  disabled={lvl >= max}
+                                  disabled={lvl >= max || !canAdd}
                                   onClick={() => {
                                     setUi((s) => {
                                       const next = copyState(s.upgrades);
+                                      if (!canAllocateUpgrade(t, idx, next)) return s;
                                       const max2 = getMaxLevelWithCaps(t, idx, next);
                                       if (next.levels[t][idx] < max2) next.levels[t][idx] += 1;
                                       return { ...s, upgrades: next };
                                     });
                                   }}
-                                  title="+1"
+                                  title={!canAdd ? "Put at least 1 point in the previous upgrade in this tier first" : "+1"}
                                 >
                                   +
                                 </button>
                                 <button
                                   className="btn"
-                                  disabled={lvl >= max}
+                                  disabled={lvl >= max || !canAdd}
                                   onClick={() => {
                                     setUi((s) => {
                                       const next = copyState(s.upgrades);
+                                      if (!canAllocateUpgrade(t, idx, next)) return s;
                                       const max2 = getMaxLevelWithCaps(t, idx, next);
                                       next.levels[t][idx] = Math.min(max2, next.levels[t][idx] + 5);
                                       return { ...s, upgrades: next };
                                     });
                                   }}
-                                  title="+5"
+                                  title={!canAdd ? "Put at least 1 point in the previous upgrade in this tier first" : "+5"}
                                 >
                                   +5
                                 </button>
