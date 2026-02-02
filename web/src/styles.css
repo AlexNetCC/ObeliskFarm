@@ -193,6 +193,19 @@ body {
   animation: navWorkingHorseBlink 0.95s steps(2, end) infinite;
 }
 
+.navBetaBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(25, 118, 210, 0.95);
+  background: rgba(25, 118, 210, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 @keyframes navWorkingHorseBlink {
   0% {
     opacity: 0.25;

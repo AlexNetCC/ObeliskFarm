@@ -1,19 +1,13 @@
-/* Results first in DOM = on top on mobile; on desktop keep stats left, results right */
+/* Single column, centered (like Lootbug): all sections stacked, same width */
 .sgLayoutGrid {
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 900px) {
-  .sgLayoutGrid {
-    grid-template-columns: 420px 1fr;
-    align-items: start;
-  }
-  .sgLayoutGrid .sgLeftPanel {
-    grid-column: 1;
-  }
-  .sgLayoutGrid .rightColumn {
-    grid-column: 2;
-  }
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 200px;
+  background: #f6f7fb;
 }
 
 .sgGrid {
@@ -123,5 +117,60 @@
 .sgResultValueOrange {
   font-weight: 900;
   color: rgba(230, 81, 0, 0.95);
+}
+
+/* Star card tier toggles (like Gem EV bombs) */
+.sgCardTierRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sgCardTierRow .sgCardTierBtn {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+/* Results: view-for card star icon buttons */
+.sgResultsCardSelect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sgResultsStarButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.sgResultsStarBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.sgResultsStarBtn:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.sgResultsStarBtn.sgResultsStarBtnActive {
+  border-color: rgba(25, 118, 210, 0.5);
+  background: rgba(25, 118, 210, 0.15);
+}
+
+.sgResultsStarBtn .iconSmall {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 

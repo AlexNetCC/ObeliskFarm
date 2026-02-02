@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import { formatInt, formatTime } from "../../lib/format";
 import { loadJson, saveJson } from "../../lib/storage";
-import { COSTS, GEM_UPGRADE_NAMES, getPrestigeWaveRequirement, getRewardMilestoneDisplayLabel, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
+import { COSTS, GEM_UPGRADE_NAMES, getPrestigeWaveRequirement, getRewardMilestoneDisplayLabel, getNextRewardMilestoneAfterPrestige, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
 import {
   canAllocateUpgrade,
   copyState,
@@ -912,26 +912,66 @@ export function EventSim() {
                 <div className="mono">{result.expectedWave.toFixed(1)}</div>
                 {mcStats?.bestWaveBand != null ? (
                   <>
-                    <kbd>{mcStats.tieBreakByRewardMilestones ? "Reward milestone" : "Wave band"}</kbd>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <kbd>{mcStats.tieBreakByRewardMilestones ? "Reward milestone" : "Wave band"}</kbd>
+                      {mcStats.tieBreakByRewardMilestones ? (
+                        <Tooltip
+                          content={{
+                            title: "Reward milestone",
+                            lines: [
+                              "Next reward milestone after your current prestige (you have cleared at least wave " + getPrestigeWaveRequirement(ui.prestige) + ").",
+                            ],
+                          }}
+                        />
+                      ) : null}
+                    </span>
                     <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      Wave {mcStats.bestWaveBand}
-                      {(() => {
-                        const info = getRewardMilestoneDisplayLabel(mcStats.bestWaveBand, ui.worldMonuments);
-                        return info ? (
-                          <>
-                            {" "}
-                            (
-                            <img
-                              src={info.iconUrl}
-                              alt=""
-                              className="iconSmall"
-                              style={{ width: 18, height: 18, verticalAlign: "middle" }}
-                              referrerPolicy="no-referrer"
-                            />
-                            {info.label})
-                          </>
-                        ) : null;
-                      })()}
+                      {mcStats.tieBreakByRewardMilestones ? (
+                        (() => {
+                          const nextWave = getNextRewardMilestoneAfterPrestige(ui.prestige);
+                          const info = getRewardMilestoneDisplayLabel(nextWave, ui.worldMonuments);
+                          return (
+                            <>
+                              Wave {nextWave}
+                              {info ? (
+                                <>
+                                  {" "}
+                                  (
+                                  <img
+                                    src={info.iconUrl}
+                                    alt=""
+                                    className="iconSmall"
+                                    style={{ width: 18, height: 18, verticalAlign: "middle" }}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  {info.label})
+                                </>
+                              ) : null}
+                            </>
+                          );
+                        })()
+                      ) : (
+                        <>
+                          Wave {mcStats.bestWaveBand}
+                          {(() => {
+                            const info = getRewardMilestoneDisplayLabel(mcStats.bestWaveBand, ui.worldMonuments);
+                            return info ? (
+                              <>
+                                {" "}
+                                (
+                                <img
+                                  src={info.iconUrl}
+                                  alt=""
+                                  className="iconSmall"
+                                  style={{ width: 18, height: 18, verticalAlign: "middle" }}
+                                  referrerPolicy="no-referrer"
+                                />
+                                {info.label})
+                              </>
+                            ) : null;
+                          })()}
+                        </>
+                      )}
                     </div>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <kbd>Currency/h</kbd>

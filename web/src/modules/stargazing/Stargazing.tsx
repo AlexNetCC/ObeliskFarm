@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./stargazing.css";
+import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
@@ -30,9 +31,31 @@ type UiStats = {
   novagiant_combo_mult: number;
 };
 
+/** Star card ids that have sprites in sprites/stargazing (from main Python/assets). */
+const STAR_CARD_IDS = [
+  "aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio",
+  "sagittarius", "capricorn", "aquarius", "pisces",
+  "cetus", "draco", "eridanus", "hercules", "ophiuchus", "orion", "phoenix",
+] as const;
+
+/** Card tier: 0 = none, 1 = standard, 2 = gilded, 3 = polychrome, 4 = infernal */
+export type StarCardTier = 0 | 1 | 2 | 3 | 4;
+
+type StarCardsState = {
+  happy_bot_rank: number; // 0 = none, 1–10
+  polychrome_bundle: boolean; // Polychrome Potency Bundle 1.15x
+  infernal_bonus: number; // Infernal bonus multiplier (e.g. 8.92 for 8.92x)
+  /** Per-card tier (which card variant you have). */
+  card_tier: Record<string, StarCardTier>;
+  /** Which star's results to show (card id or null = base). */
+  /** Which star's results to show (card id; default Aries). */
+  selected_card_for_results: string;
+};
+
 type SavedStateV1 = {
   stats: Partial<UiStats>;
   ctrl_f_stars_enabled: boolean;
+  star_cards?: Partial<StarCardsState>;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:stargazing_save.json:v1";
@@ -58,6 +81,32 @@ function endsWithDecimalSeparator(raw: string): boolean {
 function fmt4(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return n.toFixed(4);
+}
+
+/** Tier toggles: Card / Gilded / Poly / Infernal. No "None" – nothing checked = no tier. */
+function StarCardTierToggles(props: {
+  value: StarCardTier;
+  onChange: (tier: StarCardTier) => void;
+}) {
+  const { value, onChange } = props;
+  const cur = value;
+  const mk = (tier: 1 | 2 | 3 | 4, label: string) => (
+    <button
+      type="button"
+      className={`btn btnSecondary sgCardTierBtn ${cur === tier ? "cardBtnActive" : ""}`}
+      onClick={() => onChange(cur === tier ? 0 : tier)}
+    >
+      {label} {cur === tier ? "✓" : ""}
+    </button>
+  );
+  return (
+    <div className="sgCardTierRow">
+      {mk(1, "Card")}
+      {mk(2, "Gilded")}
+      {mk(3, "Poly")}
+      {mk(4, "Infernal")}
+    </div>
+  );
 }
 
 function Sprite(props: { paths: string[]; alt: string; className?: string; label?: string }) {
@@ -195,16 +244,56 @@ function defaultUiStats(): UiStats {
 }
 
 export function Stargazing() {
+  const defaultStarCards = (): StarCardsState => ({
+    happy_bot_rank: 0,
+    polychrome_bundle: false,
+    infernal_bonus: 1,
+    card_tier: {},
+    selected_card_for_results: "aries",
+  });
+
+  /** Card multiplier for star gain. Same tier structure for all cards (Aries values; others may differ in-game). */
+  function getCardMultiplier(cardId: string, tier: StarCardTier): number {
+    if (tier === 0) return 1;
+    const { happy_bot_rank, polychrome_bundle, infernal_bonus } = starCards;
+    switch (tier) {
+      case 1:
+        return 1.5; // Card: e.g. Aries Star Gain 1.50×
+      case 2:
+        return 2; // Gilded: 2×
+      case 3: {
+        // Polychrome: 4×–6.62×; Happy Bot +2% per rank; bundle ×1.15
+        const base = 4;
+        const happyMult = 1 + 0.02 * happy_bot_rank; // +2% per rank
+        const bundleMult = polychrome_bundle ? 1.15 : 1;
+        return base * happyMult * bundleMult;
+      }
+      case 4: {
+        // Infernal: TotalMultiplier = 1 + (PolyBonus − 1) × InfernalBonus.
+        const polyBonus = getCardMultiplier(cardId, 3);
+        return 1 + (polyBonus - 1) * infernal_bonus;
+      }
+      default:
+        return 1;
+    }
+  }
+
   const initial = useMemo(() => {
     const base = defaultUiStats();
     const saved = loadJson<SavedStateV1>(STORAGE_KEY);
     const merged: UiStats = { ...base, ...(saved?.stats ?? {}) };
     const ctrl_f_stars_enabled = saved?.ctrl_f_stars_enabled ?? false;
-    return { stats: merged, ctrl_f_stars_enabled };
+    const star_cards: StarCardsState = {
+      ...defaultStarCards(),
+      ...(saved?.star_cards ?? {}),
+      selected_card_for_results: saved?.star_cards?.selected_card_for_results ?? "aries",
+    };
+    return { stats: merged, ctrl_f_stars_enabled, star_cards };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
   const [ctrlF, setCtrlF] = useState<boolean>(initial.ctrl_f_stars_enabled);
+  const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
   const [resetArmed, setResetArmed] = useState(false);
 
   function confirmDanger(message: string): boolean {
@@ -218,11 +307,11 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF };
+      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, star_cards: starCards };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF]);
+  }, [ui, ctrlF, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -278,6 +367,13 @@ export function Stargazing() {
     return calc.get_summary();
   }, [stats]);
 
+  /** Multiplier for selected card tier (Stars only; SS not affected). */
+  const resultsCardMult = useMemo(() => {
+    const sel = starCards.selected_card_for_results;
+    const tier = (starCards.card_tier[sel] ?? 0) as StarCardTier;
+    return getCardMultiplier(sel, tier);
+  }, [starCards.selected_card_for_results, starCards.card_tier, starCards.happy_bot_rank, starCards.polychrome_bundle, starCards.infernal_bonus]);
+
   const onlineInfo = useMemo(
     () => ({
       title: "Online Mode",
@@ -327,12 +423,36 @@ export function Stargazing() {
         <div className="badge">Stars • Super Stars • CTRL+F</div>
       </div>
 
-      <div className="grid sgLayoutGrid">
-        <div className="rightColumn">
-          <div className="panel panelResults">
+      <div className="sgLayoutGrid">
+        <div className="panel panelResults">
             <div className="panelHeader">
               <h2 className="panelTitle">Results</h2>
               <p className="panelHint">Updates instantly.</p>
+            </div>
+
+            <div className="sgResultsCardSelect" style={{ marginBottom: 10 }}>
+              <span className="small mono" style={{ opacity: 0.9 }}>View results for:</span>
+              <div className="sgResultsStarButtons">
+                {STAR_CARD_IDS.map((id) => {
+                  const name = id.charAt(0).toUpperCase() + id.slice(1);
+                  const spritePath = `sprites/stargazing/${name}.png`;
+                  const isSelected = starCards.selected_card_for_results === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`sgResultsStarBtn ${isSelected ? "sgResultsStarBtnActive" : ""}`}
+                      onClick={() => setStarCards((s) => ({ ...s, selected_card_for_results: id }))}
+                      title={name}
+                    >
+                      <Sprite paths={[spritePath]} alt={name} className="iconSmall" label={spritePath} />
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="small" style={{ opacity: 0.85 }}>
+                {starCards.selected_card_for_results.charAt(0).toUpperCase() + starCards.selected_card_for_results.slice(1)} ×{resultsCardMult.toFixed(2)}
+              </span>
             </div>
 
             <div className="kv" style={{ background: "rgba(255,255,255,0.92)" }}>
@@ -340,9 +460,9 @@ export function Stargazing() {
                 ⭐ Stars/hour (Online)
                 <Tooltip content={onlineInfo} />
               </kbd>
-              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_online)}</div>
+              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_online * resultsCardMult)}</div>
               <kbd>⭐ Stars/hour (Offline)</kbd>
-              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_offline)}</div>
+              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_offline * resultsCardMult)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
@@ -392,14 +512,79 @@ export function Stargazing() {
               </div>
             )}
           </div>
-        </div>
 
-        <div className="panel sgLeftPanel">
-          <div className="panelHeader">
-            <h2 className="panelTitle">Your stats (from game)</h2>
-            <p className="panelHint">Percent inputs are in %.</p>
-          </div>
+        <Collapsible id="stargazing-star-cards" title="Star Cards" defaultExpanded={true}>
+            <div className="sgSection" style={{ marginTop: 0 }}>
+              <table className="sgStarCardsTable mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9em" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(15,23,42,0.2)" }}>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Card</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Your tier</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STAR_CARD_IDS.map((id) => {
+                    const name = id.charAt(0).toUpperCase() + id.slice(1);
+                    const spritePath = `sprites/stargazing/${name}.png`;
+                    const tier = (starCards.card_tier[id] ?? 0) as StarCardTier;
+                    return (
+                      <tr key={id} style={{ borderBottom: "1px solid rgba(15,23,42,0.1)" }}>
+                        <td style={{ padding: "6px 8px", display: "flex", alignItems: "center", gap: 6 }}>
+                          <Sprite paths={[spritePath]} alt={name} className="iconSmall" label={spritePath} />
+                          {name}
+                        </td>
+                        <td style={{ padding: "6px 8px" }}>
+                          <StarCardTierToggles
+                            value={tier}
+                            onChange={(t) => setStarCards((s) => ({ ...s, card_tier: { ...s.card_tier, [id]: t } }))}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="sgRows" style={{ marginTop: 12 }}>
+                <Stepper
+                  label="Happy Bot Pet Quest rank (0 = none)"
+                  value={starCards.happy_bot_rank}
+                  onChange={(v) => setStarCards((s) => ({ ...s, happy_bot_rank: clamp(v, 0, 10) }))}
+                  step={1}
+                  min={0}
+                  max={10}
+                  decimals={0}
+                  inputMode="numeric"
+                />
+                <div className="sgRow" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div className="sgLabel" style={{ marginBottom: 0, flex: 1 }}>
+                    <span className="sgLabelName">Polychrome Potency Bundle! (×1.15)</span>
+                  </div>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={starCards.polychrome_bundle}
+                      onChange={(e) => setStarCards((s) => ({ ...s, polychrome_bundle: e.target.checked }))}
+                    />
+                    Value Pack active
+                  </label>
+                </div>
+                <Stepper
+                  label="Infernal Bonus (×)"
+                  value={starCards.infernal_bonus}
+                  onChange={(v) => setStarCards((s) => ({ ...s, infernal_bonus: v }))}
+                  step={0.01}
+                  min={0}
+                  max={1_000}
+                  decimals={2}
+                />
+              </div>
+              <div className="small" style={{ marginTop: 10, opacity: 0.85 }}>
+                Happy Bot: Rank Up at Level 225+. Ranks 1–10 XP: 150, 225, 335, 505, 760, 1,140, 1,710, 2,560, 3,845, 5,765.
+              </div>
+            </div>
+          </Collapsible>
 
+        <Collapsible id="stargazing-your-stats" title="Your stats (from game)" defaultExpanded={true} className="sgLeftPanel" headerRight={<span className="small" style={{ opacity: 0.85 }}>Percent inputs are %.</span>}>
           <div className="sgGrid">
             {/* CTRL+F should be at the very top (matches desktop emphasis). */}
             <div className="sgSection" style={{ background: "rgba(227,242,253,0.55)" }}>
@@ -718,6 +903,7 @@ export function Stargazing() {
                   setResetArmed(false);
                   if (!confirmDanger("Reset all inputs to defaults?")) return;
                   setUi(defaultUiStats());
+                  setStarCards(defaultStarCards());
                 }}
                 title={resetArmed ? "Click again to confirm (then confirm dialog)." : "Click once to arm, click again to confirm."}
               >
@@ -726,7 +912,7 @@ export function Stargazing() {
               <Tooltip content={{ title: "Reset", lines: ["Restores the default values for all inputs."] }} />
             </div>
           </div>
-        </div>
+        </Collapsible>
       </div>
     </div>
   );

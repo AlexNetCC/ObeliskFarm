@@ -197,15 +197,14 @@ export class StargazingCalculator {
   /**
    * Calculate expected number of super stars per super star spawn event.
    *
-   * Accounts for:
-   * - Triple super star chance (3 instead of 1)
-   * - 10x super star spawn chance (10 instead of 1)
+   * Triple and 10x are mutually exclusive outcomes (1, 3, or 10 super stars per spawn).
+   * Expected = 1×(1−p_triple−p_10x) + 3×p_triple + 10×p_10x = 1 + 2×p_triple + 9×p_10x.
    */
   calculate_super_stars_per_spawn(): number {
-    let base_count = 1;
-    base_count *= 1 + clamp01(this.stats.triple_super_star_chance) * 2; // +2 additional on triple
-    base_count *= 1 + clamp01(this.stats.super_star_10x_chance) * 9; // +9 additional on 10x
-    return base_count;
+    const p_triple = clamp01(this.stats.triple_super_star_chance);
+    const p_10x = clamp01(this.stats.super_star_10x_chance);
+    const p_single = Math.max(0, 1 - p_triple - p_10x);
+    return 1 * p_single + 3 * p_triple + 10 * p_10x;
   }
  
   /** Calculate expected multiplier per super star from special effects. */

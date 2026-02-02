@@ -64,9 +64,15 @@ export function App() {
               <Sprite path={m.icon} alt={m.label} className="icon" />
               <span className="navTileLabel">
                 <span>{m.label}</span>
-                {(m.id === "event" || m.id === "arch" || m.id === "gemev") && (
+                {(m.id === "event" || m.id === "arch") && (
                   <span className="navWorkingHorse" aria-hidden="true" title="Main module">
                     ❤
+                  </span>
+                )}
+                {m.id === "stargazing" && (
+                  <span className="navBetaBadge" aria-hidden="true">
+                    BETA
+                    <Tooltip content={{ title: "WIP", lines: ["Work in progress."] }} />
                   </span>
                 )}
               </span>

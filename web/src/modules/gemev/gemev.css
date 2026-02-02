@@ -2,22 +2,16 @@
    Gem EV module (layout parity)
    ============================ */
 
+/* Single column, centered (like Lootbug): all sections stacked, same width */
 .gemEvGrid {
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 980px) {
-  .gemEvGrid {
-    grid-template-columns: 460px 1fr;
-    align-items: start;
-  }
-  /* Results first in DOM = on top on mobile; on desktop keep Parameters left, Results right */
-  .gemEvGrid .gemEvLeftPanel {
-    grid-column: 1;
-  }
-  .gemEvGrid .rightColumn {
-    grid-column: 2;
-  }
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 200px;
+  background: #f6f7fb;
 }
 
 .gemEvLeftPanel {

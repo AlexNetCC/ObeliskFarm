@@ -96,6 +96,15 @@ export function getRewardBand(wave: number): number {
   return band;
 }
 
+/** Next reward milestone wave strictly after the wave required for this prestige (you have cleared at least that). */
+export function getNextRewardMilestoneAfterPrestige(prestige: number): number {
+  const cleared = getPrestigeWaveRequirement(prestige);
+  for (const w of EVENT_REWARD_WAVES) {
+    if (w > cleared) return w;
+  }
+  return EVENT_REWARD_WAVES[EVENT_REWARD_WAVES.length - 1] ?? cleared + 5;
+}
+
 const REWARD_ICON_BASE = "https://static.wikitide.net/shminerwiki";
 
 type RewardMilestoneEntry = {

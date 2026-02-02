@@ -82,20 +82,22 @@ function Stepper(props: {
 }) {
   const { label, value, onChange, step = 1, min = -Infinity, max = Infinity, inputMode = "decimal", decimals = 2, disabled = false, showButtons = true } = props;
   const isEditingRef = useRef(false);
-  const [raw, setRaw] = useState<string>(() => (Number.isFinite(value) ? String(value) : ""));
+  const formatDisplay = (v: number) => (Number.isFinite(v) ? v.toFixed(decimals) : "");
+  const [raw, setRaw] = useState<string>(() => formatDisplay(value));
 
   useEffect(() => {
     // Keep input in sync with external value, but don't fight the user's typing.
     if (isEditingRef.current) return;
-    setRaw(Number.isFinite(value) ? String(value) : "");
-  }, [value]);
+    setRaw(formatDisplay(value));
+  }, [value, decimals]);
 
   function commit() {
     const n = parseNumber(raw);
     const next = clamp(n, min, max);
-    onChange(next);
+    const rounded = Number.isFinite(next) ? Number(next.toFixed(decimals)) : next;
+    onChange(rounded);
     isEditingRef.current = false;
-    setRaw(Number.isFinite(next) ? String(next) : "");
+    setRaw(formatDisplay(rounded));
   }
 
   return (
@@ -477,18 +479,16 @@ export function GemEv() {
 
   return (
     <div className="container">
-      <div className="header">
-        <div>
-          <h1 className="title">Gem EV Calculator</h1>
-          <p className="subtitle">Matches the desktop Gem EV layout: colored sections + contribution bar chart + Gift-EV.</p>
+      <div className="gemEvGrid">
+        <div className="header">
+          <div>
+            <h1 className="title">Gem EV Calculator</h1>
+            <p className="subtitle">Matches the desktop Gem EV layout: colored sections + contribution bar chart + Gift-EV.</p>
+          </div>
+          <div className="badge">Freebies • Founder • Bombs</div>
         </div>
-        <div className="badge">Freebies • Founder • Bombs</div>
-      </div>
 
-      <div className="grid gemEvGrid">
-        {/* Results first in DOM so it appears on top in single-column layout */}
-        <div className="rightColumn">
-          <div className="panel panelResults">
+        <div className="panel panelResults">
             <div className="panelHeader">
               <h2 className="panelTitle">Results</h2>
               <p className="panelHint">Updates instantly.</p>
@@ -525,10 +525,8 @@ export function GemEv() {
               />
             </div>
           </div>
-        </div>
 
-        <div className="gemEvLeftPanel">
-          <Collapsible
+        <Collapsible
             id="gemev-freebie"
             title="FREEBIE"
             defaultExpanded={false}
@@ -574,6 +572,7 @@ export function GemEv() {
                       min={1}
                       max={10}
                       decimals={2}
+                      showButtons={false}
                     />
                   </div>
                   <Tooltip
@@ -1207,34 +1206,33 @@ export function GemEv() {
               </div>
             </div>
           </Collapsible>
-        </div>
-      </div>
 
-      {chartOpen ? (
-        <div className="modalOverlay" onMouseDown={() => setChartOpen(false)}>
-          <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="modalHeader">
-              <div>
-                <div className="mono" style={{ fontWeight: 900 }}>
-                  Overview chart
+        {chartOpen ? (
+          <div className="modalOverlay" onMouseDown={() => setChartOpen(false)}>
+            <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="modalHeader">
+                <div>
+                  <div className="mono" style={{ fontWeight: 900 }}>
+                    Overview chart
+                  </div>
+                  <div className="small">Stacked: Base / Jackpot / Refresh (Base) / Refresh (Jackpot)</div>
                 </div>
-                <div className="small">Stacked: Base / Jackpot / Refresh (Base) / Refresh (Jackpot)</div>
+                <button className="btn btnSecondary" type="button" onClick={() => setChartOpen(false)}>
+                  Close
+                </button>
               </div>
-              <button className="btn btnSecondary" type="button" onClick={() => setChartOpen(false)}>
-                Close
-              </button>
-            </div>
-            <div className="modalBody">
-              <div className="gemEvChartBlock">
-                <div className="gemEvChartLegendTop">
-                  <ContribLegend />
+              <div className="modalBody">
+                <div className="gemEvChartBlock">
+                  <div className="gemEvChartLegendTop">
+                    <ContribLegend />
+                  </div>
+                  <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} chargeMagnetImpact={chargeMagnetImpactResolved} />
                 </div>
-                <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} chargeMagnetImpact={chargeMagnetImpactResolved} />
               </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

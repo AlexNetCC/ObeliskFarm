@@ -587,10 +587,6 @@ export function Drone() {
                 ],
               }}
             />
-            <div className="droneRow">
-              <span className="droneLabel">→ Fuel duration</span>
-              <span className="droneStepperValue">+{state.fuelDurationUpgradeLevel}%</span>
-            </div>
             <Stepper
               label="Fuel Save Chance +1% / level"
               value={state.fuelSaveChanceUpgradeLevel}
