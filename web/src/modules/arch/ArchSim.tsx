@@ -2502,13 +2502,21 @@ export function ArchSim() {
                       const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
                       const locked = build.unlockedStage < stageUnlock;
                       const nextCost = getUpgradeCost(key, lvl);
+                      const isMaxed = !locked && lvl >= maxLvl;
                       return (
-                        <div key={key} className="fragmentUpgradeRow" style={locked ? undefined : heatStyle(lvl)}>
+                        <div
+                          key={key}
+                          className="fragmentUpgradeRow"
+                          style={{
+                            ...(locked ? undefined : heatStyle(lvl)),
+                            ...(isMaxed ? { color: "#888" } : undefined),
+                          }}
+                        >
                           <div className="fragmentUpgradeTop">
                             <div className="mono" style={{ fontWeight: 900 }}>
                               {info.display_name}
                             </div>
-                            <div className="fragmentUpgradeRight upgradeLevel">
+                            <div className="fragmentUpgradeRight upgradeLevel" style={isMaxed ? { color: "#888" } : undefined}>
                               {locked ? (
                                 <span className="small">
                                   <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {stageUnlock}</span>
@@ -2516,7 +2524,7 @@ export function ArchSim() {
                               ) : (
                                 <>
                                   <span className="small">lvl</span>{" "}
-                                  <span className="heatNum mono" style={heatStyle(lvl)}>
+                                  <span className="heatNum mono" style={isMaxed ? { color: "#888" } : heatStyle(lvl)}>
                                     {lvl}
                                   </span>{" "}
                                   <span className="small">/</span> <span className="mono">{maxLvl}</span>
@@ -2529,20 +2537,37 @@ export function ArchSim() {
                               <div className="small">
                                 next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
                               </div>
-                              <div className="btnRow fragmentUpgradeButtons" style={{ marginTop: 8 }}>
-                                <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -5)} disabled={lvl <= 0 || mcRunning}>
-                                  −5
-                                </button>
-                                <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -1)} disabled={lvl <= 0 || mcRunning}>
-                                  −
-                                </button>
-                                <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={lvl >= maxLvl || mcRunning}>
-                                  +
-                                </button>
-                                <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={lvl >= maxLvl || mcRunning}>
-                                  +5
-                                </button>
-                              </div>
+                              {lvl >= maxLvl ? (
+                                <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
+                                  <span
+                                    className="fragmentUpgradeMaxed"
+                                    style={{
+                                      background: "hsl(120, 45%, 35%)",
+                                      color: "#fff",
+                                      padding: "6px 12px",
+                                      borderRadius: 6,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    Maxed
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="btnRow fragmentUpgradeButtons" style={{ marginTop: 8 }}>
+                                  <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -5)} disabled={lvl <= 0 || mcRunning}>
+                                    −5
+                                  </button>
+                                  <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -1)} disabled={lvl <= 0 || mcRunning}>
+                                    −
+                                  </button>
+                                  <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={lvl >= maxLvl || mcRunning}>
+                                    +
+                                  </button>
+                                  <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={lvl >= maxLvl || mcRunning}>
+                                    +5
+                                  </button>
+                                </div>
+                              )}
                             </>
                           ) : null}
                         </div>
