@@ -3,15 +3,19 @@ import "./items.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { loadJson, saveJson } from "../../lib/storage";
-import { calculateLuckyMultiplier, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateChargeMagnetGemsPerHour, calculateLuckyMultiplier, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
+const CHARGE_MAGNET_ICON = "https://static.wikitide.net/shminerwiki/f/fc/Charge_Magnet.png";
 
 /** Base: one of 12 Gift outcomes is "25–40 Item Chests" (avg 32.5). Lucky multiplier (3×/50× rolls) applied. */
 const CHESTS_PER_GIFT_BASE = 32.5 / 12;
+
+/** Charge Magnet obtain chance from Item Chests (%), from wiki. Not user input. */
+const CHARGE_MAGNET_OBTAIN_CHANCE_PCT = 2.6;
 
 type ItemsState = {
   chaosTotemDurationMin: number;
@@ -90,7 +94,16 @@ export function Items() {
 
 
   /** Chests per hour = freebie chests/h (Gem EV; jackpot=5 chests, refresh=+1 chest) + stonks chests/h + Lootbug "+1 Item Chest" per hour. */
-  const ext = loadJson<{ freebiesPerHour?: number; freebieChestsPerHour?: number; stonksChestsPerHour?: number; lootbugItemChestsPerHour?: number; chaosTotemImpact?: number }>(GEMEV_EXTERNAL_KEY);
+  const ext = loadJson<{
+    freebiesPerHour?: number;
+    freebieChestsPerHour?: number;
+    stonksChestsPerHour?: number;
+    lootbugItemChestsPerHour?: number;
+    chaosTotemImpact?: number;
+    total10xMinPerHour?: number;
+    lootbugBomb10xMinPerHour?: number;
+    droneBomb10xMinPerHour?: number;
+  }>(GEMEV_EXTERNAL_KEY);
   const freebieChestsPerHour =
     typeof ext?.freebieChestsPerHour === "number" ? ext.freebieChestsPerHour : (typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0);
   const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
@@ -110,11 +123,34 @@ export function Items() {
     chaosTotemsPerHour * (durationGameMin / gameSpeedMult);
   const expectedUptimeFraction = Math.min(1, Math.max(0, expectedUptimeMinPerHour / 60));
 
+  /** Params for Charge Magnet value: same merge as Gem EV (bomb settings + 10× min/h + Chaos Totem uptime). */
+  const effectiveParamsForChargeMagnet = (() => {
+    const base = defaultGameParameters();
+    const saved = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
+    const merged: GameParameters = { ...base, ...(saved?.params ?? {}) };
+    const total10x = typeof ext?.total10xMinPerHour === "number"
+      ? ext.total10xMinPerHour
+      : (ext?.lootbugBomb10xMinPerHour ?? 0) + (ext?.droneBomb10xMinPerHour ?? 0);
+    merged.bomb_recharge_10x_min_per_hour = total10x;
+    merged.chaos_totem_uptime = expectedUptimeFraction;
+    return merged;
+  })();
+  const chargeMagnetGemsPerHour = calculateChargeMagnetGemsPerHour(effectiveParamsForChargeMagnet, 20);
+  /** Expected Charge Magnets per hour from Item Chests. */
+  const chargeMagnetsPerHour = itemsPerHourFromChests * (CHARGE_MAGNET_OBTAIN_CHANCE_PCT / 100);
+  const chargeMagnetGemEvPerHour = chargeMagnetsPerHour * chargeMagnetGemsPerHour;
+
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.chaosTotemUptimePct = expectedUptimeFraction * 100;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [expectedUptimeFraction]);
+
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.chargeMagnetImpact = chargeMagnetGemEvPerHour;
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [chargeMagnetGemEvPerHour]);
 
   return (
     <div className="itemsGrid">
@@ -373,6 +409,52 @@ export function Items() {
                 className={`itemsValue mono ${chaosTotemImpact > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
               >
                 {chaosTotemImpact > 0 ? `+${chaosTotemImpact.toFixed(1)} Gem/h` : "—"}
+              </span>
+            </div>
+          </div>
+
+          <div className="itemsChargeMagnet">
+            <div className="itemsChaosTotemHeader">
+              <img src={CHARGE_MAGNET_ICON} alt="" className="itemsItemIcon" aria-hidden />
+              <span className="itemsItemName">Charge Magnet</span>
+            </div>
+            <div className="itemsChaosTotemEffect">
+              1 Charge Magnet → 20 charges to every bomb (Gem, Cherry, Battery, D20)
+            </div>
+            <div className="itemsRow">
+              <span className="itemsLabel">
+                Average Charge Magnets / h
+                <Tooltip
+                  content={{
+                    title: "Average Charge Magnets / h",
+                    lines: [
+                      "Expected Charge Magnets per hour from Item Chests.",
+                      "Formula: Items per hour (from chests) × 2.6% (obtain chance from wiki).",
+                    ],
+                  }}
+                />
+              </span>
+              <span className="itemsValue mono">
+                {chargeMagnetsPerHour.toFixed(2)}
+              </span>
+            </div>
+            <div className="itemsRow itemsChaosTotemGemEvRow">
+              <span className="itemsLabel">
+                → Gem EV (FYI)
+                <Tooltip
+                  content={{
+                    title: "Gem EV (FYI)",
+                    lines: [
+                      "Contribution of Charge Magnets from chests to Gem EV per hour.",
+                      "Formula: Average Charge Magnets / h × value of one Charge Magnet (from Gem EV bomb settings).",
+                    ],
+                  }}
+                />
+              </span>
+              <span
+                className={`itemsValue mono ${chargeMagnetGemEvPerHour > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
+              >
+                {chargeMagnetGemEvPerHour > 0 ? `+${chargeMagnetGemEvPerHour.toFixed(1)} Gem/h` : "—"}
               </span>
             </div>
           </div>

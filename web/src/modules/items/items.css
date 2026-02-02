@@ -38,6 +38,13 @@
   margin-top: 0;
 }
 
+.itemsChargeMagnet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .itemsChestsBarBlock {
   margin-bottom: 4px;
 }
