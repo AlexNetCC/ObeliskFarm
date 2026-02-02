@@ -86,6 +86,10 @@ type McLogEntry = {
     targetFrag?: BlockType;
     objective: "stage" | "XP" | "frag";
     objectiveSamples: number[]; // usually 3000 samples
+    /** Avg stamina remaining at end of each stage (stage -> avg). Only for stage objective. */
+    avgStaminaAtEndOfStage?: Record<number, number>;
+    /** Std dev of stamina at end of each stage (stage -> std). Only for stage objective. */
+    stdStaminaAtEndOfStage?: Record<number, number>;
     tieBreak?: {
       mode: "stage" | "XP" | "frag";
       epsilon: number;
@@ -231,6 +235,7 @@ export function ArchSim() {
   const [resetAllArmed, setResetAllArmed] = useState(false);
   const [resetMcLogArmed, setResetMcLogArmed] = useState(false);
   const [deleteLogArmedId, setDeleteLogArmedId] = useState<string | null>(null);
+  const [staminaOverviewOpen, setStaminaOverviewOpen] = useState(false);
   const [mcRunning, setMcRunning] = useState(false);
   const [mcProgress, setMcProgress] = useState<string | null>(null);
   const [mcActiveMode, setMcActiveMode] = useState<null | "frag" | "XP" | "stage">(null);
@@ -325,6 +330,11 @@ export function ArchSim() {
     const t = window.setTimeout(() => setResetMcLogArmed(false), 4500);
     return () => window.clearTimeout(t);
   }, [resetMcLogArmed]);
+
+  useEffect(() => {
+    if (openLogId != null) return;
+    setStaminaOverviewOpen(false);
+  }, [openLogId]);
 
   useEffect(() => {
     if (!mcRunning) return;
@@ -1043,6 +1053,9 @@ export function ArchSim() {
         let sampleCount = 0;
         const sumFragsByType: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
         const FRAG_TYPES_STAGE = ["common", "rare", "epic", "legendary", "mythic"] as const;
+        const staminaAtStageSum: Record<number, number> = {};
+        const staminaAtStageSumSq: Record<number, number> = {};
+        const staminaAtStageCount: Record<number, number> = {};
 
         const tasks: Promise<void>[] = [];
         let submitted = 0;
@@ -1078,6 +1091,14 @@ export function ArchSim() {
                 for (const k of FRAG_TYPES_STAGE) sumFragsByType[k] += Number(runFragsByType[k]?.[i] ?? 0);
                 sampleCount += 1;
               }
+              if (mode === "stage") {
+                const sum = (out as { stamina_at_stage_sum?: Record<number, number> }).stamina_at_stage_sum;
+                const sumSq = (out as { stamina_at_stage_sum_sq?: Record<number, number> }).stamina_at_stage_sum_sq;
+                const cnt = (out as { stamina_at_stage_count?: Record<number, number> }).stamina_at_stage_count;
+                if (sum) for (const [s, v] of Object.entries(sum)) { const k = Math.trunc(Number(s)); staminaAtStageSum[k] = (staminaAtStageSum[k] ?? 0) + Number(v); }
+                if (sumSq) for (const [s, v] of Object.entries(sumSq)) { const k = Math.trunc(Number(s)); staminaAtStageSumSq[k] = (staminaAtStageSumSq[k] ?? 0) + Number(v); }
+                if (cnt) for (const [s, v] of Object.entries(cnt)) { const k = Math.trunc(Number(s)); staminaAtStageCount[k] = (staminaAtStageCount[k] ?? 0) + Number(v); }
+              }
               done += n;
               setMcProgress(`Final sims (${done}/${totalFinal})`);
             });
@@ -1110,6 +1131,21 @@ export function ArchSim() {
         const fragmentsPerHourByType: Record<string, number> = {};
         if (sumDur > 0) for (const k of FRAG_TYPES_STAGE) fragmentsPerHourByType[k] = (sumFragsByType[k] ?? 0) * (3600.0 / sumDur);
 
+        const avgStaminaAtEndOfStage: Record<number, number> = {};
+        const stdStaminaAtEndOfStage: Record<number, number> = {};
+        if (mode === "stage") {
+          for (const s of Object.keys(staminaAtStageSum)) {
+            const stage = Math.trunc(Number(s));
+            const cnt = staminaAtStageCount[stage] ?? 0;
+            if (cnt > 0) {
+              const sum = staminaAtStageSum[stage] ?? 0;
+              const sumSq = staminaAtStageSumSq[stage] ?? 0;
+              avgStaminaAtEndOfStage[stage] = sum / cnt;
+              const variance = Math.max(0, sumSq / cnt - (sum / cnt) ** 2);
+              stdStaminaAtEndOfStage[stage] = Math.sqrt(variance);
+            }
+          }
+        }
         const entry: McLogEntry = {
           id: `mc_${Date.now()}_${Math.random().toString(16).slice(2)}`,
           createdAt: Date.now(),
@@ -1131,7 +1167,17 @@ export function ArchSim() {
             fragmentsPerHourByType,
             blockBreakdown: blockBreakdownEarly,
           },
-          mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples },
+          mc: {
+            archLevel,
+            screeningSims,
+            refinementSims,
+            targetFrag: mode === "frag" ? targetFrag : undefined,
+            objective: mode,
+            objectiveSamples,
+            ...(Object.keys(avgStaminaAtEndOfStage).length > 0
+              ? { avgStaminaAtEndOfStage, stdStaminaAtEndOfStage: Object.keys(stdStaminaAtEndOfStage).length > 0 ? stdStaminaAtEndOfStage : undefined }
+              : {}),
+          },
         };
         if (opts?.returnResult) {
           const primary =
@@ -1372,6 +1418,9 @@ export function ArchSim() {
       let sampleCount = 0;
       const sumFragsByTypeRef: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
       const FRAG_TYPES_REF = ["common", "rare", "epic", "legendary", "mythic"] as const;
+      const staminaAtStageSumRef: Record<number, number> = {};
+      const staminaAtStageSumSqRef: Record<number, number> = {};
+      const staminaAtStageCountRef: Record<number, number> = {};
 
       const tasks: Promise<void>[] = [];
       let submitted = 0;
@@ -1406,6 +1455,14 @@ export function ArchSim() {
               sumTotalFrags += Number(totals[i] ?? 0);
               for (const k of FRAG_TYPES_REF) sumFragsByTypeRef[k] += Number(runFragsByType[k]?.[i] ?? 0);
               sampleCount += 1;
+            }
+            if (mode === "stage") {
+              const sum = (out as { stamina_at_stage_sum?: Record<number, number> }).stamina_at_stage_sum;
+              const sumSq = (out as { stamina_at_stage_sum_sq?: Record<number, number> }).stamina_at_stage_sum_sq;
+              const cnt = (out as { stamina_at_stage_count?: Record<number, number> }).stamina_at_stage_count;
+              if (sum) for (const [s, v] of Object.entries(sum)) { const k = Math.trunc(Number(s)); staminaAtStageSumRef[k] = (staminaAtStageSumRef[k] ?? 0) + Number(v); }
+              if (sumSq) for (const [s, v] of Object.entries(sumSq)) { const k = Math.trunc(Number(s)); staminaAtStageSumSqRef[k] = (staminaAtStageSumSqRef[k] ?? 0) + Number(v); }
+              if (cnt) for (const [s, v] of Object.entries(cnt)) { const k = Math.trunc(Number(s)); staminaAtStageCountRef[k] = (staminaAtStageCountRef[k] ?? 0) + Number(v); }
             }
             done += n;
             setMcProgress(`Phase 3: Final sims (${done}/${totalFinal})`);
@@ -1448,6 +1505,21 @@ export function ArchSim() {
       const fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
       const fragmentsPerHourByTypeRef: Record<string, number> = {};
       if (sumDur > 0) for (const k of FRAG_TYPES_REF) fragmentsPerHourByTypeRef[k] = (sumFragsByTypeRef[k] ?? 0) * (3600.0 / sumDur);
+      const avgStaminaAtEndOfStageRef: Record<number, number> = {};
+      const stdStaminaAtEndOfStageRef: Record<number, number> = {};
+      if (mode === "stage") {
+        for (const s of Object.keys(staminaAtStageSumRef)) {
+          const stage = Math.trunc(Number(s));
+          const cnt = staminaAtStageCountRef[stage] ?? 0;
+          if (cnt > 0) {
+            const sum = staminaAtStageSumRef[stage] ?? 0;
+            const sumSq = staminaAtStageSumSqRef[stage] ?? 0;
+            avgStaminaAtEndOfStageRef[stage] = sum / cnt;
+            const variance = Math.max(0, sumSq / cnt - (sum / cnt) ** 2);
+            stdStaminaAtEndOfStageRef[stage] = Math.sqrt(variance);
+          }
+        }
+      }
       const entry: McLogEntry = {
         id: `mc_${Date.now()}_${Math.random().toString(16).slice(2)}`,
         createdAt: Date.now(),
@@ -1469,7 +1541,21 @@ export function ArchSim() {
           fragmentsPerHourByType: fragmentsPerHourByTypeRef,
           blockBreakdown,
         },
-        mc: { archLevel, screeningSims, refinementSims, targetFrag: mode === "frag" ? targetFrag : undefined, objective: mode, objectiveSamples, tieBreak: tieBreakReport },
+        mc: {
+          archLevel,
+          screeningSims,
+          refinementSims,
+          targetFrag: mode === "frag" ? targetFrag : undefined,
+          objective: mode,
+          objectiveSamples,
+          ...(Object.keys(avgStaminaAtEndOfStageRef).length > 0
+            ? {
+                avgStaminaAtEndOfStage: avgStaminaAtEndOfStageRef,
+                stdStaminaAtEndOfStage: Object.keys(stdStaminaAtEndOfStageRef).length > 0 ? stdStaminaAtEndOfStageRef : undefined,
+              }
+            : {}),
+          tieBreak: tieBreakReport,
+        },
       };
       if (opts?.returnResult) {
         const primary =
@@ -1678,8 +1764,12 @@ export function ArchSim() {
     title: ReactNode;
     xLabel: string;
     ariaLabel?: string;
+    /** When set and kind === "stage", show flame above highest-stage bar. */
+    gradientIdPrefix?: string;
+    /** When set, flame is clickable and calls this (e.g. open stamina-at-stage overview). */
+    onFlameClick?: () => void;
   }): ReactNode {
-    const { samples, kind, title, xLabel, ariaLabel } = args;
+    const { samples, kind, title, xLabel, ariaLabel, gradientIdPrefix, onFlameClick } = args;
     if (!samples.length) return null;
     const W = 560;
     const H = 184; // extra space for x-axis labels
@@ -1723,6 +1813,17 @@ export function ArchSim() {
     const barW = (W - pad * 2) / counts.length;
     const plotH = H - pad * 2 - axisH;
     const totalSamples = xs.length;
+    // Rightmost (highest-stage) bar with count > 0: show flame above it when kind === "stage"
+    let highlightBarIndex = -1;
+    if (kind === "stage" && gradientIdPrefix != null) {
+      for (let i = counts.length - 1; i >= 0; i--) {
+        if (counts[i]! > 0) {
+          highlightBarIndex = i;
+          break;
+        }
+      }
+    }
+    const showFlameAboveBar = kind === "stage" && highlightBarIndex >= 0 && gradientIdPrefix != null;
     const bars = counts.map((c, i) => {
       const h = (plotH * c) / maxC;
       const x = pad + i * barW;
@@ -1794,7 +1895,51 @@ export function ArchSim() {
         <div className="histPlotRow">
           <div className="histYAxis">Frequency</div>
           <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="histSvg" aria-label={ariaLabel ?? (typeof title === "string" ? title : "Histogram")}>
+            {showFlameAboveBar ? (
+              <defs>
+                <filter id="archFlameFade" colorInterpolationFilters="sRGB">
+                  <feColorMatrix type="saturate" values="0.55" />
+                  <feComponentTransfer>
+                    <feFuncA type="linear" slope="0.88" />
+                  </feComponentTransfer>
+                </filter>
+              </defs>
+            ) : null}
             {bars}
+            {showFlameAboveBar ? (() => {
+              const i = highlightBarIndex;
+              const c = counts[i]!;
+              const barH = (plotH * c) / maxC;
+              const barTop = H - pad - axisH - barH;
+              const barCenterX = pad + (i + 0.5) * barW;
+              const flameW = 28;
+              const flameH = 32;
+              const flameImg = (
+                <image
+                  href={assetUrl("sprites/arch/flame.gif")}
+                  x={barCenterX - flameW / 2}
+                  y={barTop - flameH}
+                  width={flameW}
+                  height={flameH}
+                  filter="url(#archFlameFade)"
+                  aria-hidden="true"
+                />
+              );
+              return onFlameClick ? (
+                <g
+                  key="flame"
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFlameClick();
+                  }}
+                >
+                  {flameImg}
+                </g>
+              ) : (
+                <g key="flame">{flameImg}</g>
+              );
+            })() : null}
             {barLabels}
             {/* x axis baseline */}
             <line
@@ -3470,6 +3615,11 @@ export function ArchSim() {
                         {renderHistogramCard({
                           samples: openLog.mc.objectiveSamples ?? [],
                           kind: openLog.mc.objective === "stage" ? "stage" : "rate",
+                          gradientIdPrefix: openLog.mc.objective === "stage" ? openLog.id : undefined,
+                          onFlameClick:
+                            openLog.mc.objective === "stage" && openLog.mc.avgStaminaAtEndOfStage
+                              ? () => setStaminaOverviewOpen(true)
+                              : undefined,
                           title: (
                             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                               {skillTitle}
@@ -3489,6 +3639,74 @@ export function ArchSim() {
                       </div>
                     );
                   })()}
+
+                  {staminaOverviewOpen && openLog?.mc?.objective === "stage" && openLog.mc.avgStaminaAtEndOfStage ? (
+                    <div
+                      className="modalBackdrop"
+                      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+                      onClick={() => setStaminaOverviewOpen(false)}
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="Avg stamina at end of stage"
+                    >
+                      <div
+                        className="panel"
+                        style={{
+                          background: "var(--tier2)",
+                          padding: 16,
+                          borderRadius: 10,
+                          maxWidth: 360,
+                          boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                          <div className="mono" style={{ fontWeight: 900, fontSize: 14 }}>
+                            Avg stamina at end of stage
+                          </div>
+                          <button type="button" className="btn btnSecondary" onClick={() => setStaminaOverviewOpen(false)}>
+                            Close
+                          </button>
+                        </div>
+                        <div className="small" style={{ marginBottom: 10, color: "var(--muted)" }}>
+                          Over all max-stage runs: average stamina remaining when that stage was completed.
+                        </div>
+                        <table className="mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid rgba(15,23,42,0.2)" }}>
+                              <th style={{ textAlign: "left", padding: "6px 8px" }}>Stage</th>
+                              <th style={{ textAlign: "right", padding: "6px 8px" }}>Avg stamina left ± SD</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const avg = openLog.mc.avgStaminaAtEndOfStage!;
+                              const std = openLog.mc.stdStaminaAtEndOfStage ?? {};
+                              const samples = openLog.mc.objectiveSamples ?? [];
+                              const maxStage = samples.length ? Math.max(0, ...samples.map((x) => Number(x))) : 0;
+                              const stages = Array.from({ length: Math.max(0, maxStage - 1) }, (_, i) => i + 1);
+                              return stages.map((s) => {
+                                const m = avg[s] ?? 0;
+                                const sd = std[s];
+                                const sdStr = sd != null && Number.isFinite(sd) ? (sd < 10 ? sd.toFixed(1) : formatInt(Math.round(sd))) : "";
+                                return (
+                                  <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                                    <td style={{ padding: "6px 8px" }}>{s}</td>
+                                    <td style={{ textAlign: "right", padding: "6px 8px" }}>
+                                      {sdStr ? `${formatInt(Math.round(m))} ± ${sdStr}` : formatInt(Math.round(m))}
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
+                          </tbody>
+                        </table>
+                        <p className="small" style={{ marginTop: 10, color: "var(--muted)" }}>
+                          End of max stage = 0 (run ended there).
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {openLog.mc.tieBreak ? (
                     <Collapsible

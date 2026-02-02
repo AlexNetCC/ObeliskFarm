@@ -29,6 +29,8 @@ export type McRunMetrics = {
   run_duration_seconds: number;
   total_hits: number;
   block_breakdown?: McBlockBreakdown | null;
+  /** Stamina remaining at end of each completed stage (stage index -> stamina). Used for avg stamina-at-stage overview. */
+  stamina_at_end_of_stage?: Record<number, number>;
 };
 
 export type McRunOptions = {
@@ -223,6 +225,7 @@ export class MonteCarloArchaeologySimulator {
     let floors_cleared = 0;
     let current_floor = starting_floor;
     let max_stage_reached = starting_floor;
+    const stamina_at_end_of_stage: Record<number, number> = {};
 
     const fragments_by_type: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
     const fragment_mult = Number(stats.fragment_mult ?? 1.0);
@@ -392,6 +395,7 @@ export class MonteCarloArchaeologySimulator {
         floors_cleared += 1;
         current_floor += 1;
         max_stage_reached = current_floor;
+        stamina_at_end_of_stage[current_floor - 1] = stamina_remaining;
 
         if (track_blocks) {
           for (const [bt, v] of Object.entries(floor_hits_by_type)) block_hits_by_type[bt] = (block_hits_by_type[bt] ?? 0) + v;
@@ -462,6 +466,7 @@ export class MonteCarloArchaeologySimulator {
       xp_per_run: total_xp,
       run_duration_seconds,
       total_hits,
+      stamina_at_end_of_stage: Object.keys(stamina_at_end_of_stage).length > 0 ? stamina_at_end_of_stage : undefined,
       ...(track_blocks ? { block_breakdown } : {}),
     };
   }

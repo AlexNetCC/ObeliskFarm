@@ -44,6 +44,9 @@ function runStageLite(payload: any) {
   const FRAG_TYPES = ["common", "rare", "epic", "legendary", "mythic"] as const;
   const run_fragments_by_type: Record<string, number[]> = {};
   for (const k of FRAG_TYPES) run_fragments_by_type[k] = [];
+  const stamina_at_stage_sum: Record<number, number> = {};
+  const stamina_at_stage_sum_sq: Record<number, number> = {};
+  const stamina_at_stage_count: Record<number, number> = {};
 
   for (let i = 0; i < Math.max(0, Math.trunc(payload.n_sims)); i += 1) {
     const r: any = sim.simulateRun(payload.stats, payload.starting_floor, { ...payload.options, return_block_metrics: false }, payload.cardCfg);
@@ -54,6 +57,17 @@ function runStageLite(payload: any) {
     run_duration_seconds_samples.push(Number(r.run_duration_seconds ?? 1));
     if (tfrag) target_frag_samples.push(Number(r.fragments?.[tfrag] ?? 0));
     for (const k of FRAG_TYPES) run_fragments_by_type[k].push(Number(r.fragments?.[k] ?? 0));
+    const stam: Record<number, number> | undefined = r.stamina_at_end_of_stage;
+    if (stam && typeof stam === "object") {
+      for (const [stageStr, val] of Object.entries(stam)) {
+        const stage = Math.trunc(Number(stageStr));
+        const v = Number(val);
+        if (!Number.isFinite(stage) || !Number.isFinite(v)) continue;
+        stamina_at_stage_sum[stage] = (stamina_at_stage_sum[stage] ?? 0) + v;
+        stamina_at_stage_sum_sq[stage] = (stamina_at_stage_sum_sq[stage] ?? 0) + v * v;
+        stamina_at_stage_count[stage] = (stamina_at_stage_count[stage] ?? 0) + 1;
+      }
+    }
   }
 
   return {
@@ -64,6 +78,9 @@ function runStageLite(payload: any) {
     run_duration_seconds_samples,
     target_frag_samples: tfrag ? target_frag_samples : null,
     run_fragments_by_type,
+    stamina_at_stage_sum: Object.keys(stamina_at_stage_sum).length > 0 ? stamina_at_stage_sum : undefined,
+    stamina_at_stage_sum_sq: Object.keys(stamina_at_stage_sum_sq).length > 0 ? stamina_at_stage_sum_sq : undefined,
+    stamina_at_stage_count: Object.keys(stamina_at_stage_count).length > 0 ? stamina_at_stage_count : undefined,
   };
 }
 
