@@ -50,6 +50,10 @@ function heatmapColor(pct: number): string {
   return `hsl(${hue}, 70%, 45%)`;
 }
 
+const FUEL_SAVE_CHANCE_ICON = "https://static.wikitide.net/shminerwiki/1/1a/Fuel_Save_Chance.png";
+const COAL_ICON = "https://static.wikitide.net/shminerwiki/thumb/a/a7/Coal.png/30px-Coal.png";
+const UPGRADES_ICON = "https://static.wikitide.net/shminerwiki/4/4b/Upgrades_Button.png";
+
 type ElixirState = {
   gameSpeedMultiplier: number;
   elixirSuitLevel: number;
@@ -59,6 +63,8 @@ type ElixirState = {
   gasolineGuzzler: boolean;
   fuelDurationUpgradeLevel: number;
   fuelSaveChanceUpgradeLevel: number;
+  /** Upgrade Fuel Save Chance (%), additive with Coal Fuel Save. Decimal allowed. */
+  upgradeFuelSaveChancePct: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v2";
@@ -83,6 +89,7 @@ const DEFAULT: ElixirState = {
   gasolineGuzzler: true,
   fuelDurationUpgradeLevel: 19,
   fuelSaveChanceUpgradeLevel: 0,
+  upgradeFuelSaveChancePct: 0,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -107,8 +114,9 @@ function NumInput(props: {
   suffix?: string;
   decimals?: number;
   tooltip?: { title: string; lines: string[] };
+  iconUrl?: string;
 }) {
-  const { label, value, onChange, min = 0, max = 1e6, step = 1, suffix, decimals = 2, tooltip } = props;
+  const { label, value, onChange, min = 0, max = 1e6, step = 1, suffix, decimals = 2, tooltip, iconUrl } = props;
   const isEditingRef = useRef(false);
   const [raw, setRaw] = useState<string>(() => (Number.isFinite(value) ? String(value) : ""));
 
@@ -125,13 +133,17 @@ function NumInput(props: {
     setRaw(Number.isFinite(next) ? next.toFixed(decimals).replace(/\.?0+$/, "") : "");
   }
 
-  const labelNode = tooltip ? (
-    <span className="droneLabel">
-      {label}{" "}
-      <Tooltip content={{ title: tooltip.title, lines: tooltip.lines }} />
+  const labelContent = (
+    <>
+      {iconUrl ? <img src={iconUrl} alt="" className="droneSkillIcon" aria-hidden /> : null}
+      <span>{label}</span>
+      {tooltip ? <Tooltip content={{ title: tooltip.title, lines: tooltip.lines }} /> : null}
+    </>
+  );
+  const labelNode = (
+    <span className="droneLabel" style={iconUrl ? { display: "inline-flex", alignItems: "center", gap: 8 } : undefined}>
+      {labelContent}
     </span>
-  ) : (
-    <span className="droneLabel">{label}</span>
   );
 
   return (
@@ -277,6 +289,7 @@ export function Drone() {
     s.gameSpeedMultiplier = clamp(s.gameSpeedMultiplier, 1, 10);
     s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_FUEL_DURATION_MAX_LEVEL);
     s.fuelSaveChanceUpgradeLevel = clamp(s.fuelSaveChanceUpgradeLevel, 0, COAL_FUEL_SAVE_MAX_LEVEL);
+    s.upgradeFuelSaveChancePct = clamp(s.upgradeFuelSaveChancePct ?? DEFAULT.upgradeFuelSaveChancePct, 0, 100);
     // Restore checkboxes from saved so they persist (avoid undefined from old saves)
     s.fishingUnlocked = typeof migrated.fishingUnlocked === "boolean" ? migrated.fishingUnlocked : DEFAULT.fishingUnlocked;
     s.fueled = typeof migrated.fueled === "boolean" ? migrated.fueled : DEFAULT.fueled;
@@ -341,13 +354,13 @@ export function Drone() {
     return Math.min(60, (b.sec / cycleSec) * 60);
   }, [numBuffs, intervalSec, buffDurations]);
 
-  /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. */
+  /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. Save chance = Coal Fuel Save + Upgrade Fuel Save (additive), capped at 1. */
   const fuelGemsPerHour = useMemo(() => {
     if (fuelDurationSecReal <= 0) return 0;
     const fuelsPerHour = 3600 / fuelDurationSecReal;
-    const saveChance = state.fuelSaveChanceUpgradeLevel / 100;
+    const saveChance = Math.min(1, state.fuelSaveChanceUpgradeLevel / 100 + state.upgradeFuelSaveChancePct / 100);
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
-  }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel]);
+  }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
   useEffect(() => {
     const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
@@ -552,44 +565,73 @@ export function Drone() {
           <p className="droneHint" style={{ marginTop: 4, marginBottom: 0 }}>
             From Drone Buffs table: 3:30 at grade 0, +0:10.5 per grade; × (1 + Coal Fuel Duration %); × 1.2 if Gasoline Guzzler. Real time = game time ÷ game speed.
           </p>
-          <div className="droneSubTitle">Coal Upgrades (level with +/−)</div>
-          <Stepper
-            label="Fuel Duration +1% / level"
-            value={state.fuelDurationUpgradeLevel}
-            onChange={(n) => update({ fuelDurationUpgradeLevel: n })}
-            min={0}
-            max={COAL_FUEL_DURATION_MAX_LEVEL}
-            step={1}
-            stepLarge={5}
-            suffix=""
-            tooltip={{
-              title: "Fuel Duration",
-              lines: [
-                "Coal Upgrade: Fuel Duration +1% per level, max 20.",
-                "Effective: +" + state.fuelDurationUpgradeLevel + "%.",
-              ],
-            }}
-          />
-          <div className="droneRow">
-            <span className="droneLabel">→ Fuel duration</span>
-            <span className="droneStepperValue">+{state.fuelDurationUpgradeLevel}%</span>
+          <div className="droneCoalUpgradesBlock">
+            <div className="droneBlockHeader">
+              <img src={COAL_ICON} alt="" className="droneBlockHeaderIcon" aria-hidden />
+              <span className="droneBlockHeaderTitle">Coal Upgrades</span>
+            </div>
+            <Stepper
+              label="Fuel Duration +1% / level"
+              value={state.fuelDurationUpgradeLevel}
+              onChange={(n) => update({ fuelDurationUpgradeLevel: n })}
+              min={0}
+              max={COAL_FUEL_DURATION_MAX_LEVEL}
+              step={1}
+              stepLarge={5}
+              suffix=""
+              tooltip={{
+                title: "Fuel Duration",
+                lines: [
+                  "Coal Upgrade: Fuel Duration +1% per level, max 20.",
+                  "Effective: +" + state.fuelDurationUpgradeLevel + "%.",
+                ],
+              }}
+            />
+            <div className="droneRow">
+              <span className="droneLabel">→ Fuel duration</span>
+              <span className="droneStepperValue">+{state.fuelDurationUpgradeLevel}%</span>
+            </div>
+            <Stepper
+              label="Fuel Save Chance +1% / level"
+              value={state.fuelSaveChanceUpgradeLevel}
+              onChange={(n) => update({ fuelSaveChanceUpgradeLevel: n })}
+              min={0}
+              max={COAL_FUEL_SAVE_MAX_LEVEL}
+              step={1}
+              stepLarge={5}
+              suffix=""
+              tooltip={{
+                title: "Fuel Save Chance",
+                lines: [
+                  "Coal Upgrade: Fuel Save Chance +1% per level, max 20.",
+                  "Additive with Upgrade → Fuel Save Chance below.",
+                ],
+              }}
+            />
           </div>
-          <Stepper
-            label="Fuel Save Chance +1% / level"
-            value={state.fuelSaveChanceUpgradeLevel}
-            onChange={(n) => update({ fuelSaveChanceUpgradeLevel: n })}
-            min={0}
-            max={COAL_FUEL_SAVE_MAX_LEVEL}
-            step={1}
-            stepLarge={5}
-            suffix=""
-            tooltip={{
-              title: "Fuel Save Chance",
-              lines: [
-                "Coal Upgrade: Fuel Save Chance +1% per level, max 20.",
-              ],
-            }}
-          />
+          <div className="droneUpgradesBlock">
+            <div className="droneBlockHeader">
+              <img src={UPGRADES_ICON} alt="" className="droneBlockHeaderIcon" aria-hidden />
+              <span className="droneBlockHeaderTitle">Upgrades</span>
+            </div>
+            <NumInput
+              label="Fuel Save Chance"
+              iconUrl={FUEL_SAVE_CHANCE_ICON}
+              value={state.upgradeFuelSaveChancePct}
+              onChange={(n) => update({ upgradeFuelSaveChancePct: clamp(n, 0, 100) })}
+              min={0}
+              max={100}
+              step={0.5}
+              decimals={2}
+              suffix="%"
+              tooltip={{
+                title: "Upgrade → Fuel Save Chance",
+                lines: [
+                  "Additional Fuel Save Chance (%), e.g. from other upgrades. Additive with Coal Fuel Save Chance above.",
+                ],
+              }}
+            />
+          </div>
           {state.fueled ? (
             <div className="droneRow droneFuelGemsRow">
               <span className="droneFuelGemsLabel">
@@ -610,6 +652,7 @@ export function Drone() {
                           heading: "Formula",
                           lines: [
                             "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                            "Fuel Save Chance = Coal Fuel Save (+1%/level) + Upgrade → Fuel Save Chance (additive).",
                           ],
                         },
                       ],
