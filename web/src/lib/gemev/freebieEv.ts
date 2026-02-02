@@ -483,7 +483,14 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   return baseGems + bonusGems + giftGems;
 }
 
-export function calculateGemBombGemsPerHour(params: GameParameters): number {
+/**
+ * Gem EV per hour from bomb cycle. Optional extraClicksPerBomb: add that many clicks per hour to each bomb type
+ * (e.g. 20 for one Charge Magnet giving 20 charges to every bomb).
+ */
+export function calculateGemBombGemsPerHour(
+  params: GameParameters,
+  extraClicksPerBomb: number = 0
+): number {
   const secondsPerHour = 3600.0;
   const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: multiplicative with bomb recharge (not supply drop)
 
@@ -519,10 +526,10 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const batteryClicksBase = (secondsPerHour / effBattery) * batteryMult;
   const d20ClicksBase = (secondsPerHour / effD20) * d20Mult;
 
-  const gemClicks0 = gemClicksBase * freeBombMult;
-  const cherryClicks0 = cherryClicksBase * freeBombMult;
-  const batteryClicks0 = batteryClicksBase * freeBombMult;
-  const d20Clicks0 = d20ClicksBase * freeBombMult;
+  const gemClicks0 = gemClicksBase * freeBombMult + extraClicksPerBomb;
+  const cherryClicks0 = cherryClicksBase * freeBombMult + extraClicksPerBomb;
+  const batteryClicks0 = batteryClicksBase * freeBombMult + extraClicksPerBomb;
+  const d20Clicks0 = d20ClicksBase * freeBombMult + extraClicksPerBomb;
 
   // Refill rates (per click of the source) to EACH target bomb (expected value per target).
   const totalBombTypes = Math.max(2, clampInt(params.total_bomb_types, 12));
@@ -587,6 +594,11 @@ export function calculateGemBombGemsPerHour(params: GameParameters): number {
   const gemChance = clamp01(params.gem_bomb_gem_chance) + getGemBombGemChanceT12Bonus(params);
   const gemsPerHour = totalGemBombClicks * gemChance;
   return gemsPerHour;
+}
+
+/** Gem EV equivalent of one Charge Magnet: 20 charges added to every bomb (gem, cherry, battery, d20) per hour. */
+export function calculateChargeMagnetGemsPerHour(params: GameParameters, chargesPerMagnet: number = 20): number {
+  return calculateGemBombGemsPerHour(params, chargesPerMagnet) - calculateGemBombGemsPerHour(params, 0);
 }
 
 /** Founder bomb 2× speed procs: no longer in EV (user sets Game Speed at top). */
