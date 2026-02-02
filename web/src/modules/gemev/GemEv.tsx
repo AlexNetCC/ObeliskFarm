@@ -5,6 +5,7 @@ import { Tooltip } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
+  calculateChargeMagnetGemsPerHour,
   calculateEvBreakdown,
   calculateFreebieChestsPerHour,
   calculateFreebiesPerHour,
@@ -28,6 +29,7 @@ type SavedStateV1 = {
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 /** Set true to show Founder Bomb section and chart bar again. */
 const FOUNDER_BOMB_VISIBLE = false;
 
@@ -204,13 +206,19 @@ export function GemEv() {
       lootbugNetGemsPerHour?: number;
       droneFuelGemsPerHour?: number;
       chaosTotemUptimePct?: number;
+      chargeMagnetImpact?: number;
+      lootbugItemChestsPerHour?: number;
+      itemsPerChest?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
     const lootbugNetGemsPerHour = typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0;
     const droneFuelGemsPerHour = typeof ext?.droneFuelGemsPerHour === "number" ? ext.droneFuelGemsPerHour : 0;
     const chaosTotemUptimePct = typeof ext?.chaosTotemUptimePct === "number" ? ext.chaosTotemUptimePct : 0;
-    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct };
+    const chargeMagnetImpact = typeof ext?.chargeMagnetImpact === "number" ? ext.chargeMagnetImpact : 0;
+    const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
+    const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
+    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
@@ -324,6 +332,17 @@ export function GemEv() {
     return calculateStonksChestsPerHour(effectiveParams);
   }, [stonksEnabled, effectiveParams]);
 
+  /** Charge Magnet impact: from Items (external) when set, else computed here so the overview chart shows it without opening Items. */
+  const chargeMagnetImpactResolved = useMemo(() => {
+    const ext = loadJson<{ chargeMagnetImpact?: number; lootbugItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
+    if (typeof ext?.chargeMagnetImpact === "number") return ext.chargeMagnetImpact;
+    const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0);
+    const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
+    const chargeMagnetsPerHour = chestsPerHour * itemsPerChest * 0.026;
+    const valuePerMagnet = calculateChargeMagnetGemsPerHour(effectiveParams, 20);
+    return chargeMagnetsPerHour * valuePerMagnet;
+  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour]);
+
   useEffect(() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
@@ -345,7 +364,7 @@ export function GemEv() {
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour]);
 
-  const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour;
+  const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
 
   const marginal = useMemo(() => {
     const p2: GameParameters = { ...effectiveParams, freebie_gems_base: effectiveParams.freebie_gems_base + 1.0 };
@@ -1044,7 +1063,13 @@ export function GemEv() {
                   <CardToggles value={params.gem_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, gem_bomb_recharge_card_level: lvl }))} />
                 </div>
                 <Stepper
-                  label="Recharge (Seconds)"
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Recharge (seconds, without Chaos Totem{" "}
+                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
+                      )
+                    </span>
+                  }
                   value={params.gem_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, gem_bomb_recharge_seconds: v }))}
                   step={0.01}
@@ -1077,7 +1102,13 @@ export function GemEv() {
                   <CardToggles value={params.cherry_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, cherry_bomb_recharge_card_level: lvl }))} />
                 </div>
                 <Stepper
-                  label="Recharge (Seconds)"
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Recharge (seconds, without Chaos Totem{" "}
+                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
+                      )
+                    </span>
+                  }
                   value={params.cherry_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_recharge_seconds: v }))}
                   step={0.01}
@@ -1110,7 +1141,13 @@ export function GemEv() {
                   <CardToggles value={params.battery_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, battery_bomb_recharge_card_level: lvl }))} />
                 </div>
                 <Stepper
-                  label="Recharge (Seconds)"
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Recharge (seconds, without Chaos Totem{" "}
+                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
+                      )
+                    </span>
+                  }
                   value={params.battery_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, battery_bomb_recharge_seconds: v }))}
                   step={0.01}
@@ -1134,7 +1171,13 @@ export function GemEv() {
                   <CardToggles value={params.d20_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, d20_bomb_recharge_card_level: lvl }))} />
                 </div>
                 <Stepper
-                  label="Recharge (Seconds)"
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Recharge (seconds, without Chaos Totem{" "}
+                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
+                      )
+                    </span>
+                  }
                   value={params.d20_bomb_recharge_seconds}
                   onChange={(v) => setParams((s) => ({ ...s, d20_bomb_recharge_seconds: v }))}
                   step={0.01}
@@ -1186,7 +1229,7 @@ export function GemEv() {
                 <div className="gemEvChartLegendTop">
                   <ContribLegend />
                 </div>
-                <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} />
+                <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} chargeMagnetImpact={chargeMagnetImpactResolved} />
               </div>
             </div>
           </div>

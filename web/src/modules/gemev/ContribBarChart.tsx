@@ -16,9 +16,13 @@ const GEM_BOMB_10X_HATCH = "rgba(0,0,0,0.08)";
 /** Chaos Totem segment: slightly darker hatch to distinguish from 10×. */
 const CHAOS_TOTEM_BG = "rgba(0,0,0,0.05)";
 const CHAOS_TOTEM_HATCH = "rgba(0,0,0,0.10)";
+/** Charge Magnet segment (from Item Chests). */
+const CHARGE_MAGNET_BG = "rgba(0,0,0,0.04)";
+const CHARGE_MAGNET_HATCH = "rgba(0,0,0,0.09)";
 
 const BOMB_RECHARGE_10X_ICON = "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
+const CHARGE_MAGNET_ICON = "https://static.wikitide.net/shminerwiki/f/fc/Charge_Magnet.png";
 const SEGMENT_ICON_SIZE = 12;
 
 
@@ -106,8 +110,8 @@ export function ContribLegend() {
   );
 }
 
-export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lootbugNetGemsPerHour?: number; droneFuelGemsPerHour?: number; gemBomb10xImpact?: number; chaosTotemImpact?: number }) {
-  const { ev, breakdown, lootbugNetGemsPerHour, droneFuelGemsPerHour, gemBomb10xImpact, chaosTotemImpact } = props;
+export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lootbugNetGemsPerHour?: number; droneFuelGemsPerHour?: number; gemBomb10xImpact?: number; chaosTotemImpact?: number; chargeMagnetImpact?: number }) {
+  const { ev, breakdown, lootbugNetGemsPerHour, droneFuelGemsPerHour, gemBomb10xImpact, chaosTotemImpact, chargeMagnetImpact } = props;
 
   /** Founder Bomb bar hidden (FOUNDER_BOMB_VISIBLE in GemEv). */
   const categoriesBase = [
@@ -130,28 +134,30 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
   const founderGems = breakdown.founder_gems;
   const gemBomb = breakdown.gem_bomb_gems;
 
+  const totalForPct =
+    ev.total +
+    (hasLootbug && typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0) +
+    (hasDroneFuel && typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0) +
+    (chargeMagnetImpact ?? 0);
+  const gemBombValueForDisplay = ev.gem_bomb_gems + (chargeMagnetImpact ?? 0);
   const valuesTopBase: number[] = [
     ev.gems_base,
     ev.stonks_ev,
     ev.skill_shards_ev,
     ev.founder_speed_boost + ev.founder_gems,
-    ev.gem_bomb_gems,
+    gemBombValueForDisplay,
   ];
   const valuesTop = [
     ...valuesTopBase,
     ...(hasLootbug ? [lootbugNetGemsPerHour!] : []),
     ...(hasDroneFuel ? [droneFuelGemsPerHour!] : []),
   ];
-  const totalForPct =
-    ev.total +
-    (hasLootbug && typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0) +
-    (hasDroneFuel && typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0);
   const pctsBase: number[] = [
-    pct(ev.gems_base, ev.total),
-    pct(ev.stonks_ev, ev.total),
-    pct(ev.skill_shards_ev, ev.total),
-    pct(ev.founder_speed_boost + ev.founder_gems, ev.total),
-    pct(ev.gem_bomb_gems, ev.total),
+    pct(ev.gems_base, totalForPct),
+    pct(ev.stonks_ev, totalForPct),
+    pct(ev.skill_shards_ev, totalForPct),
+    pct(ev.founder_speed_boost + ev.founder_gems, totalForPct),
+    pct(gemBombValueForDisplay, totalForPct),
   ];
   const pcts = [
     ...pctsBase,
@@ -253,6 +259,10 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
           <rect width="6" height="6" fill={CHAOS_TOTEM_BG} />
           <line x1="0" y1="0" x2="0" y2="6" stroke={CHAOS_TOTEM_HATCH} strokeWidth="1" />
         </pattern>
+        <pattern id="patChargeMagnet" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+          <rect width="6" height="6" fill={CHARGE_MAGNET_BG} />
+          <line x1="0" y1="0" x2="0" y2="6" stroke={CHARGE_MAGNET_HATCH} strokeWidth="1" />
+        </pattern>
       </defs>
 
       {/* Grid + X labels */}
@@ -289,7 +299,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
         const segs: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
         let left = 0;
         if (!isLootbugRow && !isDroneFuelRow && entry) {
-          if (isGemBombRow && (typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 || typeof chaosTotemImpact === "number" && chaosTotemImpact > 0)) {
+          if (isGemBombRow && (typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 || typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 || typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0)) {
             const basePart = Math.max(0, sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0));
             segs.push({ key: "base", v: basePart, x: xOf(0), w: wOf(basePart), left: 0 });
             // 10× and Chaos Totem parts drawn separately below
@@ -327,7 +337,9 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
             ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
             : i === 3
               ? founderSpeedTotal + founderGemsTotal
-              : sumEntry(entry);
+              : isGemBombRow
+                ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
+                : sumEntry(entry);
         const barStartX = isLootbugRow
           ? (typeof lootbugNetGemsPerHour === "number" ? Math.min(0, lootbugNetGemsPerHour) : 0)
           : isDroneFuelRow
@@ -439,6 +451,31 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
                   <image
                     href={CHAOS_TOTEM_ICON}
                     x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0)) + wOf(chaosTotemImpact) / 2 - SEGMENT_ICON_SIZE / 2}
+                    y={y0 + barH / 2 - SEGMENT_ICON_SIZE / 2}
+                    width={SEGMENT_ICON_SIZE}
+                    height={SEGMENT_ICON_SIZE}
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ pointerEvents: "none" }}
+                    aria-hidden
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {isGemBombRow && typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0 ? (
+              <>
+                <rect
+                  x={xOf(sumEntry(entry))}
+                  y={y0}
+                  width={wOf(chargeMagnetImpact)}
+                  height={barH}
+                  fill="url(#patChargeMagnet)"
+                  stroke="rgba(15,23,42,0.45)"
+                  strokeWidth={0.6}
+                />
+                {wOf(chargeMagnetImpact) >= SEGMENT_ICON_SIZE + 4 ? (
+                  <image
+                    href={CHARGE_MAGNET_ICON}
+                    x={xOf(sumEntry(entry)) + wOf(chargeMagnetImpact) / 2 - SEGMENT_ICON_SIZE / 2}
                     y={y0 + barH / 2 - SEGMENT_ICON_SIZE / 2}
                     width={SEGMENT_ICON_SIZE}
                     height={SEGMENT_ICON_SIZE}
