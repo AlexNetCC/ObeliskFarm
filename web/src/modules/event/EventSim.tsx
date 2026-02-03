@@ -1066,11 +1066,15 @@ export function EventSim() {
                     </div>
                     {picked.length ? (
                       <ul className="list">
-                        {picked.map(({ idx, add }) => (
-                          <li key={idx}>
-                            <span className="mono" style={{ whiteSpace: "pre-line" }}>{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono">{add}</span>
-                          </li>
-                        ))}
+                        {picked.map(({ idx, add, lvl }) => {
+                          const max = getMaxLevelWithCaps(tier as 1 | 2 | 3 | 4, idx, result.upgrades);
+                          return (
+                            <li key={idx}>
+                              <span className="mono" style={{ whiteSpace: "pre-line" }}>{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono">{add}</span>
+                              <span className="small" style={{ color: "var(--muted)", marginLeft: 6 }}>(→ lvl {lvl}/{max})</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <div className="small">No upgrades purchased in this tier.</div>

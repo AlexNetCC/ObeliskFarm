@@ -411,7 +411,7 @@ export function GemEv() {
         {
           heading: "Special drops",
           lines: [
-            "Skill Shards: chance + gem-equivalent value.",
+            "Skill Shards: chance only (value is fixed).",
             "Stonks: collapsible section. Stonks (1% chance, 200 Gems base) + multiplier. Super Stonks only when Stonks hit; Ultra only when Super hit. Each tier has its own multiplier; Stonks all multiplier applies to the sum.",
           ],
         },
@@ -643,7 +643,15 @@ export function GemEv() {
                     <Tooltip
                       content={{
                         title: "Why include Skill Shards in EV",
-                        lines: ["Skill Shards have a gem-equivalent value (from selling or from the value of upgrades they enable). Including them makes the total EV comparable across different sources of income."],
+                        sections: [
+                          {
+                            heading: "Value",
+                            lines: [
+                              "1 skill point = 125 Gems → 1 skill shard = 12.5 Gems (fixed).",
+                              "Only the chance is editable.",
+                            ],
+                          },
+                        ],
                       }}
                       label="?"
                     />
@@ -662,16 +670,6 @@ export function GemEv() {
                     step={1}
                     min={0}
                     max={100}
-                    decimals={1}
-                    disabled={!skillShardsEnabled}
-                  />
-                  <Stepper
-                    label="Skill Shard Value (Gems)"
-                    value={params.skill_shard_value_gems}
-                    onChange={(v) => setParams((s) => ({ ...s, skill_shard_value_gems: v }))}
-                    step={0.5}
-                    min={0}
-                    max={9999}
                     decimals={1}
                     disabled={!skillShardsEnabled}
                   />
