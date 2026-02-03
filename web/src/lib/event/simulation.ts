@@ -119,7 +119,7 @@ export function simulateEventRun(player: PlayerStats, enemy: EnemyStats, rng: Rn
         if (pAtkTimeLeft > eAtkTimeLeft) {
           // enemy attacks
           pAtkProg += (eAtkTimeLeft / enemyAtkSpeed) * atkSpeed;
-          eAtkProg -= 1;
+          eAtkProg = 0;
 
           let dmg = Math.max(1, roundNumber(enemy.atk + wave * enemy.atkScaling));
 
@@ -139,7 +139,7 @@ export function simulateEventRun(player: PlayerStats, enemy: EnemyStats, rng: Rn
           // player attacks
           const enemyAtkSpeed = enemy.atkSpeed + wave * 0.02;
           eAtkProg += (pAtkTimeLeft / atkSpeed) * enemyAtkSpeed;
-          pAtkProg -= 1;
+          pAtkProg = 0;
 
           let dmg = player.atk;
           if (player.crit > 0 && rng() * 100 <= player.crit) {

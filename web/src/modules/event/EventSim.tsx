@@ -202,6 +202,9 @@ export function EventSim() {
   const [prestigeReachMcResult, setPrestigeReachMcResult] = useState<PrestigeReachMcResult[] | null>(null);
   const [prestigeReachMcRunning, setPrestigeReachMcRunning] = useState(false);
   const PRESTIGE_REACH_SIGNIFICANT = 0.95;
+  const [waveHistogramOpen, setWaveHistogramOpen] = useState(false);
+  const [waveHistogramSamples, setWaveHistogramSamples] = useState<number[] | null>(null);
+  const [waveHistogramLoading, setWaveHistogramLoading] = useState(false);
   type ComparisonReplicateRow = {
     methodId: EventMcComparisonMethodId;
     replicateIndex: number;
@@ -909,7 +912,31 @@ export function EventSim() {
             <>
               <div className="kv" style={{ marginTop: 10 }}>
                 <kbd>Estimated wave</kbd>
-                <div className="mono">{result.expectedWave.toFixed(1)}</div>
+                <div className="mono" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  {result.expectedWave.toFixed(1)}
+                  <button
+                    type="button"
+                    className="btn btnSecondary"
+                    style={{ padding: "4px 8px", fontSize: 12, minHeight: "auto" }}
+                    title="Wave distribution histogram"
+                    disabled={waveHistogramLoading}
+                    onClick={() => {
+                      if (!result) return;
+                      setWaveHistogramOpen(true);
+                      setWaveHistogramLoading(true);
+                      setWaveHistogramSamples(null);
+                      setTimeout(() => {
+                        const rng = mulberry32((Date.now() & 0x7fffffff) >>> 0);
+                        const sim = runFullSimulation(result.playerStats, result.enemyStats, 500, rng);
+                        const waves = sim.results.map((r) => r[0]);
+                        setWaveHistogramSamples(waves);
+                        setWaveHistogramLoading(false);
+                      }, 0);
+                    }}
+                  >
+                    {waveHistogramLoading ? "…" : "Chart"}
+                  </button>
+                </div>
                 {mcStats?.bestWaveBand != null ? (
                   <>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -1951,6 +1978,119 @@ export function EventSim() {
             document.body
           )
         : null}
+
+      {waveHistogramOpen ? (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}
+          onClick={() => setWaveHistogramOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Wave distribution histogram"
+        >
+          <div
+            className="panel"
+            style={{ maxWidth: 520, margin: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.25)", borderRadius: 8 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div className="mono" style={{ fontWeight: 900, fontSize: 14 }}>Wave distribution (suggested build)</div>
+              <button type="button" className="btn btnSecondary" onClick={() => setWaveHistogramOpen(false)}>
+                Close
+              </button>
+            </div>
+            <p className="small" style={{ marginBottom: 10, color: "var(--muted)" }}>
+              Distribution of max wave reached over 500 runs with the current suggested skill allocation.
+            </p>
+            {waveHistogramLoading ? (
+              <div style={{ padding: "24px 0", textAlign: "center", color: "var(--muted)" }}>Calculating…</div>
+            ) : waveHistogramSamples?.length ? (
+              (() => {
+                const xs = waveHistogramSamples.map((x) => Number(x)).filter((x) => Number.isFinite(x));
+                if (!xs.length) return <div className="small" style={{ color: "var(--muted)" }}>No data.</div>;
+                const min = Math.floor(Math.min(...xs));
+                const max = Math.ceil(Math.max(...xs));
+                const bins = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+                const counts = new Array(bins.length).fill(0);
+                for (const v of xs) {
+                  const idx = Math.max(0, Math.min(bins.length - 1, Math.floor(v) - min));
+                  counts[idx] += 1;
+                }
+                const maxC = Math.max(1, ...counts);
+                const W = 480;
+                const H = 200;
+                const pad = 10;
+                const axisH = 28;
+                const plotH = H - pad * 2 - axisH;
+                const barW = (W - pad * 2) / bins.length;
+                const totalSamples = xs.length;
+                return (
+                  <div style={{ marginTop: 8 }}>
+                    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }} aria-label="Wave distribution histogram">
+                      {bins.map((bin, i) => {
+                        const c = counts[i] ?? 0;
+                        const h = maxC > 0 ? (plotH * c) / maxC : 0;
+                        const x = pad + i * barW;
+                        const y = H - pad - axisH - h;
+                        const pct = totalSamples > 0 ? (100 * c) / totalSamples : 0;
+                        return (
+                          <g key={bin}>
+                            <rect
+                              x={x}
+                              y={y}
+                              width={Math.max(1, barW - 1)}
+                              height={h}
+                              fill="rgba(92,107,192,0.55)"
+                              stroke="rgba(15,23,42,0.2)"
+                              strokeWidth={0.5}
+                            >
+                              <title>Wave {bin}: {c} ({pct.toFixed(1)}%)</title>
+                            </rect>
+                            {c > 0 && h >= 14 ? (
+                              <text
+                                x={x + barW / 2}
+                                y={y + h / 2}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize="9"
+                                fontWeight="700"
+                                fill={h > plotH * 0.4 ? "rgba(255,255,255,0.95)" : "rgba(15,23,42,0.9)"}
+                              >
+                                {c}
+                              </text>
+                            ) : null}
+                          </g>
+                        );
+                      })}
+                      <line x1={pad} x2={W - pad} y1={H - pad - axisH} y2={H - pad - axisH} stroke="rgba(15,23,42,0.2)" strokeWidth={1} />
+                      {(() => {
+                        const tickStep = Math.max(1, Math.ceil(bins.length / 10));
+                        const tickIndices = [0, ...Array.from({ length: Math.ceil((bins.length - 1) / tickStep) }, (_, j) => Math.min((j + 1) * tickStep, bins.length - 1))];
+                        return tickIndices.map((i) => {
+                          const bin = bins[i];
+                          const x = pad + (i + 0.5) * barW;
+                          return (
+                            <g key={bin}>
+                              <line x1={x} x2={x} y1={H - pad - axisH} y2={H - pad - axisH + 4} stroke="rgba(15,23,42,0.25)" strokeWidth={1} />
+                              <text x={x} y={H - pad - 6} textAnchor="middle" fontSize="10" fontWeight="700" fill="rgba(71,85,105,0.9)">
+                                {bin}
+                              </text>
+                            </g>
+                          );
+                        });
+                      })()}
+                    </svg>
+                    <div className="small" style={{ marginTop: 6, color: "var(--muted)", textAlign: "center" }}>
+                      Max wave reached (N=500)
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="small" style={{ color: "var(--muted)" }}>No data.</div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
