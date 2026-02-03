@@ -90,6 +90,8 @@ type McLogEntry = {
     avgStaminaAtEndOfStage?: Record<number, number>;
     /** Std dev of stamina at end of each stage (stage -> std). Only for stage objective. */
     stdStaminaAtEndOfStage?: Record<number, number>;
+    /** Per-run stamina at end of each stage: staminaAtStageByRun[i] = [stamina at end of stage 1, 2, ..., maxStage[i]]. Used to show stamina for runs that reached a given final stage. */
+    staminaAtStageByRun?: number[][];
     tieBreak?: {
       mode: "stage" | "XP" | "frag";
       epsilon: number;
@@ -236,6 +238,7 @@ export function ArchSim() {
   const [resetMcLogArmed, setResetMcLogArmed] = useState(false);
   const [deleteLogArmedId, setDeleteLogArmedId] = useState<string | null>(null);
   const [staminaOverviewOpen, setStaminaOverviewOpen] = useState(false);
+  const [staminaOverviewStage, setStaminaOverviewStage] = useState<number | null>(null);
   const [mcRunning, setMcRunning] = useState(false);
   const [mcProgress, setMcProgress] = useState<string | null>(null);
   const [mcActiveMode, setMcActiveMode] = useState<null | "frag" | "XP" | "stage">(null);
@@ -334,6 +337,7 @@ export function ArchSim() {
   useEffect(() => {
     if (openLogId != null) return;
     setStaminaOverviewOpen(false);
+    setStaminaOverviewStage(null);
   }, [openLogId]);
 
   useEffect(() => {
@@ -1141,8 +1145,10 @@ export function ArchSim() {
               const sum = staminaAtStageSum[stage] ?? 0;
               const sumSq = staminaAtStageSumSq[stage] ?? 0;
               avgStaminaAtEndOfStage[stage] = sum / cnt;
-              const variance = Math.max(0, sumSq / cnt - (sum / cnt) ** 2);
-              stdStaminaAtEndOfStage[stage] = Math.sqrt(variance);
+              if (cnt > 1) {
+                const variance = Math.max(0, sumSq / cnt - (sum / cnt) ** 2);
+                stdStaminaAtEndOfStage[stage] = Math.sqrt(variance);
+              }
             }
           }
         }
@@ -1421,6 +1427,7 @@ export function ArchSim() {
       const staminaAtStageSumRef: Record<number, number> = {};
       const staminaAtStageSumSqRef: Record<number, number> = {};
       const staminaAtStageCountRef: Record<number, number> = {};
+      const staminaAtStageByRunRef: number[][] = [];
 
       const tasks: Promise<void>[] = [];
       let submitted = 0;
@@ -1460,9 +1467,11 @@ export function ArchSim() {
               const sum = (out as { stamina_at_stage_sum?: Record<number, number> }).stamina_at_stage_sum;
               const sumSq = (out as { stamina_at_stage_sum_sq?: Record<number, number> }).stamina_at_stage_sum_sq;
               const cnt = (out as { stamina_at_stage_count?: Record<number, number> }).stamina_at_stage_count;
+              const byRun = (out as { stamina_at_stage_by_run?: number[][] }).stamina_at_stage_by_run;
               if (sum) for (const [s, v] of Object.entries(sum)) { const k = Math.trunc(Number(s)); staminaAtStageSumRef[k] = (staminaAtStageSumRef[k] ?? 0) + Number(v); }
               if (sumSq) for (const [s, v] of Object.entries(sumSq)) { const k = Math.trunc(Number(s)); staminaAtStageSumSqRef[k] = (staminaAtStageSumSqRef[k] ?? 0) + Number(v); }
               if (cnt) for (const [s, v] of Object.entries(cnt)) { const k = Math.trunc(Number(s)); staminaAtStageCountRef[k] = (staminaAtStageCountRef[k] ?? 0) + Number(v); }
+              if (byRun && Array.isArray(byRun)) staminaAtStageByRunRef.push(...byRun);
             }
             done += n;
             setMcProgress(`Phase 3: Final sims (${done}/${totalFinal})`);
@@ -1515,8 +1524,10 @@ export function ArchSim() {
             const sum = staminaAtStageSumRef[stage] ?? 0;
             const sumSq = staminaAtStageSumSqRef[stage] ?? 0;
             avgStaminaAtEndOfStageRef[stage] = sum / cnt;
-            const variance = Math.max(0, sumSq / cnt - (sum / cnt) ** 2);
-            stdStaminaAtEndOfStageRef[stage] = Math.sqrt(variance);
+            if (cnt > 1) {
+              const variance = Math.max(0, sumSq / cnt - (sum / cnt) ** 2);
+              stdStaminaAtEndOfStageRef[stage] = Math.sqrt(variance);
+            }
           }
         }
       }
@@ -1552,6 +1563,7 @@ export function ArchSim() {
             ? {
                 avgStaminaAtEndOfStage: avgStaminaAtEndOfStageRef,
                 stdStaminaAtEndOfStage: Object.keys(stdStaminaAtEndOfStageRef).length > 0 ? stdStaminaAtEndOfStageRef : undefined,
+                staminaAtStageByRun: staminaAtStageByRunRef.length > 0 ? staminaAtStageByRunRef : undefined,
               }
             : {}),
           tieBreak: tieBreakReport,
@@ -1766,8 +1778,8 @@ export function ArchSim() {
     ariaLabel?: string;
     /** When set and kind === "stage", show flame above highest-stage bar. */
     gradientIdPrefix?: string;
-    /** When set, flame is clickable and calls this (e.g. open stamina-at-stage overview). */
-    onFlameClick?: () => void;
+    /** When set, flame is clickable and calls this with the stage of the flame bar (e.g. open stamina-at-stage overview). */
+    onFlameClick?: (stage: number) => void;
   }): ReactNode {
     const { samples, kind, title, xLabel, ariaLabel, gradientIdPrefix, onFlameClick } = args;
     if (!samples.length) return null;
@@ -1931,7 +1943,8 @@ export function ArchSim() {
                   style={{ cursor: "pointer" }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onFlameClick();
+                    const stageVal = bins[highlightBarIndex];
+                    if (stageVal != null && Number.isFinite(stageVal)) onFlameClick(Math.floor(stageVal));
                   }}
                 >
                   {flameImg}
@@ -3631,8 +3644,11 @@ export function ArchSim() {
                           kind: openLog.mc.objective === "stage" ? "stage" : "rate",
                           gradientIdPrefix: openLog.mc.objective === "stage" ? openLog.id : undefined,
                           onFlameClick:
-                            openLog.mc.objective === "stage" && openLog.mc.avgStaminaAtEndOfStage
-                              ? () => setStaminaOverviewOpen(true)
+                            openLog.mc.objective === "stage" && (openLog.mc.avgStaminaAtEndOfStage || openLog.mc.staminaAtStageByRun?.length)
+                              ? (stage: number) => {
+                                  setStaminaOverviewStage(stage);
+                                  setStaminaOverviewOpen(true);
+                                }
                               : undefined,
                           title: (
                             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -3654,11 +3670,11 @@ export function ArchSim() {
                     );
                   })()}
 
-                  {staminaOverviewOpen && openLog?.mc?.objective === "stage" && openLog.mc.avgStaminaAtEndOfStage ? (
+                  {staminaOverviewOpen && openLog?.mc?.objective === "stage" && (openLog.mc.avgStaminaAtEndOfStage || openLog.mc.staminaAtStageByRun?.length) ? (
                     <div
                       className="modalBackdrop"
                       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
-                      onClick={() => setStaminaOverviewOpen(false)}
+                      onClick={() => { setStaminaOverviewOpen(false); setStaminaOverviewStage(null); }}
                       role="dialog"
                       aria-modal="true"
                       aria-label="Avg stamina at end of stage"
@@ -3678,12 +3694,14 @@ export function ArchSim() {
                           <div className="mono" style={{ fontWeight: 900, fontSize: 14 }}>
                             Avg stamina at end of stage
                           </div>
-                          <button type="button" className="btn btnSecondary" onClick={() => setStaminaOverviewOpen(false)}>
+                          <button type="button" className="btn btnSecondary" onClick={() => { setStaminaOverviewOpen(false); setStaminaOverviewStage(null); }}>
                             Close
                           </button>
                         </div>
                         <div className="small" style={{ marginBottom: 10, color: "var(--muted)" }}>
-                          Over all max-stage runs: average stamina remaining when that stage was completed.
+                          {staminaOverviewStage != null && openLog.mc.staminaAtStageByRun?.length && openLog.mc.objectiveSamples?.length
+                            ? `Runs that reached stage ${staminaOverviewStage}: average stamina remaining at end of each stage.`
+                            : "Over all runs that reached each stage: average stamina remaining when that stage was completed."}
                         </div>
                         <table className="mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                           <thead>
@@ -3694,7 +3712,32 @@ export function ArchSim() {
                           </thead>
                           <tbody>
                             {(() => {
-                              const avg = openLog.mc.avgStaminaAtEndOfStage!;
+                              const byRun = openLog.mc.staminaAtStageByRun;
+                              const maxStages = openLog.mc.objectiveSamples ?? [];
+                              const filterStage = staminaOverviewStage ?? null;
+                              if (filterStage != null && byRun?.length && maxStages.length === byRun.length) {
+                                const runIndices = maxStages.map((ms, i) => (Number(ms) >= filterStage ? i : -1)).filter((i) => i >= 0);
+                                const stages = Array.from({ length: filterStage }, (_, i) => i + 1);
+                                return stages.map((s) => {
+                                  const values = runIndices
+                                    .filter((i) => (byRun[i]?.length ?? 0) >= s)
+                                    .map((i) => Number(byRun[i]![s - 1]));
+                                  const n = values.length;
+                                  if (n === 0) return <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}><td style={{ padding: "6px 8px" }}>{s}</td><td style={{ textAlign: "right", padding: "6px 8px" }}>—</td></tr>;
+                                  const mean = values.reduce((a, b) => a + b, 0) / n;
+                                  const sd = n > 1 ? Math.sqrt(Math.max(0, values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1))) : null;
+                                  const sdStr = sd != null && Number.isFinite(sd) ? (sd < 10 ? sd.toFixed(1) : formatInt(Math.round(sd))) : "";
+                                  return (
+                                    <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                                      <td style={{ padding: "6px 8px" }}>{s}</td>
+                                      <td style={{ textAlign: "right", padding: "6px 8px" }}>
+                                        {sdStr ? `${formatInt(Math.round(mean))} ± ${sdStr}` : formatInt(Math.round(mean))}
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              }
+                              const avg = openLog.mc.avgStaminaAtEndOfStage ?? {};
                               const std = openLog.mc.stdStaminaAtEndOfStage ?? {};
                               const samples = openLog.mc.objectiveSamples ?? [];
                               const maxStage = samples.length ? Math.max(0, ...samples.map((x) => Number(x))) : 0;

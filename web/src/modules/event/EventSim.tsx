@@ -1070,7 +1070,7 @@ export function EventSim() {
                           const max = getMaxLevelWithCaps(tier as 1 | 2 | 3 | 4, idx, result.upgrades);
                           return (
                             <li key={idx}>
-                              <span className="mono" style={{ whiteSpace: "pre-line" }}>{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono">{add}</span>
+                              <span className="mono" style={{ whiteSpace: "pre-line" }}>{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono eventUpgradePlanAdd">{add}</span>
                               <span className="small" style={{ color: "var(--muted)", marginLeft: 6 }}>(→ lvl {lvl}/{max})</span>
                             </li>
                           );
@@ -1095,6 +1095,7 @@ export function EventSim() {
                             {
                               heading: "MC statistics",
                               lines: [
+                                "Computed over the tried budget points (one wave/time per upgrade allocation), not over individual simulation runs.",
                                 `Mean wave: ${(mcStats.statistics.mean_wave ?? 0).toFixed(2)}`,
                                 `Std dev wave: ${(mcStats.statistics.std_dev_wave ?? 0).toFixed(2)}`,
                                 `Median wave: ${(mcStats.statistics.median_wave ?? 0).toFixed(2)}`,

@@ -1563,6 +1563,26 @@ a:hover {
   flex-shrink: 0;
 }
 
+/* Event Sim: upgrade plan recommended +N value – big and pulsating */
+.eventUpgradePlanAdd {
+  display: inline-block;
+  font-size: 1.35em;
+  font-weight: 900;
+  margin-left: 2px;
+  animation: eventUpgradePlanAddPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes eventUpgradePlanAddPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.92;
+  }
+}
+
 .lockedRow {
   background: rgba(198, 40, 40, 0.06);
   border-radius: 8px;

@@ -4,6 +4,7 @@ import { Tooltip } from "../../components/Tooltip";
 import { Collapsible } from "../../components/Collapsible";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
+  calculateCherryChargesGemsPerHour,
   defaultGameParameters,
   getGameSpeedMultiplier,
   type GameParameters,
@@ -79,6 +80,15 @@ function parseNumber(raw: string): number {
   if (!cleaned) return 0;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Gem EV value of "+N Cherry Charges" from Gem EV bomb cycle (Late = gem bomb value, Early = battery refill value). */
+function getCherryChargesValueGemEv(params: GameParameters, buffName: string): number | null {
+  const m = /^\+(\d+)\s*Cherry Charges$/.exec(buffName);
+  if (!m) return null;
+  const charges = parseInt(m[1], 10);
+  if (!Number.isFinite(charges) || charges <= 0) return null;
+  return calculateCherryChargesGemsPerHour(params, charges);
 }
 
 function NumInput(props: {
@@ -726,12 +736,42 @@ export function Lootbug() {
                   const minPerHour =
                     durMin != null && gameSpeed > 0 ? (perHour * durMin) / gameSpeed : null;
                   const realDurMin = durMin != null && gameSpeed > 0 ? durMin / gameSpeed : null;
+                  const cherryValue = getCherryChargesValueGemEv(gameSpeedParams, buff.name);
                   return (
                     <tr key={buff.name}>
                       <td>
                         <span className="lootbugBuffCell">
                           <img src={getFreeBuffIcon(buff.name)} alt="" className="lootbugBuffIcon" aria-hidden />
-                          <span>{buff.name}</span>
+                          <span>
+                            {buff.name}
+                            {cherryValue != null ? (
+                              <span className="lootbugCherryValue">
+                                {" "}
+                                <Tooltip
+                                  content={{
+                                    title: "Cherry charges value",
+                                    sections: [
+                                      {
+                                        heading: "Source",
+                                        lines: [
+                                          "Value from Gem EV bomb cycle. Late: cherry counts as gem bomb detonations. Early: cherry counts as battery detonations (refills).",
+                                        ],
+                                      },
+                                      {
+                                        heading: "Gem EV",
+                                        lines: [
+                                          `≈${cherryValue.toFixed(1)} gem/h for this many cherry charges. Uses bomb cycle from Gem EV.`,
+                                        ],
+                                      },
+                                    ],
+                                  }}
+                                />
+                                <span className="lootbugCherryValueText">
+                                  ≈{cherryValue.toFixed(1)} gem/h
+                                </span>
+                              </span>
+                            ) : null}
+                          </span>
                           {buff.duration ? (
                             <span className="lootbugBuffDuration">
                               {realDurMin != null
@@ -841,6 +881,7 @@ export function Lootbug() {
                     isBuy && actualCost > 0 ? perHour * actualCost * (1 - goldenPct) : 0;
                   const gemPerHourDisplay =
                     isBuy && gemCostWithGolden > 0 ? -gemCostWithGolden : null;
+                  const cherryValue = getCherryChargesValueGemEv(gameSpeedParams, buff.name);
                   function toggleBuy() {
                     setState((s) => {
                       const list = Array.isArray(s.activeGemBuffs) ? s.activeGemBuffs : DEFAULT_ACTIVE_GEM_BUFFS;
@@ -864,7 +905,36 @@ export function Lootbug() {
                       <td>
                         <span className="lootbugBuffCell">
                           <img src={getGemBuffIcon(buff.name)} alt="" className="lootbugBuffIcon" aria-hidden />
-                          <span>{buff.name}</span>
+                          <span>
+                            {buff.name}
+                            {cherryValue != null ? (
+                              <span className="lootbugCherryValue">
+                                {" "}
+                                <Tooltip
+                                  content={{
+                                    title: "Cherry charges value",
+                                    sections: [
+                                      {
+                                        heading: "Source",
+                                        lines: [
+                                          "Value from Gem EV bomb cycle. Late: cherry counts as gem bomb detonations. Early: cherry counts as battery detonations (refills).",
+                                        ],
+                                      },
+                                      {
+                                        heading: "Gem EV",
+                                        lines: [
+                                          `≈${cherryValue.toFixed(1)} gem/h for this many cherry charges. Uses bomb cycle from Gem EV.`,
+                                        ],
+                                      },
+                                    ],
+                                  }}
+                                />
+                                <span className="lootbugCherryValueText">
+                                  ≈{cherryValue.toFixed(1)} gem/h
+                                </span>
+                              </span>
+                            ) : null}
+                          </span>
                           {buff.duration ? (
                             <span className="lootbugBuffDuration">
                               {realDurMin != null

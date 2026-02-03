@@ -483,14 +483,37 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   return baseGems + bonusGems + giftGems;
 }
 
+/** Extra clicks per hour per bomb type (e.g. 20 each for Charge Magnet). Omit or use number to add same to all. */
+export type ExtraClicksPerBomb =
+  | number
+  | { gem?: number; cherry?: number; battery?: number; d20?: number };
+
+function normalizeExtraClicks(extra: ExtraClicksPerBomb | undefined): {
+  gem: number;
+  cherry: number;
+  battery: number;
+  d20: number;
+} {
+  if (extra == null) return { gem: 0, cherry: 0, battery: 0, d20: 0 };
+  if (typeof extra === "number")
+    return { gem: extra, cherry: extra, battery: extra, d20: extra };
+  return {
+    gem: extra.gem ?? 0,
+    cherry: extra.cherry ?? 0,
+    battery: extra.battery ?? 0,
+    d20: extra.d20 ?? 0,
+  };
+}
+
 /**
  * Gem EV per hour from bomb cycle. Optional extraClicksPerBomb: add that many clicks per hour to each bomb type
- * (e.g. 20 for one Charge Magnet giving 20 charges to every bomb).
+ * (e.g. 20 for one Charge Magnet giving 20 charges to every bomb). Pass an object to add different amounts per type.
  */
 export function calculateGemBombGemsPerHour(
   params: GameParameters,
-  extraClicksPerBomb: number = 0
+  extraClicksPerBomb?: ExtraClicksPerBomb
 ): number {
+  const extra = normalizeExtraClicks(extraClicksPerBomb);
   const secondsPerHour = 3600.0;
   const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: multiplicative with bomb recharge (not supply drop)
 
@@ -526,10 +549,10 @@ export function calculateGemBombGemsPerHour(
   const batteryClicksBase = (secondsPerHour / effBattery) * batteryMult;
   const d20ClicksBase = (secondsPerHour / effD20) * d20Mult;
 
-  const gemClicks0 = gemClicksBase * freeBombMult + extraClicksPerBomb;
-  const cherryClicks0 = cherryClicksBase * freeBombMult + extraClicksPerBomb;
-  const batteryClicks0 = batteryClicksBase * freeBombMult + extraClicksPerBomb;
-  const d20Clicks0 = d20ClicksBase * freeBombMult + extraClicksPerBomb;
+  const gemClicks0 = gemClicksBase * freeBombMult + extra.gem;
+  const cherryClicks0 = cherryClicksBase * freeBombMult + extra.cherry;
+  const batteryClicks0 = batteryClicksBase * freeBombMult + extra.battery;
+  const d20Clicks0 = d20ClicksBase * freeBombMult + extra.d20;
 
   // Refill rates (per click of the source) to EACH target bomb (expected value per target).
   const totalBombTypes = Math.max(2, clampInt(params.total_bomb_types, 12));
@@ -599,6 +622,26 @@ export function calculateGemBombGemsPerHour(
 /** Gem EV equivalent of one Charge Magnet: 20 charges added to every bomb (gem, cherry, battery, d20) per hour. */
 export function calculateChargeMagnetGemsPerHour(params: GameParameters, chargesPerMagnet: number = 20): number {
   return calculateGemBombGemsPerHour(params, chargesPerMagnet) - calculateGemBombGemsPerHour(params, 0);
+}
+
+/**
+ * Gem EV per hour of adding `charges` cherry charges per hour. Uses Gem EV bomb cycle:
+ * Late: cherry bonus counts as gem bomb detonations → value of extra cherry charges.
+ * Early: cherry bonus counts as battery detonations → value of extra battery charges (refills).
+ */
+export function calculateCherryChargesGemsPerHour(params: GameParameters, charges: number): number {
+  if (charges <= 0 || !Number.isFinite(charges)) return 0;
+  const bombCycle = params.bomb_cycle === "late" ? "late" : "early";
+  if (bombCycle === "late") {
+    return (
+      calculateGemBombGemsPerHour(params, { cherry: charges }) -
+      calculateGemBombGemsPerHour(params, 0)
+    );
+  }
+  return (
+    calculateGemBombGemsPerHour(params, { battery: charges }) -
+    calculateGemBombGemsPerHour(params, 0)
+  );
 }
 
 /** Founder bomb 2× speed procs: no longer in EV (user sets Game Speed at top). */

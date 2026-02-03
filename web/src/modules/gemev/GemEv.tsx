@@ -179,6 +179,7 @@ export function GemEv() {
   const [stonksEnabled, setStonksEnabled] = useState<boolean>(initial.stonks_enabled);
   const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
+  const [showJackpotRefresh, setShowJackpotRefresh] = useState(true);
   const [lootbugNetGemsPerHour, setLootbugNetGemsPerHour] = useState(0);
   useEffect(() => {
     const ext = loadJson<{ lootbugNetGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
@@ -1221,10 +1222,29 @@ export function GemEv() {
               </div>
               <div className="modalBody">
                 <div className="gemEvChartBlock">
-                  <div className="gemEvChartLegendTop">
-                    <ContribLegend />
+                  <div className="gemEvChartLegendTop" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px 16px", marginBottom: 8 }}>
+                    {showJackpotRefresh ? <ContribLegend /> : null}
+                    <label className="gemEvChartToggle" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: 700, color: "rgba(15,23,42,0.85)" }}>
+                      <input
+                        type="checkbox"
+                        checked={showJackpotRefresh}
+                        onChange={(e) => setShowJackpotRefresh(e.target.checked)}
+                        aria-label="Show Jackpot/Refresh contribution"
+                      />
+                      <span>Show Jackpot/Refresh contribution</span>
+                    </label>
                   </div>
-                  <ContribBarChart ev={ev} breakdown={breakdown} lootbugNetGemsPerHour={external.lootbugNetGemsPerHour} droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined} gemBomb10xImpact={gemBomb10xImpact} chaosTotemImpact={chaosTotemImpact} chargeMagnetImpact={chargeMagnetImpactResolved} />
+                  <ContribBarChart
+                    ev={ev}
+                    breakdown={breakdown}
+                    lootbugNetGemsPerHour={external.lootbugNetGemsPerHour}
+                    droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined}
+                    gemBomb10xImpact={gemBomb10xImpact}
+                    chaosTotemImpact={chaosTotemImpact}
+                    chargeMagnetImpact={chargeMagnetImpactResolved}
+                    showJackpotRefresh={showJackpotRefresh}
+                    skillShardsEnabled={skillShardsEnabled}
+                  />
                 </div>
               </div>
             </div>

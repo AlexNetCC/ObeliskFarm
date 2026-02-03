@@ -110,29 +110,57 @@ export function ContribLegend() {
   );
 }
 
-export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lootbugNetGemsPerHour?: number; droneFuelGemsPerHour?: number; gemBomb10xImpact?: number; chaosTotemImpact?: number; chargeMagnetImpact?: number }) {
-  const { ev, breakdown, lootbugNetGemsPerHour, droneFuelGemsPerHour, gemBomb10xImpact, chaosTotemImpact, chargeMagnetImpact } = props;
+type RowKind = "gems_base" | "stonks_ev" | "skill_shards_ev" | "founder" | "gem_bomb" | "lootbug" | "drone";
 
-  /** Founder Bomb bar hidden (FOUNDER_BOMB_VISIBLE in GemEv). */
-  const categoriesBase = [
-    "Gems (Base)",
-    "Stonks EV",
-    "Skill Shards",
-    "Founder Supply Drop",
-    "Gem Bomb",
-  ] as const;
-  const hasLootbug = typeof lootbugNetGemsPerHour === "number";
-  const hasDroneFuel = typeof droneFuelGemsPerHour === "number";
-  const categories = [
-    ...categoriesBase,
-    ...(hasLootbug ? ["Lootbug Gems (raw)"] as const : []),
-    ...(hasDroneFuel ? ["Drone Fuel"] as const : []),
-  ] as const;
+export function ContribBarChart(props: {
+  ev: TotalEv;
+  breakdown: EvBreakdown;
+  lootbugNetGemsPerHour?: number;
+  droneFuelGemsPerHour?: number;
+  gemBomb10xImpact?: number;
+  chaosTotemImpact?: number;
+  chargeMagnetImpact?: number;
+  /** When true, Freebie Gems / Stonks / Skill Shards bars show base/jackpot/refresh segments. When false, solid blue. */
+  showJackpotRefresh?: boolean;
+  /** When false, Skill Shards row is hidden entirely. */
+  skillShardsEnabled?: boolean;
+}) {
+  const {
+    ev,
+    breakdown,
+    lootbugNetGemsPerHour,
+    droneFuelGemsPerHour,
+    gemBomb10xImpact,
+    chaosTotemImpact,
+    chargeMagnetImpact,
+    showJackpotRefresh = true,
+    skillShardsEnabled = true,
+  } = props;
 
-  const normalKeys = ["gems_base", "stonks_ev", "skill_shards_ev"] as const;
   const founderSpeed = breakdown.founder_speed_boost;
   const founderGems = breakdown.founder_gems;
   const gemBomb = breakdown.gem_bomb_gems;
+
+  const hasLootbug = typeof lootbugNetGemsPerHour === "number";
+  const hasDroneFuel = typeof droneFuelGemsPerHour === "number";
+
+  const categoriesBase: Array<{ label: string; kind: RowKind }> = [
+    { label: "Freebie Gems", kind: "gems_base" },
+    { label: "Stonks EV", kind: "stonks_ev" },
+    ...(skillShardsEnabled ? [{ label: "Skill Shards", kind: "skill_shards_ev" as RowKind }] : []),
+    { label: "Founder Supply Drop", kind: "founder" },
+    { label: "Gem Bomb", kind: "gem_bomb" },
+  ];
+  const categories = [
+    ...categoriesBase.map((c) => c.label),
+    ...(hasLootbug ? ["Lootbug Gems (raw)"] : []),
+    ...(hasDroneFuel ? ["Drone Fuel"] : []),
+  ] as const;
+  const rowKinds: RowKind[] = [
+    ...categoriesBase.map((c) => c.kind),
+    ...(hasLootbug ? (["lootbug"] as const) : []),
+    ...(hasDroneFuel ? (["drone"] as const) : []),
+  ];
 
   const totalForPct =
     ev.total +
@@ -140,10 +168,11 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
     (hasDroneFuel && typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0) +
     (chargeMagnetImpact ?? 0);
   const gemBombValueForDisplay = ev.gem_bomb_gems + (chargeMagnetImpact ?? 0);
+
   const valuesTopBase: number[] = [
     ev.gems_base,
     ev.stonks_ev,
-    ev.skill_shards_ev,
+    ...(skillShardsEnabled ? [ev.skill_shards_ev] : []),
     ev.founder_speed_boost + ev.founder_gems,
     gemBombValueForDisplay,
   ];
@@ -155,7 +184,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
   const pctsBase: number[] = [
     pct(ev.gems_base, totalForPct),
     pct(ev.stonks_ev, totalForPct),
-    pct(ev.skill_shards_ev, totalForPct),
+    ...(skillShardsEnabled ? [pct(ev.skill_shards_ev, totalForPct)] : []),
     pct(ev.founder_speed_boost + ev.founder_gems, totalForPct),
     pct(gemBombValueForDisplay, totalForPct),
   ];
@@ -165,15 +194,24 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
     ...(hasDroneFuel ? [totalForPct !== 0 ? pct(droneFuelGemsPerHour!, totalForPct) : 0] : []),
   ];
 
-  const stackForIndex = (i: number): { speed: EvBreakdownEntry | null; gems: EvBreakdownEntry | null; entry: EvBreakdownEntry } => {
-    if (i <= 2) return { speed: null, gems: null, entry: breakdown[normalKeys[i]!] };
-    if (i === 3) return { speed: founderSpeed, gems: founderGems, entry: founderSpeed };
-    return { speed: null, gems: null, entry: gemBomb };
+  const stackForIndex = (i: number): { speed: EvBreakdownEntry | null; gems: EvBreakdownEntry | null; entry: EvBreakdownEntry | null } => {
+    const kind = rowKinds[i];
+    if (kind === "gems_base") return { speed: null, gems: null, entry: breakdown.gems_base };
+    if (kind === "stonks_ev") return { speed: null, gems: null, entry: breakdown.stonks_ev };
+    if (kind === "skill_shards_ev") return { speed: null, gems: null, entry: breakdown.skill_shards_ev };
+    if (kind === "founder") return { speed: founderSpeed, gems: founderGems, entry: founderSpeed };
+    if (kind === "gem_bomb") return { speed: null, gems: null, entry: gemBomb };
+    return { speed: null, gems: null, entry: null };
   };
+
+  const segmentRowKinds: RowKind[] = ["gems_base", "stonks_ev", "skill_shards_ev"];
+  const isSegmentRow = (i: number): boolean => segmentRowKinds.includes(rowKinds[i]!);
 
   const maxValPos = Math.max(
     1,
-    ...normalKeys.map((k) => sumEntry(breakdown[k])),
+    ...(skillShardsEnabled
+      ? [sumEntry(breakdown.gems_base), sumEntry(breakdown.stonks_ev), sumEntry(breakdown.skill_shards_ev)]
+      : [sumEntry(breakdown.gems_base), sumEntry(breakdown.stonks_ev)]),
     sumEntry(founderSpeed) + sumEntry(founderGems),
     sumEntry(gemBomb),
   );
@@ -197,7 +235,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const nRows = categories.length;
-  const rowH = plotH / nRows;
+  const rowH = nRows > 0 ? plotH / nRows : 0;
   const barPad = 4;
   const barH = Math.max(12, rowH - 2 * barPad);
   const scaleX = range > 0 ? plotW / range : plotW;
@@ -221,6 +259,11 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
   }
 
   const gemIconUrl = assetUrl("sprites/common/gem.png");
+
+  const isGemBombRowByKind = (kind: RowKind) => kind === "gem_bomb";
+  const isLootbugRowByKind = (kind: RowKind) => kind === "lootbug";
+  const isDroneFuelRowByKind = (kind: RowKind) => kind === "drone";
+  const isFounderRowByKind = (kind: RowKind) => kind === "founder";
 
   return (
     <>
@@ -290,11 +333,13 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
       </g>
 
       {categories.map((label, i) => {
+        const kind = rowKinds[i]!;
         const y0 = padT + i * rowH + barPad;
-        const isLootbugRow = hasLootbug && i === 5;
-        const isDroneFuelRow = hasDroneFuel && i === 5 + (hasLootbug ? 1 : 0);
-        const isGemBombRow = i === 4;
-        const { speed, gems, entry } = isLootbugRow || isDroneFuelRow ? { speed: null, gems: null, entry: null! } : stackForIndex(i);
+        const isLootbugRow = isLootbugRowByKind(kind);
+        const isDroneFuelRow = isDroneFuelRowByKind(kind);
+        const isGemBombRow = isGemBombRowByKind(kind);
+        const isFounderRow = isFounderRowByKind(kind);
+        const { speed, gems, entry } = isLootbugRow || isDroneFuelRow ? { speed: null, gems: null, entry: null } : stackForIndex(i);
 
         const segs: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
         let left = 0;
@@ -303,6 +348,9 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
             const basePart = Math.max(0, sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0));
             segs.push({ key: "base", v: basePart, x: xOf(0), w: wOf(basePart), left: 0 });
             // 10× and Chaos Totem parts drawn separately below
+          } else if (isSegmentRow(i) && !showJackpotRefresh) {
+            const total = sumEntry(entry);
+            segs.push({ key: "base", v: total, x: xOf(0), w: wOf(total), left: 0 });
           } else {
             (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).forEach((k) => {
               const v = entry[k];
@@ -317,7 +365,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
         let founderSpeedTotal = 0;
         let founderGemsTotal = 0;
         let segsGems: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
-        if (i === 3 && speed && gems) {
+        if (isFounderRow && speed && gems) {
           founderSpeedTotal = sumEntry(speed);
           let left2 = founderSpeedTotal;
           segsGems = (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).map((k) => {
@@ -335,11 +383,13 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
           ? (typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0)
           : isDroneFuelRow
             ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
-            : i === 3
+            : isFounderRow
               ? founderSpeedTotal + founderGemsTotal
-              : isGemBombRow
+              : isGemBombRow && entry
                 ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
-                : sumEntry(entry);
+                : entry
+                  ? sumEntry(entry)
+                  : 0;
         const barStartX = isLootbugRow
           ? (typeof lootbugNetGemsPerHour === "number" ? Math.min(0, lootbugNetGemsPerHour) : 0)
           : isDroneFuelRow
@@ -502,7 +552,7 @@ export function ContribBarChart(props: { ev: TotalEv; breakdown: EvBreakdown; lo
               ) : null,
             )}
 
-            {i === 3 && founderSpeedTotal > 0 && wOf(founderSpeedTotal) >= 40 ? (
+            {isFounderRow && founderSpeedTotal > 0 && wOf(founderSpeedTotal) >= 40 ? (
               <text
                 x={xOf(founderSpeedTotal / 2)}
                 y={labelY}

@@ -47,10 +47,12 @@ function runStageLite(payload: any) {
   const stamina_at_stage_sum: Record<number, number> = {};
   const stamina_at_stage_sum_sq: Record<number, number> = {};
   const stamina_at_stage_count: Record<number, number> = {};
+  const stamina_at_stage_by_run: number[][] = [];
 
   for (let i = 0; i < Math.max(0, Math.trunc(payload.n_sims)); i += 1) {
     const r: any = sim.simulateRun(payload.stats, payload.starting_floor, { ...payload.options, return_block_metrics: false }, payload.cardCfg);
-    max_stage_samples.push(Number(r.max_stage_reached ?? 0));
+    const maxStage = Number(r.max_stage_reached ?? 0);
+    max_stage_samples.push(maxStage);
     floors_cleared_samples.push(Number(r.floors_cleared ?? 0));
     xp_per_run_samples.push(Number(r.xp_per_run ?? 0));
     total_fragments_samples.push(Number(r.total_fragments ?? 0));
@@ -67,6 +69,13 @@ function runStageLite(payload: any) {
         stamina_at_stage_sum_sq[stage] = (stamina_at_stage_sum_sq[stage] ?? 0) + v * v;
         stamina_at_stage_count[stage] = (stamina_at_stage_count[stage] ?? 0) + 1;
       }
+      const row: number[] = [];
+      for (let s = 1; s <= maxStage; s += 1) {
+        row.push(Number((stam as Record<number, number>)[s] ?? 0));
+      }
+      stamina_at_stage_by_run.push(row);
+    } else {
+      stamina_at_stage_by_run.push([]);
     }
   }
 
@@ -81,6 +90,7 @@ function runStageLite(payload: any) {
     stamina_at_stage_sum: Object.keys(stamina_at_stage_sum).length > 0 ? stamina_at_stage_sum : undefined,
     stamina_at_stage_sum_sq: Object.keys(stamina_at_stage_sum_sq).length > 0 ? stamina_at_stage_sum_sq : undefined,
     stamina_at_stage_count: Object.keys(stamina_at_stage_count).length > 0 ? stamina_at_stage_count : undefined,
+    stamina_at_stage_by_run: stamina_at_stage_by_run.length > 0 ? stamina_at_stage_by_run : undefined,
   };
 }
 
