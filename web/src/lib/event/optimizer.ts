@@ -257,6 +257,10 @@ export function greedyOptimize(args: {
     }
 
     if (!bestBuy) break;
+    // Don't spend on marginal upgrades – save currency for next run / breakpoints
+    const marginalThreshold = 70;
+    if (bestScore < marginalThreshold) break;
+
     state.levels[bestBuy.tier][bestBuy.idx] += 1;
     remaining[bestBuy.tier] -= bestBuy.cost;
     spent[bestBuy.tier] += bestBuy.cost;
@@ -290,7 +294,23 @@ export function greedyOptimize(args: {
     const best = breakpoints[0];
     const atkNeeded = (best.atk_increase as number) ?? 0;
     if (atkNeeded > 0) {
-      recommendations.push(`Next Breakpoint: Wave ${best.wave} needs +${atkNeeded} ATK (→ ${best.required_atk} total)`);
+      const targetHits = (best.target_hits as number) ?? 1;
+      recommendations.push(`Next Breakpoint: Wave ${best.wave} needs +${atkNeeded} ATK (→ ${best.required_atk} total, ${best.current_hits}→${targetHits} hit${targetHits === 1 ? "" : "s"}/enemy)`);
+    }
+  }
+
+  const hasRemaining = remaining[1] > 0 || remaining[2] > 0 || remaining[3] > 0 || remaining[4] > 0;
+  if (hasRemaining && breakpoints.length > 0) {
+    const parts: string[] = [];
+    if (remaining[1] > 0) parts.push(`${remaining[1]} T1`);
+    if (remaining[2] > 0) parts.push(`${remaining[2]} T2`);
+    if (remaining[3] > 0) parts.push(`${remaining[3]} T3`);
+    if (remaining[4] > 0) parts.push(`${remaining[4]} T4`);
+    const best = breakpoints[0];
+    const atkNeeded = (best.atk_increase as number) ?? 0;
+    if (atkNeeded > 0) {
+      const targetHits = (best.target_hits as number) ?? 1;
+      recommendations.push(`Save ${parts.join(", ")} for next run – reach ${targetHits}-hit at Wave ${best.wave} sooner (need +${atkNeeded} ATK).`);
     }
   }
 

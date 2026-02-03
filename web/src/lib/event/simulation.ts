@@ -117,8 +117,8 @@ export function simulateEventRun(player: PlayerStats, enemy: EnemyStats, rng: Rn
         const eAtkTimeLeft = (1 - eAtkProg) / enemyAtkSpeed;
 
         if (pAtkTimeLeft > eAtkTimeLeft) {
-          // enemy attacks
-          pAtkProg += (eAtkTimeLeft / enemyAtkSpeed) * atkSpeed;
+          // enemy attacks — elapsed time = eAtkTimeLeft (seconds); player progress += time * atkSpeed
+          pAtkProg += eAtkTimeLeft * atkSpeed;
           eAtkProg = 0;
 
           let dmg = Math.max(1, roundNumber(enemy.atk + wave * enemy.atkScaling));
@@ -136,9 +136,9 @@ export function simulateEventRun(player: PlayerStats, enemy: EnemyStats, rng: Rn
           playerHp -= dmg;
           time += eAtkTimeLeft / enemyAtkSpeed;
         } else {
-          // player attacks
+          // player attacks — elapsed time = pAtkTimeLeft (seconds); enemy progress += time * enemyAtkSpeed
           const enemyAtkSpeed = enemy.atkSpeed + wave * 0.02;
-          eAtkProg += (pAtkTimeLeft / atkSpeed) * enemyAtkSpeed;
+          eAtkProg += pAtkTimeLeft * enemyAtkSpeed;
           pAtkProg = 0;
 
           let dmg = player.atk;
