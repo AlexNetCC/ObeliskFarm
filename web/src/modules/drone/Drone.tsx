@@ -731,7 +731,7 @@ export function Drone() {
                   </span>
                   <span className="droneBuffPlotSummaryValue">{starSuperOverlapPct.toFixed(2)}%</span>
                 </div>
-                <div className="droneBuffPlotSummary">
+                <div className="droneBuffPlotSummary droneBomb10xRow">
                   <span className="droneBuffPlotSummaryLabel">
                     10× Bomb Recharge (Drone) → Gem EV/h
                     <Tooltip
@@ -754,7 +754,7 @@ export function Drone() {
                       }}
                     />
                   </span>
-                  <span className="droneBuffPlotSummaryValue">{drone10xGemEvPerHour.toFixed(1)}</span>
+                  <span className="droneBuffPlotSummaryValue droneBomb10xGemEvValue">{drone10xGemEvPerHour.toFixed(1)}</span>
                 </div>
               </div>
             );
