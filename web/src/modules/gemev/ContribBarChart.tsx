@@ -385,9 +385,9 @@ export function ContribBarChart(props: {
             ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
             : isFounderRow
               ? founderSpeedTotal + founderGemsTotal
-              : isGemBombRow && entry
+              : isGemBombRow && entry != null
                 ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
-                : entry
+                : entry != null
                   ? sumEntry(entry)
                   : 0;
         const barStartX = isLootbugRow
@@ -461,7 +461,7 @@ export function ContribBarChart(props: {
               ) : null,
             )}
 
-            {isGemBombRow && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 ? (
+            {isGemBombRow && entry && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 ? (
               <>
                 <rect
                   x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0))}
@@ -486,7 +486,7 @@ export function ContribBarChart(props: {
                 ) : null}
               </>
             ) : null}
-            {isGemBombRow && typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 ? (
+            {isGemBombRow && entry && typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 ? (
               <>
                 <rect
                   x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0))}
@@ -511,7 +511,7 @@ export function ContribBarChart(props: {
                 ) : null}
               </>
             ) : null}
-            {isGemBombRow && typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0 ? (
+            {isGemBombRow && entry && typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0 ? (
               <>
                 <rect
                   x={xOf(sumEntry(entry))}
