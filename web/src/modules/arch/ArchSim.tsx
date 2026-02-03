@@ -1973,6 +1973,12 @@ export function ArchSim() {
     );
   }
 
+  function formatBlockBreakdownLabel(key: string): string {
+    const [blockType, tier] = key.includes(",") ? key.split(",") : [key, "1"];
+    const name = blockType.charAt(0).toUpperCase() + blockType.slice(1);
+    return tier ? `${name} T${tier}` : name;
+  }
+
   function getFragIconPath(t: BlockType): string {
     return t === "common"
       ? "sprites/archaeology/fragmentcommon.png"
@@ -3537,22 +3543,30 @@ export function ArchSim() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(["dirt", "common", "rare", "epic", "legendary", "mythic"] as const).map((bt) => {
-                          const v = openLog.metrics.blockBreakdown!.by_type[bt];
-                          if (!v || (v.blocks_destroyed_per_run < 0.01 && v.time_seconds_per_run < 0.5)) return null;
-                          return (
-                            <tr key={bt}>
+                        {(() => {
+                          const blockTypeOrder = ["dirt", "common", "rare", "epic", "legendary", "mythic"] as const;
+                          const entries = Object.entries(openLog.metrics.blockBreakdown!.by_type)
+                            .filter(([, v]) => v && (v.blocks_destroyed_per_run >= 0.01 || v.time_seconds_per_run >= 0.5))
+                            .map(([key, v]) => {
+                              const [blockType, tierStr] = key.includes(",") ? key.split(",") : [key, "1"];
+                              const tier = tierStr || "1";
+                              const sortIdx = blockTypeOrder.indexOf(blockType as (typeof blockTypeOrder)[number]);
+                              return { key, blockType, tier, v, sortIdx: sortIdx < 0 ? 99 : sortIdx, tierNum: Number(tier) || 1 };
+                            })
+                            .sort((a, b) => a.sortIdx !== b.sortIdx ? a.sortIdx - b.sortIdx : a.tierNum - b.tierNum);
+                          return entries.map(({ key, blockType, tier, v }) => (
+                            <tr key={key}>
                               <td>
-                                <Sprite path={`sprites/archaeology/block_${bt}_t1.png`} alt={bt} className="iconSmall" />
+                                <Sprite path={`sprites/archaeology/block_${blockType}_t${tier}.png`} alt={`${blockType} T${tier}`} className="iconSmall" />
                               </td>
-                              <td>{bt.charAt(0).toUpperCase() + bt.slice(1)}</td>
+                              <td>{blockType.charAt(0).toUpperCase() + blockType.slice(1)} T{tier}</td>
                               <td className="num mono">{v.blocks_destroyed_per_run.toFixed(1)}</td>
                               <td className="num mono">{v.time_seconds_per_run.toFixed(0)}</td>
                               <td className="num mono">{(v.time_share * 100).toFixed(1)}%</td>
                               <td className="num mono">{v.avg_hits_per_block.toFixed(1)}</td>
                             </tr>
-                          );
-                        })}
+                          ));
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -3560,9 +3574,9 @@ export function ArchSim() {
                     <p className="small" style={{ marginTop: 6, color: "var(--muted)" }}>
                       {[
                         openLog.metrics.blockBreakdown.most_time_type &&
-                          `Most time: ${openLog.metrics.blockBreakdown.most_time_type.charAt(0).toUpperCase() + openLog.metrics.blockBreakdown.most_time_type.slice(1)}`,
+                          `Most time: ${formatBlockBreakdownLabel(openLog.metrics.blockBreakdown.most_time_type)}`,
                         openLog.metrics.blockBreakdown.most_avg_hits_type &&
-                          `Highest avg hits/block: ${openLog.metrics.blockBreakdown.most_avg_hits_type.charAt(0).toUpperCase() + openLog.metrics.blockBreakdown.most_avg_hits_type.slice(1)}`,
+                          `Highest avg hits/block: ${formatBlockBreakdownLabel(openLog.metrics.blockBreakdown.most_avg_hits_type)}`,
                       ]
                         .filter(Boolean)
                         .join(" • ")}

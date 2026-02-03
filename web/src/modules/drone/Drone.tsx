@@ -708,10 +708,10 @@ export function Drone() {
                 </div>
                 <div className="droneBuffPlotSummary">
                   <span className="droneBuffPlotSummaryLabel">
-                    Star + Super Star overlap
+                    Star Spawn Rate + SS Rate overlap
                     <Tooltip
                       content={{
-                        title: "Star & Super Star overlap",
+                        title: "Star Spawn Rate & SS Rate overlap",
                         sections: [
                           {
                             heading: "Meaning",

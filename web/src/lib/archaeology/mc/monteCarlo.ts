@@ -314,11 +314,12 @@ export class MonteCarloArchaeologySimulator {
         blocks_killed += 1;
 
         if (track_blocks) {
-          floor_hits_by_type[b.block_type] = (floor_hits_by_type[b.block_type] ?? 0) + hits;
-          floor_blocks_by_type[b.block_type] = (floor_blocks_by_type[b.block_type] ?? 0) + 1;
+          const key = `${b.block_type},${b.tier}`;
+          floor_hits_by_type[key] = (floor_hits_by_type[key] ?? 0) + hits;
+          floor_blocks_by_type[key] = (floor_blocks_by_type[key] ?? 0) + 1;
           if (hits > max_hits_single_block) {
             max_hits_single_block = hits;
-            max_hits_single_block_type = b.block_type;
+            max_hits_single_block_type = key;
           }
         }
 
@@ -426,14 +427,14 @@ export class MonteCarloArchaeologySimulator {
 
     let block_breakdown: McBlockBreakdown | null = null;
     if (track_blocks) {
-      const ordered: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
       const by_type: Record<string, { blocks_destroyed_est: number; time_seconds_est: number; avg_hits_per_block_est: number }> = {};
       const total_time = Object.values(block_hits_by_type).reduce((a, b) => a + b, 0);
-      for (const bt of ordered) {
-        const blocks_est = Number(blocks_destroyed_by_type[bt] ?? 0);
-        const time_est = Number(block_hits_by_type[bt] ?? 0);
+      const allKeys = new Set([...Object.keys(block_hits_by_type), ...Object.keys(blocks_destroyed_by_type)]);
+      for (const key of allKeys) {
+        const blocks_est = Number(blocks_destroyed_by_type[key] ?? 0);
+        const time_est = Number(block_hits_by_type[key] ?? 0);
         if (blocks_est <= 0 && time_est <= 0) continue;
-        by_type[bt] = {
+        by_type[key] = {
           blocks_destroyed_est: blocks_est,
           time_seconds_est: time_est,
           avg_hits_per_block_est: blocks_est > 0 ? time_est / blocks_est : 0,
@@ -649,14 +650,23 @@ export function blockBreakdownSummary(args: {
 
   const totalTimeAvg =
     Object.values(timeSumByType).reduce((a, b) => a + b, 0) / runsWithData;
-  const ordered: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
+  const blockTypeOrder: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
+  const allKeys = [...new Set([...Object.keys(timeSumByType), ...Object.keys(blocksSumByType)])];
+  const sortedKeys = allKeys.sort((a, b) => {
+    const [typeA, tierA] = a.includes(",") ? (a.split(",") as [string, string]) : [a, "1"];
+    const [typeB, tierB] = b.includes(",") ? (b.split(",") as [string, string]) : [b, "1"];
+    const idxA = blockTypeOrder.indexOf(typeA as BlockType);
+    const idxB = blockTypeOrder.indexOf(typeB as BlockType);
+    if (idxA !== idxB) return idxA - idxB;
+    return Number(tierA) - Number(tierB);
+  });
   const by_type: BlockBreakdownAggregate["by_type"] = {};
 
-  for (const bt of ordered) {
-    const tAvg = (timeSumByType[bt] ?? 0) / runsWithData;
-    const bAvg = (blocksSumByType[bt] ?? 0) / runsWithData;
+  for (const key of sortedKeys) {
+    const tAvg = (timeSumByType[key] ?? 0) / runsWithData;
+    const bAvg = (blocksSumByType[key] ?? 0) / runsWithData;
     if (tAvg <= 0 && bAvg <= 0) continue;
-    by_type[bt] = {
+    by_type[key] = {
       blocks_destroyed_per_run: bAvg,
       time_seconds_per_run: tAvg,
       time_share: totalTimeAvg > 0 ? tAvg / totalTimeAvg : 0,
