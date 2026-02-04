@@ -83,6 +83,11 @@ function fmt4(n: number): string {
   return n.toFixed(4);
 }
 
+function fmt1(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(1);
+}
+
 /** Tier toggles: Card / Gilded / Poly / Infernal. No "None" – nothing checked = no tier. */
 function StarCardTierToggles(props: {
   value: StarCardTier;
@@ -460,9 +465,9 @@ export function Stargazing() {
                 ⭐ Stars/hour (Online)
                 <Tooltip content={onlineInfo} />
               </kbd>
-              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_online * resultsCardMult)}</div>
+              <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_online * resultsCardMult)}</div>
               <kbd>⭐ Stars/hour (Offline)</kbd>
-              <div className="mono sgResultValueBlue">{fmt4(summary.stars_per_hour_offline * resultsCardMult)}</div>
+              <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_offline * resultsCardMult)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
@@ -470,14 +475,14 @@ export function Stargazing() {
                 </span>
                 <Tooltip content={onlineInfo} />
               </kbd>
-              <div className="mono sgResultValueOrange">{fmt4(summary.super_stars_per_hour_online)}</div>
+              <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_online)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
                   <span>Super Stars/hour (Offline)</span>
                 </span>
               </kbd>
-              <div className="mono sgResultValueOrange">{fmt4(summary.super_stars_per_hour_offline)}</div>
+              <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_offline)}</div>
             </div>
 
             <div className="small" style={{ marginTop: 10 }}>

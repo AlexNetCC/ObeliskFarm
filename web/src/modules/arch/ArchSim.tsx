@@ -2579,7 +2579,7 @@ export function ArchSim() {
                                   const group = rs.filter((r) => r.costType === ct).sort((a, b) => b.growthPct - a.growthPct);
                                   if (group.length === 0) return null;
                                   const color = BLOCK_COLORS[ct as keyof typeof BLOCK_COLORS] ?? "#666";
-                                  const icon = `sprites/archaeology/block_${ct}_t1.png`;
+                                  const icon = getFragIconPath(ct);
                                   return (
                                     <Fragment key={ct}>
                                       <tr style={{ backgroundColor: "rgba(15,23,42,0.06)" }}>
@@ -2662,7 +2662,7 @@ export function ArchSim() {
               {(["common", "rare", "epic", "legendary", "mythic"] as const).map((ct) => {
               const entries = fragmentGroups[ct] ?? [];
               const color = BLOCK_COLORS[ct];
-              const icon = `sprites/archaeology/block_${ct}_t1.png`;
+              const icon = getFragIconPath(ct);
               if (!entries.length) return null;
               return (
                 <div key={ct} className="fragmentGroup" style={{ borderColor: `rgba(15,23,42,0.12)` }}>
