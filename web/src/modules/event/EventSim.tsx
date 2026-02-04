@@ -12,7 +12,7 @@ import {
   type OptimizationResult,
   type UpgradeState,
 } from "../../lib/event/optimizer";
-import { monteCarloOptimizeGuided, prestigeReachMc, type MCOptimizationResult, type PrestigeReachMcResult } from "../../lib/event/monteCarloOptimizer";
+import { monteCarloOptimizeGuided, estimateReachProbabilityGivenState, type MCOptimizationResult, type PrestigeReachMcResult } from "../../lib/event/monteCarloOptimizer";
 import { applyUpgrades, calculateMaterials, getGemMaxLevel, runFullSimulation } from "../../lib/event/simulation";
 import { mulberry32 } from "../../lib/rng";
 import { assetUrl } from "../../lib/assets";
@@ -201,6 +201,26 @@ export function EventSim() {
   const PRESTIGE_REACH_HOURS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
   const [prestigeReachMcResult, setPrestigeReachMcResult] = useState<PrestigeReachMcResult[] | null>(null);
   const [prestigeReachMcRunning, setPrestigeReachMcRunning] = useState(false);
+  const [prestigeReachMcProgress, setPrestigeReachMcProgress] = useState<{
+    hour: number;
+    currentRun: number;
+    totalRuns: number;
+  } | null>(null);
+  const prestigeReachCancelRef = useRef(false);
+  const workerJobRef = useRef<"main" | "prestigeReach" | null>(null);
+  type PrestigeReachContext = {
+    hour: number;
+    results: PrestigeReachMcResult[];
+    initial: UpgradeState;
+    budget1h: Budget;
+    targetWave: number;
+    prestige: number;
+    numCandidates: number;
+    runsPerCombo: number;
+    waveBandStep: number | null;
+    useRewardMilestones: boolean;
+  };
+  const prestigeReachContextRef = useRef<PrestigeReachContext | null>(null);
   const PRESTIGE_REACH_SIGNIFICANT = 0.95;
   const [waveHistogramOpen, setWaveHistogramOpen] = useState(false);
   const [waveHistogramSamples, setWaveHistogramSamples] = useState<number[] | null>(null);
@@ -310,8 +330,74 @@ export function EventSim() {
     workerRef.current = new Worker(new URL("../../workers/mc.worker.ts", import.meta.url), { type: "module" });
     workerRef.current.onmessage = (ev: MessageEvent<any>) => {
       const msg = ev.data;
+      if (msg?.type === "progress" && workerJobRef.current === "prestigeReach") {
+        const ctx = prestigeReachContextRef.current;
+        if (ctx) {
+          const p = msg.payload as { cur: number; total: number };
+          setPrestigeReachMcProgress({ hour: ctx.hour, currentRun: p.cur, totalRuns: p.total });
+        }
+        return;
+      }
       if (msg?.type === "progress") {
         setProgress(msg.payload);
+        return;
+      }
+      if (msg?.type === "done" && workerJobRef.current === "prestigeReach") {
+        const ctx = prestigeReachContextRef.current;
+        if (!ctx) return;
+        const r: MCOptimizationResult = msg.payload;
+        const budgetH: Budget = {
+          1: ctx.budget1h[1] * ctx.hour,
+          2: ctx.budget1h[2] * ctx.hour,
+          3: ctx.budget1h[3] * ctx.hour,
+          4: ctx.budget1h[4] * ctx.hour,
+        };
+        const reach = estimateReachProbabilityGivenState({
+          state: r.bestState,
+          prestige: ctx.prestige,
+          targetWave: ctx.targetWave,
+          budget: budgetH,
+          numRuns: 500,
+          runsPerCombo: 5,
+        });
+        ctx.results.push(reach);
+        if (prestigeReachCancelRef.current || ctx.hour >= 8) {
+          setPrestigeReachMcResult(ctx.results.length > 0 ? ctx.results : null);
+          setPrestigeReachMcRunning(false);
+          setPrestigeReachMcProgress(null);
+          prestigeReachContextRef.current = null;
+          workerJobRef.current = null;
+          return;
+        }
+        ctx.hour += 1;
+        setPrestigeReachMcProgress({ hour: ctx.hour, currentRun: 0, totalRuns: ctx.numCandidates });
+        workerRef.current?.postMessage({
+          type: "start",
+          payload: {
+            budget: {
+              1: ctx.budget1h[1] * ctx.hour,
+              2: ctx.budget1h[2] * ctx.hour,
+              3: ctx.budget1h[3] * ctx.hour,
+              4: ctx.budget1h[4] * ctx.hour,
+            },
+            prestige: ctx.prestige,
+            initialState: ctx.initial,
+            numCandidates: ctx.numCandidates,
+            runsPerCombo: ctx.runsPerCombo,
+            seedBase: null,
+            waveBandStep: ctx.waveBandStep,
+            useRewardMilestones: ctx.useRewardMilestones,
+          },
+        });
+        return;
+      }
+      if (msg?.type === "cancelled" && workerJobRef.current === "prestigeReach") {
+        const ctx = prestigeReachContextRef.current;
+        setPrestigeReachMcResult(ctx?.results && ctx.results.length > 0 ? ctx.results : null);
+        setPrestigeReachMcRunning(false);
+        setPrestigeReachMcProgress(null);
+        prestigeReachContextRef.current = null;
+        workerJobRef.current = null;
         return;
       }
       if (msg?.type === "done") {
@@ -849,7 +935,7 @@ export function EventSim() {
           </Collapsible>
 
           <div className="btnRow" style={{ marginTop: 0 }}>
-            <button className="btn" onClick={onOptimizeGuidedMc} disabled={running}>
+            <button className="btn" onClick={onOptimizeGuidedMc} disabled={running || prestigeReachMcRunning}>
               Optimize (Guided MC)
             </button>
             <Tooltip
@@ -863,6 +949,15 @@ export function EventSim() {
             />
             {running ? (
               <button className="btn btnSecondary" onClick={onCancel}>
+                Cancel
+              </button>
+            ) : prestigeReachMcRunning ? (
+              <button
+                className="btn btnSecondary"
+                onClick={() => {
+                  prestigeReachCancelRef.current = true;
+                }}
+              >
                 Cancel
               </button>
             ) : null}
@@ -890,6 +985,30 @@ export function EventSim() {
               <div className="mono">{progress ? formatInt(progress.cur * ui.mcRunsPerCombo) : "—"}</div>
               <kbd>Total runs</kbd>
               <div className="mono">{progress ? formatInt(progress.total * ui.mcRunsPerCombo) : "—"}</div>
+            </div>
+          ) : prestigeReachMcRunning ? (
+            <div className="kv">
+              <kbd>Status</kbd>
+              <div className="mono">Running prestige-reach MC…</div>
+              <kbd>Hours Done</kbd>
+              <div className="mono">
+                {prestigeReachMcProgress
+                  ? `${Math.max(0, prestigeReachMcProgress.currentRun >= prestigeReachMcProgress.totalRuns ? prestigeReachMcProgress.hour : prestigeReachMcProgress.hour - 1)}/8`
+                  : "0/8"}
+              </div>
+              <kbd>Progress</kbd>
+              <div className="mono">
+                {prestigeReachMcProgress ? (
+                  <>
+                    {Math.floor(
+                      ((prestigeReachMcProgress.hour - 1) / 8 + prestigeReachMcProgress.currentRun / prestigeReachMcProgress.totalRuns / 8) * 100
+                    )}
+                    %
+                  </>
+                ) : (
+                  <>Starting…</>
+                )}
+              </div>
             </div>
           ) : null}
 
@@ -1183,8 +1302,8 @@ export function EventSim() {
                               {
                                 heading: "1h … 8h",
                                 lines: [
-                                  "Runs MC for 1h through 8h budget (e.g. overnight) so you can see how chances improve.",
-                                  "If 8h chance is still ≤ 95%, shows: Not even 8 hours farming will yield next Prestige!",
+                                  "Runs 8 full optimizations (same as Optimize Guided MC), one per hour budget (1h … 8h). Can take several minutes.",
+                                  "Progress bar shows current hour and optimization step. If 8h chance is still ≤ 95%, shows: Not even 8 hours farming will yield next Prestige!",
                                 ],
                               },
                             ],
@@ -1201,43 +1320,89 @@ export function EventSim() {
                       Next prestige (you are {ui.prestige}): wave <span className="mono">{targetWave}</span> for prestige {nextPrestigeLabel}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        className="btn"
-                        disabled={prestigeReachMcRunning}
-                        onClick={() => {
-                          setPrestigeReachMcRunning(true);
-                          setPrestigeReachMcResult(null);
-                          setTimeout(() => {
-                            try {
-                              const initial = copyState(result.upgrades);
-                              const run = (budget: Budget) =>
-                                prestigeReachMc({
-                                  budget,
-                                  prestige: ui.prestige,
-                                  targetWave,
-                                  initialState: copyState(initial),
-                                  numRuns: 500,
-                                  runsPerCombo: 5,
-                                });
-                              const results: PrestigeReachMcResult[] = [];
-                              for (let h = 1; h <= 8; h += 1) {
-                                const budgetH: Budget = {
-                                  1: budget1h[1] * h,
-                                  2: budget1h[2] * h,
-                                  3: budget1h[3] * h,
-                                  4: budget1h[4] * h,
-                                };
-                                results.push(run(budgetH));
-                              }
-                              setPrestigeReachMcResult(results);
-                            } finally {
-                              setPrestigeReachMcRunning(false);
-                            }
-                          }, 0);
-                        }}
-                      >
-                        {prestigeReachMcRunning ? "Running MC…" : "Run MC"}
-                      </button>
+                        <button
+                          className="btn"
+                          disabled={prestigeReachMcRunning}
+                          onClick={() => {
+                            prestigeReachCancelRef.current = false;
+                            setPrestigeReachMcRunning(true);
+                            setPrestigeReachMcResult(null);
+                            setPrestigeReachMcProgress({ hour: 1, currentRun: 0, totalRuns: Math.max(1, clampInt(ui.mcCandidates, 1, 10000)) });
+                            const initial = copyState(result.upgrades);
+                            const prestige = clampInt(ui.prestige, 0, 999);
+                            const numCandidates = Math.max(1, clampInt(ui.mcCandidates, 1, 10000));
+                            const runsPerCombo = Math.max(1, clampInt(ui.mcRunsPerCombo, 1, 2000));
+                            const waveBandStep = clampInt(ui.waveBandStep ?? 0, 0, 20) || null;
+                            const useRewardMilestones = ui.useRewardMilestones ?? false;
+                            const budgetHour1: Budget = {
+                              1: budget1h[1],
+                              2: budget1h[2],
+                              3: budget1h[3],
+                              4: budget1h[4],
+                            };
+                            prestigeReachContextRef.current = {
+                              hour: 1,
+                              results: [],
+                              initial,
+                              budget1h,
+                              targetWave,
+                              prestige,
+                              numCandidates,
+                              runsPerCombo,
+                              waveBandStep,
+                              useRewardMilestones,
+                            };
+                            workerJobRef.current = "prestigeReach";
+                            ensureWorker();
+                            workerRef.current?.postMessage({
+                              type: "start",
+                              payload: {
+                                budget: budgetHour1,
+                                prestige,
+                                initialState: initial,
+                                numCandidates,
+                                runsPerCombo,
+                                seedBase: null,
+                                waveBandStep,
+                                useRewardMilestones,
+                              },
+                            });
+                          }}
+                        >
+                          {prestigeReachMcRunning ? "Running MC…" : "Run MC"}
+                        </button>
+                        {prestigeReachMcRunning ? (
+                          <button
+                            className="btn btnSecondary"
+                            onClick={() => {
+                              prestigeReachCancelRef.current = true;
+                              if (workerRef.current) workerRef.current.postMessage({ type: "cancel" });
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                      {prestigeReachMcRunning && prestigeReachMcProgress ? (
+                        <div className="kv small" style={{ marginTop: 8 }}>
+                          <kbd>Hours Done</kbd>
+                          <div className="mono">
+                            {prestigeReachMcProgress.currentRun >= prestigeReachMcProgress.totalRuns
+                              ? prestigeReachMcProgress.hour
+                              : prestigeReachMcProgress.hour - 1}
+                            /8
+                          </div>
+                          <kbd>Progress</kbd>
+                          <div className="mono">
+                            {Math.floor(
+                              ((prestigeReachMcProgress.hour - 1) / 8 +
+                                prestigeReachMcProgress.currentRun / prestigeReachMcProgress.totalRuns / 8) *
+                                100
+                            )}
+                            %
+                          </div>
+                        </div>
+                      ) : null}
                       {prestigeReachMcResult ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {prestigeReachMcResult[7].probability <= PRESTIGE_REACH_SIGNIFICANT ? (
@@ -1256,7 +1421,6 @@ export function EventSim() {
                           })}
                         </div>
                       ) : null}
-                    </div>
                   </Collapsible>
                 );
               })()}

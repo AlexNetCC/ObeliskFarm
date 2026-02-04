@@ -78,6 +78,10 @@ type ElixirState = {
   axolotlSkin: boolean;
   /** World 3 upgrade: Fuel Duration +0.15% per level (multiplicative). */
   fuelDurationWorld3Level: number;
+  /** Frogger Drone */
+  froggerSuitLevel: number;
+  froggerGradeLevel: number;
+  froggerFueled: boolean;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v2";
@@ -107,6 +111,9 @@ const DEFAULT: ElixirState = {
   fuelDurationRelicLevel: 0,
   axolotlSkin: false,
   fuelDurationWorld3Level: 0,
+  froggerSuitLevel: 8,
+  froggerGradeLevel: 0,
+  froggerFueled: false,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -315,6 +322,9 @@ export function Drone() {
     s.gasolineGuzzler = typeof migrated.gasolineGuzzler === "boolean" ? migrated.gasolineGuzzler : DEFAULT.gasolineGuzzler;
     s.axolotlSkin = typeof migrated.axolotlSkin === "boolean" ? migrated.axolotlSkin : DEFAULT.axolotlSkin;
     s.fuelDurationWorld3Level = Math.max(0, Math.trunc(Number(s.fuelDurationWorld3Level ?? 0)));
+    s.froggerSuitLevel = clamp(s.froggerSuitLevel ?? DEFAULT.froggerSuitLevel, 0, 20);
+    s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, 45);
+    s.froggerFueled = typeof migrated.froggerFueled === "boolean" ? migrated.froggerFueled : DEFAULT.froggerFueled;
     return s;
   });
 
@@ -363,6 +373,27 @@ export function Drone() {
     (state.axolotlSkin ? 1.1 : 1) *
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult;
+
+  /** Frogger fuel duration: same formula as Elixir (grade-based + shared upgrades). */
+  const froggerFuelDurationFromGradeSec =
+    ELIXIR_FUEL_DURATION_BASE_SEC + state.froggerGradeLevel * ELIXIR_FUEL_DURATION_SEC_PER_GRADE;
+  let froggerFuelDurationGameSec = froggerFuelDurationFromGradeSec;
+  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * (1 + state.fuelDurationUpgradeLevel / 100));
+  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * fuelDurationWorld3Mult);
+  froggerFuelDurationGameSec = Math.round(
+    froggerFuelDurationGameSec * (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1),
+  );
+  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * (state.axolotlSkin ? 1.1 : 1));
+  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * MISC_FUEL_MULT[state.miscFuelCardTier]);
+  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * fuelDurationRelicMult);
+  const froggerFuelDurationSecReal = froggerFuelDurationGameSec / gameSpeedMult;
+
+  const froggerFuelGemsPerHour = useMemo(() => {
+    if (!state.froggerFueled || froggerFuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / froggerFuelDurationSecReal;
+    const saveChance = Math.min(1, state.fuelSaveChanceUpgradeLevel / 100 + state.upgradeFuelSaveChancePct / 100);
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [froggerFuelDurationSecReal, state.froggerFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
   const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
   const buffDurations = useMemo(() => {
@@ -981,6 +1012,129 @@ export function Drone() {
               );
             })}
           </div>
+        </div>
+      </Collapsible>
+
+      <Collapsible id="drone-frogger" title="Frogger Drone" defaultExpanded={true}>
+        <div className="droneSection">
+          <div className="droneSectionTitle">Settings</div>
+
+          <Stepper
+            label="Frogger Suit level"
+            value={state.froggerSuitLevel}
+            onChange={(n) => update({ froggerSuitLevel: n })}
+            min={0}
+            max={20}
+            step={1}
+            stepLarge={5}
+            tooltip={{
+              title: "Frogger Suit upgrade level",
+              lines: ["Frogger Drone suit level. Used when Bombs section is implemented."],
+            }}
+          />
+
+          <div className="droneCheckboxRow">
+            <img
+              src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png"
+              alt=""
+              className="droneSkillIcon"
+              aria-hidden
+            />
+            <input
+              id="frogger-fueled"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.froggerFueled}
+              onChange={(e) => update({ froggerFueled: e.target.checked })}
+            />
+            <label htmlFor="frogger-fueled" className="droneLabel">
+              Drone fueled (fuel extends duration)
+            </label>
+          </div>
+
+          {state.froggerFueled ? (
+            <div className="droneSubSection">
+              <div className="droneSubTitle">When fueled</div>
+              <Stepper
+                label="Grade level"
+                value={state.froggerGradeLevel}
+                onChange={(n) => update({ froggerGradeLevel: n })}
+                min={0}
+                max={45}
+                step={1}
+                stepLarge={5}
+                tooltip={{
+                  title: "Grade level (fuel buff)",
+                  lines: [
+                    "Fuel duration: 3:30 at grade 0, +0:10.5 per grade.",
+                    "Same formula as Elixir Drone fuel.",
+                  ],
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="droneSection">
+          <div className="droneSectionTitle">Fuel</div>
+          <div className="droneRow">
+            <span className="droneLabel">1 fuel lasts (game time)</span>
+            <span className="droneStepperValue">
+              {(froggerFuelDurationGameSec / 60).toFixed(1)} min
+            </span>
+          </div>
+          <div className="droneRow">
+            <span className="droneLabel">1 fuel lasts (real time)</span>
+            <span className="droneStepperValue">
+              {froggerFuelDurationSecReal >= 60
+                ? Math.floor(froggerFuelDurationSecReal / 60) + ":" + String(Math.round(froggerFuelDurationSecReal % 60)).padStart(2, "0")
+                : Math.round(froggerFuelDurationSecReal) + " s"}
+            </span>
+          </div>
+          <div className="droneRow">
+            <span className="droneLabel">Fuel Duration Multiplier</span>
+            <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+          </div>
+          {state.froggerFueled ? (
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      sections: [
+                        {
+                          heading: "Meaning",
+                          lines: [
+                            "Average gems per hour spent on fuel to keep the Frogger Drone fueled 100% of the time.",
+                          ],
+                        },
+                        {
+                          heading: "Formula",
+                          lines: [
+                            "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                            "Fuel Save Chance = Coal Fuel Save (+1%/level) + Upgrade → Fuel Save Chance (additive).",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span className="droneFuelGemsValue" aria-label={`${froggerFuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{froggerFuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="droneSection">
+          <div className="droneSectionTitle">Bombs</div>
+          <p className="droneHint" style={{ marginBottom: 0 }}>
+            Placeholder. Bomb-related stats and options will go here.
+          </p>
         </div>
       </Collapsible>
     </div>

@@ -183,6 +183,45 @@ export function prestigeReachMc(args: {
   };
 }
 
+/** Estimate P(reach target wave) for a fixed build: no optimization, just many sim runs. */
+export function estimateReachProbabilityGivenState(args: {
+  state: UpgradeState;
+  prestige: number;
+  targetWave: number;
+  budget: Budget;
+  numRuns?: number;
+  runsPerCombo?: number;
+  seedBase?: number | null;
+}): PrestigeReachMcResult {
+  const {
+    state,
+    prestige,
+    targetWave,
+    budget,
+    numRuns = 500,
+    runsPerCombo = 5,
+    seedBase = null,
+  } = args;
+  const runs = Math.max(1, Math.trunc(runsPerCombo));
+  const n = Math.max(1, Math.trunc(numRuns));
+  const seed = (seedBase ?? (Date.now() & 0x7fffffff)) & 0x7fffffff;
+  let successCount = 0;
+  let waveSum = 0;
+  for (let i = 0; i < n; i += 1) {
+    const ev = evaluateStateSerial({ state, prestige, runs, seed: seed + i * 2000 + 1 });
+    waveSum += ev.wave;
+    if (ev.wave >= targetWave) successCount += 1;
+  }
+  return {
+    probability: successCount / n,
+    successCount,
+    totalRuns: n,
+    targetWave,
+    meanWave: waveSum / n,
+    budget: { 1: budget[1], 2: budget[2], 3: budget[3], 4: budget[4] },
+  };
+}
+
 export function monteCarloOptimizeGuided(args: {
   budget: Budget;
   prestige: number;
