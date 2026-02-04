@@ -3,7 +3,7 @@ import "./drone.css";
 import { Tooltip } from "../../components/Tooltip";
 import { Collapsible } from "../../components/Collapsible";
 import { loadJson, saveJson } from "../../lib/storage";
-import { defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateGemBombGemsPerHour, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const ELIXIR_BASE_INTERVAL_SEC = 360;
 const ELIXIR_SUIT_SEC_PER_LEVEL = 15;
@@ -21,6 +21,12 @@ const ELIXIR_FUEL_DURATION_SEC_PER_GRADE = 10.5; // +0:10.5
 /** Frogger fuel duration: 3:00 at grade 0, +0:09 per grade. */
 const FROGGER_FUEL_DURATION_BASE_SEC = 180; // 3:00
 const FROGGER_FUEL_DURATION_SEC_PER_GRADE = 9; // +0:09
+/** Frogger Suit: fires a random bomb every 30 s base; −1.5 s per suit level. */
+const FROGGER_BASE_INTERVAL_SEC = 30;
+const FROGGER_SUIT_SEC_PER_LEVEL = 1.5;
+/** When fueled: 5 bombs per autofire, +1 per grade (no charge consumed). */
+const FROGGER_FUEL_BOMBS_BASE = 5;
+const FROGGER_FUEL_BOMBS_PER_GRADE = 1;
 
 const GASOLINE_GUZZLER_FUEL_DURATION_PCT = 20;
 
@@ -64,6 +70,8 @@ const MISC_FUEL_MULT: Record<MiscFuelCardTier, number> = { 0: 1, 1: 1.02, 2: 1.0
 
 type ElixirState = {
   gameSpeedMultiplier: number;
+  /** Elixir Drone enabled (ON). When OFF, contributions to Gem EV/fuel are zero. */
+  elixirDroneOn: boolean;
   elixirSuitLevel: number;
   elixirGradeLevel: number;
   fishingUnlocked: boolean;
@@ -82,6 +90,8 @@ type ElixirState = {
   /** World 3 upgrade: Fuel Duration +0.15% per level (multiplicative). */
   fuelDurationWorld3Level: number;
   /** Frogger Drone */
+  /** Frogger Drone enabled (ON). When OFF, contributions to Gem EV/fuel are zero. */
+  froggerDroneOn: boolean;
   froggerSuitLevel: number;
   froggerGradeLevel: number;
   froggerFueled: boolean;
@@ -102,6 +112,7 @@ function clampInt(n: number, min: number, max: number): number {
 
 const DEFAULT: ElixirState = {
   gameSpeedMultiplier: 1,
+  elixirDroneOn: true,
   elixirSuitLevel: 8,
   elixirGradeLevel: 0,
   fishingUnlocked: true,
@@ -114,6 +125,7 @@ const DEFAULT: ElixirState = {
   fuelDurationRelicLevel: 0,
   axolotlSkin: false,
   fuelDurationWorld3Level: 0,
+  froggerDroneOn: true,
   froggerSuitLevel: 8,
   froggerGradeLevel: 0,
   froggerFueled: false,
@@ -320,6 +332,7 @@ export function Drone() {
     s.miscFuelCardTier = clamp(Math.round(Number(s.miscFuelCardTier ?? 0)), 0, 3) as MiscFuelCardTier;
     s.fuelDurationRelicLevel = Math.max(0, Math.trunc(Number(s.fuelDurationRelicLevel ?? 0)));
     // Restore checkboxes from saved so they persist (avoid undefined from old saves)
+    s.elixirDroneOn = typeof migrated.elixirDroneOn === "boolean" ? migrated.elixirDroneOn : DEFAULT.elixirDroneOn;
     s.fishingUnlocked = typeof migrated.fishingUnlocked === "boolean" ? migrated.fishingUnlocked : DEFAULT.fishingUnlocked;
     s.fueled = typeof migrated.fueled === "boolean" ? migrated.fueled : DEFAULT.fueled;
     s.gasolineGuzzler = typeof migrated.gasolineGuzzler === "boolean" ? migrated.gasolineGuzzler : DEFAULT.gasolineGuzzler;
@@ -327,6 +340,7 @@ export function Drone() {
     s.fuelDurationWorld3Level = Math.max(0, Math.trunc(Number(s.fuelDurationWorld3Level ?? 0)));
     s.froggerSuitLevel = clamp(s.froggerSuitLevel ?? DEFAULT.froggerSuitLevel, 0, 20);
     s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, 45);
+    s.froggerDroneOn = typeof migrated.froggerDroneOn === "boolean" ? migrated.froggerDroneOn : DEFAULT.froggerDroneOn;
     s.froggerFueled = typeof migrated.froggerFueled === "boolean" ? migrated.froggerFueled : DEFAULT.froggerFueled;
     return s;
   });
@@ -423,6 +437,50 @@ export function Drone() {
     return Math.min(60, (b.sec / cycleSec) * 60);
   }, [numBuffs, intervalSec, buffDurations]);
 
+  /** Frogger: 30 s base (game time), −1.5 s per suit level. Real time = game time ÷ game speed. When fueled: 5 + grade bombs per autofire (no charge consumed). */
+  const froggerBombIntervalSecGame = Math.max(0.1, FROGGER_BASE_INTERVAL_SEC - state.froggerSuitLevel * FROGGER_SUIT_SEC_PER_LEVEL);
+  const froggerBombIntervalSecReal = froggerBombIntervalSecGame / gameSpeedMult;
+  const froggerBombsPerAutofire = state.froggerFueled
+    ? FROGGER_FUEL_BOMBS_BASE + state.froggerGradeLevel * FROGGER_FUEL_BOMBS_PER_GRADE
+    : 1;
+
+  /** Frogger Gem EV+/h: one bomb every X s (without fuel); with fuel, (5 + grade) of same random type per interval. Uses Gem EV bomb cycle (marginal value per detonation). */
+  const { froggerGemEvPerHour, totalBombTypesFromGemEv } = useMemo(() => {
+    const baseParams = defaultGameParameters();
+    const saved = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
+    const ext = loadJson<{
+      lootbugBomb10xMinPerHour?: number;
+      chaosTotemUptimePct?: number;
+    }>(GEMEV_EXTERNAL_KEY) ?? {};
+    const params: GameParameters = { ...baseParams, ...(saved?.params ?? {}) };
+    const includeFounder = params.include_founder_bomb_in_total ?? params.founder_enabled;
+    const hasVeinmorph = "has_veinmorph_bomb" in params ? params.has_veinmorph_bomb : true;
+    const hasMegabomb = "has_megabomb" in params ? params.has_megabomb : false;
+    params.total_bomb_types = 10 + (includeFounder ? 1 : 0) + (hasVeinmorph ? 1 : 0) + (hasMegabomb ? 1 : 0);
+    params.bomb_recharge_10x_min_per_hour = (ext.lootbugBomb10xMinPerHour ?? 0) + droneBomb10xMinPerHour;
+    params.chaos_totem_uptime = ((ext.chaosTotemUptimePct ?? 0) / 100);
+    const totalBombTypes = Math.max(2, Math.min(13, params.total_bomb_types));
+    let baseEv: number;
+    let deltaGem: number;
+    let deltaCherry: number;
+    let deltaBattery: number;
+    let deltaD20: number;
+    try {
+      baseEv = calculateGemBombGemsPerHour(params, 0);
+      deltaGem = calculateGemBombGemsPerHour(params, { gem: 1 }) - baseEv;
+      deltaCherry = calculateGemBombGemsPerHour(params, { cherry: 1 }) - baseEv;
+      deltaBattery = calculateGemBombGemsPerHour(params, { battery: 1 }) - baseEv;
+      deltaD20 = calculateGemBombGemsPerHour(params, { d20: 1 }) - baseEv;
+    } catch {
+      return { froggerGemEvPerHour: 0, totalBombTypesFromGemEv: totalBombTypes };
+    }
+    const sumDeltas = deltaGem + deltaCherry + deltaBattery + deltaD20;
+    const bombsPerHour = 3600 / Math.max(0.1, froggerBombIntervalSecReal);
+    const bombsPerPick = froggerBombsPerAutofire;
+    const froggerGemEvPerHour = bombsPerHour * (1 / totalBombTypes) * bombsPerPick * sumDeltas;
+    return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes };
+  }, [froggerBombIntervalSecReal, froggerBombsPerAutofire, droneBomb10xMinPerHour]);
+
   /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. Save chance = Coal Fuel Save + Upgrade Fuel Save (additive), capped at 1. */
   const fuelGemsPerHour = useMemo(() => {
     if (fuelDurationSecReal <= 0) return 0;
@@ -433,12 +491,12 @@ export function Drone() {
 
   useEffect(() => {
     const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
-    ext.droneBomb10xMinPerHour = droneBomb10xMinPerHour;
-    const elixirFuelGems = state.fueled ? fuelGemsPerHour : 0;
-    const froggerFuelGems = state.froggerFueled ? froggerFuelGemsPerHour : 0;
+    ext.droneBomb10xMinPerHour = state.elixirDroneOn ? droneBomb10xMinPerHour : 0;
+    const elixirFuelGems = state.elixirDroneOn && state.fueled ? fuelGemsPerHour : 0;
+    const froggerFuelGems = state.froggerDroneOn && state.froggerFueled ? froggerFuelGemsPerHour : 0;
     ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, state.fueled, state.froggerFueled]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -695,6 +753,24 @@ export function Drone() {
 
       <Collapsible id="drone-elixir" title="Elixir Drone" defaultExpanded={true}>
         <div className="droneSection">
+          <div className="droneCheckboxRow">
+            <input
+              id="elixir-drone-on"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.elixirDroneOn}
+              onChange={(e) => update({ elixirDroneOn: e.target.checked })}
+            />
+            <label htmlFor="elixir-drone-on" className="droneLabel">
+              Drone: {state.elixirDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Elixir Drone",
+                lines: ["When OFF, Elixir Drone contributions (10× Bomb Recharge share, fuel cost) are not sent to Gem EV."],
+              }}
+            />
+          </div>
           <div className="droneSectionTitle">Settings</div>
 
           <Stepper
@@ -1022,6 +1098,24 @@ export function Drone() {
 
       <Collapsible id="drone-frogger" title="Frogger Drone" defaultExpanded={true}>
         <div className="droneSection">
+          <div className="droneCheckboxRow">
+            <input
+              id="frogger-drone-on"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.froggerDroneOn}
+              onChange={(e) => update({ froggerDroneOn: e.target.checked })}
+            />
+            <label htmlFor="frogger-drone-on" className="droneLabel">
+              Drone: {state.froggerDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Frogger Drone",
+                lines: ["When OFF, Frogger Drone contributions (Gem EV+/h, fuel cost) are not sent to Gem EV."],
+              }}
+            />
+          </div>
           <div className="droneSectionTitle">Settings</div>
 
           <Stepper
@@ -1034,9 +1128,18 @@ export function Drone() {
             stepLarge={5}
             tooltip={{
               title: "Frogger Suit upgrade level",
-              lines: ["Frogger Drone suit level. Used when Bombs section is implemented."],
+              lines: [
+                "Time Between Autofires −1.5 s per level (base 30 s game time). Real time = game time ÷ game speed.",
+                "Fires a random bomb every interval; rerolls if bomb not unlocked or 0 charges (max 30 rolls).",
+              ],
             }}
           />
+          <div className="droneRow">
+            <span className="droneLabel">→ Time between autofires</span>
+            <span className="droneStepperValue">
+              {froggerBombIntervalSecReal.toFixed(1)} s{gameSpeedMult > 1 ? " (real)" : ""}
+            </span>
+          </div>
 
           <div className="droneCheckboxRow">
             <img
@@ -1072,7 +1175,7 @@ export function Drone() {
                   title: "Grade level (fuel buff)",
                   lines: [
                     "Fuel duration: 3:00 at grade 0, +0:09 per grade.",
-                    "Same multipliers (Coal, Cards, etc.) as Elixir Drone fuel.",
+                    "When fueled: 5 bombs per autofire, +1 per grade (no charge consumed). Same fuel multipliers (Coal, Cards, etc.) as Elixir.",
                   ],
                 }}
               />
@@ -1137,9 +1240,62 @@ export function Drone() {
 
         <div className="droneSection">
           <div className="droneSectionTitle">Bombs</div>
-          <p className="droneHint" style={{ marginBottom: 0 }}>
-            Placeholder. Bomb-related stats and options will go here.
+          <p className="droneHint" style={{ marginBottom: 10 }}>
+            Fires a random bomb every interval (from Settings). Random rolls from all bomb types (including locked); rerolls if not unlocked or 0 charges (max 30 rolls). With fuel: 5 + grade bombs per autofire, no charge consumed.
           </p>
+          <div className="droneRow">
+            <span className="droneLabel">Time between autofires</span>
+            <span className="droneStepperValue">
+              {froggerBombIntervalSecReal.toFixed(1)} s{gameSpeedMult > 1 ? " (real)" : ""}
+            </span>
+          </div>
+          {state.froggerFueled ? (
+            <div className="droneRow">
+              <span className="droneLabel">Bombs per autofire (when fueled)</span>
+              <span className="droneStepperValue">{froggerBombsPerAutofire}</span>
+            </div>
+          ) : null}
+          <div className="droneRow">
+            <span className="droneLabel">
+              Total bomb types (Gem EV)
+              <Tooltip
+                content={{
+                  title: "Total bomb types",
+                  lines: ["Read from Gem EV module. Open Gem EV once so bomb types (Founder, Veinmorph, Megabomb) are set; then this shows the count used for Frogger."],
+                }}
+              />
+            </span>
+            <span className="droneStepperValue">{totalBombTypesFromGemEv}</span>
+          </div>
+          <div className="droneRow droneFuelGemsRow droneBomb10xRow">
+            <span className="droneFuelGemsLabel">
+              <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+              <span className="droneLabel">
+                Frogger Gem EV+/h
+                <Tooltip
+                  content={{
+                    title: "Frogger Gem EV+/h",
+                    sections: [
+                      {
+                        heading: "Meaning",
+                        lines: [
+                          "Expected Gem EV per hour from Frogger Drone bombs. Based on Gem EV bomb cycle (marginal value per gem, cherry, battery, d20 detonation).",
+                          "Without fuel: (3600 ÷ interval) × (1 ÷ bomb types) × 1 bomb. With fuel: same × Y bombs per pick.",
+                        ],
+                      },
+                      {
+                        heading: "Source",
+                        lines: ["Uses Gem EV params and 10× Bomb Recharge (Lootbug + Drone) from external. Open Gem EV once to sync."],
+                      },
+                    ],
+                  }}
+                />
+              </span>
+            </span>
+            <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`${froggerGemEvPerHour.toFixed(1)} gems per hour from Frogger`}>
+              +{froggerGemEvPerHour.toFixed(1)}
+            </span>
+          </div>
         </div>
       </Collapsible>
     </div>
