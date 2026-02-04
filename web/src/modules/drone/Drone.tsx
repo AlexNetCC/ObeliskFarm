@@ -1130,7 +1130,8 @@ export function Drone() {
               title: "Frogger Suit upgrade level",
               lines: [
                 "Time Between Autofires −1.5 s per level (base 30 s game time). Real time = game time ÷ game speed.",
-                "Fires a random bomb every interval; rerolls if bomb not unlocked or 0 charges (max 30 rolls).",
+                "Rolls a random bomb, even from bombs you don't have unlocked. Rerolls if you don't have that bomb unlocked or it has 0 charges. If no valid bomb is rolled after 30 rolls, it fires no bombs.",
+                "Calculator: assumes charges; pool = available bomb types from Gem EV.",
               ],
             }}
           />
@@ -1241,7 +1242,7 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneSectionTitle">Bombs</div>
           <p className="droneHint" style={{ marginBottom: 10 }}>
-            Fires a random bomb every interval (from Settings). Random rolls from all bomb types (including locked); rerolls if not unlocked or 0 charges (max 30 rolls). With fuel: 5 + grade bombs per autofire, no charge consumed.
+            Rolls a random bomb every interval (from Settings), even from bombs you don't have unlocked. Rerolls if you don't have that bomb unlocked or it has 0 charges. If no valid bomb is rolled after 30 rolls, it fires no bombs. With fuel: 5 + grade bombs per autofire, no charge consumed. Calculator: assumes charges; pool = available bomb types from Gem EV (Total bomb types below).
           </p>
           <div className="droneRow">
             <span className="droneLabel">Time between autofires</span>
@@ -1260,8 +1261,11 @@ export function Drone() {
               Total bomb types (Gem EV)
               <Tooltip
                 content={{
-                  title: "Total bomb types",
-                  lines: ["Read from Gem EV module. Open Gem EV once so bomb types (Founder, Veinmorph, Megabomb) are set; then this shows the count used for Frogger."],
+                  title: "Total bomb types (available)",
+                  lines: [
+                    "Available bomb types from Gem EV. Minimum 10 (base); +1 each if Founder, Veinmorph, or Megabomb is counted. Pool size for Frogger: he picks uniformly from these types.",
+                    "Open Gem EV once so this count is in sync.",
+                  ],
                 }}
               />
             </span>
@@ -1279,13 +1283,13 @@ export function Drone() {
                       {
                         heading: "Meaning",
                         lines: [
-                          "Expected Gem EV per hour from Frogger Drone bombs. Based on Gem EV bomb cycle (marginal value per gem, cherry, battery, d20 detonation).",
-                          "Without fuel: (3600 ÷ interval) × (1 ÷ bomb types) × 1 bomb. With fuel: same × Y bombs per pick.",
+                          "Expected Gem EV per hour from Frogger Drone bombs. Pool = available bomb types from Gem EV; we assume charges.",
+                          "Based on Gem EV bomb cycle (marginal value per gem, cherry, battery, d20 detonation). Without fuel: (3600 ÷ interval) × (1 ÷ bomb types) × 1 bomb. With fuel: same × (5 + grade) bombs per pick.",
                         ],
                       },
                       {
                         heading: "Source",
-                        lines: ["Uses Gem EV params and 10× Bomb Recharge (Lootbug + Drone) from external. Open Gem EV once to sync."],
+                        lines: ["Available bomb types and params from Gem EV; 10× Bomb Recharge (Lootbug + Drone) from external. Open Gem EV once to sync."],
                       },
                     ],
                   }}
