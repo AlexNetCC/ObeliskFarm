@@ -233,23 +233,35 @@ class MainMenuWindow:
         main_frame = ttk.Frame(main_container, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Title
+        # Header: title + collapse/expand toggle
+        self._menu_expanded = True
+        header_frame = ttk.Frame(main_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 10))
         title_label = ttk.Label(
-            main_frame,
+            header_frame,
             text="ObeliskFarm",
             font=("Arial", 24, "bold")
         )
-        title_label.pack(pady=(0, 10))
+        title_label.pack(side=tk.LEFT)
+        self._menu_toggle_btn = ttk.Button(
+            header_frame,
+            text="\u25BC",
+            width=3,
+            command=self._toggle_menu,
+        )
+        self._menu_toggle_btn.pack(side=tk.RIGHT, padx=(10, 0))
+        self._menu_content_frame = ttk.Frame(main_frame)
+        self._menu_content_frame.pack(fill=tk.BOTH, expand=True)
         
         subtitle_label = ttk.Label(
-            main_frame,
+            self._menu_content_frame,
             text="Select a module to open:",
             font=("Arial", 12)
         )
         subtitle_label.pack(pady=(0, 20))
         
         # Buttons frame with grid layout (2 columns) - fixed size to fit buttons exactly
-        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame = ttk.Frame(self._menu_content_frame)
         buttons_frame.pack(padx=20, pady=10)
         # Configure columns to be equal width but not expand unnecessarily
         buttons_frame.columnconfigure(0, weight=1, uniform="button")
@@ -285,7 +297,7 @@ class MainMenuWindow:
                 row += 1
         
         # Footer with donation button and message - centered
-        footer_frame = ttk.Frame(main_frame)
+        footer_frame = ttk.Frame(self._menu_content_frame)
         footer_frame.pack(pady=(20, 10))
         
         # Container for donation elements (to center them together)
@@ -332,6 +344,20 @@ class MainMenuWindow:
 
         # Store reference to prevent garbage collection
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._expanded_geometry = "600x650"
+        self._collapsed_geometry = "600x100"
+
+    def _toggle_menu(self):
+        """Collapse or expand the main menu content."""
+        self._menu_expanded = not self._menu_expanded
+        if self._menu_expanded:
+            self._menu_content_frame.pack(fill=tk.BOTH, expand=True)
+            self.root.geometry(self._expanded_geometry)
+            self._menu_toggle_btn.configure(text="\u25BC")
+        else:
+            self._menu_content_frame.pack_forget()
+            self.root.geometry(self._collapsed_geometry)
+            self._menu_toggle_btn.configure(text="\u25B2")
 
     def check_for_updates(self, interactive: bool) -> None:
         """Check GitHub releases and offer manual download."""
