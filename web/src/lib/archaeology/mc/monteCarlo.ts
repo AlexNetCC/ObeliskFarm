@@ -70,6 +70,8 @@ export class MonteCarloArchaeologySimulator {
   private persistent_enrage_state: EnrageState | null = null;
   private persistent_flurry_cooldown: number | null = null;
   private persistent_quake_state: QuakeState | null = null;
+  /** Speed mod: remaining hits at 2x speed carried from previous run (the only mod that is a duration buff). */
+  private persistent_speed_mod_hits_remaining: number | null = null;
 
   constructor(private rng: Rng) {}
 
@@ -154,6 +156,7 @@ export class MonteCarloArchaeologySimulator {
     return Math.max(1, Math.round(base_damage * crit_damage_mult));
   }
 
+  /** speedModRemaining + flurryBuffRemaining: mutable refs. Speed mod = 2x (0.5s/hit), Flurry buff = 2x, both = 4x (0.25s/hit). Cooldowns tick in seconds. */
   private simulateBlockKill(
     stats: any,
     block_hp: number,
@@ -163,7 +166,9 @@ export class MonteCarloArchaeologySimulator {
     use_crit: boolean,
     enrage_state: EnrageState | null,
     effective_enrage_cooldown: number,
-  ): { hits: number; enrage_state: EnrageState | null } {
+    speedModRemaining: { value: number },
+    flurryBuffRemaining: { value: number },
+  ): { hits: number; enrage_state: EnrageState | null; seconds_elapsed: number; speed_consumed: number } {
     let state = enrage_state;
     const enrage_was_enabled = state !== null;
     if (state === null) state = { charges_remaining: 0, cooldown: 0 };
@@ -173,13 +178,24 @@ export class MonteCarloArchaeologySimulator {
 
     let hits = 0;
     let damage_dealt = 0;
+    let seconds_elapsed = 0;
+    let speed_consumed = 0;
     while (damage_dealt < block_hp) {
+      const speed_active = speedModRemaining.value > 0;
+      const flurry_active = flurryBuffRemaining.value > 0;
+      const seconds_this_hit = (speed_active ? 0.5 : 1.0) * (flurry_active ? 0.5 : 1.0);
+      if (speed_active) {
+        speedModRemaining.value -= 1;
+        speed_consumed += 1;
+      }
+      if (flurry_active) flurryBuffRemaining.value -= 1;
+
       let is_enrage = false;
       if (state.charges_remaining > 0) {
         is_enrage = true;
         state.charges_remaining -= 1;
       } else {
-        state.cooldown -= 1;
+        state.cooldown -= seconds_this_hit;
         if (state.cooldown <= 0) {
           state.charges_remaining = effective_enrage_charges;
           state.cooldown = effective_enrage_cooldown;
@@ -191,10 +207,11 @@ export class MonteCarloArchaeologySimulator {
 
       damage_dealt += this.simulateHitDamage(stats, block_armor, is_enrage, use_crit);
       hits += 1;
+      seconds_elapsed += seconds_this_hit;
       if (hits > 10000) break;
     }
 
-    return { hits, enrage_state: enrage_was_enabled ? state : null };
+    return { hits, enrage_state: enrage_was_enabled ? state : null, seconds_elapsed, speed_consumed };
   }
 
   private spawnBlockForSlot(stage: number): BlockType | null {
@@ -239,6 +256,7 @@ export class MonteCarloArchaeologySimulator {
     const arch_xp_mult = Number(stats.arch_xp_mult ?? 1.0);
 
     let total_hits = 0;
+    let total_seconds_elapsed = 0;
 
     const track_blocks = Boolean(return_block_metrics);
     const block_hits_by_type: Record<string, number> = {};
@@ -248,6 +266,11 @@ export class MonteCarloArchaeologySimulator {
 
     const stamina_mod_chance = Number(stats.stamina_mod_chance ?? 0);
     const stamina_mod_gain = Number(stats.stamina_mod_gain ?? this.MOD_STAMINA_BONUS_AVG);
+
+    const speed_mod_chance = Number(stats.speed_mod_chance ?? 0);
+    const speed_mod_gain = Number(stats.speed_mod_gain ?? 10);
+    let speed_mod_hits_remaining = Math.max(0, Math.trunc(this.persistent_speed_mod_hits_remaining ?? 0));
+    let speed_mod_hits_consumed = 0;
 
     const misc_card_level = Number(stats.misc_card_level ?? 0);
     const cooldown_multiplier = this.getAbilityCooldownMultiplier(misc_card_level);
@@ -265,6 +288,7 @@ export class MonteCarloArchaeologySimulator {
 
     let flurry_stamina_bonus = 0;
     let flurry_cooldown: number | null = null;
+    let flurry_buff_hits_remaining = 0;
     if (flurry_enabled) {
       flurry_stamina_bonus = this.FLURRY_STAMINA_BONUS + Number(stats.flurry_stamina_bonus ?? 0);
       flurry_cooldown = this.persistent_flurry_cooldown ?? effective_flurry_cooldown;
@@ -306,9 +330,17 @@ export class MonteCarloArchaeologySimulator {
         const b = floor_blocks[idx];
         if (b.hp <= 0) continue;
 
-        const kill = this.simulateBlockKill(stats, b.hp, b.armor, b.block_type, b.tier, use_crit, enrage_state, effective_enrage_cooldown);
+        const speedModRef = { value: speed_mod_hits_remaining };
+        const flurryBuffRef = { value: flurry_buff_hits_remaining };
+        const kill = this.simulateBlockKill(stats, b.hp, b.armor, b.block_type, b.tier, use_crit, enrage_state, effective_enrage_cooldown, speedModRef, flurryBuffRef);
         const hits = kill.hits;
         enrage_state = kill.enrage_state;
+        speed_mod_hits_remaining = speedModRef.value;
+        flurry_buff_hits_remaining = flurryBuffRef.value;
+        const seconds_elapsed_block = kill.seconds_elapsed;
+        const speed_consumed_this_block = kill.speed_consumed;
+        speed_mod_hits_consumed += speed_consumed_this_block;
+        total_seconds_elapsed += seconds_elapsed_block;
         stamina_for_floor += hits;
         total_hits += hits;
         blocks_killed += 1;
@@ -323,14 +355,16 @@ export class MonteCarloArchaeologySimulator {
           }
         }
 
-        // Flurry cooldown and stamina bonus
+        // Flurry cooldown and stamina bonus (cooldown in seconds). When it triggers, add flurry_stamina_bonus hits of 2x speed (stacking with speed mod = 4x).
         if (flurry_enabled && flurry_cooldown !== null) {
-          flurry_cooldown -= hits;
+          flurry_cooldown -= seconds_elapsed_block;
           if (flurry_cooldown <= 0) {
             stamina_remaining = Math.min(max_stamina, stamina_remaining + flurry_stamina_bonus);
+            flurry_buff_hits_remaining += flurry_stamina_bonus;
             flurry_cooldown = effective_flurry_cooldown;
             if (ability_instacharge > 0 && this.rng() < ability_instacharge) {
               stamina_remaining = Math.min(max_stamina, stamina_remaining + flurry_stamina_bonus);
+              flurry_buff_hits_remaining += flurry_stamina_bonus;
               flurry_cooldown = effective_flurry_cooldown;
             }
           }
@@ -367,7 +401,7 @@ export class MonteCarloArchaeologySimulator {
             quake_state.charges_remaining -= 1;
             if (quake_state.charges_remaining <= 0) quake_state.cooldown = effective_quake_cooldown;
           } else {
-            quake_state.cooldown -= hits;
+            quake_state.cooldown -= seconds_elapsed_block;
             if (quake_state.cooldown <= 0) {
               quake_state.charges_remaining = quake_charges;
               quake_state.cooldown = effective_quake_cooldown;
@@ -387,6 +421,11 @@ export class MonteCarloArchaeologySimulator {
         if (stamina_mod_chance > 0 && this.rng() < stamina_mod_chance) {
           const stamina_gain = randUniform(this.rng, 3, 10);
           stamina_remaining = Math.min(max_stamina, stamina_remaining + stamina_gain);
+        }
+
+        // Speed mod proc: chance to add more hits at 2x speed (persists across runs)
+        if (speed_mod_chance > 0 && this.rng() < speed_mod_chance) {
+          speed_mod_hits_remaining += Math.max(0, Math.trunc(speed_mod_gain));
         }
       }
 
@@ -422,8 +461,12 @@ export class MonteCarloArchaeologySimulator {
     if (quake_enabled && quake_state) this.persistent_quake_state = { ...quake_state };
     else this.persistent_quake_state = null;
 
+    // Persist speed mod only (stamina mod is one-time +stamina, not a duration buff)
+    this.persistent_speed_mod_hits_remaining = Math.max(0, speed_mod_hits_remaining);
+
     const total_fragments = Object.values(fragments_by_type).reduce((a, b) => a + b, 0);
-    const run_duration_seconds = Math.max(1.0, total_hits);
+    // Run duration = sum of seconds per hit (1s base, 0.5s with speed or flurry, 0.25s with both = 4 attacks/sec)
+    const run_duration_seconds = Math.max(1.0, total_seconds_elapsed);
 
     let block_breakdown: McBlockBreakdown | null = null;
     if (track_blocks) {
