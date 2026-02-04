@@ -51,7 +51,8 @@ export const QUAKE_DAMAGE_MULTIPLIER = 0.2;
 
 export const MOD_EXP_MULTIPLIER_AVG = 3.0;
 export const MOD_LOOT_MULTIPLIER_AVG = 2.0;
-export const MOD_SPEED_ATTACKS_AVG = 10.0;
+/** Fixed number of attacks per Speed Mod proc (base). With Block Bonker: base + unlocked stage (e.g. 10 + 19 = 29). */
+export const MOD_SPEED_ATTACKS_BASE = 10.0;
 export const MOD_STAMINA_BONUS_AVG = 3.0;
 
 export const GEM_UPGRADE_BONUSES: Record<

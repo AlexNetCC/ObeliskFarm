@@ -84,7 +84,7 @@ export class MonteCarloArchaeologySimulator {
     const total_damage = Number(stats.total_damage ?? 0);
     const armor_pen = Number(stats.armor_pen ?? 0);
     const effective_armor = Math.max(0, block_armor - armor_pen);
-    return Math.max(1, Math.trunc(total_damage - effective_armor));
+    return Math.max(1, Math.round(total_damage - effective_armor));
   }
 
   private getCardLevel(cardCfg: CardConfig | null, blockType: BlockType, tier: BlockTier): number {
@@ -98,11 +98,11 @@ export class MonteCarloArchaeologySimulator {
 
   private applyCardHp(cardCfg: CardConfig | null, blockType: BlockType, tier: BlockTier, hp: number): number {
     const lvl = this.getCardLevel(cardCfg, blockType, tier);
-    if (lvl === 1) return Math.trunc(hp * 0.9);
-    if (lvl === 2) return Math.trunc(hp * 0.8);
+    if (lvl === 1) return Math.round(hp * 0.9);
+    if (lvl === 2) return Math.round(hp * 0.8);
     if (lvl === 3) {
       const reduce = 0.35 + (cardCfg?.polychromeBonus ?? 0);
-      return Math.trunc(hp * (1.0 - reduce));
+      return Math.round(hp * (1.0 - reduce));
     }
     return hp;
   }
@@ -119,7 +119,7 @@ export class MonteCarloArchaeologySimulator {
     let base_damage: number;
     if (is_enrage) {
       const enrage_damage_bonus = Number(stats.enrage_damage_bonus ?? this.ENRAGE_DAMAGE_BONUS);
-      const enrage_total_damage = Math.trunc(Number(stats.total_damage ?? 0) * (1 + enrage_damage_bonus));
+      const enrage_total_damage = Math.round(Number(stats.total_damage ?? 0) * (1 + enrage_damage_bonus));
       const effective_armor = Math.max(0, block_armor - Number(stats.armor_pen ?? 0));
       base_damage = Math.max(1, enrage_total_damage - effective_armor);
     } else {
@@ -148,10 +148,10 @@ export class MonteCarloArchaeologySimulator {
     const ultra_mult = this.ULTRA_CRIT_DMG_MULT_DEFAULT * (1 + super_crit_damage_bonus);
 
     if (this.rng() < super_crit_chance) {
-      if (this.rng() < ultra_crit_chance) return Math.max(1, Math.trunc(base_damage * crit_damage_mult * ultra_mult));
-      return Math.max(1, Math.trunc(base_damage * crit_damage_mult * super_mult));
+      if (this.rng() < ultra_crit_chance) return Math.max(1, Math.round(base_damage * crit_damage_mult * ultra_mult));
+      return Math.max(1, Math.round(base_damage * crit_damage_mult * super_mult));
     }
-    return Math.max(1, Math.trunc(base_damage * crit_damage_mult));
+    return Math.max(1, Math.round(base_damage * crit_damage_mult));
   }
 
   private simulateBlockKill(
@@ -256,9 +256,9 @@ export class MonteCarloArchaeologySimulator {
     const base_flurry_cooldown = this.FLURRY_COOLDOWN + Number(stats.flurry_cooldown ?? 0) + Number(stats.ability_cooldown ?? 0);
     const base_quake_cooldown = this.QUAKE_COOLDOWN + Number(stats.quake_cooldown ?? 0) + Number(stats.ability_cooldown ?? 0);
 
-    const effective_enrage_cooldown = Math.trunc(base_enrage_cooldown * cooldown_multiplier);
-    const effective_flurry_cooldown = Math.trunc(base_flurry_cooldown * cooldown_multiplier);
-    const effective_quake_cooldown = Math.trunc(base_quake_cooldown * cooldown_multiplier);
+    const effective_enrage_cooldown = Math.round(base_enrage_cooldown * cooldown_multiplier);
+    const effective_flurry_cooldown = Math.round(base_flurry_cooldown * cooldown_multiplier);
+    const effective_quake_cooldown = Math.round(base_quake_cooldown * cooldown_multiplier);
 
     const ability_instacharge = Number(stats.ability_instacharge ?? 0);
     const quake_charges = Number(stats.quake_charges ?? this.QUAKE_CHARGES);
@@ -348,7 +348,7 @@ export class MonteCarloArchaeologySimulator {
         if (quake_state) {
           const is_active = quake_state.charges_remaining > 0;
           if (is_active) {
-            const base_quake_damage_per_hit = Math.trunc(Number(stats.total_damage ?? 0) * this.QUAKE_DAMAGE_MULTIPLIER);
+            const base_quake_damage_per_hit = Math.round(Number(stats.total_damage ?? 0) * this.QUAKE_DAMAGE_MULTIPLIER);
             const crit_chance = use_crit ? Number(stats.crit_chance ?? 0) : 0;
             const crit_damage_mult = use_crit ? Number(stats.crit_damage ?? 1.5) : 1.0;
 
@@ -359,7 +359,7 @@ export class MonteCarloArchaeologySimulator {
               let quake_total = 0;
               for (let h = 0; h < hits; h += 1) {
                 const isCrit = crit_chance > 0 && this.rng() < crit_chance;
-                quake_total += isCrit ? Math.trunc(base_quake_damage_per_hit * crit_damage_mult) : base_quake_damage_per_hit;
+                quake_total += isCrit ? Math.round(base_quake_damage_per_hit * crit_damage_mult) : base_quake_damage_per_hit;
               }
               other.hp = Math.max(0, other.hp - quake_total);
             }

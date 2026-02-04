@@ -7,7 +7,7 @@ import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES } from "../../lib/archaeology/constants";
 import { BLOCK_TYPES, getBlockData } from "../../lib/archaeology/blockStats";
-import { computeRunSummary, getCalculationStage, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
+import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
 import { getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
 import type { ArchBuild, ArchGemUpgradeKey, BlockTier, BlockType, CardLevel, Skill } from "../../lib/archaeology/types";
 
@@ -2377,6 +2377,22 @@ export function ArchSim() {
             })}
 
             <div className="sectionTitle">Derived stats</div>
+            {(() => {
+              const bb = getBlockBonkerBonus(build);
+              return bb.highest_stage > 0 ? (
+                <div className="small" style={{ marginBottom: 4, color: "var(--muted)" }}>
+                  Block Bonker: ON (unlocked {build.unlockedStage} → +{bb.highest_stage}% dmg/stam, +{bb.highest_stage} speed mod)
+                </div>
+              ) : build.blockBonkerEnabled ? (
+                <div className="small" style={{ marginBottom: 4, color: "var(--muted)" }}>
+                  Block Bonker: ON but unlocked stage 1 → no bonus. Set Unlocked stage to match in-game.
+                </div>
+              ) : (
+                <div className="small" style={{ marginBottom: 4, color: "var(--muted)" }}>
+                  Block Bonker: OFF — Damage/Stamina below exclude this bonus. Turn ON and set Unlocked stage to match in-game.
+                </div>
+              );
+            })()}
             <div className="kv" style={{ background: "var(--tier1)" }}>
               <kbd>XP gain</kbd>
               <div className="mono">{stats.xp_gain_total.toFixed(3)}x</div>

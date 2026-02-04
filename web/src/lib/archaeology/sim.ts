@@ -9,7 +9,7 @@ import {
   GEM_UPGRADE_BONUSES,
   MOD_EXP_MULTIPLIER_AVG,
   MOD_LOOT_MULTIPLIER_AVG,
-  MOD_SPEED_ATTACKS_AVG,
+  MOD_SPEED_ATTACKS_BASE,
   MOD_STAMINA_BONUS_AVG,
   QUAKE_CHARGES,
   QUAKE_COOLDOWN,
@@ -69,7 +69,8 @@ export function getAvadaKedaBonus(enabled: boolean): { duration_bonus: number; c
 
 export function getBlockBonkerBonus(build: ArchBuild): { damage_percent: number; max_stamina_percent: number; speed_mod_gain: number; highest_stage: number } {
   if (!build.blockBonkerEnabled) return { damage_percent: 0, max_stamina_percent: 0, speed_mod_gain: 0, highest_stage: 0 };
-  const highestStage = Math.min(Math.max(0, Math.trunc(build.unlockedStage) - 1), 100);
+  // Bonus ends at stage 100: stage N → N% (e.g. 19 → 1.19×). Cap at 100.
+  const highestStage = Math.min(Math.max(0, Math.trunc(build.unlockedStage)), 100);
   return {
     damage_percent: highestStage * 0.01,
     max_stamina_percent: highestStage * 0.01,
@@ -85,13 +86,13 @@ export function getBlockCardLevel(build: ArchBuild, blockType: BlockType, tier: 
 
 export function getBlockHpWithCard(build: ArchBuild, baseHp: number, blockType: BlockType, tier: BlockTier): number {
   const cardLevel = getBlockCardLevel(build, blockType, tier);
-  if (cardLevel === 1) return Math.trunc(baseHp * 0.9);
-  if (cardLevel === 2) return Math.trunc(baseHp * 0.8);
+  if (cardLevel === 1) return Math.round(baseHp * 0.9);
+  if (cardLevel === 2) return Math.round(baseHp * 0.8);
   if (cardLevel === 3) {
     const fragBonuses = getFragmentUpgradeBonuses(build.fragmentUpgradeLevels);
     const polyBonus = fragBonuses.polychrome_bonus ?? 0; // 0.15 when upgrade present
     const hpReduce = 0.35 + polyBonus; // 0.50 with upgrade
-    return Math.trunc(baseHp * (1.0 - hpReduce));
+    return Math.round(baseHp * (1.0 - hpReduce));
   }
   return baseHp;
 }
@@ -111,7 +112,7 @@ export function getBlockXpMultiplier(build: ArchBuild, blockType: BlockType, tie
 
 export function calculateEffectiveDamage(stats: ArchStats, blockArmor: number): number {
   const effectiveArmor = Math.max(0, blockArmor - stats.armor_pen);
-  return Math.max(1, Math.trunc(stats.total_damage - effectiveArmor));
+  return Math.max(1, Math.round(stats.total_damage - effectiveArmor));
 }
 
 export function getTotalStats(build: ArchBuild): ArchStats {
@@ -140,9 +141,8 @@ export function getTotalStats(build: ArchBuild): ArchStats {
   const flat_damage_per_str = (SKILL_BONUSES.strength.flat_damage ?? 0) + (frag.flat_damage_skill ?? 0);
   const percent_damage_per_str = (SKILL_BONUSES.strength.percent_damage ?? 0) + (frag.percent_damage_skill ?? 0);
   const flat_damage = base_damage + strPts * flat_damage_per_str + (frag.flat_damage ?? 0);
-  let percent_damage_bonus = strPts * percent_damage_per_str + (frag.percent_damage ?? 0);
-  percent_damage_bonus += blockBonker.damage_percent;
-  const total_damage = Math.trunc(flat_damage * (1 + percent_damage_bonus));
+  const percent_damage_bonus = strPts * percent_damage_per_str + (frag.percent_damage ?? 0);
+  const total_damage = Math.round(flat_damage * (1 + percent_damage_bonus) * (1 + blockBonker.damage_percent));
 
   const armor_pen_per_per = (SKILL_BONUSES.perception.armor_pen ?? 0) + (frag.armor_pen_skill ?? 0);
   let armor_pen_base = base_armor_pen + perPts * armor_pen_per_per + (frag.armor_pen ?? 0);
@@ -157,7 +157,7 @@ export function getTotalStats(build: ArchBuild): ArchStats {
     agiPts * max_stamina_per_agi +
     gem_stamina * (GEM_UPGRADE_BONUSES.stamina.max_stamina ?? 0) +
     (frag.max_stamina ?? 0);
-  max_stamina = Math.trunc(max_stamina * (1 + (frag.max_stamina_percent ?? 0) + blockBonker.max_stamina_percent));
+  max_stamina = Math.round(max_stamina * (1 + (frag.max_stamina_percent ?? 0)) * (1 + blockBonker.max_stamina_percent));
 
   const crit_chance = base_crit_chance + agiPts * (SKILL_BONUSES.agility.crit_chance ?? 0) + luckPts * (SKILL_BONUSES.luck.crit_chance ?? 0) + (frag.crit_chance ?? 0);
   const total_crit_mult = 1 + strPts * (SKILL_BONUSES.strength.crit_damage ?? 0) + (frag.crit_damage ?? 0);
@@ -224,7 +224,7 @@ export function getTotalStats(build: ArchBuild): ArchStats {
     loot_mod_multiplier,
     exp_mod_gain,
     stamina_mod_gain,
-    speed_mod_gain: blockBonker.speed_mod_gain,
+    speed_mod_gain: MOD_SPEED_ATTACKS_BASE + blockBonker.speed_mod_gain,
     arch_xp_mult,
     enrage_damage_bonus,
     enrage_crit_damage_bonus,
@@ -272,7 +272,7 @@ export function calculateHitsToKill(build: ArchBuild, stats: ArchStats, blockHpB
     const enrageProportion = effectiveCooldown > 0 ? effectiveCharges / effectiveCooldown : 0;
     const normalProportion = 1 - enrageProportion;
 
-    const enrageTotalDamage = Math.trunc(stats.total_damage * (1 + stats.enrage_damage_bonus));
+    const enrageTotalDamage = Math.round(stats.total_damage * (1 + stats.enrage_damage_bonus));
     const effectiveArmor = Math.max(0, blockArmor - stats.armor_pen);
     const effectiveDmgEnrage = Math.max(1, enrageTotalDamage - effectiveArmor);
 
@@ -307,7 +307,7 @@ export function calculateFloorsPerRun(build: ArchBuild, stats: ArchStats, starti
     const avada = getAvadaKedaBonus(build.avadaKedaEnabled);
     const staminaOnCast = FLURRY_STAMINA_BONUS + (frag.flurry_stamina ?? 0) + avada.duration_bonus;
     const baseCooldown = FLURRY_COOLDOWN + (frag.flurry_cooldown ?? 0) + (frag.ability_cooldown ?? 0) + avada.cooldown_reduction;
-    const effectiveCooldown = Math.trunc(baseCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
+    const effectiveCooldown = Math.round(baseCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
     const flurryStaminaPerHit = effectiveCooldown > 0 ? staminaOnCast / effectiveCooldown : 0;
     avgStaminaPerBlock += flurryStaminaPerHit;
   }
@@ -445,7 +445,7 @@ export function calculateRunDurationSeconds(build: ArchBuild, stats: ArchStats, 
   if (build.flurryEnabled) {
     const avada = getAvadaKedaBonus(build.avadaKedaEnabled);
     const baseFlurryCooldown = FLURRY_COOLDOWN + (frag.flurry_cooldown ?? 0) + (frag.ability_cooldown ?? 0) + avada.cooldown_reduction;
-    const flurryCooldown = Math.trunc(baseFlurryCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
+    const flurryCooldown = Math.round(baseFlurryCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
     const flurryStamina = FLURRY_STAMINA_BONUS + (frag.flurry_stamina ?? 0) + avada.duration_bonus;
     const baseDuration = totalHits;
     const activations = flurryCooldown > 0 ? baseDuration / flurryCooldown : 0;
@@ -454,15 +454,15 @@ export function calculateRunDurationSeconds(build: ArchBuild, stats: ArchStats, 
 
   const baseDurationSeconds = totalHits;
   const speedModChance = stats.speed_mod_chance ?? 0;
-  const speedHitsAvg = MOD_SPEED_ATTACKS_AVG + (stats.speed_mod_gain ?? 0);
-  const speedModHitsTotal = blocksPerRun * speedModChance * speedHitsAvg;
+  const speedModHits = stats.speed_mod_gain ?? MOD_SPEED_ATTACKS_BASE;
+  const speedModHitsTotal = blocksPerRun * speedModChance * speedModHits;
 
   let flurryHitsTotal = 0;
   let flurryActivations = 0;
   if (build.flurryEnabled) {
     const avada = getAvadaKedaBonus(build.avadaKedaEnabled);
     const baseFlurryCooldown = FLURRY_COOLDOWN + (frag.flurry_cooldown ?? 0) + (frag.ability_cooldown ?? 0) + avada.cooldown_reduction;
-    const flurryCooldown = Math.trunc(baseFlurryCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
+    const flurryCooldown = Math.round(baseFlurryCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
     flurryActivations = flurryCooldown > 0 ? baseDurationSeconds / flurryCooldown : 0;
     const flurryHitsPerActivation = FLURRY_STAMINA_BONUS + (frag.flurry_stamina ?? 0) + avada.duration_bonus;
     flurryHitsTotal = flurryActivations * flurryHitsPerActivation;
