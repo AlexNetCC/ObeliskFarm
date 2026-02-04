@@ -18,6 +18,9 @@ const ELIXIR_NUM_BUFFS_WITHOUT_FISHING = 9;
 /** Elixir fuel duration from Drone Buffs table: 3:30 at grade 0, +0:10.5 per grade. Then × (1 + Coal Fuel Duration %). */
 const ELIXIR_FUEL_DURATION_BASE_SEC = 210; // 3:30
 const ELIXIR_FUEL_DURATION_SEC_PER_GRADE = 10.5; // +0:10.5
+/** Frogger fuel duration: 3:00 at grade 0, +0:09 per grade. */
+const FROGGER_FUEL_DURATION_BASE_SEC = 180; // 3:00
+const FROGGER_FUEL_DURATION_SEC_PER_GRADE = 9; // +0:09
 
 const GASOLINE_GUZZLER_FUEL_DURATION_PCT = 20;
 
@@ -353,18 +356,18 @@ export function Drone() {
   const numBuffs = state.fishingUnlocked ? ELIXIR_NUM_BUFFS_WITH_FISHING : ELIXIR_NUM_BUFFS_WITHOUT_FISHING;
   const fueledBuffDurationPct = ELIXIR_FUEL_BUFF_BASE_PCT + state.elixirGradeLevel * ELIXIR_FUEL_BUFF_PCT_PER_GRADE;
   const fuelDurationFromGradeSec = ELIXIR_FUEL_DURATION_BASE_SEC + state.elixirGradeLevel * ELIXIR_FUEL_DURATION_SEC_PER_GRADE;
-  // Coal, World 3, Gasoline, Axolotl, Cards, Relics: multiplicative. Game likely rounds to integer game seconds after each step.
-  let fuelDurationGameSec = fuelDurationFromGradeSec;
-  fuelDurationGameSec = Math.round(fuelDurationGameSec * (1 + state.fuelDurationUpgradeLevel / 100));
   const fuelDurationWorld3Mult = 1 + state.fuelDurationWorld3Level * 0.15 / 100;
-  fuelDurationGameSec = Math.round(fuelDurationGameSec * fuelDurationWorld3Mult);
-  fuelDurationGameSec = Math.round(
-    fuelDurationGameSec * (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1),
-  );
-  fuelDurationGameSec = Math.round(fuelDurationGameSec * (state.axolotlSkin ? 1.1 : 1));
-  fuelDurationGameSec = Math.round(fuelDurationGameSec * MISC_FUEL_MULT[state.miscFuelCardTier]);
   const fuelDurationRelicMult = 1 + state.fuelDurationRelicLevel * 0.01 / 100;
-  fuelDurationGameSec = Math.round(fuelDurationGameSec * fuelDurationRelicMult);
+  // Coal, World 3, Gasoline, Axolotl, Cards, Relics: multiplicative. Round once at the end.
+  const fuelDurationGameSec = Math.round(
+    fuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
+    (state.axolotlSkin ? 1.1 : 1) *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
+  );
   const fuelDurationSecReal = fuelDurationGameSec / gameSpeedMult;
   const fuelDurationMultiplier =
     (1 + state.fuelDurationUpgradeLevel / 100) *
@@ -374,18 +377,18 @@ export function Drone() {
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult;
 
-  /** Frogger fuel duration: same formula as Elixir (grade-based + shared upgrades). */
+  /** Frogger fuel duration: 3 min base + 9 s per grade (shared upgrades). Round once at the end. */
   const froggerFuelDurationFromGradeSec =
-    ELIXIR_FUEL_DURATION_BASE_SEC + state.froggerGradeLevel * ELIXIR_FUEL_DURATION_SEC_PER_GRADE;
-  let froggerFuelDurationGameSec = froggerFuelDurationFromGradeSec;
-  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * (1 + state.fuelDurationUpgradeLevel / 100));
-  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * fuelDurationWorld3Mult);
-  froggerFuelDurationGameSec = Math.round(
-    froggerFuelDurationGameSec * (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1),
+    FROGGER_FUEL_DURATION_BASE_SEC + state.froggerGradeLevel * FROGGER_FUEL_DURATION_SEC_PER_GRADE;
+  const froggerFuelDurationGameSec = Math.round(
+    froggerFuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
+    (state.axolotlSkin ? 1.1 : 1) *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
   );
-  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * (state.axolotlSkin ? 1.1 : 1));
-  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * MISC_FUEL_MULT[state.miscFuelCardTier]);
-  froggerFuelDurationGameSec = Math.round(froggerFuelDurationGameSec * fuelDurationRelicMult);
   const froggerFuelDurationSecReal = froggerFuelDurationGameSec / gameSpeedMult;
 
   const froggerFuelGemsPerHour = useMemo(() => {
@@ -431,9 +434,11 @@ export function Drone() {
   useEffect(() => {
     const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.droneBomb10xMinPerHour = droneBomb10xMinPerHour;
-    ext.droneFuelGemsPerHour = state.fueled ? fuelGemsPerHour : 0;
+    const elixirFuelGems = state.fueled ? fuelGemsPerHour : 0;
+    const froggerFuelGems = state.froggerFueled ? froggerFuelGemsPerHour : 0;
+    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, state.fueled]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, state.fueled, state.froggerFueled]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -1066,8 +1071,8 @@ export function Drone() {
                 tooltip={{
                   title: "Grade level (fuel buff)",
                   lines: [
-                    "Fuel duration: 3:30 at grade 0, +0:10.5 per grade.",
-                    "Same formula as Elixir Drone fuel.",
+                    "Fuel duration: 3:00 at grade 0, +0:09 per grade.",
+                    "Same multipliers (Coal, Cards, etc.) as Elixir Drone fuel.",
                   ],
                 }}
               />
