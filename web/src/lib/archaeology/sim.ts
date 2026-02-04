@@ -69,7 +69,7 @@ export function getAvadaKedaBonus(enabled: boolean): { duration_bonus: number; c
 
 export function getBlockBonkerBonus(build: ArchBuild): { damage_percent: number; max_stamina_percent: number; speed_mod_gain: number; highest_stage: number } {
   if (!build.blockBonkerEnabled) return { damage_percent: 0, max_stamina_percent: 0, speed_mod_gain: 0, highest_stage: 0 };
-  const highestStage = Math.min(Math.max(0, Math.trunc(build.goalStage) - 1), 100);
+  const highestStage = Math.min(Math.max(0, Math.trunc(build.unlockedStage) - 1), 100);
   return {
     damage_percent: highestStage * 0.01,
     max_stamina_percent: highestStage * 0.01,
