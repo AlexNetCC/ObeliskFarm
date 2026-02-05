@@ -28,21 +28,6 @@ import {
   type FishingUpgradeId,
 } from "../../lib/fishing";
 
-/** Full fishing stats: all computed from upgrade and enhancement levels (including boat levels). */
-type FishingStats = {
-  boat_level: number;
-  t2_boat_level: number;
-  fishing_rod_power: number;
-  fishing_drone_cap: number;
-  drone_base_power: number;
-  fish_income_multi: number;
-  fishing_tick_reduction: number;
-  token_gain_multi: number;
-  notice_fish_req: number;
-  shiny_multiplier: number;
-  super_shiny_multiplier: number;
-};
-
 type SavedState = {
   dronesPerDock?: Partial<Record<DockId, number>>;
   activeDockId?: DockId | null;
@@ -410,7 +395,7 @@ export function Fishing() {
 
   const upgradeLevels = state.upgradeLevels ?? {};
   const enhanceLevels = state.enhanceLevels ?? {};
-  const stats: FishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
+  const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
 
   const totalDronesAssigned = useMemo(
     () => DOCKS.reduce((sum, d) => sum + (state.dronesPerDock[d.id] ?? 0), 0),
