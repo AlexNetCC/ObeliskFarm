@@ -8,6 +8,7 @@ import {
   DOCKS,
   catchChancePercent,
   computeFishingStatsFromLevels,
+  type ComputedFishingStats,
   dockIconUrl,
   effectiveFishingTickSec,
   ENHANCE_COSTS_T1,
@@ -115,74 +116,119 @@ function heatmapColor(t: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-/**
- * Approximate marginal % overall fish gain from +1 level of this upgrade.
- * Returns null when not applicable (boat, shiny, assignment-dependent, etc.).
- */
-function upgradeMarginalFishPct(
+/** Format "current→next" for the stat this upgrade changes. Used under upgrade name. */
+function formatUpgradeNextEffect(
   upgradeId: FishingUpgradeId,
-  stats: { fish_income_multi: number; fishing_tick_reduction: number },
-  effectiveTickSec: number,
-): number | null {
-  const multi = Math.max(0.01, stats.fish_income_multi);
-  const tickSec = Math.max(1, effectiveTickSec);
+  current: ComputedFishingStats,
+  next: ComputedFishingStats,
+): string | null {
   switch (upgradeId) {
-    case "fish_multiplier":
-      return (100 * 0.03) / multi;
-    case "tick_speed": {
-      const newTick = Math.max(0.5, tickSec - 0.5);
-      return 100 * (tickSec / newTick - 1);
-    }
-    case "rod_multiplier":
-      return 4;
-    case "drone_multiplier":
-      return 6;
     case "fishing_rod":
-      return 16;
-    case "double_tick_chance":
-      return 0.5;
-    case "triple_tick_chance":
-      return 0.35 * 2;
-    case "tier2_dock_power":
-      return 5;
+      return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
+    case "fishing_drone":
+    case "fishing_drone_2":
+      return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
+    case "upgrade_boat":
+      return `${current.boat_level}→${next.boat_level}`;
+    case "upgrade_t2_boat":
+      return `${current.t2_boat_level}→${next.t2_boat_level}`;
+    case "tick_speed":
+      return `${current.fishing_tick_reduction.toFixed(1)}s→${next.fishing_tick_reduction.toFixed(1)}s`;
+    case "fish_multiplier":
+      return `${current.fish_income_multi.toFixed(2)}×→${next.fish_income_multi.toFixed(2)}×`;
+    case "rod_multiplier":
+      return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
+    case "drone_multiplier":
+      return `${current.drone_base_power.toFixed(2)}→${next.drone_base_power.toFixed(2)}`;
+    case "drone_base_power":
+      return `${current.drone_base_power.toFixed(2)}→${next.drone_base_power.toFixed(2)}`;
     case "drone_cloner":
-      return 5;
+      return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
+    case "shiny_multiplier":
+      return `${current.shiny_multiplier.toFixed(2)}→${next.shiny_multiplier.toFixed(2)}`;
+    case "poly_card_multi":
+      return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
+    case "double_tick_chance":
+      return "→+0.5%";
+    case "shiny_fish_chance":
+      return "→+0.5%";
+    case "triple_tick_chance":
+      return "→+0.35%";
+    case "tier2_dock_power":
+      return "→+0.05×";
+    case "super_shiny_chance":
+      return "→+1%";
+    default:
+      return null;
+  }
+}
+
+/** Format "current→next" for the stat this enhancement changes. Used under enhancement name. */
+function formatEnhanceNextEffect(
+  enhanceId: EnhanceId,
+  current: ComputedFishingStats,
+  next: ComputedFishingStats,
+): string | null {
+  switch (enhanceId) {
+    case "enhance_fish_multiplier":
+      return `${current.fish_income_multi.toFixed(2)}×→${next.fish_income_multi.toFixed(2)}×`;
+    case "enhance_fishing_drone":
+    case "enhance_fishing_drone_3":
+      return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
+    case "enhance_rod_multiplier":
+      return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
+    case "enhance_tick_speed":
+      return `${current.fishing_tick_reduction.toFixed(1)}s→${next.fishing_tick_reduction.toFixed(1)}s`;
+    case "enhance_drone_multiplier":
+      return `${current.drone_base_power.toFixed(2)}→${next.drone_base_power.toFixed(2)}`;
+    case "enhance_token_multiplier":
+      return `${current.token_gain_multi.toFixed(2)}×→${next.token_gain_multi.toFixed(2)}×`;
+    case "enhance_shiny_multiplier":
+      return `${current.shiny_multiplier.toFixed(2)}→${next.shiny_multiplier.toFixed(2)}`;
+    case "enhance_double_tick_chance":
+      return "→+0.5%";
+    case "enhance_triple_tick_chance":
+      return "→+0.4%";
+    case "enhance_tier2_dock_power":
+      return "→+0.05×";
+    case "enhance_super_shiny_multi":
+      return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
+    case "enhance_tiny_notice_chance":
+      return "→+0.5%";
     default:
       return null;
   }
 }
 
 /**
- * Approximate marginal % overall fish gain from +1 level of this enhancement.
- * Returns null when not applicable (token, notice, T2 dock-only, etc.).
+ * Total fish per hour for given levels and dock assignment (same formula as Fishing gains list).
+ * Used to compute marginal % gain from +1 level by comparing total with hypothetical levels.
  */
-function enhanceMarginalGainsPct(
-  enhanceId: EnhanceId,
-  stats: { fish_income_multi: number; fishing_tick_reduction: number },
-  effectiveTickSec: number,
-): number | null {
-  const multi = Math.max(0.01, stats.fish_income_multi);
-  const tickSec = Math.max(1, effectiveTickSec);
-  switch (enhanceId) {
-    case "enhance_fish_multiplier":
-      return (100 * 0.05) / multi;
-    case "enhance_tick_speed": {
-      const newTick = Math.max(0.5, tickSec - 0.5);
-      return 100 * (tickSec / newTick - 1);
+function computeTotalFishPerHour(
+  upgradeLevels: Partial<Record<FishingUpgradeId, number>>,
+  enhanceLevels: Partial<Record<EnhanceId, number>>,
+  dronesPerDock: Record<DockId, number>,
+  activeDockId: DockId,
+  elixir3xFishingExternal: { uptimeFraction: number },
+): number {
+  const stats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
+  const tickDurationSec = Math.max(1, 60 + stats.fishing_tick_reduction);
+  const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
+  let total = 0;
+  for (const set of AQUARIUM) {
+    const dock = DOCKS.find((d) => d.id === set.dockId)!;
+    const rod = activeDockId === set.dockId ? stats.fishing_rod_power : 0;
+    const n = dronesPerDock[set.dockId] ?? 0;
+    const powerOnThisDock = rod + n * stats.drone_base_power;
+    const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+    for (const f of set.fish) {
+      total +=
+        dockFillsPerHour *
+        expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
+        stats.fish_income_multi;
     }
-    case "enhance_rod_multiplier":
-      return 5;
-    case "enhance_drone_multiplier":
-      return 8;
-    case "enhance_double_tick_chance":
-      return 0.5;
-    case "enhance_triple_tick_chance":
-      return 0.4 * 2;
-    case "enhance_tier2_dock_power":
-      return 5;
-    default:
-      return null;
   }
+  return total;
 }
 
 function NumberRow(props: {
@@ -304,10 +350,33 @@ const statsTooltip = {
       lines: ["Values are computed from your Upgrade and Enhancement levels, including Boat levels (Upgrade Boat / Upgrade T2 Boat)."],
     },
     {
+      heading: "Drones and gains",
+      lines: [
+        "Each Fishing Drone adds Drone Base Power to the dock it is assigned to.",
+        "Dock power = rod (on the dock you fish at) + (drones on that dock × Drone Base Power).",
+        "Higher power increases catch chance and fish per hour.",
+      ],
+    },
+    {
       heading: "Tick reduction",
       lines: [
         "Seconds reduced from base 60s per tick.",
         "Example: -40 means 20s per tick.",
+      ],
+    },
+    {
+      heading: "Double / Triple / 5× tick chance",
+      lines: [
+        "When the tick bar fills, you can get 2, 3, or 5 ticks at once instead of 1.",
+        "Example: at 4/5, a 5× tick gives 5 ticks (bar fills and resets), then 4 more → 4/5 again.",
+        "5× from Fishing only is 0%; the game can add more from Relics, Store, or Cards.",
+      ],
+    },
+    {
+      heading: "Shiny and Super Shiny",
+      lines: [
+        "Shiny works like a crit: a chance to multiply the catch (base 3×).",
+        "Super Shiny only rolls when the catch is already shiny; base multiplier 2× on top.",
       ],
     },
     {
@@ -529,6 +598,111 @@ export function Fishing() {
     upgradeLevels,
   ]);
 
+  /** +% gains = (total fish/h with +1 level − current total) / current total × 100. Computed from actual Fishing gains. Also next-level effect string (e.g. 10→12) for name cell. */
+  const { upgradeMarginalPct, enhanceMarginalPct, upgradeNextEffect, enhanceNextEffect } = useMemo(() => {
+    const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+    );
+    const upgradeMap = new Map<FishingUpgradeId, number | null>();
+    const upgradeEffectMap = new Map<FishingUpgradeId, string | null>();
+    for (const def of [...availableT1Upgrades, ...availableT2Upgrades]) {
+      const costs = UPGRADE_COSTS[def.id];
+      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
+      const lvl = Math.max(0, Math.min(maxLvl, upgradeLevels[def.id] ?? 0));
+      if (lvl >= maxLvl) {
+        upgradeMap.set(def.id, null);
+        upgradeEffectMap.set(def.id, null);
+        continue;
+      }
+      const newLevels = { ...upgradeLevels, [def.id]: lvl + 1 };
+      const nextStats = computeFishingStatsFromLevels(newLevels, enhanceLevels);
+      // Drone cap upgrades: assume the extra drone(s) are assigned to the Fisher (active dock) for +% gains.
+      const extraDronesOnFisher =
+        def.id === "fishing_drone" ? 1 : def.id === "fishing_drone_2" ? 2 : 0;
+      const newDronesPerDock =
+        extraDronesOnFisher > 0
+          ? {
+              ...state.dronesPerDock,
+              [state.activeDockId]: (state.dronesPerDock[state.activeDockId] ?? 0) + extraDronesOnFisher,
+            }
+          : state.dronesPerDock;
+      const newTotal = computeTotalFishPerHour(
+        newLevels,
+        enhanceLevels,
+        newDronesPerDock,
+        state.activeDockId,
+        elixir3xFishingExternal,
+      );
+      upgradeMap.set(
+        def.id,
+        currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null,
+      );
+      upgradeEffectMap.set(def.id, formatUpgradeNextEffect(def.id, currentStats, nextStats));
+    }
+    const enhanceMap = new Map<EnhanceId, number | null>();
+    const enhanceEffectMap = new Map<EnhanceId, string | null>();
+    const enhanceCosts = (def: { id: EnhanceId }) => {
+      const t1 = ENHANCE_COSTS_T1[def.id as keyof typeof ENHANCE_COSTS_T1];
+      const t2 = ENHANCE_COSTS_T2[def.id as keyof typeof ENHANCE_COSTS_T2];
+      return t1 ?? t2;
+    };
+    for (const def of [...availableT1Enhancements, ...availableT2Enhancements]) {
+      const costs = enhanceCosts(def);
+      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
+      const lvl = Math.max(0, Math.min(maxLvl, enhanceLevels[def.id] ?? 0));
+      if (lvl >= maxLvl) {
+        enhanceMap.set(def.id, null);
+        enhanceEffectMap.set(def.id, null);
+        continue;
+      }
+      const newLevels = { ...enhanceLevels, [def.id]: lvl + 1 };
+      const nextStats = computeFishingStatsFromLevels(upgradeLevels, newLevels);
+      // Drone cap enhancements: assume the extra drone(s) are assigned to the Fisher (active dock) for +% gains.
+      const extraDronesOnFisher =
+        def.id === "enhance_fishing_drone" ? 1 : def.id === "enhance_fishing_drone_3" ? 3 : 0;
+      const newDronesPerDock =
+        extraDronesOnFisher > 0
+          ? {
+              ...state.dronesPerDock,
+              [state.activeDockId]: (state.dronesPerDock[state.activeDockId] ?? 0) + extraDronesOnFisher,
+            }
+          : state.dronesPerDock;
+      const newTotal = computeTotalFishPerHour(
+        upgradeLevels,
+        newLevels,
+        newDronesPerDock,
+        state.activeDockId,
+        elixir3xFishingExternal,
+      );
+      enhanceMap.set(
+        def.id,
+        currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null,
+      );
+      enhanceEffectMap.set(def.id, formatEnhanceNextEffect(def.id, currentStats, nextStats));
+    }
+    return {
+      upgradeMarginalPct: upgradeMap,
+      enhanceMarginalPct: enhanceMap,
+      upgradeNextEffect: upgradeEffectMap,
+      enhanceNextEffect: enhanceEffectMap,
+    };
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.dronesPerDock,
+    state.activeDockId,
+    elixir3xFishingExternal,
+    availableT1Upgrades,
+    availableT2Upgrades,
+    availableT1Enhancements,
+    availableT2Enhancements,
+  ]);
+
   return (
     <div className="container">
       <div className="header">
@@ -545,7 +719,27 @@ export function Fishing() {
       </div>
 
       <div className="fishingLayoutGrid">
-        <Collapsible id="fishing-gains" title="Fishing gains" defaultExpanded={true}>
+        <Collapsible
+          id="fishing-gains"
+          title="Fishing gains"
+          defaultExpanded={true}
+          headerRight={
+            <Tooltip
+              content={{
+                title: "Gains from power",
+                sections: [
+                  {
+                    heading: "Dock power",
+                    lines: [
+                      "Each dock's power = rod (if you fish there) + every Fishing Drone on that dock × Drone Base Power.",
+                      "Power sets catch chance and fish per hour.",
+                    ],
+                  },
+                ],
+              }}
+            />
+          }
+        >
           <div className="fishingSection">
             <div className="fishingSectionHeader">
               <div className="fishingSectionTitle">
@@ -652,68 +846,128 @@ export function Fishing() {
                   <span className="mono">Fishing stats</span>
                 </div>
               </div>
-              <div className="fishingRows">
-                <StatRow
-                  label="Fishing Rod Power"
-                  iconUrl={upgradeIconUrl("Fishing_Rod_Power.png")}
-                  value={stats.fishing_rod_power}
-                  decimals={2}
-                />
-                <StatRow
-                  label="Fishing Drone Cap"
-                  iconUrl={upgradeIconUrl("Fishing_Drone_Capacity.png")}
-                  value={stats.fishing_drone_cap}
-                  decimals={2}
-                  suffix=""
-                />
-                <StatRow
-                  label="Drone Base Power"
-                  iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
-                  value={stats.drone_base_power}
-                  decimals={2}
-                  suffix=""
-                />
-                <StatRow
-                  label="Fish Income Multiplier (×)"
-                  iconUrl={upgradeIconUrl("Fish_Income_Multiplier.png")}
-                  value={stats.fish_income_multi}
-                  decimals={2}
-                  suffix="×"
-                />
-                <StatRow
-                  label="Fishing Tick Reduction (s)"
-                  iconUrl={upgradeIconUrl("Fishing_Tick_Reduction.png")}
-                  value={stats.fishing_tick_reduction}
-                  decimals={1}
-                  suffix="s"
-                />
-                <StatRow
-                  label="Token Gain Multiplier"
-                  iconUrl={upgradeIconUrl("Fish_Token_Gain_Multiplier.png")}
-                  value={stats.token_gain_multi}
-                  decimals={2}
-                  suffix="×"
-                />
-                <StatRow
-                  label="Notice Fish Requirement"
-                  value={stats.notice_fish_req}
-                  decimals={2}
-                  suffix="×"
-                />
-                <StatRow
-                  label="Shiny Multiplier"
-                  iconUrl={upgradeIconUrl("Shiny_Multiplier.png")}
-                  value={stats.shiny_multiplier}
-                  decimals={2}
-                  suffix="×"
-                />
-                <StatRow
-                  label="Super Shiny Multiplier"
-                  iconUrl={upgradeIconUrl("Super_Shiny_Multiplier.png")}
-                  value={stats.super_shiny_multiplier}
-                  decimals={2}
-                  suffix="×"
-                />
+              <div className="fishingStatsTwoColWrap">
+                <div className="fishingStatsCol">
+                  <StatRow
+                    label="Fishing Rod Power"
+                    iconUrl={upgradeIconUrl("Fishing_Rod_Power.png")}
+                    value={stats.fishing_rod_power}
+                    decimals={2}
+                  />
+                  <StatRow
+                    label="Fishing Drone Cap"
+                    iconUrl={upgradeIconUrl("Fishing_Drone_Capacity.png")}
+                    value={stats.fishing_drone_cap}
+                    decimals={2}
+                    suffix=""
+                  />
+                  <StatRow
+                    label="Drone Base Power"
+                    iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
+                    value={stats.drone_base_power}
+                    decimals={2}
+                    suffix=""
+                  />
+                  <StatRow
+                    label="Drone Power Multiplier"
+                    iconUrl={upgradeIconUrl("Drone_Power_Multiplier.png")}
+                    value={stats.drone_power_multiplier}
+                    decimals={2}
+                    suffix="×"
+                  />
+                  <StatRow
+                    label="Fish Income Multiplier (×)"
+                    iconUrl={upgradeIconUrl("Fish_Income_Multiplier.png")}
+                    value={stats.fish_income_multi}
+                    decimals={2}
+                    suffix="×"
+                  />
+                  <StatRow
+                    label="Fishing Tick Reduction (s)"
+                    iconUrl={upgradeIconUrl("Fishing_Tick_Reduction.png")}
+                    value={stats.fishing_tick_reduction}
+                    decimals={1}
+                    suffix="s"
+                  />
+                  <StatRow
+                    label="Double Tick Chance"
+                    iconUrl={upgradeIconUrl("Double_Fish_Tick_Chance.png")}
+                    value={stats.double_tick_chance_pct}
+                    decimals={2}
+                    suffix="%"
+                  />
+                  <StatRow
+                    label="Triple Tick Chance"
+                    iconUrl={upgradeIconUrl("Triple_Fish_Tick_Chance.png")}
+                    value={stats.triple_tick_chance_pct}
+                    decimals={2}
+                    suffix="%"
+                  />
+                  <StatRow
+                    label="5× Tick Chance"
+                    iconUrl={upgradeIconUrl("5x_Fish_Tick_Chance.png")}
+                    value={stats.five_tick_chance_pct}
+                    decimals={2}
+                    suffix="%"
+                  />
+                  <StatRow
+                    label="Token Gain Multiplier"
+                    iconUrl={upgradeIconUrl("Fish_Token_Gain_Multiplier.png")}
+                    value={stats.token_gain_multi}
+                    decimals={2}
+                    suffix="×"
+                  />
+                </div>
+                <div className="fishingStatsCol">
+                  <StatRow
+                    label="Notice Fish Requirement"
+                    value={stats.notice_fish_req}
+                    decimals={2}
+                    suffix="×"
+                  />
+                  <StatRow
+                    label="Shiny Fish Chance"
+                    iconUrl={upgradeIconUrl("Shiny_Fish_Chance.png")}
+                    value={stats.shiny_fish_chance_pct}
+                    decimals={2}
+                    suffix="%"
+                  />
+                  <StatRow
+                    label="Super Shiny Chance"
+                    iconUrl={upgradeIconUrl("Super_Shiny_Fish_Chance.png")}
+                    value={stats.super_shiny_chance_pct}
+                    decimals={2}
+                    suffix="%"
+                  />
+                  <StatRow
+                    label="Tiny Notice Chance"
+                    iconUrl={upgradeIconUrl("Tiny_Notice_Chance.png")}
+                    value={stats.tiny_notice_chance_pct}
+                    decimals={2}
+                    suffix="%"
+                  />
+                  <StatRow
+                    label="Tier 2 Dock Power"
+                    iconUrl={upgradeIconUrl("Tier_2_Dock_Power.png")}
+                    value={stats.tier2_dock_power_mult}
+                    decimals={2}
+                    suffix="×"
+                  />
+                  <StatRow
+                    label="Shiny Multiplier"
+                    iconUrl={upgradeIconUrl("Shiny_Multiplier.png")}
+                    value={stats.shiny_multiplier}
+                    decimals={2}
+                    suffix="×"
+                  />
+                  <StatRow
+                    label="Super Shiny Multiplier"
+                    iconUrl={upgradeIconUrl("Super_Shiny_Multiplier.png")}
+                    value={stats.super_shiny_multiplier}
+                    decimals={2}
+                    suffix="×"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -721,6 +975,11 @@ export function Fishing() {
 
         <Collapsible id="fishing-docks" title="Docks" defaultExpanded={true}>
           <div className="fishingDocksBox">
+            {totalDronesAssigned < droneCap && droneCap > 0 ? (
+              <div className="fishingDroneCapWarning" role="alert">
+                Assign more drones: {totalDronesAssigned} / {droneCap} (cap). Use + on a dock to add drones.
+              </div>
+            ) : null}
             <div className="fishingDockHeaderRow">
               <span className="fishingDockHeaderFisher">Fisher here</span>
               <span className="fishingDockHeaderPower">Power</span>
@@ -806,8 +1065,8 @@ export function Fishing() {
                               {
                                 heading: "Meaning",
                                 lines: [
-                                  "Time to reach next level if you had zero of the cost fish.",
-                                  "Assumes you only fish for that fish.",
+                                  "Time to get enough of the cost fish for the next level.",
+                                  "Assumes all fish per hour goes to that fish type.",
                                 ],
                               },
                             ],
@@ -821,10 +1080,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "Effect",
+                                heading: "How it's computed",
                                 lines: [
-                                  "Approximate % increase in overall fish per hour for +1 level.",
-                                  "Shown only where the formula applies (e.g. Fish Multi, Tick Speed).",
+                                  "Percent increase in total fish per hour for +1 level of this upgrade.",
+                                  "Uses the same total as the Fishing gains list above.",
                                 ],
                               },
                             ],
@@ -849,12 +1108,16 @@ export function Fishing() {
                       : null;
                   const fishDef = nextCostEntry ? getFishById(nextCostEntry.fishId) : undefined;
                   const isMaxed = lvl >= maxLvl;
-                  const marginalPct = !isMaxed ? upgradeMarginalFishPct(def.id, stats, effectiveTickSec) : null;
+                  const marginalPct = upgradeMarginalPct.get(def.id) ?? null;
+                  const nextEffect = upgradeNextEffect.get(def.id) ?? null;
                   return (
                     <tr key={def.id} className="fishingUpgradeRow">
                       <td className="fishingUpgradeTdName">
                         <img src={upgradeIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
-                        <span className="fishingUpgradeName">{def.name}</span>
+                        <div className="fishingUpgradeNameBlock">
+                          <span className="fishingUpgradeName">{def.name}</span>
+                          {nextEffect != null ? <span className="fishingUpgradeNextEffect">{nextEffect}</span> : null}
+                        </div>
                       </td>
                       <td className="fishingUpgradeTdLvl">
                         <span className="fishingUpgradeLevelLabel">
@@ -956,8 +1219,8 @@ export function Fishing() {
                               {
                                 heading: "Meaning",
                                 lines: [
-                                  "Time to reach next level if you had zero of the cost fish.",
-                                  "Assumes you only fish for that fish.",
+                                  "Time to get enough of the cost fish for the next level.",
+                                  "Assumes all fish per hour goes to that fish type.",
                                 ],
                               },
                             ],
@@ -971,10 +1234,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "Effect",
+                                heading: "How it's computed",
                                 lines: [
-                                  "Approximate % increase in overall fish per hour for +1 level.",
-                                  "Shown only where the formula applies (e.g. Fish Multi, Tick Speed).",
+                                  "Percent increase in total fish per hour for +1 level of this upgrade.",
+                                  "Uses the same total as the Fishing gains list above.",
                                 ],
                               },
                             ],
@@ -999,12 +1262,16 @@ export function Fishing() {
                       : null;
                   const fishDef = nextCostEntry ? getFishById(nextCostEntry.fishId) : undefined;
                   const isMaxed = lvl >= maxLvl;
-                  const marginalPct = !isMaxed ? upgradeMarginalFishPct(def.id, stats, effectiveTickSec) : null;
+                  const marginalPct = upgradeMarginalPct.get(def.id) ?? null;
+                  const nextEffect = upgradeNextEffect.get(def.id) ?? null;
                   return (
                     <tr key={def.id} className="fishingUpgradeRow">
                       <td className="fishingUpgradeTdName">
                         <img src={upgradeIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
-                        <span className="fishingUpgradeName">{def.name}</span>
+                        <div className="fishingUpgradeNameBlock">
+                          <span className="fishingUpgradeName">{def.name}</span>
+                          {nextEffect != null ? <span className="fishingUpgradeNextEffect">{nextEffect}</span> : null}
+                        </div>
                       </td>
                       <td className="fishingUpgradeTdLvl">
                         <span className="fishingUpgradeLevelLabel">
@@ -1111,10 +1378,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "Effect",
+                                heading: "How it's computed",
                                 lines: [
-                                  "Approximate % increase in overall fish per hour for +1 level.",
-                                  "Shown only where the formula applies.",
+                                  "Percent increase in total fish per hour for +1 level of this enhancement.",
+                                  "Uses the same total as the Fishing gains list above.",
                                 ],
                               },
                             ],
@@ -1131,12 +1398,16 @@ export function Fishing() {
                       const nextLevel = lvl + 1;
                       const nextCostEntry = costs?.find((c) => c.level === nextLevel);
                       const isMaxed = lvl >= maxLvl;
-                      const marginalPct = !isMaxed ? enhanceMarginalGainsPct(def.id, stats, effectiveTickSec) : null;
+                      const marginalPct = enhanceMarginalPct.get(def.id) ?? null;
+                      const nextEffect = enhanceNextEffect.get(def.id) ?? null;
                       return (
                         <tr key={def.id} className="fishingUpgradeRow">
                           <td className="fishingUpgradeTdName">
                             <img src={enhanceIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
-                            <span className="fishingUpgradeName">{def.name}</span>
+                            <div className="fishingUpgradeNameBlock">
+                              <span className="fishingUpgradeName">{def.name}</span>
+                              {nextEffect != null ? <span className="fishingUpgradeNextEffect">{nextEffect}</span> : null}
+                            </div>
                           </td>
                           <td className="fishingUpgradeTdLvl">
                             <span className="fishingUpgradeLevelLabel">
@@ -1201,10 +1472,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "Effect",
+                                heading: "How it's computed",
                                 lines: [
-                                  "Approximate % increase in overall fish per hour for +1 level.",
-                                  "Shown only where the formula applies.",
+                                  "Percent increase in total fish per hour for +1 level of this enhancement.",
+                                  "Uses the same total as the Fishing gains list above.",
                                 ],
                               },
                             ],
@@ -1221,12 +1492,16 @@ export function Fishing() {
                       const nextLevel = lvl + 1;
                       const nextCostEntry = costs?.find((c) => c.level === nextLevel);
                       const isMaxed = lvl >= maxLvl;
-                      const marginalPct = !isMaxed ? enhanceMarginalGainsPct(def.id, stats, effectiveTickSec) : null;
+                      const marginalPct = enhanceMarginalPct.get(def.id) ?? null;
+                      const nextEffect = enhanceNextEffect.get(def.id) ?? null;
                       return (
                         <tr key={def.id} className="fishingUpgradeRow">
                           <td className="fishingUpgradeTdName">
                             <img src={enhanceIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
-                            <span className="fishingUpgradeName">{def.name}</span>
+                            <div className="fishingUpgradeNameBlock">
+                              <span className="fishingUpgradeName">{def.name}</span>
+                              {nextEffect != null ? <span className="fishingUpgradeNextEffect">{nextEffect}</span> : null}
+                            </div>
                           </td>
                           <td className="fishingUpgradeTdLvl">
                             <span className="fishingUpgradeLevelLabel">

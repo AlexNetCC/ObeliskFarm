@@ -12,10 +12,26 @@ export interface ComputedFishingStats {
   fishing_rod_power: number;
   fishing_drone_cap: number;
   drone_base_power: number;
+  /** Multiplier on Drone Base Power (from drone_multiplier + enhance). */
+  drone_power_multiplier: number;
   fish_income_multi: number;
   fishing_tick_reduction: number;
+  /** Double Fish Tick Chance (%). When tick bar fills, chance to get 2 ticks at once. */
+  double_tick_chance_pct: number;
+  /** Triple Fish Tick Chance (%). */
+  triple_tick_chance_pct: number;
+  /** 5× Fish Tick Chance (%) – from Fishing only; game can add Relics/Store/Cards. */
+  five_tick_chance_pct: number;
   token_gain_multi: number;
   notice_fish_req: number;
+  /** Shiny Fish Chance (%). Shiny = crit-like; multiplier applies (base 3×). */
+  shiny_fish_chance_pct: number;
+  /** Super Shiny Chance (%). Only rolls when catch is already shiny; base mult 2×. */
+  super_shiny_chance_pct: number;
+  /** Tiny Notice Chance (%). Notice asks for 90% less fish. */
+  tiny_notice_chance_pct: number;
+  /** Tier 2 Dock Power multiplier (×) applied to power on T2 docks. */
+  tier2_dock_power_mult: number;
   shiny_multiplier: number;
   super_shiny_multiplier: number;
 }
@@ -60,11 +76,12 @@ export function computeFishingStatsFromLevels(
   const fishing_tick_reduction =
     -0.5 * u("tick_speed") - 0.5 * e("enhance_tick_speed");
 
-  // Drone Base Power: base 3, +0.25 per level. Drone Multiplier +0.06x (upgrade), +0.08x (enhance).
+  // Drone Base Power: base 3, +0.25 per level. Drone Power Multiplier +0.06x (upgrade), +0.08x (enhance).
   const droneBase = 3 + 0.25 * u("drone_base_power");
   const droneMultiUpgrade = 1 + 0.06 * u("drone_multiplier");
   const droneMultiEnhance = 1 + 0.08 * e("enhance_drone_multiplier");
-  const drone_base_power = droneBase * droneMultiUpgrade * droneMultiEnhance;
+  const drone_power_multiplier = droneMultiUpgrade * droneMultiEnhance;
+  const drone_base_power = droneBase * drone_power_multiplier;
 
   // Fishing Drone Cap: base 0, then from upgrades (+1 per fishing_drone, +2 per fishing_drone_2) and enhancements (+1 per enhance_fishing_drone, +3 per enhance_fishing_drone_3); then Drone Cloner 1.05x.
   const capFromUpgradesAndEnhancements =
@@ -81,13 +98,31 @@ export function computeFishingStatsFromLevels(
   // Notice fish requirement: no upgrade source in game; use 1.
   const notice_fish_req = 1;
 
-  // Shiny Multiplier: base 5, +0.05x (T2 upgrade), +0.05x (enhance).
-  const shiny_multiplier =
-    5 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
+  // Tick chances (%): double +0.5% (upgrade), +0.5% (enhance); triple +0.35% (upgrade), +0.4% (enhance); 5× from Relics/Store/Cards only in game.
+  const double_tick_chance_pct =
+    0.5 * u("double_tick_chance") + 0.5 * e("enhance_double_tick_chance");
+  const triple_tick_chance_pct =
+    0.35 * u("triple_tick_chance") + 0.4 * e("enhance_triple_tick_chance");
+  const five_tick_chance_pct = 0;
 
-  // Super Shiny / Poly Card Multi: base 3, +0.08x (poly_card_multi), +0.15x (enhance_super_shiny_multi).
+  // Shiny / Super Shiny chances (%): shiny_fish_chance +0.5% per level; super_shiny_chance +1% per level; tiny notice +0.5% (enhance).
+  const shiny_fish_chance_pct = 0.5 * u("shiny_fish_chance");
+  const super_shiny_chance_pct = 1 * u("super_shiny_chance");
+  const tiny_notice_chance_pct = 0.5 * e("enhance_tiny_notice_chance");
+
+  // Tier 2 Dock Power: multiplier on power on T2 docks; +0.05x (upgrade), +0.05x (enhance).
+  const tier2_dock_power_mult =
+    1 +
+    0.05 * u("tier2_dock_power") +
+    0.05 * e("enhance_tier2_dock_power");
+
+  // Shiny Multiplier: base 3× (wiki), +0.05x (T2 upgrade), +0.05x (enhance).
+  const shiny_multiplier =
+    3 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
+
+  // Super Shiny Multiplier: base 2× (wiki; only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance).
   const super_shiny_multiplier =
-    3 +
+    2 +
     0.08 * u("poly_card_multi") +
     0.15 * e("enhance_super_shiny_multi");
 
@@ -97,10 +132,18 @@ export function computeFishingStatsFromLevels(
     fishing_rod_power,
     fishing_drone_cap,
     drone_base_power,
+    drone_power_multiplier,
     fish_income_multi,
     fishing_tick_reduction,
+    double_tick_chance_pct,
+    triple_tick_chance_pct,
+    five_tick_chance_pct,
     token_gain_multi,
     notice_fish_req,
+    shiny_fish_chance_pct,
+    super_shiny_chance_pct,
+    tiny_notice_chance_pct,
+    tier2_dock_power_mult,
     shiny_multiplier,
     super_shiny_multiplier,
   };

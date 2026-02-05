@@ -44,6 +44,21 @@
   gap: 10px;
 }
 
+/* Your stats: two columns, left column first then right */
+.fishingStatsTwoColWrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  align-items: start;
+}
+
+.fishingStatsCol {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
 /* Boat level row: brown glow so it stands out at top of Your stats */
 .fishingBoatLevelRow {
   display: grid;
@@ -133,6 +148,22 @@
   border-radius: 6px;
   overflow: hidden;
   background: #0d2847;
+}
+
+/* Warning when assigned drones < cap (red blink so user corrects distribution). */
+.fishingDroneCapWarning {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: #fff;
+  background: #b91c1c;
+  animation: fishingDroneCapWarningBlink 1.2s ease-in-out infinite;
+}
+
+@keyframes fishingDroneCapWarningBlink {
+  0%, 100% { opacity: 1; background-color: #b91c1c; }
+  50% { opacity: 0.85; background-color: #dc2626; }
 }
 
 .fishingDockHeaderRow {
@@ -495,6 +526,20 @@
   height: 24px;
   object-fit: contain;
   flex-shrink: 0;
+}
+
+.fishingUpgradeNameBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fishingUpgradeNextEffect {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
 }
 
 .fishingUpgradeName {
