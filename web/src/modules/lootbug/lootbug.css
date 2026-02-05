@@ -77,6 +77,21 @@
   color: rgba(46, 125, 50, 0.55);
 }
 
+/* Net-positive Gem EV: green glow (like buff durations at Elixir Drone) */
+.lootbugNetGemEvPositive {
+  color: var(--good);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(46, 125, 50, 0.5);
+}
+
+/* Net-negative: like Fuel cost (100% uptime) row in Drone */
+.lootbugNetGemEvNegative {
+  color: #c62828;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 .lootbugLabel {
   font-size: 13px;
   color: var(--text);
