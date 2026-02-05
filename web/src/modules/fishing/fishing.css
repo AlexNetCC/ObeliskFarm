@@ -1,0 +1,542 @@
+/* Fishing module layout (beta): stats + dock toggles, same pattern as Stargazing */
+.fishingLayoutGrid {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 200px;
+  background: #f6f7fb;
+}
+
+.fishingGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.fishingSection {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.fishingSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.fishingSectionTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+.fishingRows {
+  display: grid;
+  gap: 10px;
+}
+
+/* Boat level row: brown glow so it stands out at top of Your stats */
+.fishingBoatLevelRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(139, 90, 43, 0.25);
+  background: rgba(255, 248, 240, 0.6);
+  box-shadow: 0 0 14px rgba(139, 90, 43, 0.2), 0 0 6px rgba(139, 90, 43, 0.12);
+}
+
+.fishingRow {
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.fishingLabel {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  width: 100%;
+}
+
+.fishingLabelLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fishingLabelName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fishingRowInputBlock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+.fishingInputWrap {
+  min-width: 0;
+  max-width: 120px;
+}
+
+.fishingInputWrap .input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.fishingRowValue {
+  font-size: 12px;
+  min-width: 3em;
+  text-align: left;
+}
+
+.fishingHeaderIcon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+
+/* Docks: muted dark blue bg, soft blue-gray borders (screenshot-style) */
+.fishingDocksBox {
+  border: 1px solid #3d5f7a;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0d2847;
+}
+
+.fishingDockHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px 8px;
+  background: #132d4a;
+  border-bottom: 1px solid #2d4a63;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fishingDockHeaderFisher {
+  flex: 1;
+  min-width: 0;
+}
+.fishingDockHeaderPower,
+.fishingDockHeaderDrones {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.fishingDockBlock {
+  border-bottom: 1px solid #2d4a63;
+}
+
+.fishingDockBlock:nth-child(even) {
+  opacity: 0.96;
+}
+
+.fishingDockBlock:last-child {
+  border-bottom: none;
+}
+
+.fishingDockRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #0d2847;
+  color: #e2e8f0;
+}
+
+.fishingDockRowLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.fishingDockRowLabel input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.fishingDockRowNameBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.fishingDockRowName {
+  font-weight: 600;
+}
+
+.fishingDockRowDockImg {
+  max-height: 28px;
+  width: auto;
+  max-width: 56px;
+  object-fit: contain;
+  opacity: 0.28;
+  vertical-align: middle;
+}
+
+.fishingDockRowPower,
+.fishingDockRowDrones {
+  font-size: 12px;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+/* +/− drone controls under each dock row */
+.fishingDockDroneControls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #132d4a;
+  border-top: 1px solid #2d4a63;
+  color: #e2e8f0;
+}
+
+.fishingDockDroneBtn {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #3d5f7a;
+  border-radius: 4px;
+  background: #1e3a5f;
+  color: #e2e8f0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fishingDockDroneBtn:hover:not(:disabled) {
+  background: #2d4a6f;
+}
+
+.fishingDockDroneBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.fishingDockDroneControlsLabel {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-right: 4px;
+}
+
+.fishingDockDroneCount {
+  min-width: 1.5em;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Toggle above fish-per-hour list */
+.fishingGainsToggleWrap {
+  margin-bottom: 10px;
+}
+
+.fishingGainsToggleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.fishingGainsToggleLabel input {
+  margin: 0;
+}
+
+/* Fishing gains: list of fish with icon and fish/h */
+.fishingGainsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fishingGainsRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  min-width: 0;
+}
+
+.fishingGainsRowDisabled {
+  opacity: 0.12;
+  background: transparent;
+}
+
+/* Elixir 3× Fishing Tick Speed info below fish list (from Drone module) – grayish secondary info */
+.fishingGainsElixirRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 100, 110, 0.2);
+  background: rgba(120, 125, 135, 0.12);
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  min-width: 0;
+}
+
+.fishingGainsElixirIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.fishingGainsElixirLabel {
+  font-weight: 600;
+  flex-shrink: 0;
+  color: #6b7280;
+}
+
+.fishingGainsElixirValue {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #6b7280;
+}
+
+.fishingFishIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.fishingGainsFishName {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fishingGainsDockName {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.fishingGainsRateWrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fishingGainsCatchPct {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.fishingGainsRate {
+  font-weight: 700;
+  min-width: 4em;
+  text-align: right;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Available Upgrades: icon + name + level (lvl X/Y + buttons) + cost + time to next */
+.fishingUpgradesPanel {
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.fishingUpgradesTier {
+  margin-top: 8px;
+}
+
+.fishingUpgradesTier:first-child {
+  margin-top: 0;
+}
+
+.fishingUpgradesList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fishingUpgradeHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px 6px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted, #64748b);
+}
+
+.fishingUpgradeHeaderSpacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.fishingUpgradeHeaderTime {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fishingUpgradeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  min-width: 0;
+}
+
+.fishingUpgradeIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.fishingUpgradeName {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 120px;
+}
+
+.fishingUpgradeLevelWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 6.5em;
+}
+
+.fishingUpgradeLevelLabel {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+
+.fishingUpgradeLevelLabel .mono {
+  font-weight: 700;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+.fishingUpgradeButtons {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fishingUpgradeButtons .btn {
+  padding: 6px 10px;
+  min-width: 32px;
+}
+
+.fishingUpgradeCostWrap {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  flex-shrink: 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -6px;
+}
+
+.fishingUpgradeCostLabel {
+  font-weight: 600;
+}
+
+.fishingUpgradeCostBox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.fishingUpgradeCostFishIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.fishingUpgradeMaxed {
+  font-weight: 700;
+  color: hsl(120, 45%, 35%);
+}
+
+.fishingUpgradeTimeToNext {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+}

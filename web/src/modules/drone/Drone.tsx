@@ -572,6 +572,20 @@ export function Drone() {
     };
   }, [numBuffs, intervalSec, buffDurations]);
 
+  /** 3× Fishing Tick Speed: min/h and uptime fraction (0..1) for Fishing module. Real-time cycle; when drone off or fishing not unlocked: 0. */
+  const { elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction } = useMemo(() => {
+    if (!state.elixirDroneOn || !state.fishingUnlocked) {
+      return { elixir3xFishingTickSpeedMinPerHour: 0, elixir3xFishingTickSpeedUptimeFraction: 0 };
+    }
+    const cycleSec = numBuffs * intervalSec;
+    if (cycleSec <= 0) return { elixir3xFishingTickSpeedMinPerHour: 0, elixir3xFishingTickSpeedUptimeFraction: 0 };
+    const b = buffDurations.find((x) => x.id === "3xfishing");
+    if (!b) return { elixir3xFishingTickSpeedMinPerHour: 0, elixir3xFishingTickSpeedUptimeFraction: 0 };
+    const uptimeFraction = Math.min(1, b.sec / cycleSec);
+    const minPerHour = uptimeFraction * 60;
+    return { elixir3xFishingTickSpeedMinPerHour: minPerHour, elixir3xFishingTickSpeedUptimeFraction: uptimeFraction };
+  }, [state.elixirDroneOn, state.fishingUnlocked, numBuffs, intervalSec, buffDurations]);
+
   const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
@@ -579,6 +593,14 @@ export function Drone() {
     ext.drone3xSuperUptimeFraction = drone3xSuperUptimeFraction;
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
   }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction]);
+
+  const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
+    ext.elixir3xFishingTickSpeedMinPerHour = elixir3xFishingTickSpeedMinPerHour;
+    ext.elixir3xFishingTickSpeedUptimeFraction = elixir3xFishingTickSpeedUptimeFraction;
+    saveJson(FISHING_EXTERNAL_KEY, ext);
+  }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction]);
 
   /** Drone's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
   const drone10xGemEvPerHour = (() => {
