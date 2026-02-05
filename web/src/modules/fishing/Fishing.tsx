@@ -9,20 +9,26 @@ import {
   catchChancePercent,
   dockIconUrl,
   effectiveFishingTickSec,
+  ENHANCE_COSTS_T1,
+  ENHANCE_COSTS_T2,
+  ENHANCEMENTS_T1,
+  ENHANCEMENTS_T2,
   expectedCatchesPerRoll,
   fishIconUrl,
   FISHING_UPGRADES_T1,
   FISHING_UPGRADES_T2,
   getFishById,
   upgradeIconUrl,
+  enhanceIconUrl,
   UPGRADE_COSTS,
   type DockId,
+  type EnhanceId,
   type FishingUpgradeId,
 } from "../../lib/fishing";
 
 /** User-editable fishing stats (from game Stats / Fishing). */
 type FishingStats = {
-  /** Boat level (T1) 1–5. Gates which upgrades are shown. */
+  /** Boat level (T1) 0–5. Gates which upgrades are shown. 0 = start. */
   boat_level: number;
   /** Tier 2 boat level 0–5. Gates T2 upgrades (0 = T2 not unlocked). */
   t2_boat_level: number;
@@ -43,6 +49,7 @@ type SavedState = {
   activeDockId?: DockId | null;
   showDisabledFishGrayed?: boolean;
   upgradeLevels?: Partial<Record<FishingUpgradeId, number>>;
+  enhanceLevels?: Partial<Record<EnhanceId, number>>;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
@@ -53,9 +60,12 @@ const ELIXIR_3X_FISHING_BUFF_ICON = "https://static.wikitide.net/shminerwiki/8/8
 
 const FISHING_ICON = "https://static.wikitide.net/shminerwiki/f/fb/Fishing_Button.png";
 
+/** Gem icon for enhancement costs (wiki File:Gem.png). */
+const GEM_ICON_URL = fishIconUrl("Gem.png");
+
 function defaultStats(): FishingStats {
   return {
-    boat_level: 1,
+    boat_level: 0,
     t2_boat_level: 0,
     fishing_rod_power: 1,
     fishing_drone_cap: 1,
@@ -144,6 +154,39 @@ function upgradeMarginalFishPct(
     case "tier2_dock_power":
       return 5;
     case "drone_cloner":
+      return 5;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Approximate marginal % overall fish gain from +1 level of this enhancement.
+ * Returns null when not applicable (token, notice, T2 dock-only, etc.).
+ */
+function enhanceMarginalGainsPct(
+  enhanceId: EnhanceId,
+  stats: { fish_income_multi: number; fishing_tick_reduction: number },
+  effectiveTickSec: number,
+): number | null {
+  const multi = Math.max(0.01, stats.fish_income_multi);
+  const tickSec = Math.max(1, effectiveTickSec);
+  switch (enhanceId) {
+    case "enhance_fish_multiplier":
+      return (100 * 0.05) / multi;
+    case "enhance_tick_speed": {
+      const newTick = Math.max(0.5, tickSec - 0.5);
+      return 100 * (tickSec / newTick - 1);
+    }
+    case "enhance_rod_multiplier":
+      return 5;
+    case "enhance_drone_multiplier":
+      return 8;
+    case "enhance_double_tick_chance":
+      return 0.5;
+    case "enhance_triple_tick_chance":
+      return 0.4 * 2;
+    case "enhance_tier2_dock_power":
       return 5;
     default:
       return null;
@@ -270,7 +313,8 @@ export function Fishing() {
     const showDisabledFishGrayed = saved?.showDisabledFishGrayed ?? false;
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
     const upgradeLevels = saved?.upgradeLevels ?? {};
-    return { stats: merged, dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels };
+    const enhanceLevels = saved?.enhanceLevels ?? {};
+    return { stats: merged, dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels };
   }, []);
 
   const [stats, setStats] = useState<FishingStats>(initial.stats);
@@ -278,13 +322,14 @@ export function Fishing() {
   const [activeDockId, setActiveDockId] = useState<DockId>(initial.activeDockId);
   const [showDisabledFishGrayed, setShowDisabledFishGrayed] = useState<boolean>(initial.showDisabledFishGrayed);
   const [upgradeLevels, setUpgradeLevels] = useState<Partial<Record<FishingUpgradeId, number>>>(initial.upgradeLevels ?? {});
+  const [enhanceLevels, setEnhanceLevels] = useState<Partial<Record<EnhanceId, number>>>(initial.enhanceLevels ?? {});
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      saveJson(STORAGE_KEY, { stats, dronesPerDock, activeDockId, showDisabledFishGrayed, upgradeLevels });
+      saveJson(STORAGE_KEY, { stats, dronesPerDock, activeDockId, showDisabledFishGrayed, upgradeLevels, enhanceLevels });
     }, 250);
     return () => window.clearTimeout(t);
-  }, [stats, dronesPerDock, activeDockId, showDisabledFishGrayed, upgradeLevels]);
+  }, [stats, dronesPerDock, activeDockId, showDisabledFishGrayed, upgradeLevels, enhanceLevels]);
 
   const totalDronesAssigned = useMemo(
     () => DOCKS.reduce((sum, d) => sum + (dronesPerDock[d.id] ?? 0), 0),
@@ -313,6 +358,20 @@ export function Fishing() {
       const next = Math.max(0, Math.min(maxLvl, cur + delta));
       if (next === cur) return prev;
       return { ...prev, [upgradeId]: next };
+    });
+  }
+
+  function setFishingEnhanceLevel(enhanceId: EnhanceId, delta: number) {
+    const costsT1 = ENHANCE_COSTS_T1[enhanceId as keyof typeof ENHANCE_COSTS_T1];
+    const costsT2 = ENHANCE_COSTS_T2[enhanceId as keyof typeof ENHANCE_COSTS_T2];
+    const costs = costsT1 ?? costsT2;
+    if (!costs?.length) return;
+    const maxLvl = costs[costs.length - 1]!.level;
+    setEnhanceLevels((prev) => {
+      const cur = Math.max(0, Math.min(maxLvl, prev[enhanceId] ?? 0));
+      const next = Math.max(0, Math.min(maxLvl, cur + delta));
+      if (next === cur) return prev;
+      return { ...prev, [enhanceId]: next };
     });
   }
 
@@ -401,6 +460,23 @@ export function Fishing() {
   const availableT2Upgrades = useMemo(
     () =>
       FISHING_UPGRADES_T2.filter(
+        (def) =>
+          stats.boat_level >= def.boatLevelRequired &&
+          (def.t2BoatLevelRequired == null || (stats.t2_boat_level ?? 0) >= def.t2BoatLevelRequired),
+      ),
+    [stats.boat_level, stats.t2_boat_level],
+  );
+
+  /** T1 enhancements available at current boat level. */
+  const availableT1Enhancements = useMemo(
+    () => ENHANCEMENTS_T1.filter((def) => stats.boat_level >= def.boatLevelRequired),
+    [stats.boat_level],
+  );
+
+  /** T2 enhancements available at current boat level and T2 boat level. */
+  const availableT2Enhancements = useMemo(
+    () =>
+      ENHANCEMENTS_T2.filter(
         (def) =>
           stats.boat_level >= def.boatLevelRequired &&
           (def.t2BoatLevelRequired == null || (stats.t2_boat_level ?? 0) >= def.t2BoatLevelRequired),
@@ -551,7 +627,7 @@ export function Fishing() {
               iconUrl={upgradeIconUrl("Fishing_Boat_Upgrade.png")}
               value={stats.boat_level}
               onChange={(v) => setStats((s) => ({ ...s, boat_level: Math.round(v) }))}
-              min={1}
+              min={0}
               max={5}
             />
             <NumberRow
@@ -761,10 +837,10 @@ export function Fishing() {
                         />
                       </th>
                       <th className="fishingUpgradeThSpeed">
-                        +% speed
+                        +% gains
                         <Tooltip
                           content={{
-                            title: "+% speed",
+                            title: "+% gains",
                             sections: [
                               {
                                 heading: "Effect",
@@ -911,10 +987,10 @@ export function Fishing() {
                         />
                       </th>
                       <th className="fishingUpgradeThSpeed">
-                        +% speed
+                        +% gains
                         <Tooltip
                           content={{
-                            title: "+% speed",
+                            title: "+% gains",
                             sections: [
                               {
                                 heading: "Effect",
@@ -1029,6 +1105,195 @@ export function Fishing() {
                     </tr>
                   );
                 })}
+                  </tbody>
+                </table>
+              </div>
+            </Collapsible>
+          </div>
+        </Collapsible>
+
+        <Collapsible id="fishing-enhancements" title="Available Enhancements" defaultExpanded={true}>
+          <div className="fishingUpgradesPanel">
+            <p className="fishingEnhancementsIntro">
+              Enhancements cost <img src={GEM_ICON_URL} alt="Gems" className="fishingGemIcon" /> Gems. They do not count toward completion. See{" "}
+              <a href="https://shminer.miraheze.org/wiki/Fishing#Enhancements" target="_blank" rel="noopener noreferrer">Fishing § Enhancements</a>.
+            </p>
+            <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
+              <div className="fishingUpgradesList">
+                <table className="fishingUpgradeTable">
+                  <thead>
+                    <tr>
+                      <th className="fishingUpgradeThName">Enhancement</th>
+                      <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCost">Cost</th>
+                      <th className="fishingUpgradeThSpeed">
+                        +% gains
+                        <Tooltip
+                          content={{
+                            title: "+% gains",
+                            sections: [
+                              {
+                                heading: "Effect",
+                                lines: [
+                                  "Approximate % increase in overall fish per hour for +1 level.",
+                                  "Shown only where the formula applies.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availableT1Enhancements.map((def) => {
+                      const costs = ENHANCE_COSTS_T1[def.id as keyof typeof ENHANCE_COSTS_T1];
+                      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
+                      const lvl = Math.max(0, Math.min(maxLvl, enhanceLevels[def.id] ?? 0));
+                      const nextLevel = lvl + 1;
+                      const nextCostEntry = costs?.find((c) => c.level === nextLevel);
+                      const isMaxed = lvl >= maxLvl;
+                      const marginalPct = !isMaxed ? enhanceMarginalGainsPct(def.id, stats, effectiveTickSec) : null;
+                      return (
+                        <tr key={def.id} className="fishingUpgradeRow">
+                          <td className="fishingUpgradeTdName">
+                            <img src={enhanceIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
+                            <span className="fishingUpgradeName">{def.name}</span>
+                          </td>
+                          <td className="fishingUpgradeTdLvl">
+                            <span className="fishingUpgradeLevelLabel">
+                              lvl <span className="mono">{lvl}</span> / {maxLvl}
+                            </span>
+                            <div className="btnRow fishingUpgradeButtons">
+                              <button
+                                type="button"
+                                className="btn btnSecondary"
+                                onClick={() => setFishingEnhanceLevel(def.id, -1)}
+                                disabled={lvl <= 0}
+                                aria-label="Decrease level"
+                              >
+                                −
+                              </button>
+                              {!isMaxed ? (
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  onClick={() => setFishingEnhanceLevel(def.id, 1)}
+                                  aria-label="Increase level"
+                                >
+                                  +
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="fishingUpgradeTdCost">
+                            {isMaxed ? (
+                              <span className="fishingUpgradeMaxed">Maxed</span>
+                            ) : nextCostEntry ? (
+                              <span className="fishingUpgradeCostBox">
+                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="fishingUpgradeTdSpeed">
+                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Collapsible>
+            <Collapsible id="fishing-enhancements-t2" title="Tier 2" defaultExpanded={false} className="fishingUpgradesTier">
+              <div className="fishingUpgradesList">
+                <table className="fishingUpgradeTable">
+                  <thead>
+                    <tr>
+                      <th className="fishingUpgradeThName">Enhancement</th>
+                      <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCost">Cost</th>
+                      <th className="fishingUpgradeThSpeed">
+                        +% gains
+                        <Tooltip
+                          content={{
+                            title: "+% gains",
+                            sections: [
+                              {
+                                heading: "Effect",
+                                lines: [
+                                  "Approximate % increase in overall fish per hour for +1 level.",
+                                  "Shown only where the formula applies.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availableT2Enhancements.map((def) => {
+                      const costs = ENHANCE_COSTS_T2[def.id as keyof typeof ENHANCE_COSTS_T2];
+                      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
+                      const lvl = Math.max(0, Math.min(maxLvl, enhanceLevels[def.id] ?? 0));
+                      const nextLevel = lvl + 1;
+                      const nextCostEntry = costs?.find((c) => c.level === nextLevel);
+                      const isMaxed = lvl >= maxLvl;
+                      const marginalPct = !isMaxed ? enhanceMarginalGainsPct(def.id, stats, effectiveTickSec) : null;
+                      return (
+                        <tr key={def.id} className="fishingUpgradeRow">
+                          <td className="fishingUpgradeTdName">
+                            <img src={enhanceIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
+                            <span className="fishingUpgradeName">{def.name}</span>
+                          </td>
+                          <td className="fishingUpgradeTdLvl">
+                            <span className="fishingUpgradeLevelLabel">
+                              lvl <span className="mono">{lvl}</span> / {maxLvl}
+                            </span>
+                            <div className="btnRow fishingUpgradeButtons">
+                              <button
+                                type="button"
+                                className="btn btnSecondary"
+                                onClick={() => setFishingEnhanceLevel(def.id, -1)}
+                                disabled={lvl <= 0}
+                                aria-label="Decrease level"
+                              >
+                                −
+                              </button>
+                              {!isMaxed ? (
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  onClick={() => setFishingEnhanceLevel(def.id, 1)}
+                                  aria-label="Increase level"
+                                >
+                                  +
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="fishingUpgradeTdCost">
+                            {isMaxed ? (
+                              <span className="fishingUpgradeMaxed">Maxed</span>
+                            ) : nextCostEntry ? (
+                              <span className="fishingUpgradeCostBox">
+                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="fishingUpgradeTdSpeed">
+                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
