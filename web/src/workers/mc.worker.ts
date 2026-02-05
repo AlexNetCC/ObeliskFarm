@@ -47,7 +47,7 @@ self.onmessage = (ev: MessageEvent<InMessage>) => {
       useRewardMilestones: useRewardMilestones ?? null,
       progressCallback: (cur, total, curWave, bestWave) => {
         if (cancelled) throw new Error("cancelled");
-        if (cur % 10 === 0 || cur === total) {
+        if (cur % 5 === 0 || cur === total) {
           (self as unknown as Worker).postMessage({
             type: "progress",
             payload: { cur, total, curWave, bestWave },
