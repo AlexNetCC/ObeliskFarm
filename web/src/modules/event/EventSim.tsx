@@ -352,43 +352,54 @@ export function EventSim() {
           3: ctx.budget1h[3] * ctx.hour,
           4: ctx.budget1h[4] * ctx.hour,
         };
-        const reach = estimateReachProbabilityGivenState({
-          state: r.bestState,
-          prestige: ctx.prestige,
-          targetWave: ctx.targetWave,
-          budget: budgetH,
-          numRuns: 500,
-          runsPerCombo: 5,
-        });
-        ctx.results.push(reach);
-        if (prestigeReachCancelRef.current || ctx.hour >= 8) {
-          setPrestigeReachMcResult(ctx.results.length > 0 ? ctx.results : null);
-          setPrestigeReachMcRunning(false);
-          setPrestigeReachMcProgress(null);
-          prestigeReachContextRef.current = null;
-          workerJobRef.current = null;
-          return;
-        }
-        ctx.hour += 1;
-        setPrestigeReachMcProgress({ hour: ctx.hour, currentRun: 0, totalRuns: ctx.numCandidates });
-        workerRef.current?.postMessage({
-          type: "start",
-          payload: {
-            budget: {
-              1: ctx.budget1h[1] * ctx.hour,
-              2: ctx.budget1h[2] * ctx.hour,
-              3: ctx.budget1h[3] * ctx.hour,
-              4: ctx.budget1h[4] * ctx.hour,
-            },
+        // Defer heavy work so UI can process Cancel clicks and stay responsive
+        setTimeout(() => {
+          if (prestigeReachCancelRef.current) {
+            setPrestigeReachMcResult(ctx.results.length > 0 ? ctx.results : null);
+            setPrestigeReachMcRunning(false);
+            setPrestigeReachMcProgress(null);
+            prestigeReachContextRef.current = null;
+            workerJobRef.current = null;
+            return;
+          }
+          const reach = estimateReachProbabilityGivenState({
+            state: r.bestState,
             prestige: ctx.prestige,
-            initialState: ctx.initial,
-            numCandidates: ctx.numCandidates,
-            runsPerCombo: ctx.runsPerCombo,
-            seedBase: null,
-            waveBandStep: ctx.waveBandStep,
-            useRewardMilestones: ctx.useRewardMilestones,
-          },
-        });
+            targetWave: ctx.targetWave,
+            budget: budgetH,
+            numRuns: 500,
+            runsPerCombo: 5,
+          });
+          ctx.results.push(reach);
+          if (prestigeReachCancelRef.current || ctx.hour >= 8) {
+            setPrestigeReachMcResult(ctx.results.length > 0 ? ctx.results : null);
+            setPrestigeReachMcRunning(false);
+            setPrestigeReachMcProgress(null);
+            prestigeReachContextRef.current = null;
+            workerJobRef.current = null;
+            return;
+          }
+          ctx.hour += 1;
+          setPrestigeReachMcProgress({ hour: ctx.hour, currentRun: 0, totalRuns: ctx.numCandidates });
+          workerRef.current?.postMessage({
+            type: "start",
+            payload: {
+              budget: {
+                1: ctx.budget1h[1] * ctx.hour,
+                2: ctx.budget1h[2] * ctx.hour,
+                3: ctx.budget1h[3] * ctx.hour,
+                4: ctx.budget1h[4] * ctx.hour,
+              },
+              prestige: ctx.prestige,
+              initialState: ctx.initial,
+              numCandidates: ctx.numCandidates,
+              runsPerCombo: ctx.runsPerCombo,
+              seedBase: null,
+              waveBandStep: ctx.waveBandStep,
+              useRewardMilestones: ctx.useRewardMilestones,
+            },
+          });
+        }, 0);
         return;
       }
       if (msg?.type === "cancelled" && workerJobRef.current === "prestigeReach") {
@@ -953,9 +964,11 @@ export function EventSim() {
               </button>
             ) : prestigeReachMcRunning ? (
               <button
+                type="button"
                 className="btn btnSecondary"
                 onClick={() => {
                   prestigeReachCancelRef.current = true;
+                  if (workerRef.current) workerRef.current.postMessage({ type: "cancel" });
                 }}
               >
                 Cancel
@@ -1373,6 +1386,7 @@ export function EventSim() {
                         </button>
                         {prestigeReachMcRunning ? (
                           <button
+                            type="button"
                             className="btn btnSecondary"
                             onClick={() => {
                               prestigeReachCancelRef.current = true;
