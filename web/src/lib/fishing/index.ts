@@ -45,3 +45,7 @@ export {
 } from "./constants";
 
 export { UPGRADE_COSTS, ENHANCE_COSTS_T1, ENHANCE_COSTS_T2 } from "./upgradeCosts";
+export {
+  computeFishingStatsFromLevels,
+  type ComputedFishingStats,
+} from "./computeStats";

@@ -7,6 +7,7 @@ import {
   AQUARIUM,
   DOCKS,
   catchChancePercent,
+  computeFishingStatsFromLevels,
   dockIconUrl,
   effectiveFishingTickSec,
   ENHANCE_COSTS_T1,
@@ -26,30 +27,36 @@ import {
   type FishingUpgradeId,
 } from "../../lib/fishing";
 
-/** User-editable fishing stats (from game Stats / Fishing). */
+/** Full fishing stats: all computed from upgrade and enhancement levels (including boat levels). */
 type FishingStats = {
-  /** Boat level (T1) 0–5. Gates which upgrades are shown. 0 = start. */
   boat_level: number;
-  /** Tier 2 boat level 0–5. Gates T2 upgrades (0 = T2 not unlocked). */
   t2_boat_level: number;
   fishing_rod_power: number;
   fishing_drone_cap: number;
   drone_base_power: number;
   fish_income_multi: number;
-  fishing_tick_reduction: number; // seconds, e.g. -40
-  token_gain_multi: number; // 1 = 1x
-  notice_fish_req: number; // 1 = 1x
-  shiny_multiplier: number; // 5 = 5x
-  super_shiny_multiplier: number; // 3 = 3x
+  fishing_tick_reduction: number;
+  token_gain_multi: number;
+  notice_fish_req: number;
+  shiny_multiplier: number;
+  super_shiny_multiplier: number;
 };
 
 type SavedState = {
-  stats: Partial<FishingStats>;
   dronesPerDock?: Partial<Record<DockId, number>>;
   activeDockId?: DockId | null;
   showDisabledFishGrayed?: boolean;
   upgradeLevels?: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels?: Partial<Record<EnhanceId, number>>;
+};
+
+/** Single persisted state (same pattern as Drone: one state, lazy load, save on change). */
+type FishingState = {
+  dronesPerDock: Record<DockId, number>;
+  activeDockId: DockId;
+  showDisabledFishGrayed: boolean;
+  upgradeLevels: Partial<Record<FishingUpgradeId, number>>;
+  enhanceLevels: Partial<Record<EnhanceId, number>>;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
@@ -63,21 +70,6 @@ const FISHING_ICON = "https://static.wikitide.net/shminerwiki/f/fb/Fishing_Butto
 /** Gem icon for enhancement costs (wiki File:Gem.png). */
 const GEM_ICON_URL = fishIconUrl("Gem.png");
 
-function defaultStats(): FishingStats {
-  return {
-    boat_level: 0,
-    t2_boat_level: 0,
-    fishing_rod_power: 1,
-    fishing_drone_cap: 1,
-    drone_base_power: 3,
-    fish_income_multi: 1,
-    fishing_tick_reduction: 0,
-    token_gain_multi: 1,
-    notice_fish_req: 1,
-    shiny_multiplier: 5,
-    super_shiny_multiplier: 3,
-  };
-}
 
 function parseNumber(raw: string): number | null {
   const cleaned = raw.trim().replaceAll(",", ".").replaceAll(" ", "");
@@ -277,12 +269,39 @@ function NumberRow(props: {
   );
 }
 
+/** Read-only stat row (value computed from upgrades/enhancements). */
+function StatRow(props: {
+  label: string;
+  iconUrl?: string;
+  value: number;
+  decimals?: number;
+  suffix?: string;
+}) {
+  const { label, iconUrl, value, decimals = 0, suffix = "" } = props;
+  const displayValue = Number.isFinite(value) ? value.toFixed(decimals) : "—";
+  return (
+    <div className="fishingRow">
+      <div className="fishingLabel">
+        <div className="fishingLabelLeft">
+          {iconUrl ? (
+            <img src={iconUrl} alt="" className="iconSmall" style={{ width: 18, height: 18, objectFit: "contain" }} />
+          ) : null}
+          <span className="fishingLabelName">{label}</span>
+        </div>
+      </div>
+      <div className="fishingRowInputBlock">
+        <span className="mono fishingRowValue">{displayValue}{suffix}</span>
+      </div>
+    </div>
+  );
+}
+
 const statsTooltip = {
   title: "Fishing stats",
   sections: [
     {
       heading: "Source",
-      lines: ["Enter values from the game Stats menu, Fishing section (wiki: Stats#Fishing)."],
+      lines: ["Values are computed from your Upgrade and Enhancement levels, including Boat levels (Upgrade Boat / Upgrade T2 Boat)."],
     },
     {
       heading: "Tick reduction",
@@ -302,50 +321,43 @@ const statsTooltip = {
 };
 
 export function Fishing() {
-  const initial = useMemo(() => {
-    const base = defaultStats();
+  const [state, setState] = useState<FishingState>(() => {
     const saved = loadJson<SavedState>(STORAGE_KEY);
-    const merged: FishingStats = { ...base, ...(saved?.stats ?? {}) };
+    const upgradeLevels = saved?.upgradeLevels ?? {};
+    const enhanceLevels = saved?.enhanceLevels ?? {};
+    const computed = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
     const dronesPerDock: Record<DockId, number> = {} as Record<DockId, number>;
     DOCKS.forEach((d, i) => {
-      dronesPerDock[d.id] = saved?.dronesPerDock?.[d.id] ?? (i === 0 ? Math.max(0, merged.fishing_drone_cap) : 0);
+      dronesPerDock[d.id] = saved?.dronesPerDock?.[d.id] ?? (i === 0 ? Math.max(0, Math.round(computed.fishing_drone_cap)) : 0);
     });
     const showDisabledFishGrayed = saved?.showDisabledFishGrayed ?? false;
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
-    const upgradeLevels = saved?.upgradeLevels ?? {};
-    const enhanceLevels = saved?.enhanceLevels ?? {};
-    return { stats: merged, dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels };
-  }, []);
-
-  const [stats, setStats] = useState<FishingStats>(initial.stats);
-  const [dronesPerDock, setDronesPerDock] = useState<Record<DockId, number>>(initial.dronesPerDock);
-  const [activeDockId, setActiveDockId] = useState<DockId>(initial.activeDockId);
-  const [showDisabledFishGrayed, setShowDisabledFishGrayed] = useState<boolean>(initial.showDisabledFishGrayed);
-  const [upgradeLevels, setUpgradeLevels] = useState<Partial<Record<FishingUpgradeId, number>>>(initial.upgradeLevels ?? {});
-  const [enhanceLevels, setEnhanceLevels] = useState<Partial<Record<EnhanceId, number>>>(initial.enhanceLevels ?? {});
+    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels };
+  });
 
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      saveJson(STORAGE_KEY, { stats, dronesPerDock, activeDockId, showDisabledFishGrayed, upgradeLevels, enhanceLevels });
-    }, 250);
-    return () => window.clearTimeout(t);
-  }, [stats, dronesPerDock, activeDockId, showDisabledFishGrayed, upgradeLevels, enhanceLevels]);
+    saveJson(STORAGE_KEY, state);
+  }, [state]);
+
+  const upgradeLevels = state.upgradeLevels ?? {};
+  const enhanceLevels = state.enhanceLevels ?? {};
+  const stats: FishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
 
   const totalDronesAssigned = useMemo(
-    () => DOCKS.reduce((sum, d) => sum + (dronesPerDock[d.id] ?? 0), 0),
-    [dronesPerDock],
+    () => DOCKS.reduce((sum, d) => sum + (state.dronesPerDock[d.id] ?? 0), 0),
+    [state.dronesPerDock],
   );
-  const droneCap = stats.fishing_drone_cap;
+  const droneCap = Math.floor(stats.fishing_drone_cap);
 
   function setDockDrones(dockId: DockId, delta: number) {
-    setDronesPerDock((prev) => {
-      const cur = prev[dockId] ?? 0;
-      const total = DOCKS.reduce((s, d) => s + (prev[d.id] ?? 0), 0);
+    setState((prev) => {
+      const cur = prev.dronesPerDock[dockId] ?? 0;
+      const total = DOCKS.reduce((s, d) => s + (prev.dronesPerDock[d.id] ?? 0), 0);
       const others = total - cur;
       const maxThis = Math.max(0, droneCap - others);
       const next = cur + delta;
       const clamped = Math.max(0, Math.min(maxThis, next));
-      return { ...prev, [dockId]: clamped };
+      return { ...prev, dronesPerDock: { ...prev.dronesPerDock, [dockId]: clamped } };
     });
   }
 
@@ -353,11 +365,11 @@ export function Fishing() {
     const costs = UPGRADE_COSTS[upgradeId];
     if (!costs?.length) return;
     const maxLvl = costs[costs.length - 1]!.level;
-    setUpgradeLevels((prev) => {
-      const cur = Math.max(0, Math.min(maxLvl, prev[upgradeId] ?? 0));
+    setState((prev) => {
+      const prevLevels = prev.upgradeLevels ?? {};
+      const cur = Math.max(0, Math.min(maxLvl, prevLevels[upgradeId] ?? 0));
       const next = Math.max(0, Math.min(maxLvl, cur + delta));
-      if (next === cur) return prev;
-      return { ...prev, [upgradeId]: next };
+      return { ...prev, upgradeLevels: { ...prevLevels, [upgradeId]: next } };
     });
   }
 
@@ -367,18 +379,18 @@ export function Fishing() {
     const costs = costsT1 ?? costsT2;
     if (!costs?.length) return;
     const maxLvl = costs[costs.length - 1]!.level;
-    setEnhanceLevels((prev) => {
-      const cur = Math.max(0, Math.min(maxLvl, prev[enhanceId] ?? 0));
+    setState((prev) => {
+      const prevLevels = prev.enhanceLevels ?? {};
+      const cur = Math.max(0, Math.min(maxLvl, prevLevels[enhanceId] ?? 0));
       const next = Math.max(0, Math.min(maxLvl, cur + delta));
-      if (next === cur) return prev;
-      return { ...prev, [enhanceId]: next };
+      return { ...prev, enhanceLevels: { ...prevLevels, [enhanceId]: next } };
     });
   }
 
   /** Power on a dock: rod only on the dock you're fishing at (active); else 0. Plus drones on this dock. */
   function powerForDock(dockId: DockId): number {
-    const rod = activeDockId === dockId ? stats.fishing_rod_power : 0;
-    const n = dronesPerDock[dockId] ?? 0;
+    const rod = state.activeDockId === dockId ? stats.fishing_rod_power : 0;
+    const n = state.dronesPerDock[dockId] ?? 0;
     return rod + n * stats.drone_base_power;
   }
 
@@ -430,15 +442,15 @@ export function Fishing() {
     stats.fishing_rod_power,
     stats.drone_base_power,
     stats.fish_income_multi,
-    dronesPerDock,
-    activeDockId,
+    state.dronesPerDock,
+    state.activeDockId,
   ]);
 
   /** Fish only where power > 0. Visible = show-grayed ? all (gray where !hasPower) : only hasPower. */
   const visibleGainsRows = useMemo(() => {
-    if (showDisabledFishGrayed) return fishingGainsRows;
+    if (state.showDisabledFishGrayed) return fishingGainsRows;
     return fishingGainsRows.filter((r) => r.hasPower);
-  }, [fishingGainsRows, showDisabledFishGrayed]);
+  }, [fishingGainsRows, state.showDisabledFishGrayed]);
 
   /** Total fish per hour by fish id (sum across docks) for "time to next upgrade". */
   const totalFishPerHourByFishId = useMemo(() => {
@@ -544,8 +556,8 @@ export function Fishing() {
               <label className="fishingGainsToggleLabel">
                 <input
                   type="checkbox"
-                  checked={showDisabledFishGrayed}
-                  onChange={(e) => setShowDisabledFishGrayed(e.target.checked)}
+                  checked={state.showDisabledFishGrayed}
+                  onChange={(e) => setState((prev) => ({ ...prev, showDisabledFishGrayed: e.target.checked }))}
                 />
                 <span className="small">Show fish from docks with no power (grayed)</span>
               </label>
@@ -622,21 +634,15 @@ export function Fishing() {
           }
         >
           <div className="fishingBoatLevelRow">
-            <NumberRow
+            <StatRow
               label="Boat level (T1)"
               iconUrl={upgradeIconUrl("Fishing_Boat_Upgrade.png")}
               value={stats.boat_level}
-              onChange={(v) => setStats((s) => ({ ...s, boat_level: Math.round(v) }))}
-              min={0}
-              max={5}
             />
-            <NumberRow
+            <StatRow
               label="T2 Boat level"
               iconUrl={upgradeIconUrl("Fishing_Boat_Upgrade_T2.png")}
               value={stats.t2_boat_level}
-              onChange={(v) => setStats((s) => ({ ...s, t2_boat_level: Math.round(v) }))}
-              min={0}
-              max={5}
             />
           </div>
           <div className="fishingGrid">
@@ -647,93 +653,65 @@ export function Fishing() {
                 </div>
               </div>
               <div className="fishingRows">
-                <NumberRow
+                <StatRow
                   label="Fishing Rod Power"
                   iconUrl={upgradeIconUrl("Fishing_Rod_Power.png")}
                   value={stats.fishing_rod_power}
-                  onChange={(v) => setStats((s) => ({ ...s, fishing_rod_power: Math.round(v) }))}
-                  min={0}
-                  max={999999}
+                  decimals={2}
                 />
-                <NumberRow
+                <StatRow
                   label="Fishing Drone Cap"
                   iconUrl={upgradeIconUrl("Fishing_Drone_Capacity.png")}
                   value={stats.fishing_drone_cap}
-                  onChange={(v) => setStats((s) => ({ ...s, fishing_drone_cap: Math.round(v) }))}
-                  min={0}
-                  max={999}
+                  decimals={2}
+                  suffix=""
                 />
-                <NumberRow
+                <StatRow
                   label="Drone Base Power"
                   iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
                   value={stats.drone_base_power}
-                  onChange={(v) => setStats((s) => ({ ...s, drone_base_power: Math.round(v) }))}
-                  min={0}
-                  max={999}
+                  decimals={2}
+                  suffix=""
                 />
-                <NumberRow
+                <StatRow
                   label="Fish Income Multiplier (×)"
                   iconUrl={upgradeIconUrl("Fish_Income_Multiplier.png")}
                   value={stats.fish_income_multi}
-                  onChange={(v) => setStats((s) => ({ ...s, fish_income_multi: v }))}
-                  min={0}
-                  max={999999}
                   decimals={2}
-                  inputMode="decimal"
                   suffix="×"
                 />
-                <NumberRow
+                <StatRow
                   label="Fishing Tick Reduction (s)"
                   iconUrl={upgradeIconUrl("Fishing_Tick_Reduction.png")}
                   value={stats.fishing_tick_reduction}
-                  onChange={(v) => setStats((s) => ({ ...s, fishing_tick_reduction: v }))}
-                  min={-60}
-                  max={60}
                   decimals={1}
-                  inputMode="decimal"
                   suffix="s"
                 />
-                <NumberRow
+                <StatRow
                   label="Token Gain Multiplier"
                   iconUrl={upgradeIconUrl("Fish_Token_Gain_Multiplier.png")}
                   value={stats.token_gain_multi}
-                  onChange={(v) => setStats((s) => ({ ...s, token_gain_multi: v }))}
-                  min={0}
-                  max={999}
                   decimals={2}
-                  inputMode="decimal"
                   suffix="×"
                 />
-                <NumberRow
+                <StatRow
                   label="Notice Fish Requirement"
                   value={stats.notice_fish_req}
-                  onChange={(v) => setStats((s) => ({ ...s, notice_fish_req: v }))}
-                  min={0}
-                  max={999}
                   decimals={2}
-                  inputMode="decimal"
                   suffix="×"
                 />
-                <NumberRow
+                <StatRow
                   label="Shiny Multiplier"
                   iconUrl={upgradeIconUrl("Shiny_Multiplier.png")}
                   value={stats.shiny_multiplier}
-                  onChange={(v) => setStats((s) => ({ ...s, shiny_multiplier: v }))}
-                  min={0}
-                  max={999}
                   decimals={2}
-                  inputMode="decimal"
                   suffix="×"
                 />
-                <NumberRow
+                <StatRow
                   label="Super Shiny Multiplier"
                   iconUrl={upgradeIconUrl("Super_Shiny_Multiplier.png")}
                   value={stats.super_shiny_multiplier}
-                  onChange={(v) => setStats((s) => ({ ...s, super_shiny_multiplier: v }))}
-                  min={0}
-                  max={999}
                   decimals={2}
-                  inputMode="decimal"
                   suffix="×"
                 />
               </div>
@@ -750,8 +728,8 @@ export function Fishing() {
             </div>
             {DOCKS.map((dock) => {
               const dockPower = powerForDock(dock.id);
-              const dockDrones = dronesPerDock[dock.id] ?? 0;
-              const isActiveDock = activeDockId === dock.id;
+              const dockDrones = state.dronesPerDock[dock.id] ?? 0;
+              const isActiveDock = state.activeDockId === dock.id;
               const canAdd = totalDronesAssigned < droneCap;
               const canSub = dockDrones > 0;
               return (
@@ -763,7 +741,7 @@ export function Fishing() {
                         name="fishing_fisher_dock"
                         value={dock.id}
                         checked={isActiveDock}
-                        onChange={() => setActiveDockId(dock.id)}
+                        onChange={() => setState((prev) => ({ ...prev, activeDockId: dock.id }))}
                         aria-label={`Fisher at ${dock.name}`}
                       />
                       <span className="fishingDockRowNameBlock">
