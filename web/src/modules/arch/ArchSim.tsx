@@ -2717,8 +2717,8 @@ export function ArchSim() {
                               <div className="small">
                                 next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
                               </div>
-                              {lvl >= maxLvl ? (
-                                <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
+                              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                                {lvl >= maxLvl ? (
                                   <span
                                     className="fragmentUpgradeMaxed"
                                     style={{
@@ -2731,23 +2731,26 @@ export function ArchSim() {
                                   >
                                     Maxed
                                   </span>
-                                </div>
-                              ) : (
-                                <div className="btnRow fragmentUpgradeButtons" style={{ marginTop: 8 }}>
+                                ) : null}
+                                <div className="btnRow fragmentUpgradeButtons">
                                   <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -5)} disabled={lvl <= 0 || mcRunning}>
                                     −5
                                   </button>
                                   <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -1)} disabled={lvl <= 0 || mcRunning}>
                                     −
                                   </button>
-                                  <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={lvl >= maxLvl || mcRunning}>
-                                    +
-                                  </button>
-                                  <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={lvl >= maxLvl || mcRunning}>
-                                    +5
-                                  </button>
+                                  {lvl < maxLvl ? (
+                                    <>
+                                      <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={mcRunning}>
+                                        +
+                                      </button>
+                                      <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={mcRunning}>
+                                        +5
+                                      </button>
+                                    </>
+                                  ) : null}
                                 </div>
-                              )}
+                              </div>
                             </>
                           ) : null}
                         </div>
