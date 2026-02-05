@@ -28,6 +28,13 @@ const FROGGER_SUIT_SEC_PER_LEVEL = 1.5;
 const FROGGER_FUEL_BOMBS_BASE = 5;
 const FROGGER_FUEL_BOMBS_PER_GRADE = 1;
 
+/** Bomb Bear Drone: +30% Lootbug Spawn Rate / 4:00 at grade 0, +3% / +0:12 per grade. Max +90% / 8:00 (Polychrome). */
+const BOMB_BEAR_LOOTBUG_SPAWN_PCT_BASE = 30;
+const BOMB_BEAR_LOOTBUG_SPAWN_PCT_PER_GRADE = 3;
+const BOMB_BEAR_LOOTBUG_SPAWN_PCT_MAX = 90;
+const BOMB_BEAR_FUEL_DURATION_BASE_SEC = 240; // 4:00
+const BOMB_BEAR_FUEL_DURATION_SEC_PER_GRADE = 12; // +0:12
+
 const GASOLINE_GUZZLER_FUEL_DURATION_PCT = 20;
 
 const ELIXIR_BUFF_ICONS =
@@ -95,9 +102,14 @@ type ElixirState = {
   froggerSuitLevel: number;
   froggerGradeLevel: number;
   froggerFueled: boolean;
+  /** Bomb Bear Drone: when fueled, +X% Lootbug Spawn Rate (multiplicative with Lootbug stats). */
+  bombBearDroneOn: boolean;
+  bombBearGradeLevel: number;
+  bombBearFueled: boolean;
 };
 
-const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v2";
+const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v3";
+const STORAGE_KEY_V2 = "obeliskfarm:web:drone_elixir_save.json:v2";
 const STORAGE_KEY_V1 = "obeliskfarm:web:drone_elixir_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
@@ -129,6 +141,9 @@ const DEFAULT: ElixirState = {
   froggerSuitLevel: 8,
   froggerGradeLevel: 0,
   froggerFueled: false,
+  bombBearDroneOn: true,
+  bombBearGradeLevel: 0,
+  bombBearFueled: false,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -319,11 +334,21 @@ function migrateFromV1(saved: Record<string, unknown>): Partial<ElixirState> {
   return { ...saved, ...out } as Partial<ElixirState>;
 }
 
+function migrateFromV2(migrated: Partial<ElixirState>): Partial<ElixirState> {
+  return {
+    ...migrated,
+    bombBearDroneOn: typeof migrated.bombBearDroneOn === "boolean" ? migrated.bombBearDroneOn : DEFAULT.bombBearDroneOn,
+    bombBearGradeLevel: clamp(migrated.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, 45),
+    bombBearFueled: typeof migrated.bombBearFueled === "boolean" ? migrated.bombBearFueled : DEFAULT.bombBearFueled,
+  };
+}
+
 export function Drone() {
   const [state, setState] = useState<ElixirState>(() => {
     const saved = loadJson<Record<string, unknown>>(STORAGE_KEY)
+      ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V2)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V1);
-    const migrated = saved ? migrateFromV1(saved) : {};
+    const migrated = saved ? migrateFromV2(migrateFromV1(saved)) : {};
     const s = { ...DEFAULT, ...migrated } as ElixirState;
     s.gameSpeedMultiplier = clamp(s.gameSpeedMultiplier, 1, 10);
     s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_FUEL_DURATION_MAX_LEVEL);
@@ -342,6 +367,9 @@ export function Drone() {
     s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, 45);
     s.froggerDroneOn = typeof migrated.froggerDroneOn === "boolean" ? migrated.froggerDroneOn : DEFAULT.froggerDroneOn;
     s.froggerFueled = typeof migrated.froggerFueled === "boolean" ? migrated.froggerFueled : DEFAULT.froggerFueled;
+    s.bombBearDroneOn = typeof migrated.bombBearDroneOn === "boolean" ? migrated.bombBearDroneOn : DEFAULT.bombBearDroneOn;
+    s.bombBearGradeLevel = clamp(s.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, 45);
+    s.bombBearFueled = typeof migrated.bombBearFueled === "boolean" ? migrated.bombBearFueled : DEFAULT.bombBearFueled;
     return s;
   });
 
@@ -405,12 +433,44 @@ export function Drone() {
   );
   const froggerFuelDurationSecReal = froggerFuelDurationGameSec / gameSpeedMult;
 
+  /** Bomb Bear fuel duration: 4:00 base + 0:12 per grade (shared fuel duration multiplier). */
+  const bombBearFuelDurationFromGradeSec =
+    BOMB_BEAR_FUEL_DURATION_BASE_SEC + state.bombBearGradeLevel * BOMB_BEAR_FUEL_DURATION_SEC_PER_GRADE;
+  const bombBearFuelDurationGameSec = Math.round(
+    bombBearFuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
+    (state.axolotlSkin ? 1.1 : 1) *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
+  );
+  const bombBearFuelDurationSecReal = bombBearFuelDurationGameSec / gameSpeedMult;
+
+  /** Bomb Bear Lootbug spawn rate multiplier when ON and fueled: 1 + min(90%, 30% + 3%×grade). Applied multiplicatively in Lootbug. */
+  const bombBearLootbugSpawnRateMult = useMemo(() => {
+    if (!state.bombBearDroneOn || !state.bombBearFueled) return 1;
+    const pct = Math.min(
+      BOMB_BEAR_LOOTBUG_SPAWN_PCT_MAX,
+      BOMB_BEAR_LOOTBUG_SPAWN_PCT_BASE + state.bombBearGradeLevel * BOMB_BEAR_LOOTBUG_SPAWN_PCT_PER_GRADE,
+    );
+    return 1 + pct / 100;
+  }, [state.bombBearDroneOn, state.bombBearFueled, state.bombBearGradeLevel]);
+
   const froggerFuelGemsPerHour = useMemo(() => {
     if (!state.froggerFueled || froggerFuelDurationSecReal <= 0) return 0;
     const fuelsPerHour = 3600 / froggerFuelDurationSecReal;
     const saveChance = Math.min(1, state.fuelSaveChanceUpgradeLevel / 100 + state.upgradeFuelSaveChancePct / 100);
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [froggerFuelDurationSecReal, state.froggerFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
+
+  /** Bomb Bear fuel cost (100% fueled): same formula as Frogger. */
+  const bombBearFuelGemsPerHour = useMemo(() => {
+    if (!state.bombBearFueled || bombBearFuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / bombBearFuelDurationSecReal;
+    const saveChance = Math.min(1, state.fuelSaveChanceUpgradeLevel / 100 + state.upgradeFuelSaveChancePct / 100);
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [bombBearFuelDurationSecReal, state.bombBearFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
   const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
   const buffDurations = useMemo(() => {
@@ -490,13 +550,15 @@ export function Drone() {
   }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
   useEffect(() => {
-    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number; bombBearLootbugSpawnRateMult?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.droneBomb10xMinPerHour = state.elixirDroneOn ? droneBomb10xMinPerHour : 0;
     const elixirFuelGems = state.elixirDroneOn && state.fueled ? fuelGemsPerHour : 0;
     const froggerFuelGems = state.froggerDroneOn && state.froggerFueled ? froggerFuelGemsPerHour : 0;
-    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems;
+    const bombBearFuelGems = state.bombBearDroneOn && state.bombBearFueled ? bombBearFuelGemsPerHour : 0;
+    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems;
+    ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -525,6 +587,24 @@ export function Drone() {
     const impact = typeof ext?.gemBomb10xImpact === "number" ? ext.gemBomb10xImpact : 0;
     if (total10x <= 0) return 0;
     return impact * (droneBomb10xMinPerHour / total10x);
+  })();
+
+  /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. When buff active, use live calc from Lootbug gems+net10x so it updates on every Drone change; else value from Lootbug. */
+  const bombBearLootbugGemsEvPerHour = (() => {
+    if (bombBearLootbugSpawnRateMult <= 1) return 0;
+    const ext = loadJson<{
+      bombBearLootbugGemsEvPerHour?: number;
+      lootbugGemsPerHour?: number;
+      lootbugNet10xGemEvPerHour?: number;
+    }>(GEMEV_EXTERNAL_KEY);
+    const fromLootbug = typeof ext?.bombBearLootbugGemsEvPerHour === "number" && ext.bombBearLootbugGemsEvPerHour >= 0 ? ext.bombBearLootbugGemsEvPerHour : 0;
+    const gems = typeof ext?.lootbugGemsPerHour === "number" && ext.lootbugGemsPerHour >= 0 ? ext.lootbugGemsPerHour : 0;
+    const net10x = typeof ext?.lootbugNet10xGemEvPerHour === "number" ? ext.lootbugNet10xGemEvPerHour : 0;
+    if (gems > 0 || net10x !== 0) {
+      const totalGains = gems + net10x;
+      return ((bombBearLootbugSpawnRateMult - 1) / bombBearLootbugSpawnRateMult) * totalGains;
+    }
+    return fromLootbug;
   })();
 
   return (
@@ -870,27 +950,27 @@ export function Drone() {
           ) : null}
         </div>
 
-        <div className="droneSection">
-          <div className="droneSectionTitle">Fuel</div>
-          <div className="droneRow">
-            <span className="droneLabel">1 fuel lasts (game time)</span>
-            <span className="droneStepperValue">
-              {(fuelDurationGameSec / 60).toFixed(1)} min
-            </span>
-          </div>
-          <div className="droneRow">
-            <span className="droneLabel">1 fuel lasts (real time)</span>
-            <span className="droneStepperValue">
-              {fuelDurationSecReal >= 60
-                ? Math.floor(fuelDurationSecReal / 60) + ":" + String(Math.round(fuelDurationSecReal % 60)).padStart(2, "0")
-                : Math.round(fuelDurationSecReal) + " s"}
-            </span>
-          </div>
-          <div className="droneRow">
-            <span className="droneLabel">Fuel Duration Multiplier</span>
-            <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
-          </div>
-          {state.fueled ? (
+        {state.fueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">
+                {(fuelDurationGameSec / 60).toFixed(1)} min
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">
+                {fuelDurationSecReal >= 60
+                  ? Math.floor(fuelDurationSecReal / 60) + ":" + String(Math.round(fuelDurationSecReal % 60)).padStart(2, "0")
+                  : Math.round(fuelDurationSecReal) + " s"}
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
             <div className="droneRow droneFuelGemsRow">
               <span className="droneFuelGemsLabel">
                 <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
@@ -922,8 +1002,8 @@ export function Drone() {
                 −{fuelGemsPerHour.toFixed(1)}
               </span>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         <div className="droneSection">
           <div className="droneSectionTitle">Buff durations (real time)</div>
@@ -1157,7 +1237,7 @@ export function Drone() {
               onChange={(e) => update({ froggerFueled: e.target.checked })}
             />
             <label htmlFor="frogger-fueled" className="droneLabel">
-              Drone fueled (fuel extends duration)
+              Drone fueled
             </label>
           </div>
 
@@ -1184,27 +1264,27 @@ export function Drone() {
           ) : null}
         </div>
 
-        <div className="droneSection">
-          <div className="droneSectionTitle">Fuel</div>
-          <div className="droneRow">
-            <span className="droneLabel">1 fuel lasts (game time)</span>
-            <span className="droneStepperValue">
-              {(froggerFuelDurationGameSec / 60).toFixed(1)} min
-            </span>
-          </div>
-          <div className="droneRow">
-            <span className="droneLabel">1 fuel lasts (real time)</span>
-            <span className="droneStepperValue">
-              {froggerFuelDurationSecReal >= 60
-                ? Math.floor(froggerFuelDurationSecReal / 60) + ":" + String(Math.round(froggerFuelDurationSecReal % 60)).padStart(2, "0")
-                : Math.round(froggerFuelDurationSecReal) + " s"}
-            </span>
-          </div>
-          <div className="droneRow">
-            <span className="droneLabel">Fuel Duration Multiplier</span>
-            <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
-          </div>
-          {state.froggerFueled ? (
+        {state.froggerFueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel (Frogger)</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">
+                {(froggerFuelDurationGameSec / 60).toFixed(1)} min
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">
+                {froggerFuelDurationSecReal >= 60
+                  ? Math.floor(froggerFuelDurationSecReal / 60) + ":" + String(Math.round(froggerFuelDurationSecReal % 60)).padStart(2, "0")
+                  : Math.round(froggerFuelDurationSecReal) + " s"}
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
             <div className="droneRow droneFuelGemsRow">
               <span className="droneFuelGemsLabel">
                 <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
@@ -1236,8 +1316,8 @@ export function Drone() {
                 −{froggerFuelGemsPerHour.toFixed(1)}
               </span>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         <div className="droneSection">
           <div className="droneSectionTitle">Bombs</div>
@@ -1298,6 +1378,172 @@ export function Drone() {
             </span>
             <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`${froggerGemEvPerHour.toFixed(1)} gems per hour from Frogger`}>
               +{froggerGemEvPerHour.toFixed(1)}
+            </span>
+          </div>
+        </div>
+      </Collapsible>
+
+      <Collapsible id="drone-bomb-bear" title="Bomb Bear Drone" defaultExpanded={true}>
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            When fueled, Bomb Bear increases Lootbug spawn rate (multiplicative with Lootbug stats). Do not enable Bomb Bear here if the Lootbug spawn rate you entered in Lootbug was already measured with Bomb Bear buff active in-game, or the bonus would be counted twice.
+          </p>
+          <div className="droneCheckboxRow">
+            <input
+              type="checkbox"
+              id="bomb-bear-drone-on"
+              className="droneCheckbox"
+              checked={state.bombBearDroneOn}
+              onChange={(e) => update({ bombBearDroneOn: e.target.checked })}
+            />
+            <label htmlFor="bomb-bear-drone-on" className="droneLabel">
+              Drone: {state.bombBearDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Bomb Bear Drone",
+                sections: [
+                  {
+                    heading: "Effect",
+                    lines: [
+                      "When ON and fueled, Lootbug spawn rate in the Lootbug module is multiplied by (1 + buff %). Buff: +30% at grade 0, +3% per grade, max +90% (Polychrome).",
+                    ],
+                  },
+                  {
+                    heading: "Avoid double-counting",
+                    lines: [
+                      "Enter your base Lootbug spawn rate in Lootbug (without Bomb Bear). If you measured spawn rate while Bomb Bear was already active in-game, leave Bomb Bear OFF here so the bonus is not applied twice.",
+                    ],
+                  },
+                ],
+              }}
+            />
+          </div>
+          <div className="droneSectionTitle">Settings</div>
+          <div className="droneCheckboxRow">
+            <img
+              src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png"
+              alt=""
+              className="droneSkillIcon"
+              aria-hidden
+            />
+            <input
+              type="checkbox"
+              id="bomb-bear-fueled"
+              className="droneCheckbox"
+              checked={state.bombBearFueled}
+              onChange={(e) => update({ bombBearFueled: e.target.checked })}
+            />
+            <label htmlFor="bomb-bear-fueled" className="droneLabel">
+              Drone fueled
+            </label>
+          </div>
+          {state.bombBearFueled ? (
+            <div className="droneSubSection">
+              <div className="droneSubTitle">When fueled</div>
+              <Stepper
+                label="Grade level"
+                value={state.bombBearGradeLevel}
+                onChange={(n) => update({ bombBearGradeLevel: n })}
+                min={0}
+                max={45}
+                step={1}
+                stepLarge={5}
+                tooltip={{
+                  title: "Bomb Bear grade (fuel buff)",
+                  lines: [
+                    "Buff: +30% Lootbug Spawn Rate at grade 0, +3% per grade, max +90% (Polychrome). Duration: 4:00 at grade 0, +0:12 per grade.",
+                    "Same fuel duration multipliers (Coal, Cards, etc.) as Elixir and Frogger.",
+                  ],
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {state.bombBearFueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel (Bomb Bear)</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">
+                {(bombBearFuelDurationGameSec / 60).toFixed(1)} min
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">
+                {bombBearFuelDurationSecReal >= 60
+                  ? Math.floor(bombBearFuelDurationSecReal / 60) + ":" + String(Math.round(bombBearFuelDurationSecReal % 60)).padStart(2, "0")
+                  : Math.round(bombBearFuelDurationSecReal) + " s"}
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      sections: [
+                        {
+                          heading: "Meaning",
+                          lines: [
+                            "Average gems per hour spent on fuel to keep the Bomb Bear Drone fueled 100% of the time.",
+                          ],
+                        },
+                        {
+                          heading: "Formula",
+                          lines: [
+                            "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                            "Fuel Save Chance = Coal Fuel Save (+1%/level) + Upgrade → Fuel Save Chance (additive).",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span className="droneFuelGemsValue" aria-label={`${bombBearFuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{bombBearFuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="droneSection">
+          <div className="droneRow">
+            <span className="droneLabel">Lootbug Spawn Rate Mult</span>
+            <span className="droneStepperValue">{bombBearLootbugSpawnRateMult.toFixed(2)}×</span>
+          </div>
+          <div className="droneRow droneFuelGemsRow droneBomb10xRow">
+            <span className="droneFuelGemsLabel">
+              <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+              <span className="droneLabel">
+                Gem EV/h from Bomb Bear
+                <Tooltip
+                  content={{
+                    title: "Gem EV/h from Bomb Bear",
+                    sections: [
+                      {
+                        heading: "Meaning",
+                        lines: [
+                          "Extra Gem EV per hour from the increased Lootbug spawn rate when Bomb Bear is fueled: more raw gems (free buffs) and more gem buffs (e.g. 10× Bomb Recharge).",
+                          "Computed in Lootbug from the improvement in Lootbug gains (Gems raw + 10× Bomb Recharge Gem EV/h). Open Lootbug once to sync.",
+                        ],
+                      },
+                    ],
+                  }}
+                />
+              </span>
+            </span>
+            <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={bombBearLootbugGemsEvPerHour > 0 ? `+${bombBearLootbugGemsEvPerHour.toFixed(1)} gems per hour from Bomb Bear` : "—"}>
+              {bombBearLootbugGemsEvPerHour > 0 ? `+${bombBearLootbugGemsEvPerHour.toFixed(1)}` : "—"}
             </span>
           </div>
         </div>
