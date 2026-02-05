@@ -407,45 +407,67 @@
 }
 
 .fishingUpgradesList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: block;
+  overflow-x: auto;
 }
 
-.fishingUpgradeHeaderRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 10px 6px;
-  min-width: 0;
+.fishingUpgradeTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.fishingUpgradeTable thead tr {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.fishingUpgradeTable th {
+  padding: 6px 8px;
+  text-align: left;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--muted, #64748b);
+  white-space: nowrap;
 }
 
-.fishingUpgradeHeaderSpacer {
-  flex: 1;
-  min-width: 0;
+.fishingUpgradeTable th.fishingUpgradeThName {
+  min-width: 140px;
+}
+.fishingUpgradeTable th.fishingUpgradeThLvl {
+  width: 7.5em;
+  text-align: center;
+}
+.fishingUpgradeTable th.fishingUpgradeThCost {
+  min-width: 90px;
+}
+.fishingUpgradeTable th.fishingUpgradeThTime {
+  min-width: 5em;
+}
+.fishingUpgradeTable th.fishingUpgradeThSpeed {
+  min-width: 4.5em;
+  text-align: right;
 }
 
-.fishingUpgradeHeaderTime {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.fishingUpgradeRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+.fishingUpgradeTable tbody tr.fishingUpgradeRow {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.9);
+}
+
+.fishingUpgradeTable tbody tr.fishingUpgradeRow:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.fishingUpgradeTable td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.fishingUpgradeTdName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -462,34 +484,29 @@
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1 1 120px;
 }
 
-.fishingUpgradeLevelWrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  flex-shrink: 0;
-  min-width: 6.5em;
+.fishingUpgradeTdLvl {
+  text-align: center;
 }
 
-.fishingUpgradeLevelLabel {
+.fishingUpgradeTdLvl .fishingUpgradeLevelLabel {
+  display: block;
   font-size: 12px;
   color: var(--muted, #64748b);
+  margin-bottom: 4px;
 }
 
 .fishingUpgradeLevelLabel .mono {
   font-weight: 700;
   min-width: 1.2em;
-  text-align: center;
 }
 
 .fishingUpgradeButtons {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  justify-content: center;
 }
 
 .fishingUpgradeButtons .btn {
@@ -497,19 +514,9 @@
   min-width: 32px;
 }
 
-.fishingUpgradeCostWrap {
+.fishingUpgradeTdCost {
   font-size: 12px;
   color: var(--muted, #64748b);
-  flex-shrink: 0;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: -6px;
-}
-
-.fishingUpgradeCostLabel {
-  font-weight: 600;
 }
 
 .fishingUpgradeCostBox {
@@ -534,8 +541,18 @@
   color: hsl(120, 45%, 35%);
 }
 
+.fishingUpgradeTdTime {
+  white-space: nowrap;
+}
+
 .fishingUpgradeTimeToNext {
-  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+}
+
+.fishingUpgradeTdSpeed {
+  text-align: right;
   font-size: 12px;
   color: var(--muted, #64748b);
   white-space: nowrap;

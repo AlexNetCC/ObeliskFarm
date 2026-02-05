@@ -113,6 +113,43 @@ function heatmapColor(t: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
+/**
+ * Approximate marginal % overall fish gain from +1 level of this upgrade.
+ * Returns null when not applicable (boat, shiny, assignment-dependent, etc.).
+ */
+function upgradeMarginalFishPct(
+  upgradeId: FishingUpgradeId,
+  stats: { fish_income_multi: number; fishing_tick_reduction: number },
+  effectiveTickSec: number,
+): number | null {
+  const multi = Math.max(0.01, stats.fish_income_multi);
+  const tickSec = Math.max(1, effectiveTickSec);
+  switch (upgradeId) {
+    case "fish_multiplier":
+      return (100 * 0.03) / multi;
+    case "tick_speed": {
+      const newTick = Math.max(0.5, tickSec - 0.5);
+      return 100 * (tickSec / newTick - 1);
+    }
+    case "rod_multiplier":
+      return 4;
+    case "drone_multiplier":
+      return 6;
+    case "fishing_rod":
+      return 16;
+    case "double_tick_chance":
+      return 0.5;
+    case "triple_tick_chance":
+      return 0.35 * 2;
+    case "tier2_dock_power":
+      return 5;
+    case "drone_cloner":
+      return 5;
+    default:
+      return null;
+  }
+}
+
 function NumberRow(props: {
   label: string;
   iconUrl?: string;
@@ -206,11 +243,17 @@ const statsTooltip = {
     },
     {
       heading: "Tick reduction",
-      lines: ["Seconds reduced from base 60s per tick. Example: -40 means 20s per tick."],
+      lines: [
+        "Seconds reduced from base 60s per tick.",
+        "Example: -40 means 20s per tick.",
+      ],
     },
     {
-      heading: "Elixir 3× Fishing Tick Speed",
-      lines: ["Buff uptime is calculated in the Drone module and applied to fish/h. Open Drone to sync."],
+      heading: "Elixir buff",
+      lines: [
+        "Buff uptime is calculated in the Drone module and applied to fish/h.",
+        "Open Drone to sync.",
+      ],
     },
   ],
 };
@@ -371,6 +414,32 @@ export function Fishing() {
     const vals = enabled.map((r) => r.fishPerHour);
     return { heatMin: Math.min(...vals), heatMax: Math.max(...vals) };
   }, [visibleGainsRows]);
+
+  /** Time-to-next heatmap: min/max hours across T1 + T2 upgrades (short = green, long = red). */
+  const { timeHeatMin, timeHeatMax } = useMemo(() => {
+    const hours: number[] = [];
+    for (const def of [...availableT1Upgrades, ...availableT2Upgrades]) {
+      const costs = UPGRADE_COSTS[def.id];
+      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
+      const lvl = Math.max(0, Math.min(maxLvl, upgradeLevels[def.id] ?? 0));
+      if (lvl >= maxLvl) continue;
+      const nextLevel = lvl + 1;
+      const nextCostEntry = costs?.find((c) => c.level === nextLevel);
+      const fishPerHour = nextCostEntry
+        ? (totalFishPerHourByFishId[nextCostEntry.fishId] ?? 0)
+        : 0;
+      if (nextCostEntry && fishPerHour > 0) {
+        hours.push(nextCostEntry.amount / fishPerHour);
+      }
+    }
+    if (hours.length === 0) return { timeHeatMin: 0, timeHeatMax: 1 };
+    return { timeHeatMin: Math.min(...hours), timeHeatMax: Math.max(...hours) };
+  }, [
+    availableT1Upgrades,
+    availableT2Upgrades,
+    totalFishPerHourByFishId,
+    upgradeLevels,
+  ]);
 
   return (
     <div className="container">
@@ -668,20 +737,49 @@ export function Fishing() {
           <div className="fishingUpgradesPanel">
             <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
-                <div className="fishingUpgradeHeaderRow">
-                  <span className="fishingUpgradeHeaderSpacer" />
-                  <span className="fishingUpgradeHeaderTime">
-                    Time (hh:min)
-                    <Tooltip
-                      content={{
-                        title: "Time (hh:min)",
-                        lines: [
-                          "If you had no fish of the required type, this is how long you would need to fish to reach the next upgrade level.",
-                        ],
-                      }}
-                    />
-                  </span>
-                </div>
+                <table className="fishingUpgradeTable">
+                  <thead>
+                    <tr>
+                      <th className="fishingUpgradeThName">Upgrade</th>
+                      <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCost">Cost</th>
+                      <th className="fishingUpgradeThTime">
+                        Time (hh:min)
+                        <Tooltip
+                          content={{
+                            title: "Time (hh:min)",
+                            sections: [
+                              {
+                                heading: "Meaning",
+                                lines: [
+                                  "Time to reach next level if you had zero of the cost fish.",
+                                  "Assumes you only fish for that fish.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                      <th className="fishingUpgradeThSpeed">
+                        +% speed
+                        <Tooltip
+                          content={{
+                            title: "+% speed",
+                            sections: [
+                              {
+                                heading: "Effect",
+                                lines: [
+                                  "Approximate % increase in overall fish per hour for +1 level.",
+                                  "Shown only where the formula applies (e.g. Fish Multi, Tick Speed).",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {availableT1Upgrades.map((def) => {
                   const costs = UPGRADE_COSTS[def.id];
                   const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
@@ -697,11 +795,14 @@ export function Fishing() {
                       : null;
                   const fishDef = nextCostEntry ? getFishById(nextCostEntry.fishId) : undefined;
                   const isMaxed = lvl >= maxLvl;
+                  const marginalPct = !isMaxed ? upgradeMarginalFishPct(def.id, stats, effectiveTickSec) : null;
                   return (
-                    <div key={def.id} className="fishingUpgradeRow">
-                      <img src={upgradeIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
-                      <span className="fishingUpgradeName">{def.name}</span>
-                      <div className="fishingUpgradeLevelWrap">
+                    <tr key={def.id} className="fishingUpgradeRow">
+                      <td className="fishingUpgradeTdName">
+                        <img src={upgradeIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
+                        <span className="fishingUpgradeName">{def.name}</span>
+                      </td>
+                      <td className="fishingUpgradeTdLvl">
                         <span className="fishingUpgradeLevelLabel">
                           lvl <span className="mono">{lvl}</span> / {maxLvl}
                         </span>
@@ -726,57 +827,109 @@ export function Fishing() {
                             </button>
                           ) : null}
                         </div>
-                      </div>
-                      <div className="fishingUpgradeCostWrap">
+                      </td>
+                      <td className="fishingUpgradeTdCost">
                         {isMaxed ? (
                           <span className="fishingUpgradeMaxed">Maxed</span>
                         ) : nextCostEntry && fishDef ? (
                           <>
-                            <span className="fishingUpgradeCostLabel">Cost:</span>{" "}
                             <span className="fishingUpgradeCostBox">
                               <img src={fishIconUrl(fishDef.iconFile)} alt="" className="fishingUpgradeCostFishIcon" />
                               <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
                             </span>
                           </>
                         ) : nextCostEntry ? (
-                          <>
-                            <span className="fishingUpgradeCostLabel">Cost:</span>{" "}
-                            <span className="fishingUpgradeCostBox">
-                              <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
-                            </span>
-                          </>
+                          <span className="fishingUpgradeCostBox">
+                            <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
+                          </span>
                         ) : (
                           "—"
                         )}
-                      </div>
-                      <span className="fishingUpgradeTimeToNext">
-                        {!isMaxed && hoursToNext != null
-                          ? formatHoursToHhMin(hoursToNext)
-                          : isMaxed
-                            ? ""
-                            : "—"}
-                      </span>
-                    </div>
+                      </td>
+                      <td className="fishingUpgradeTdTime">
+                        <span
+                          className="fishingUpgradeTimeToNext"
+                          style={
+                            !isMaxed &&
+                            hoursToNext != null &&
+                            timeHeatMax > timeHeatMin
+                              ? (() => {
+                                  const heatT =
+                                    1 -
+                                    (hoursToNext - timeHeatMin) / (timeHeatMax - timeHeatMin);
+                                  const rateColor = heatmapColor(heatT);
+                                  return {
+                                    backgroundColor: rateColor,
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  };
+                                })()
+                              : undefined
+                          }
+                        >
+                          {!isMaxed && hoursToNext != null
+                            ? formatHoursToHhMin(hoursToNext)
+                            : isMaxed
+                              ? ""
+                              : "—"}
+                        </span>
+                      </td>
+                      <td className="fishingUpgradeTdSpeed">
+                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
                   );
                 })}
+                  </tbody>
+                </table>
               </div>
             </Collapsible>
             <Collapsible id="fishing-upgrades-t2" title="Tier 2" defaultExpanded={false} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
-                <div className="fishingUpgradeHeaderRow">
-                  <span className="fishingUpgradeHeaderSpacer" />
-                  <span className="fishingUpgradeHeaderTime">
-                    Time (hh:min)
-                    <Tooltip
-                      content={{
-                        title: "Time (hh:min)",
-                        lines: [
-                          "If you had no fish of the required type, this is how long you would need to fish to reach the next upgrade level.",
-                        ],
-                      }}
-                    />
-                  </span>
-                </div>
+                <table className="fishingUpgradeTable">
+                  <thead>
+                    <tr>
+                      <th className="fishingUpgradeThName">Upgrade</th>
+                      <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCost">Cost</th>
+                      <th className="fishingUpgradeThTime">
+                        Time (hh:min)
+                        <Tooltip
+                          content={{
+                            title: "Time (hh:min)",
+                            sections: [
+                              {
+                                heading: "Meaning",
+                                lines: [
+                                  "Time to reach next level if you had zero of the cost fish.",
+                                  "Assumes you only fish for that fish.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                      <th className="fishingUpgradeThSpeed">
+                        +% speed
+                        <Tooltip
+                          content={{
+                            title: "+% speed",
+                            sections: [
+                              {
+                                heading: "Effect",
+                                lines: [
+                                  "Approximate % increase in overall fish per hour for +1 level.",
+                                  "Shown only where the formula applies (e.g. Fish Multi, Tick Speed).",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {availableT2Upgrades.map((def) => {
                   const costs = UPGRADE_COSTS[def.id];
                   const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
@@ -792,11 +945,14 @@ export function Fishing() {
                       : null;
                   const fishDef = nextCostEntry ? getFishById(nextCostEntry.fishId) : undefined;
                   const isMaxed = lvl >= maxLvl;
+                  const marginalPct = !isMaxed ? upgradeMarginalFishPct(def.id, stats, effectiveTickSec) : null;
                   return (
-                    <div key={def.id} className="fishingUpgradeRow">
-                      <img src={upgradeIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
-                      <span className="fishingUpgradeName">{def.name}</span>
-                      <div className="fishingUpgradeLevelWrap">
+                    <tr key={def.id} className="fishingUpgradeRow">
+                      <td className="fishingUpgradeTdName">
+                        <img src={upgradeIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
+                        <span className="fishingUpgradeName">{def.name}</span>
+                      </td>
+                      <td className="fishingUpgradeTdLvl">
                         <span className="fishingUpgradeLevelLabel">
                           lvl <span className="mono">{lvl}</span> / {maxLvl}
                         </span>
@@ -821,39 +977,60 @@ export function Fishing() {
                             </button>
                           ) : null}
                         </div>
-                      </div>
-                      <div className="fishingUpgradeCostWrap">
+                      </td>
+                      <td className="fishingUpgradeTdCost">
                         {isMaxed ? (
                           <span className="fishingUpgradeMaxed">Maxed</span>
                         ) : nextCostEntry && fishDef ? (
-                          <>
-                            <span className="fishingUpgradeCostLabel">Cost:</span>{" "}
-                            <span className="fishingUpgradeCostBox">
-                              <img src={fishIconUrl(fishDef.iconFile)} alt="" className="fishingUpgradeCostFishIcon" />
-                              <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
-                            </span>
-                          </>
+                          <span className="fishingUpgradeCostBox">
+                            <img src={fishIconUrl(fishDef.iconFile)} alt="" className="fishingUpgradeCostFishIcon" />
+                            <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
+                          </span>
                         ) : nextCostEntry ? (
-                          <>
-                            <span className="fishingUpgradeCostLabel">Cost:</span>{" "}
-                            <span className="fishingUpgradeCostBox">
-                              <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
-                            </span>
-                          </>
+                          <span className="fishingUpgradeCostBox">
+                            <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
+                          </span>
                         ) : (
                           "—"
                         )}
-                      </div>
-                      <span className="fishingUpgradeTimeToNext">
-                        {!isMaxed && hoursToNext != null
-                          ? formatHoursToHhMin(hoursToNext)
-                          : isMaxed
-                            ? ""
-                            : "—"}
-                      </span>
-                    </div>
+                      </td>
+                      <td className="fishingUpgradeTdTime">
+                        <span
+                          className="fishingUpgradeTimeToNext"
+                          style={
+                            !isMaxed &&
+                            hoursToNext != null &&
+                            timeHeatMax > timeHeatMin
+                              ? (() => {
+                                  const heatT =
+                                    1 -
+                                    (hoursToNext - timeHeatMin) / (timeHeatMax - timeHeatMin);
+                                  const rateColor = heatmapColor(heatT);
+                                  return {
+                                    backgroundColor: rateColor,
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  };
+                                })()
+                              : undefined
+                          }
+                        >
+                          {!isMaxed && hoursToNext != null
+                            ? formatHoursToHhMin(hoursToNext)
+                            : isMaxed
+                              ? ""
+                              : "—"}
+                        </span>
+                      </td>
+                      <td className="fishingUpgradeTdSpeed">
+                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
                   );
                 })}
+                  </tbody>
+                </table>
               </div>
             </Collapsible>
           </div>
