@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { assetUrl } from "./lib/assets";
 import { Tooltip } from "./components/Tooltip";
+import { loadJson, saveJson } from "./lib/storage";
 import { EventSim } from "./modules/event/EventSim";
 import { ArchSim } from "./modules/arch/ArchSim";
 import { GemEv } from "./modules/gemev/GemEv";
@@ -10,6 +11,7 @@ import { Lootbug } from "./modules/lootbug/Lootbug";
 import { Items } from "./modules/items/Items";
 type ModuleId = "event" | "arch" | "gemev" | "stargazing" | "drone" | "lootbug" | "items";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
+const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
   const src = props.path.startsWith("http://") || props.path.startsWith("https://") ? props.path : assetUrl(props.path);
@@ -19,6 +21,10 @@ function Sprite(props: { path: string; alt: string; className?: string }) {
 export function App() {
   const [active, setActive] = useState<ModuleId>("event");
   const [navExpanded, setNavExpanded] = useState(false);
+  const [headerMinimized, setHeaderMinimized] = useState(() => loadJson<boolean>(HEADER_MINIMIZED_KEY) ?? false);
+  useEffect(() => {
+    saveJson(HEADER_MINIMIZED_KEY, headerMinimized);
+  }, [headerMinimized]);
 
   const modules = useMemo(
     () =>
@@ -36,14 +42,26 @@ export function App() {
 
   return (
     <div className="appShell">
-      <div className={`topNav ${navExpanded ? "navExpanded" : ""}`}>
+      <div className={`topNav ${navExpanded ? "navExpanded" : ""} ${headerMinimized ? "headerMinimized" : ""}`}>
         <div className="topNavBrand">
           <Sprite path="sprites/common/gem.png" alt="ObeliskFarm" className="icon" />
           <div>
             <div className="topNavTitle">ObeliskFarm (Web)</div>
-            <div className="topNavSubtitle">Choose a module.</div>
+            {!headerMinimized ? <div className="topNavSubtitle">Choose a module.</div> : null}
           </div>
         </div>
+        <div className="topNavSpacer" aria-hidden="true" />
+        <button
+          type="button"
+          className="topNavMinimize"
+          onClick={() => setHeaderMinimized((v) => !v)}
+          aria-pressed={headerMinimized}
+          aria-expanded={!headerMinimized}
+          aria-label={headerMinimized ? "Expand menu" : "Collapse menu"}
+          title={headerMinimized ? "Expand menu (show module tiles)" : "Collapse menu (more space for content)"}
+        >
+          {headerMinimized ? "Maximize Menu" : "Minimize Menu"}
+        </button>
         <button
           type="button"
           className="topNavToggle"

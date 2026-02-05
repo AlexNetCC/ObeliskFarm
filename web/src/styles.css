@@ -92,8 +92,64 @@ body {
 }
 
 @media (min-width: 740px) {
+  .topNav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .topNavBrand {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .topNavSpacer {
+    flex: 1;
+    min-width: 0;
+  }
+  .topNavMinimize {
+    flex-shrink: 0;
+  }
+  .topNavButtons {
+    width: 100%;
+  }
   .topNavToggle {
     display: none;
+  }
+}
+
+.topNavSpacer {
+  flex: 1;
+  min-width: 0;
+}
+.topNavMinimize {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.topNavMinimize:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text);
+  border-color: rgba(15, 23, 42, 0.18);
+}
+.topNavMinimize[aria-pressed="true"] {
+  background: rgba(25, 118, 210, 0.08);
+  border-color: rgba(25, 118, 210, 0.3);
+  color: var(--text);
+}
+
+@media (max-width: 739px) {
+  .topNavMinimize {
+    padding: 8px 10px;
+    font-size: 0.78rem;
   }
 }
 
@@ -104,6 +160,21 @@ body {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+/* Header collapsed: hide module tiles, show only brand + expand button (more space for content). */
+.topNav.headerMinimized .topNavButtons {
+  display: none;
+}
+.topNav.headerMinimized .topNavBrand {
+  padding: 6px 14px 6px;
+}
+.topNav.headerMinimized .topNavBrand .icon {
+  width: 28px;
+  height: 28px;
+}
+.topNav.headerMinimized .topNavTitle {
+  font-size: 0.95rem;
 }
 
 .topNavTitle {
