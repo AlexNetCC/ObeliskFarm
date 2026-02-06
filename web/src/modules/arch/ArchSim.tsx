@@ -2853,7 +2853,7 @@ export function ArchSim() {
               Per block type + tier. Card effects: HP −10/−20/−35% and XP +10/+20/+35% (polychrome can be boosted by the Stage 34 fragment upgrade).
             </div>
 
-            <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               {BLOCK_TYPES.map((bt) => {
                 const color = BLOCK_COLORS[bt];
                 return (
@@ -2925,7 +2925,7 @@ export function ArchSim() {
                 );
               })}
 
-              <div style={{ border: "1px solid rgba(15,23,42,0.10)", borderRadius: 10, padding: 10, background: "var(--tier2)" }}>
+              <div style={{ gridColumn: "1 / -1", border: "1px solid rgba(15,23,42,0.10)", borderRadius: 10, padding: 10, background: "var(--tier2)" }}>
                 <div className="label" style={{ justifyContent: "center", gap: 12 }}>
                   <span className="mono">Misc card (ability cooldown)</span>
                   <span className="mono">{build.miscCardLevel === 0 ? "OFF" : build.miscCardLevel === 1 ? "Card" : build.miscCardLevel === 2 ? "Gild" : "Poly"}</span>
