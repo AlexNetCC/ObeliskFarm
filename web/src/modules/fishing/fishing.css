@@ -150,10 +150,26 @@
   background: #0d2847;
 }
 
+/* Bar above dock header: blue when cap met, warning style when not. */
+.fishingDroneCapBar,
+.fishingDroneCapWarning {
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.fishingDroneCapBar {
+  background: #132d4a;
+  border-bottom: 1px solid #2d4a63;
+  color: #132d4a;
+}
+
 /* Warning when assigned drones < cap (red blink so user corrects distribution). */
 .fishingDroneCapWarning {
-  padding: 8px 12px;
-  font-size: 12px;
   font-weight: 600;
   text-align: center;
   color: #fff;

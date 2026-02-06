@@ -1261,11 +1261,11 @@ export function Fishing() {
               <div className="fishingDroneCapWarning" role="alert">
                 Assign more drones: {totalDronesAssigned} / {droneCap} (cap). Use + on a dock to add drones.
               </div>
-            ) : null}
+            ) : (
+              <div className="fishingDroneCapBar" aria-hidden="true" />
+            )}
             <div className="fishingDockHeaderRow">
               <span className="fishingDockHeaderFisher">Fisher here</span>
-              <span className="fishingDockHeaderPower">Power</span>
-              <span className="fishingDockHeaderDrones">Drones</span>
             </div>
             {availableDocks.map((dock) => {
               const dockPower = powerForDock(dock.id);
