@@ -85,7 +85,7 @@ export function computeFishingStatsFromLevels(
   // Fish Income Multiplier: +0.03x (upgrade), +0.05x (enhance). Additive on base 1. Skill: Fishing With Friends +3% per level; With This Fish I Summon +1% per fish card per level.
   const effectiveFishCardCount =
     (options?.fishCardTier &&
-      Object.values(options.fishCardTier).reduce(
+      Object.values(options.fishCardTier).reduce<number>(
         (sum, t) => sum + (t === 1 ? 1 : t === 2 ? 2 : t === 3 ? 3 : 0),
         0,
       )) ??
