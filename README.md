@@ -1,6 +1,6 @@
 # ObeliskFarm Calculator
 
-> ⚠️ **Data based on OB36 (Obelisk Level 36)** — All calculations and game data are based on OB36. Results may vary for different progression levels.
+> ⚠️ **Data based on OB37 (Obelisk Level 37)** — All calculations and game data are based on OB37. Results may vary for different progression levels.
 
 An interactive calculator toolkit for the Android game **Idle Obelisk Miner**.
 
@@ -24,8 +24,7 @@ The main interface is the **web app** (no install, runs in the browser):
 | **Drone** | **Elixir Drone:** buff cycle, fuel duration, 10× Bomb Recharge share for Gem EV; **Frogger Drone:** fuel, bombs/autofire, Gem EV+/h; **Bomb Bear Drone:** when fueled, +Lootbug spawn rate (multiplicative), own fuel block, Gem EV/h from Lootbug gains. Fuel subsections (Elixir/Frogger/Bomb Bear) only visible when “Drone fueled” is checked. Shared fuel duration multipliers (Coal, cards, relics). |
 | **Lootbug** | Lootbug stats (spawn rate, triple/golden chance, loot mult). **Bomb Bear** spawn rate multiplier applied when Drone has Bomb Bear fueled. Lootbug gains: Gems (raw)/h, 10× Bomb Recharge Gem EV/h (net of gem cost). Free buffs and Gem buffs tables (per hour, min/h as min:sec). Writes net gems and 10× min/h for Gem EV; writes Bomb Bear Gem EV/h and base gains for Drone. |
 | **Items / Chests** | Chaos Totem duration and obtain chance; Charge Magnet impact from Gem EV bomb cycle. Item Chests per hour (from Lootbug “+1 Item Chest” free buff). Items per chest. Feeds into Gem EV (chests, Charge Magnet). |
-
-**Planned:** A **Fishing** module will be added once progression reaches OB37.
+| **Fishing** | Fish per hour by dock and fish type (power, catch chance, tick speed). Your stats from upgrade/enhancement levels (rod power, drone cap, tick chances, shiny/super shiny, tier 2 dock power). Docks: assign fishing drones, choose fisher dock. Available upgrades (T1/T2) and enhancements (T1/T2): cost, time to next level, +% gains. Uses Elixir drone 3× fishing tick speed uptime from Drone module. |
 
 ### Cross-module links
 
@@ -33,6 +32,7 @@ The main interface is the **web app** (no install, runs in the browser):
 - **Lootbug** reads: Game speed and Gem EV params; Bomb Bear spawn mult from **Drone**.
 - **Stargazing** reads: Drone 2× Star / 3× Super Star uptime fractions.
 - **Drone** reads: Bomb Bear Gem EV/h and base Lootbug gains (gems + net 10×) from **Lootbug** for live display.
+- **Fishing** reads: Elixir drone 3× fishing tick speed uptime from **Drone** for fish/h and time-to-next.
 
 ## Run from source (developers)
 
@@ -59,13 +59,15 @@ web/
 │   │   ├── stargazing/        # Stargazing Calculator
 │   │   ├── drone/             # Drone (Elixir, Frogger, Bomb Bear)
 │   │   ├── lootbug/           # Lootbug stats & gains
-│   │   └── items/             # Items / Chests
+│   │   ├── items/             # Items / Chests
+│   │   └── fishing/           # Fishing: gains, stats, docks, upgrades & enhancements
 │   ├── lib/                   # Shared logic
 │   │   ├── archaeology/      # Arch sim, MC, block stats, spawn rates
 │   │   ├── event/             # Event sim, optimizer, constants
 │   │   ├── gemev/             # Freebie EV, bomb cycle
 │   │   ├── lootbug/           # Lootbug constants
 │   │   ├── stargazing/        # Star calculator
+│   │   ├── fishing/           # Fishing constants, computeStats, upgrade costs
 │   │   ├── assets.ts
 │   │   ├── format.ts
 │   │   ├── storage.ts
@@ -83,7 +85,7 @@ web/
 ## Notes
 
 - All Gem EV values are **per hour** and in **Gem-equivalent**.
-- Calculations follow current game mechanics (OB36); see code for details.
+- Calculations follow current game mechanics (OB37); see code for details.
 - Tooltips (?) in the web app describe sources and formulas.
 - Missing sprites in `public/sprites/` show a placeholder.
 
