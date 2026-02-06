@@ -30,6 +30,7 @@ type SavedStateV1 = {
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
+const WORKSHOP_BUTTON_ICON = "https://static.wikitide.net/shminerwiki/6/6f/Workshop_Button.png";
 /** Set true to show Founder Bomb section and chart bar again. */
 const FOUNDER_BOMB_VISIBLE = false;
 
@@ -1115,7 +1116,27 @@ export function GemEv() {
                   decimals={2}
                 />
                 <Stepper
-                  label="3× Charges Chance (%)"
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      3× Charges Chance (%)
+                      <Tooltip
+                        content={{
+                          title: "3× charges chance",
+                          sections: [
+                            {
+                              heading: "Where to find it",
+                              lines: [
+                                <span key="workshop" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                  <img src={WORKSHOP_BUTTON_ICON} alt="Workshop" style={{ width: 18, height: 18, objectFit: "contain" }} />
+                                  Look up your value in the Workshop (Bombs section).
+                                </span>,
+                              ],
+                            },
+                          ],
+                        }}
+                      />
+                    </span>
+                  }
                   value={params.cherry_bomb_triple_charge_chance * 100}
                   onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_triple_charge_chance: v / 100 }))}
                   step={1}
