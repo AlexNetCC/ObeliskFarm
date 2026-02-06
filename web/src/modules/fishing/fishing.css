@@ -159,6 +159,8 @@
   color: #fff;
   background: #b91c1c;
   animation: fishingDroneCapWarningBlink 1.2s ease-in-out infinite;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes fishingDroneCapWarningBlink {
@@ -252,6 +254,8 @@
   font-size: 12px;
   opacity: 0.9;
   flex-shrink: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* +/− drone controls under each dock row */
@@ -300,6 +304,8 @@
   text-align: center;
   font-size: 13px;
   font-weight: 600;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Toggle above fish-per-hour list */
@@ -377,6 +383,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: #6b7280;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .fishingFishIcon {
@@ -400,6 +408,8 @@
   color: var(--muted, #64748b);
   font-weight: 600;
   margin-left: 2px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .fishingGainsDockName {
@@ -418,6 +428,8 @@
   font-size: 10px;
   color: var(--muted);
   line-height: 1;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .fishingGainsRate {
@@ -426,6 +438,8 @@
   text-align: right;
   padding: 2px 6px;
   border-radius: 4px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Available Upgrades: icon + name + level (lvl X/Y + buttons) + cost + time to next */
@@ -512,6 +526,8 @@
 }
 .fishingUpgradeTable td.fishingUpgradeTdCostEffic {
   text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .fishingUpgradeTable tbody tr.fishingUpgradeRow {
@@ -627,6 +643,8 @@
   font-size: 12px;
   color: var(--muted, #64748b);
   white-space: nowrap;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .fishingUpgradeTdSpeed {
@@ -634,6 +652,8 @@
   font-size: 12px;
   color: var(--muted, #64748b);
   white-space: nowrap;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Fish Cards section (same layout as Stargazing Star Cards) */
