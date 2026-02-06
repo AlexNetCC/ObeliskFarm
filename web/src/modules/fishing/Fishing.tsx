@@ -557,32 +557,6 @@ export function Fishing() {
     return { heatMin: Math.min(...vals), heatMax: Math.max(...vals) };
   }, [visibleGainsRows]);
 
-  /** Time-to-next heatmap: min/max hours across T1 + T2 upgrades (short = green, long = red). */
-  const { timeHeatMin, timeHeatMax } = useMemo(() => {
-    const hours: number[] = [];
-    for (const def of [...availableT1Upgrades, ...availableT2Upgrades]) {
-      const costs = UPGRADE_COSTS[def.id];
-      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
-      const lvl = Math.max(0, Math.min(maxLvl, upgradeLevels[def.id] ?? 0));
-      if (lvl >= maxLvl) continue;
-      const nextLevel = lvl + 1;
-      const nextCostEntry = costs?.find((c) => c.level === nextLevel);
-      const fishPerHour = nextCostEntry
-        ? (totalFishPerHourByFishId[nextCostEntry.fishId] ?? 0)
-        : 0;
-      if (nextCostEntry && fishPerHour > 0) {
-        hours.push(nextCostEntry.amount / fishPerHour);
-      }
-    }
-    if (hours.length === 0) return { timeHeatMin: 0, timeHeatMax: 1 };
-    return { timeHeatMin: Math.min(...hours), timeHeatMax: Math.max(...hours) };
-  }, [
-    availableT1Upgrades,
-    availableT2Upgrades,
-    totalFishPerHourByFishId,
-    upgradeLevels,
-  ]);
-
   /** +% gains = (total fish/h with +1 level − current total) / current total × 100. Computed from actual Fishing gains. Also next-level effect string (e.g. 10→12) for name cell. */
   const { upgradeMarginalPct, enhanceMarginalPct, upgradeNextEffect, enhanceNextEffect } = useMemo(() => {
     const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
@@ -686,6 +660,42 @@ export function Fishing() {
     availableT2Upgrades,
     availableT1Enhancements,
     availableT2Enhancements,
+  ]);
+
+  /** Cost-efficiency heatmap: min/max across T1 + T2 upgrades (high = green, low = red). */
+  const { costEfficHeatMin, costEfficHeatMax } = useMemo(() => {
+    const vals: number[] = [];
+    for (const def of [...availableT1Upgrades, ...availableT2Upgrades]) {
+      const costs = UPGRADE_COSTS[def.id];
+      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
+      const lvl = Math.max(0, Math.min(maxLvl, upgradeLevels[def.id] ?? 0));
+      if (lvl >= maxLvl) continue;
+      const marginalPct = upgradeMarginalPct.get(def.id);
+      const nextLevel = lvl + 1;
+      const nextCostEntry = costs?.find((c) => c.level === nextLevel);
+      const fishPerHour = nextCostEntry
+        ? (totalFishPerHourByFishId[nextCostEntry.fishId] ?? 0)
+        : 0;
+      if (
+        marginalPct != null &&
+        nextCostEntry &&
+        fishPerHour > 0
+      ) {
+        const hoursToNext = nextCostEntry.amount / fishPerHour;
+        vals.push(marginalPct / hoursToNext);
+      }
+    }
+    if (vals.length === 0) return { costEfficHeatMin: 0, costEfficHeatMax: 1 };
+    return {
+      costEfficHeatMin: Math.min(...vals),
+      costEfficHeatMax: Math.max(...vals),
+    };
+  }, [
+    availableT1Upgrades,
+    availableT2Upgrades,
+    totalFishPerHourByFishId,
+    upgradeLevels,
+    upgradeMarginalPct,
   ]);
 
   return (
@@ -1045,10 +1055,10 @@ export function Fishing() {
                         Time to next
                         <Tooltip
                           content={{
-                            title: "Time to next level",
+                            title: "Time to next",
                             sections: [
                               {
-                                heading: "Meaning",
+                                heading: "What it means",
                                 lines: [
                                   "Time to get enough of the cost fish for the next level.",
                                   "Assumes all fish per hour goes to that fish type.",
@@ -1065,10 +1075,27 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it is computed",
+                                heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
                                   "Uses the same total as the fishing gains list above.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                      <th className="fishingUpgradeThCostEffic">
+                        Cost Effic.
+                        <Tooltip
+                          content={{
+                            title: "Cost efficiency",
+                            sections: [
+                              {
+                                heading: "How it works",
+                                lines: [
+                                  "Marginal % gain divided by hours to get the cost for the next level.",
+                                  "Higher = more gain per hour of farming invested.",
                                 ],
                               },
                             ],
@@ -1149,27 +1176,7 @@ export function Fishing() {
                         )}
                       </td>
                       <td className="fishingUpgradeTdTime">
-                        <span
-                          className="fishingUpgradeTimeToNext"
-                          style={
-                            !isMaxed &&
-                            hoursToNext != null &&
-                            timeHeatMax > timeHeatMin
-                              ? (() => {
-                                  const heatT =
-                                    1 -
-                                    (hoursToNext - timeHeatMin) / (timeHeatMax - timeHeatMin);
-                                  const rateColor = heatmapColor(heatT);
-                                  return {
-                                    backgroundColor: rateColor,
-                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                    padding: "2px 6px",
-                                    borderRadius: 4,
-                                  };
-                                })()
-                              : undefined
-                          }
-                        >
+                        <span className="fishingUpgradeTimeToNext">
                           {!isMaxed && hoursToNext != null
                             ? formatHoursToHhMin(hoursToNext)
                             : isMaxed
@@ -1179,6 +1186,33 @@ export function Fishing() {
                       </td>
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="fishingUpgradeTdCostEffic">
+                        {!isMaxed &&
+                        marginalPct != null &&
+                        hoursToNext != null &&
+                        hoursToNext > 0
+                          ? (() => {
+                              const costEffic = marginalPct / hoursToNext;
+                              const heatT =
+                                costEfficHeatMax > costEfficHeatMin
+                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
+                                  : 0.5;
+                              const rateColor = heatmapColor(heatT);
+                              return (
+                                <span
+                                  style={{
+                                    backgroundColor: rateColor,
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {costEffic.toFixed(2)}
+                                </span>
+                              );
+                            })()
+                          : "—"}
                       </td>
                     </tr>
                   );
@@ -1199,10 +1233,10 @@ export function Fishing() {
                         Time to next
                         <Tooltip
                           content={{
-                            title: "Time to next level",
+                            title: "Time to next",
                             sections: [
                               {
-                                heading: "Meaning",
+                                heading: "What it means",
                                 lines: [
                                   "Time to get enough of the cost fish for the next level.",
                                   "Assumes all fish per hour goes to that fish type.",
@@ -1219,10 +1253,27 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it is computed",
+                                heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
                                   "Uses the same total as the fishing gains list above.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
+                      <th className="fishingUpgradeThCostEffic">
+                        Cost Effic.
+                        <Tooltip
+                          content={{
+                            title: "Cost efficiency",
+                            sections: [
+                              {
+                                heading: "How it works",
+                                lines: [
+                                  "Marginal % gain divided by hours to get the cost for the next level.",
+                                  "Higher = more gain per hour of farming invested.",
                                 ],
                               },
                             ],
@@ -1301,27 +1352,7 @@ export function Fishing() {
                         )}
                       </td>
                       <td className="fishingUpgradeTdTime">
-                        <span
-                          className="fishingUpgradeTimeToNext"
-                          style={
-                            !isMaxed &&
-                            hoursToNext != null &&
-                            timeHeatMax > timeHeatMin
-                              ? (() => {
-                                  const heatT =
-                                    1 -
-                                    (hoursToNext - timeHeatMin) / (timeHeatMax - timeHeatMin);
-                                  const rateColor = heatmapColor(heatT);
-                                  return {
-                                    backgroundColor: rateColor,
-                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                    padding: "2px 6px",
-                                    borderRadius: 4,
-                                  };
-                                })()
-                              : undefined
-                          }
-                        >
+                        <span className="fishingUpgradeTimeToNext">
                           {!isMaxed && hoursToNext != null
                             ? formatHoursToHhMin(hoursToNext)
                             : isMaxed
@@ -1331,6 +1362,33 @@ export function Fishing() {
                       </td>
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="fishingUpgradeTdCostEffic">
+                        {!isMaxed &&
+                        marginalPct != null &&
+                        hoursToNext != null &&
+                        hoursToNext > 0
+                          ? (() => {
+                              const costEffic = marginalPct / hoursToNext;
+                              const heatT =
+                                costEfficHeatMax > costEfficHeatMin
+                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
+                                  : 0.5;
+                              const rateColor = heatmapColor(heatT);
+                              return (
+                                <span
+                                  style={{
+                                    backgroundColor: rateColor,
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {costEffic.toFixed(2)}
+                                </span>
+                              );
+                            })()
+                          : "—"}
                       </td>
                     </tr>
                   );
@@ -1363,7 +1421,7 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it is computed",
+                                heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
                                   "Uses the same total as the fishing gains list above.",
@@ -1457,7 +1515,7 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it is computed",
+                                heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
                                   "Uses the same total as the fishing gains list above.",

@@ -499,6 +499,13 @@
   min-width: 4.5em;
   text-align: right;
 }
+.fishingUpgradeTable th.fishingUpgradeThCostEffic {
+  min-width: 4.5em;
+  text-align: right;
+}
+.fishingUpgradeTable td.fishingUpgradeTdCostEffic {
+  text-align: right;
+}
 
 .fishingUpgradeTable tbody tr.fishingUpgradeRow {
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
