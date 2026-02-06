@@ -395,6 +395,13 @@
   white-space: nowrap;
 }
 
+.fishingGainsCardMulti {
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  font-weight: 600;
+  margin-left: 2px;
+}
+
 .fishingGainsDockName {
   color: var(--muted);
   flex-shrink: 0;
@@ -627,4 +634,35 @@
   font-size: 12px;
   color: var(--muted, #64748b);
   white-space: nowrap;
+}
+
+/* Fish Cards section (same layout as Stargazing Star Cards) */
+.fishingFishCardsPanel {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.fishingFishCardsTable .fishingFishCardIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.fishingFishCardsValuePack {
+  margin-top: 12px;
+}
+
+.fishingCardTierRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fishingCardTierRow .fishingCardTierBtn {
+  padding: 4px 8px;
+  font-size: 11px;
 }

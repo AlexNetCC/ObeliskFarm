@@ -5,6 +5,7 @@ import { Tooltip } from "../../components/Tooltip";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
   AQUARIUM,
+  ALL_FISH,
   DOCKS,
   catchChancePercent,
   computeFishingStatsFromLevels,
@@ -28,12 +29,17 @@ import {
   type FishingUpgradeId,
 } from "../../lib/fishing";
 
+/** Fish card tier: 0 = none, 1 = Card (1.5×), 2 = Gilded (2×). */
+export type FishCardTier = 0 | 1 | 2;
+
 type SavedState = {
   dronesPerDock?: Partial<Record<DockId, number>>;
   activeDockId?: DockId | null;
   showDisabledFishGrayed?: boolean;
   upgradeLevels?: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels?: Partial<Record<EnhanceId, number>>;
+  fishCardTier?: Partial<Record<string, FishCardTier>>;
+  valuePackPotencyPoly?: boolean;
 };
 
 /** Single persisted state (same pattern as Drone: one state, lazy load, save on change). */
@@ -43,6 +49,8 @@ type FishingState = {
   showDisabledFishGrayed: boolean;
   upgradeLevels: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels: Partial<Record<EnhanceId, number>>;
+  fishCardTier: Partial<Record<string, FishCardTier>>;
+  valuePackPotencyPoly: boolean;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
@@ -90,6 +98,27 @@ function formatHoursToHhMin(hours: number): string {
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+/** Toggles for fish card tier: None (0), Card 1.5× (1), Gilded 2× (2). Same layout as Stargazing card tier row. */
+function FishCardTierToggles(props: { value: FishCardTier; onChange: (t: FishCardTier) => void }) {
+  const { value, onChange } = props;
+  const cur = value;
+  const mk = (tier: FishCardTier, label: string) => (
+    <button
+      type="button"
+      className={`btn btnSecondary fishingCardTierBtn ${cur === tier ? "cardBtnActive" : ""}`}
+      onClick={() => onChange(cur === tier ? 0 : tier)}
+    >
+      {label} {cur === tier ? "✓" : ""}
+    </button>
+  );
+  return (
+    <div className="fishingCardTierRow">
+      {mk(1, "Card")}
+      {mk(2, "Gilded")}
+    </div>
+  );
 }
 
 /** Interpolate green (t=1) → red (t=0). t in [0,1]. Muted palette. */
@@ -386,7 +415,9 @@ export function Fishing() {
     });
     const showDisabledFishGrayed = saved?.showDisabledFishGrayed ?? false;
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
-    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels };
+    const fishCardTier = saved?.fishCardTier ?? {};
+    const valuePackPotencyPoly = saved?.valuePackPotencyPoly ?? false;
+    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, valuePackPotencyPoly };
   });
 
   useEffect(() => {
@@ -397,11 +428,40 @@ export function Fishing() {
   const enhanceLevels = state.enhanceLevels ?? {};
   const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
 
+  /** Card gain multiplier for a fish: tier 0 → 1×, Card → 1.5×, Gilded → 2×; when tier > 0 also × poly_card_gain_multi and Value Pack 1.15 if active. */
+  const getCardMulti = useMemo(() => {
+    const poly = stats.poly_card_gain_multi * (state.valuePackPotencyPoly ? 1.15 : 1);
+    return (fishId: string): number => {
+      const tier = (state.fishCardTier[fishId] ?? 0) as FishCardTier;
+      if (tier === 0) return 1;
+      const base = tier === 1 ? 1.5 : 2;
+      return base * poly;
+    };
+  }, [stats.poly_card_gain_multi, state.valuePackPotencyPoly, state.fishCardTier]);
+
+  /** Docks reachable with current boat levels: T1 when boat_level >= 1, T2 when t2_boat_level >= 1. */
+  const availableDocks = useMemo(
+    () =>
+      DOCKS.filter(
+        (d) =>
+          (d.tier === 1 && stats.boat_level >= 1) || (d.tier === 2 && (stats.t2_boat_level ?? 0) >= 1),
+      ),
+    [stats.boat_level, stats.t2_boat_level],
+  );
+
   const totalDronesAssigned = useMemo(
     () => DOCKS.reduce((sum, d) => sum + (state.dronesPerDock[d.id] ?? 0), 0),
     [state.dronesPerDock],
   );
   const droneCap = Math.floor(stats.fishing_drone_cap);
+
+  /** Keep activeDockId on an available dock when boat levels change. */
+  useEffect(() => {
+    const ids = new Set(availableDocks.map((d) => d.id));
+    if (!ids.has(state.activeDockId) && availableDocks.length > 0) {
+      setState((prev) => ({ ...prev, activeDockId: availableDocks[0]!.id }));
+    }
+  }, [availableDocks, state.activeDockId]);
 
   function setDockDrones(dockId: DockId, delta: number) {
     setState((prev) => {
@@ -470,16 +530,19 @@ export function Fishing() {
     effectiveTickSec > 0 ? Math.min(3, tickDurationSec / effectiveTickSec) : 1;
 
   const fishingGainsRows = useMemo(() => {
-    return AQUARIUM.flatMap((set) => {
+    const dockIds = new Set(availableDocks.map((d) => d.id));
+    return AQUARIUM.filter((set) => dockIds.has(set.dockId)).flatMap((set) => {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const powerOnThisDock = powerForDock(set.dockId);
       const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
       return set.fish.map((f) => {
         const catchPct = catchChancePercent(powerOnThisDock, f.powerRating);
-        const fishPerHour =
+        const baseFishPerHour =
           dockFillsPerHour *
           expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
           stats.fish_income_multi;
+        const cardMulti = getCardMulti(f.id);
+        const fishPerHour = baseFishPerHour * cardMulti;
         const hasPower = powerOnThisDock > 0;
         return {
           dockId: set.dockId,
@@ -488,16 +551,19 @@ export function Fishing() {
           fish: f,
           fishPerHour,
           catchPct,
+          cardMulti,
         };
       });
     });
   }, [
+    availableDocks,
     effectiveTickSec,
     stats.fishing_rod_power,
     stats.drone_base_power,
     stats.fish_income_multi,
     state.dronesPerDock,
     state.activeDockId,
+    getCardMulti,
   ]);
 
   /** Fish only where power > 0. Visible = show-grayed ? all (gray where !hasPower) : only hasPower. */
@@ -752,7 +818,7 @@ export function Fishing() {
               </label>
             </div>
             <div className="fishingGainsList">
-              {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct }) => {
+              {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct, cardMulti }) => {
                 const isActive = hasPower;
                 const heatT =
                   heatMax > heatMin && isActive && fishPerHour > 0
@@ -770,12 +836,15 @@ export function Fishing() {
                       alt=""
                       className="fishingFishIcon"
                     />
-                    <span className="fishingGainsFishName">{fish.name}</span>
+                    <span className="fishingGainsFishName">
+                      {fish.name}
+                      {cardMulti !== 1 ? <span className="fishingGainsCardMulti"> ×{cardMulti.toFixed(2)}</span> : null}
+                    </span>
                     <span className="small fishingGainsDockName">{dockName}</span>
                     <span className="fishingGainsRateWrap">
                       {isActive && (
                         <span className="fishingGainsCatchPct" title="Catch chance (%)">
-                          {catchPct.toFixed(0)}%
+                          {catchPct.toFixed(1)}%
                         </span>
                       )}
                       <span
@@ -980,7 +1049,7 @@ export function Fishing() {
               <span className="fishingDockHeaderPower">Power</span>
               <span className="fishingDockHeaderDrones">Drones</span>
             </div>
-            {DOCKS.map((dock) => {
+            {availableDocks.map((dock) => {
               const dockPower = powerForDock(dock.id);
               const dockDrones = state.dronesPerDock[dock.id] ?? 0;
               const isActiveDock = state.activeDockId === dock.id;
@@ -1594,6 +1663,51 @@ export function Fishing() {
                 </table>
               </div>
             </Collapsible>
+          </div>
+        </Collapsible>
+
+        <Collapsible id="fishing-fish-cards" title="Fish Cards" defaultExpanded={true}>
+          <div className="fishingFishCardsPanel">
+            <table className="fishingFishCardsTable mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9em" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(15,23,42,0.2)" }}>
+                  <th style={{ textAlign: "left", padding: "6px 8px" }}>Card</th>
+                  <th style={{ textAlign: "left", padding: "6px 8px" }}>Your tier</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ALL_FISH.map((f) => {
+                  const tier = (state.fishCardTier[f.id] ?? 0) as FishCardTier;
+                  return (
+                    <tr key={f.id} style={{ borderBottom: "1px solid rgba(15,23,42,0.1)" }}>
+                      <td style={{ padding: "6px 8px", display: "flex", alignItems: "center", gap: 6 }}>
+                        <img src={fishIconUrl(f.iconFile)} alt="" className="fishingFishCardIcon" />
+                        {f.name}
+                      </td>
+                      <td style={{ padding: "6px 8px" }}>
+                        <FishCardTierToggles
+                          value={tier}
+                          onChange={(t) => setState((prev) => ({ ...prev, fishCardTier: { ...prev.fishCardTier, [f.id]: t } }))}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="fishingFishCardsValuePack">
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={state.valuePackPotencyPoly}
+                  onChange={(e) => setState((prev) => ({ ...prev, valuePackPotencyPoly: e.target.checked }))}
+                />
+                Value Pack (potency poly ×1.15)
+              </label>
+            </div>
+            <div className="small" style={{ marginTop: 8, opacity: 0.85 }}>
+              Card: 50% chance for a second fish (1.5× expected). Gilded: 100% second fish (2×). Poly multi from upgrades and Value Pack applies on top.
+            </div>
           </div>
         </Collapsible>
       </div>
