@@ -520,35 +520,36 @@ export function Stargazing() {
 
         <Collapsible id="stargazing-star-cards" title="Star Cards" defaultExpanded={true}>
             <div className="sgSection" style={{ marginTop: 0 }}>
-              <table className="sgStarCardsTable mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9em" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(15,23,42,0.2)" }}>
-                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Card</th>
-                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Your tier</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {STAR_CARD_IDS.map((id) => {
-                    const name = id.charAt(0).toUpperCase() + id.slice(1);
-                    const spritePath = `sprites/stargazing/${name}.png`;
-                    const tier = (starCards.card_tier[id] ?? 0) as StarCardTier;
-                    return (
-                      <tr key={id} style={{ borderBottom: "1px solid rgba(15,23,42,0.1)" }}>
-                        <td style={{ padding: "6px 8px", display: "flex", alignItems: "center", gap: 6 }}>
-                          <Sprite paths={[spritePath]} alt={name} className="iconSmall" label={spritePath} />
-                          {name}
-                        </td>
-                        <td style={{ padding: "6px 8px" }}>
-                          <StarCardTierToggles
-                            value={tier}
-                            onChange={(t) => setStarCards((s) => ({ ...s, card_tier: { ...s.card_tier, [id]: t } }))}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {STAR_CARD_IDS.map((id) => {
+                  const name = id.charAt(0).toUpperCase() + id.slice(1);
+                  const spritePath = `sprites/stargazing/${name}.png`;
+                  const tier = (starCards.card_tier[id] ?? 0) as StarCardTier;
+                  return (
+                    <div
+                      key={id}
+                      style={{
+                        border: "1px solid rgba(15,23,42,0.10)",
+                        borderRadius: 10,
+                        padding: 10,
+                        background: "var(--tier2)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Sprite paths={[spritePath]} alt={name} className="iconSmall" label={spritePath} />
+                        <span className="mono">{name}</span>
+                      </div>
+                      <StarCardTierToggles
+                        value={tier}
+                        onChange={(t) => setStarCards((s) => ({ ...s, card_tier: { ...s.card_tier, [id]: t } }))}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
               <div className="sgRows" style={{ marginTop: 12 }}>
                 <Stepper
                   label="Happy Bot Pet Quest rank (0 = none)"
