@@ -886,8 +886,8 @@ export function Fishing() {
     enhanceMarginalPct,
   ]);
 
-  /** Skill tree: marginal % gain for +1 level and cost-efficiency heatmap (marginal % / skill points). */
-  const { skillMarginalPct, costEfficHeatMinSkill, costEfficHeatMaxSkill } = useMemo(() => {
+  /** Skill tree: marginal % gain for +1 level, optional breakdown by effect, and cost-efficiency heatmap. */
+  const { skillMarginalPct, skillMarginalBreakdown, costEfficHeatMinSkill, costEfficHeatMaxSkill } = useMemo(() => {
     const skillOpts = {
       skillTreeLevels: state.skillTreeLevels,
       fishCardTier: state.fishCardTier,
@@ -902,6 +902,7 @@ export function Fishing() {
       skillOpts,
     );
     const marginalMap = new Map<FishingSkillId, number | null>();
+    const breakdownMap = new Map<FishingSkillId, Array<{ label: string; pct: number }>>();
     const efficVals: number[] = [];
     for (const def of FISHING_SKILL_TREE) {
       const maxLvl = def.costs.length;
@@ -931,6 +932,31 @@ export function Fishing() {
       const marginalPct =
         currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
       marginalMap.set(def.id, marginalPct);
+
+      if (currentTotal > 0 && extraDronesFromSkill > 0) {
+        const totalSameDrones = computeTotalFishPerHour(
+          upgradeLevels,
+          enhanceLevels,
+          state.dronesPerDock,
+          state.activeDockId,
+          elixir3xFishingExternal,
+          { ...skillOpts, skillTreeLevels: newSkillLevels },
+        );
+        const pctFromStats = ((totalSameDrones - currentTotal) / currentTotal) * 100;
+        const pctFromDrones = ((newTotal - totalSameDrones) / currentTotal) * 100;
+        if (def.id === "fishing_with_friends") {
+          breakdownMap.set(def.id, [
+            { label: "Drone power +10%, Fish mult +3%", pct: pctFromStats },
+            { label: "Fishing Drones +5", pct: pctFromDrones },
+          ]);
+        } else if (def.id === "motley_school") {
+          breakdownMap.set(def.id, [
+            { label: "Rod mult +10%", pct: pctFromStats },
+            { label: "Fishing Drones +5", pct: pctFromDrones },
+          ]);
+        }
+      }
+
       const costForNext = def.costs[lvl] ?? 0;
       if (marginalPct != null && costForNext > 0) {
         efficVals.push(marginalPct / costForNext);
@@ -938,6 +964,7 @@ export function Fishing() {
     }
     return {
       skillMarginalPct: marginalMap,
+      skillMarginalBreakdown: breakdownMap,
       costEfficHeatMinSkill: efficVals.length ? Math.min(...efficVals) : 0,
       costEfficHeatMaxSkill: efficVals.length ? Math.max(...efficVals) : 1,
     };
@@ -994,6 +1021,9 @@ export function Fishing() {
               <div className="fishingSectionTitle">
                 <span className="mono">Fish per hour</span>
               </div>
+              <span className="mono fishingTotalRainbow" style={{ fontSize: "0.95em" }}>
+                {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
+              </span>
             </div>
             <div className="fishingGainsToggleWrap">
               <label className="fishingGainsToggleLabel">
@@ -1032,7 +1062,7 @@ export function Fishing() {
                     <span className="fishingGainsRateWrap">
                       {isActive && (
                         <span className="fishingGainsCatchPct" title="Catch chance (%)">
-                          {catchPct.toFixed(1)}%
+                          {Math.round(catchPct)}%
                         </span>
                       )}
                       <span
@@ -2109,16 +2139,35 @@ export function Fishing() {
                       </td>
                       <td className="fishingUpgradeTdCostEffic">
                         {costEffic != null ? (
-                          <span
-                            style={{
-                              backgroundColor: heatmapColor(heatT),
-                              color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                            }}
-                          >
-                            {costEffic.toFixed(3)}
-                          </span>
+                          (() => {
+                            const breakdown = skillMarginalBreakdown.get(def.id);
+                            const totalPct = breakdown?.reduce((s, b) => s + b.pct, 0) ?? 0;
+                            const hasBreakdown = breakdown?.length && totalPct > 0;
+                            return (
+                              <span className="fishingCostEfficWrap">
+                                {hasBreakdown ? (
+                                  <div className="fishingCostEfficPop">
+                                    <div className="fishingCostEfficPopTitle">Share of marginal gain (sum 100%)</div>
+                                    {breakdown!.map((b, i) => (
+                                      <span key={i} className="fishingCostEfficPopLine">
+                                        {b.label}: {((b.pct / totalPct) * 100).toFixed(1)}%
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                <span
+                                  style={{
+                                    backgroundColor: heatmapColor(heatT),
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {costEffic.toFixed(3)}
+                                </span>
+                              </span>
+                            );
+                          })()
                         ) : (
                           "—"
                         )}

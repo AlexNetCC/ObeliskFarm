@@ -686,3 +686,67 @@
   padding: 4px 8px;
   font-size: 11px;
 }
+
+/* Skill Tree: cost effic breakdown on hover (lines stacked) */
+.fishingCostEfficWrap {
+  position: relative;
+  display: inline-block;
+}
+.fishingCostEfficPop {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(15, 23, 42, 0.88);
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  visibility: hidden;
+}
+.fishingCostEfficWrap:hover .fishingCostEfficPop {
+  visibility: visible;
+}
+.fishingCostEfficPopTitle {
+  font-weight: 600;
+  color: #1976d2;
+  margin-bottom: 6px;
+}
+.fishingCostEfficPopLine {
+  display: block;
+}
+
+/* Fish per hour total: rainbow shimmer (text only) */
+.fishingTotalRainbow {
+  font-weight: 700;
+  background: linear-gradient(
+    90deg,
+    #e53935,
+    #fb8c00,
+    #43a047,
+    #1e88e5,
+    #8e24aa,
+    #e53935
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: fishingRainbowShimmer 3s ease-in-out infinite;
+}
+@keyframes fishingRainbowShimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
