@@ -20,11 +20,15 @@ export type {
   EnhanceIdT1,
   EnhanceIdT2,
   FishDef,
+  FishingSkillDef,
+  FishingSkillId,
   FishingUpgradeId,
   UpgradeDef,
   UpgradeCostEntry,
   EnhanceCostEntry,
 } from "./types";
+
+export { FISHING_SKILL_TREE } from "./skillTree";
 
 export {
   AQUARIUM,
@@ -48,4 +52,5 @@ export { UPGRADE_COSTS, ENHANCE_COSTS_T1, ENHANCE_COSTS_T2 } from "./upgradeCost
 export {
   computeFishingStatsFromLevels,
   type ComputedFishingStats,
+  type SkillTreeOptions,
 } from "./computeStats";

@@ -183,6 +183,29 @@ export interface EnhanceCostEntry {
   gems: number;
 }
 
+// ——— Skill Tree (cost: skill points) ———
+
+export type FishingSkillId =
+  | "fishing_with_friends"
+  | "friendship_ended_tier1"
+  | "motley_school"
+  | "lets_pick_up_the_pace"
+  | "with_this_fish_i_summon_two_more_fish"
+  | "completionist_gatekeeper";
+
+export interface FishingSkillDef {
+  id: FishingSkillId;
+  name: string;
+  /** Wiki icon filename (e.g. "Fishing_With_Friends.png"). */
+  iconFile: string;
+  /** Obelisk level required to unlock. */
+  obeliskLevel: number;
+  /** Short effect lines for tooltip/display. */
+  effectLines: string[];
+  /** Skill point cost for level 1, 2, 3 (length = max level). */
+  costs: number[];
+}
+
 // ——— Effective fishing tick (Elixir 3x buff) ———
 
 /**

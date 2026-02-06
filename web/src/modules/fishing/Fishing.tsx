@@ -18,6 +18,7 @@ import {
   ENHANCEMENTS_T2,
   expectedCatchesPerRoll,
   fishIconUrl,
+  FISHING_SKILL_TREE,
   FISHING_UPGRADES_T1,
   FISHING_UPGRADES_T2,
   getFishById,
@@ -26,6 +27,7 @@ import {
   UPGRADE_COSTS,
   type DockId,
   type EnhanceId,
+  type FishingSkillId,
   type FishingUpgradeId,
 } from "../../lib/fishing";
 
@@ -40,6 +42,8 @@ type SavedState = {
   enhanceLevels?: Partial<Record<EnhanceId, number>>;
   fishCardTier?: Partial<Record<string, FishCardTier>>;
   valuePackPotencyPoly?: boolean;
+  skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
+  legendaryFishFound?: number;
 };
 
 /** Single persisted state (same pattern as Drone: one state, lazy load, save on change). */
@@ -51,6 +55,8 @@ type FishingState = {
   enhanceLevels: Partial<Record<EnhanceId, number>>;
   fishCardTier: Partial<Record<string, FishCardTier>>;
   valuePackPotencyPoly: boolean;
+  skillTreeLevels: Partial<Record<FishingSkillId, number>>;
+  legendaryFishFound: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
@@ -63,6 +69,9 @@ const FISHING_ICON = "https://static.wikitide.net/shminerwiki/f/fb/Fishing_Butto
 
 /** Gem icon for enhancement costs (wiki File:Gem.png). */
 const GEM_ICON_URL = fishIconUrl("Gem.png");
+
+/** Skill point icon for Skill Tree costs (24px from wiki). */
+const SKILL_POINT_ICON_URL = "https://static.wikitide.net/shminerwiki/thumb/5/51/Skill_Point.png/24px-Skill_Point.png";
 
 
 function parseNumber(raw: string): number | null {
@@ -215,6 +224,13 @@ function formatEnhanceNextEffect(
   }
 }
 
+/** Options for skill tree when computing total fish per hour (for marginal %). */
+type TotalFishOptions = {
+  skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
+  fishCardTier?: Partial<Record<string, number>>;
+  legendaryFishFound?: number;
+};
+
 /**
  * Total fish per hour for given levels and dock assignment (same formula as Fishing gains list).
  * Used to compute marginal % gain from +1 level by comparing total with hypothetical levels.
@@ -225,8 +241,9 @@ function computeTotalFishPerHour(
   dronesPerDock: Record<DockId, number>,
   activeDockId: DockId,
   elixir3xFishingExternal: { uptimeFraction: number },
+  skillOptions?: TotalFishOptions,
 ): number {
-  const stats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
+  const stats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOptions);
   const s = stats.shiny_fish_chance_pct / 100;
   const s2 = stats.super_shiny_chance_pct / 100;
   const expectedShinyMulti =
@@ -235,6 +252,9 @@ function computeTotalFishPerHour(
     s * s2 * stats.shiny_multiplier * stats.super_shiny_multiplier;
   const tickDurationSec = Math.max(1, 60 + stats.fishing_tick_reduction);
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
+  const doublePct = stats.double_tick_chance_pct / 100;
+  const triplePct = stats.triple_tick_chance_pct / 100;
+  const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
   let total = 0;
   for (const set of AQUARIUM) {
     const dock = DOCKS.find((d) => d.id === set.dockId)!;
@@ -245,6 +265,7 @@ function computeTotalFishPerHour(
     for (const f of set.fish) {
       total +=
         dockFillsPerHour *
+        expectedRollsPerFill *
         expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
         stats.fish_income_multi *
         expectedShinyMulti;
@@ -425,7 +446,9 @@ export function Fishing() {
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
     const fishCardTier = saved?.fishCardTier ?? {};
     const valuePackPotencyPoly = saved?.valuePackPotencyPoly ?? false;
-    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, valuePackPotencyPoly };
+    const skillTreeLevels = saved?.skillTreeLevels ?? {};
+    const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
+    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
   });
 
   useEffect(() => {
@@ -434,7 +457,13 @@ export function Fishing() {
 
   const upgradeLevels = state.upgradeLevels ?? {};
   const enhanceLevels = state.enhanceLevels ?? {};
-  const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
+  const skillTreeLevels = state.skillTreeLevels ?? {};
+  const skillTreeOptions = {
+    skillTreeLevels,
+    fishCardTier: state.fishCardTier,
+    legendaryFishFound: state.legendaryFishFound,
+  };
+  const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillTreeOptions);
 
   /** Expected multiplier from Shiny (chance × multi) and Super Shiny (only when already shiny). */
   const expectedShinyMulti = useMemo(() => {
@@ -525,6 +554,18 @@ export function Fishing() {
     });
   }
 
+  function setSkillTreeLevel(skillId: FishingSkillId, delta: number) {
+    const def = FISHING_SKILL_TREE.find((s) => s.id === skillId);
+    if (!def || !def.costs.length) return;
+    const maxLvl = def.costs.length;
+    setState((prev) => {
+      const prevLevels = prev.skillTreeLevels ?? {};
+      const cur = Math.max(0, Math.min(maxLvl, prevLevels[skillId] ?? 0));
+      const next = Math.max(0, Math.min(maxLvl, cur + delta));
+      return { ...prev, skillTreeLevels: { ...prevLevels, [skillId]: next } };
+    });
+  }
+
   /** Power on a dock: rod only on the dock you're fishing at (active); else 0. Plus drones on this dock. */
   function powerForDock(dockId: DockId): number {
     const rod = state.activeDockId === dockId ? stats.fishing_rod_power : 0;
@@ -555,14 +596,22 @@ export function Fishing() {
 
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
+    const rod = stats.fishing_rod_power;
+    const dronePower = stats.drone_base_power;
     return AQUARIUM.filter((set) => dockIds.has(set.dockId)).flatMap((set) => {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
-      const powerOnThisDock = powerForDock(set.dockId);
+      const rodHere = state.activeDockId === set.dockId ? rod : 0;
+      const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
+      const powerOnThisDock = rodHere + dronesHere * dronePower;
       const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const doublePct = stats.double_tick_chance_pct / 100;
+      const triplePct = stats.triple_tick_chance_pct / 100;
+      const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
       return set.fish.map((f) => {
         const catchPct = catchChancePercent(powerOnThisDock, f.powerRating);
         const baseFishPerHour =
           dockFillsPerHour *
+          expectedRollsPerFill *
           expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
           stats.fish_income_multi *
           expectedShinyMulti;
@@ -588,6 +637,8 @@ export function Fishing() {
     stats.fishing_rod_power,
     stats.drone_base_power,
     stats.fish_income_multi,
+    stats.double_tick_chance_pct,
+    stats.triple_tick_chance_pct,
     state.dronesPerDock,
     state.activeDockId,
     getCardMulti,
@@ -653,12 +704,18 @@ export function Fishing() {
   /** +% gains = (total fish/h with +1 level − current total) / current total × 100. Computed from actual Fishing gains. Also next-level effect string (e.g. 10→12) for name cell. */
   const { upgradeMarginalPct, enhanceMarginalPct, upgradeNextEffect, enhanceNextEffect } = useMemo(() => {
     const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+    };
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
       state.dronesPerDock,
       state.activeDockId,
       elixir3xFishingExternal,
+      skillOpts,
     );
     const upgradeMap = new Map<FishingUpgradeId, number | null>();
     const upgradeEffectMap = new Map<FishingUpgradeId, string | null>();
@@ -689,6 +746,7 @@ export function Fishing() {
         newDronesPerDock,
         state.activeDockId,
         elixir3xFishingExternal,
+        skillOpts,
       );
       upgradeMap.set(
         def.id,
@@ -730,6 +788,7 @@ export function Fishing() {
         newDronesPerDock,
         state.activeDockId,
         elixir3xFishingExternal,
+        skillOpts,
       );
       enhanceMap.set(
         def.id,
@@ -748,6 +807,9 @@ export function Fishing() {
     enhanceLevels,
     state.dronesPerDock,
     state.activeDockId,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
     elixir3xFishingExternal,
     availableT1Upgrades,
     availableT2Upgrades,
@@ -789,6 +851,7 @@ export function Fishing() {
     totalFishPerHourByFishId,
     upgradeLevels,
     upgradeMarginalPct,
+    state.dronesPerDock,
   ]);
 
   /** Cost-efficiency heatmap for enhancements: min/max across T1 + T2 (marginal % / gem cost; high = green). */
@@ -821,6 +884,72 @@ export function Fishing() {
     availableT2Enhancements,
     enhanceLevels,
     enhanceMarginalPct,
+  ]);
+
+  /** Skill tree: marginal % gain for +1 level and cost-efficiency heatmap (marginal % / skill points). */
+  const { skillMarginalPct, costEfficHeatMinSkill, costEfficHeatMaxSkill } = useMemo(() => {
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+    };
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      skillOpts,
+    );
+    const marginalMap = new Map<FishingSkillId, number | null>();
+    const efficVals: number[] = [];
+    for (const def of FISHING_SKILL_TREE) {
+      const maxLvl = def.costs.length;
+      const lvl = Math.max(0, Math.min(maxLvl, state.skillTreeLevels[def.id] ?? 0));
+      if (lvl >= maxLvl) {
+        marginalMap.set(def.id, null);
+        continue;
+      }
+      const newSkillLevels = { ...state.skillTreeLevels, [def.id]: lvl + 1 };
+      const extraDronesFromSkill =
+        def.id === "fishing_with_friends" ? 5 : def.id === "motley_school" ? 5 : 0;
+      const newDronesPerDock =
+        extraDronesFromSkill > 0
+          ? {
+              ...state.dronesPerDock,
+              [state.activeDockId]: (state.dronesPerDock[state.activeDockId] ?? 0) + extraDronesFromSkill,
+            }
+          : state.dronesPerDock;
+      const newTotal = computeTotalFishPerHour(
+        upgradeLevels,
+        enhanceLevels,
+        newDronesPerDock,
+        state.activeDockId,
+        elixir3xFishingExternal,
+        { ...skillOpts, skillTreeLevels: newSkillLevels },
+      );
+      const marginalPct =
+        currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
+      marginalMap.set(def.id, marginalPct);
+      const costForNext = def.costs[lvl] ?? 0;
+      if (marginalPct != null && costForNext > 0) {
+        efficVals.push(marginalPct / costForNext);
+      }
+    }
+    return {
+      skillMarginalPct: marginalMap,
+      costEfficHeatMinSkill: efficVals.length ? Math.min(...efficVals) : 0,
+      costEfficHeatMaxSkill: efficVals.length ? Math.max(...efficVals) : 1,
+    };
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.dronesPerDock,
+    state.activeDockId,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    elixir3xFishingExternal,
   ]);
 
   return (
@@ -1856,6 +1985,149 @@ export function Fishing() {
             <div className="small" style={{ marginTop: 8, opacity: 0.85 }}>
               Card: 50% second fish (1.5×). Gilded: 100% second fish (2×). Poly: 4× base. Poly multi from upgrades and Value Pack applies on top.
             </div>
+          </div>
+        </Collapsible>
+
+        <Collapsible id="fishing-skill-tree" title="Skill Tree" defaultExpanded={true}>
+          <div className="small" style={{ marginBottom: 8 }}>
+            Skills cost skill points (from Obelisk level). Cost efficiency = marginal % gain per skill point for the next level.
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div className="label" style={{ alignItems: "center", gap: 8 }}>
+              <img src={SKILL_POINT_ICON_URL} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
+              <span className="mono">Legendary Fish Found (0–6)</span>
+              <span className="mono">{state.legendaryFishFound}</span>
+            </div>
+            <div className="btnRow" style={{ marginTop: 4 }}>
+              <button type="button" className="btn btnSecondary" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.max(0, p.legendaryFishFound - 1) }))} disabled={state.legendaryFishFound <= 0}>−</button>
+              <button type="button" className="btn" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.min(6, p.legendaryFishFound + 1) }))} disabled={state.legendaryFishFound >= 6}>+</button>
+            </div>
+            <div className="small" style={{ marginTop: 4, opacity: 0.85 }}>Used for Completionist Gatekeeper bonus.</div>
+          </div>
+          <div className="fishingUpgradesList">
+            <table className="fishingUpgradeTable">
+              <thead>
+                <tr>
+                  <th className="fishingUpgradeThName">Skill</th>
+                  <th className="fishingUpgradeThLvl">Obelisk</th>
+                  <th className="fishingUpgradeThLvl">Lvl</th>
+                  <th className="fishingUpgradeThCost">Cost (next)</th>
+                  <th className="fishingUpgradeThSpeed">+% gains</th>
+                  <th className="fishingUpgradeThCostEffic">
+                    Cost Effic.
+                    <Tooltip
+                      content={{
+                        title: "Cost efficiency",
+                        sections: [
+                          {
+                            heading: "Skill points",
+                            lines: [
+                              "Marginal % gain divided by skill points for the next level.",
+                              "Higher value means more gain per skill point spent.",
+                            ],
+                          },
+                        ],
+                      }}
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {FISHING_SKILL_TREE.map((def) => {
+                  const maxLvl = def.costs.length;
+                  const lvl = Math.max(0, Math.min(maxLvl, state.skillTreeLevels[def.id] ?? 0));
+                  const nextCost = lvl < maxLvl ? (def.costs[lvl] ?? 0) : null;
+                  const isMaxed = lvl >= maxLvl;
+                  const marginalPct = skillMarginalPct.get(def.id) ?? null;
+                  const costEffic =
+                    !isMaxed &&
+                    marginalPct != null &&
+                    nextCost != null &&
+                    nextCost > 0
+                      ? marginalPct / nextCost
+                      : null;
+                  const heatT =
+                    costEffic != null && costEfficHeatMaxSkill > costEfficHeatMinSkill
+                      ? (costEffic - costEfficHeatMinSkill) / (costEfficHeatMaxSkill - costEfficHeatMinSkill)
+                      : 0.5;
+                  return (
+                    <tr key={def.id} className="fishingUpgradeRow">
+                      <td className="fishingUpgradeTdName">
+                        <img src={fishIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
+                        <div className="fishingUpgradeNameBlock">
+                          <span className="fishingUpgradeName">{def.name}</span>
+                          <div className="small" style={{ marginTop: 2, opacity: 0.9 }}>
+                            {def.effectLines.map((line, i) => (
+                              <div key={i}>{line}</div>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="fishingUpgradeTdLvl">
+                        <span className="mono">{def.obeliskLevel}</span>
+                      </td>
+                      <td className="fishingUpgradeTdLvl">
+                        <span className="fishingUpgradeLevelLabel">
+                          <span className="mono">{lvl}</span> / {maxLvl}
+                        </span>
+                        <div className="btnRow fishingUpgradeButtons">
+                          <button
+                            type="button"
+                            className="btn btnSecondary"
+                            onClick={() => setSkillTreeLevel(def.id, -1)}
+                            disabled={lvl <= 0}
+                            aria-label="Decrease level"
+                          >
+                            −
+                          </button>
+                          {!isMaxed ? (
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => setSkillTreeLevel(def.id, 1)}
+                              aria-label="Increase level"
+                            >
+                              +
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="fishingUpgradeTdCost">
+                        {isMaxed ? (
+                          <span className="fishingUpgradeMaxed">Maxed</span>
+                        ) : nextCost != null ? (
+                          <span className="fishingUpgradeCostBox">
+                            <img src={SKILL_POINT_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                            <span className="mono">{nextCost.toLocaleString()}</span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="fishingUpgradeTdSpeed">
+                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="fishingUpgradeTdCostEffic">
+                        {costEffic != null ? (
+                          <span
+                            style={{
+                              backgroundColor: heatmapColor(heatT),
+                              color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                            }}
+                          >
+                            {costEffic.toFixed(3)}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </Collapsible>
       </div>
