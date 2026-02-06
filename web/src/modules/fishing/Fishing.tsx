@@ -332,13 +332,13 @@ const statsTooltip = {
   sections: [
     {
       heading: "Source",
-      lines: ["Values are computed from your Upgrade and Enhancement levels, including Boat levels (Upgrade Boat / Upgrade T2 Boat)."],
+      lines: ["Values are computed from your upgrade and enhancement levels, including boat levels (Upgrade Boat / Upgrade T2 Boat)."],
     },
     {
       heading: "Drones and gains",
       lines: [
-        "Each Fishing Drone adds Drone Base Power to the dock it is assigned to.",
-        "Dock power = rod (on the dock you fish at) + (drones on that dock × Drone Base Power).",
+        "Each fishing drone adds drone base power to the dock it is assigned to.",
+        "Dock power = rod (on the dock you fish at) + (drones on that dock × drone base power).",
         "Higher power increases catch chance and fish per hour.",
       ],
     },
@@ -350,18 +350,18 @@ const statsTooltip = {
       ],
     },
     {
-      heading: "Double / Triple / 5× tick chance",
+      heading: "Double / triple / 5× tick chance",
       lines: [
         "When the tick bar fills, you can get 2, 3, or 5 ticks at once instead of 1.",
         "Example: at 4/5, a 5× tick gives 5 ticks (bar fills and resets), then 4 more → 4/5 again.",
-        "5× from Fishing only is 0%; the game can add more from Relics, Store, or Cards.",
+        "5× from fishing only is 0%; the game can add more from relics, store, or cards.",
       ],
     },
     {
-      heading: "Shiny and Super Shiny",
+      heading: "Shiny and super shiny",
       lines: [
         "Shiny works like a crit: a chance to multiply the catch (base 3×).",
-        "Super Shiny only rolls when the catch is already shiny; base multiplier 2× on top.",
+        "Super shiny only rolls when the catch is already shiny; base multiplier 2× on top.",
       ],
     },
     {
@@ -706,7 +706,7 @@ export function Fishing() {
       <div className="fishingLayoutGrid">
         <Collapsible
           id="fishing-gains"
-          title="Fishing gains"
+          title="Fishing gains (by fish)"
           defaultExpanded={true}
           headerRight={
             <Tooltip
@@ -716,7 +716,7 @@ export function Fishing() {
                   {
                     heading: "Dock power",
                     lines: [
-                      "Each dock's power = rod (if you fish there) + every Fishing Drone on that dock × Drone Base Power.",
+                      "Each dock's power = rod (if you fish there) + every fishing drone on that dock × drone base power.",
                       "Power sets catch chance and fish per hour.",
                     ],
                   },
@@ -728,7 +728,7 @@ export function Fishing() {
           <div className="fishingSection">
             <div className="fishingSectionHeader">
               <div className="fishingSectionTitle">
-                <span className="mono">Fish per hour (by fish)</span>
+                <span className="mono">Fish per hour</span>
               </div>
             </div>
             <div className="fishingGainsToggleWrap">
@@ -738,7 +738,7 @@ export function Fishing() {
                   checked={state.showDisabledFishGrayed}
                   onChange={(e) => setState((prev) => ({ ...prev, showDisabledFishGrayed: e.target.checked }))}
                 />
-                <span className="small">Show fish from docks with no power (grayed)</span>
+                <span className="small">Show fish from docks with no power (grayed out)</span>
               </label>
             </div>
             <div className="fishingGainsList">
@@ -753,7 +753,7 @@ export function Fishing() {
                   <div
                     key={`${dockId}-${fish.id}`}
                     className={`fishingGainsRow ${!hasPower ? "fishingGainsRowDisabled" : ""}`}
-                    title={!hasPower ? `No power on dock "${dockName}"` : undefined}
+                    title={!hasPower ? `No power on dock “${dockName}”` : undefined}
                   >
                     <img
                       src={fishIconUrl(fish.iconFile)}
@@ -764,7 +764,7 @@ export function Fishing() {
                     <span className="small fishingGainsDockName">{dockName}</span>
                     <span className="fishingGainsRateWrap">
                       {isActive && (
-                        <span className="fishingGainsCatchPct" title="Catch chance %">
+                        <span className="fishingGainsCatchPct" title="Catch chance (%)">
                           {catchPct.toFixed(0)}%
                         </span>
                       )}
@@ -791,7 +791,7 @@ export function Fishing() {
                 alt=""
                 className="fishingGainsElixirIcon"
               />
-              <span className="fishingGainsElixirLabel">Elixir Drone 3× Fishing Tick Speed</span>
+              <span className="fishingGainsElixirLabel">Elixir drone 3× fishing tick speed</span>
               <span className="fishingGainsElixirValue">
                 {formatElixirMinSecPerHour(elixir3xFishingExternal.minPerHour)} / h (
                 {Math.round(elixir3xFishingExternal.uptimeFraction * 100)}% uptime → {elixir3xFishingMulti.toFixed(2)}× multi)
@@ -808,7 +808,7 @@ export function Fishing() {
           headerRight={
             <>
               <Tooltip content={statsTooltip} />
-              <span className="small" style={{ opacity: 0.85 }}>Stats#Fishing</span>
+              <span className="small" style={{ opacity: 0.85 }}>Stats § Fishing</span>
             </>
           }
         >
@@ -819,7 +819,7 @@ export function Fishing() {
               value={stats.boat_level}
             />
             <StatRow
-              label="T2 Boat level"
+              label="T2 boat level"
               iconUrl={upgradeIconUrl("Fishing_Boat_Upgrade_T2.png")}
               value={stats.t2_boat_level}
             />
@@ -834,69 +834,69 @@ export function Fishing() {
               <div className="fishingStatsTwoColWrap">
                 <div className="fishingStatsCol">
                   <StatRow
-                    label="Fishing Rod Power"
+                    label="Fishing rod power"
                     iconUrl={upgradeIconUrl("Fishing_Rod_Power.png")}
                     value={stats.fishing_rod_power}
                     decimals={2}
                   />
                   <StatRow
-                    label="Fishing Drone Cap"
+                    label="Fishing drone cap"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Capacity.png")}
                     value={stats.fishing_drone_cap}
                     decimals={2}
                     suffix=""
                   />
                   <StatRow
-                    label="Drone Base Power"
+                    label="Drone base power"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
                     value={stats.drone_base_power}
                     decimals={2}
                     suffix=""
                   />
                   <StatRow
-                    label="Drone Power Multiplier"
+                    label="Drone power multiplier"
                     iconUrl={upgradeIconUrl("Drone_Power_Multiplier.png")}
                     value={stats.drone_power_multiplier}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Fish Income Multiplier (×)"
+                    label="Fish income multiplier (×)"
                     iconUrl={upgradeIconUrl("Fish_Income_Multiplier.png")}
                     value={stats.fish_income_multi}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Fishing Tick Reduction (s)"
+                    label="Fishing tick reduction (s)"
                     iconUrl={upgradeIconUrl("Fishing_Tick_Reduction.png")}
                     value={stats.fishing_tick_reduction}
                     decimals={1}
                     suffix="s"
                   />
                   <StatRow
-                    label="Double Tick Chance"
+                    label="Double tick chance"
                     iconUrl={upgradeIconUrl("Double_Fish_Tick_Chance.png")}
                     value={stats.double_tick_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Triple Tick Chance"
+                    label="Triple tick chance"
                     iconUrl={upgradeIconUrl("Triple_Fish_Tick_Chance.png")}
                     value={stats.triple_tick_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="5× Tick Chance"
+                    label="5× tick chance"
                     iconUrl={upgradeIconUrl("5x_Fish_Tick_Chance.png")}
                     value={stats.five_tick_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Token Gain Multiplier"
+                    label="Token gain multiplier"
                     iconUrl={upgradeIconUrl("Fish_Token_Gain_Multiplier.png")}
                     value={stats.token_gain_multi}
                     decimals={2}
@@ -905,48 +905,48 @@ export function Fishing() {
                 </div>
                 <div className="fishingStatsCol">
                   <StatRow
-                    label="Notice Fish Requirement"
+                    label="Notice fish requirement"
                     value={stats.notice_fish_req}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Shiny Fish Chance"
+                    label="Shiny fish chance"
                     iconUrl={upgradeIconUrl("Shiny_Fish_Chance.png")}
                     value={stats.shiny_fish_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Super Shiny Chance"
+                    label="Super shiny chance"
                     iconUrl={upgradeIconUrl("Super_Shiny_Fish_Chance.png")}
                     value={stats.super_shiny_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Tiny Notice Chance"
+                    label="Tiny notice chance"
                     iconUrl={upgradeIconUrl("Tiny_Notice_Chance.png")}
                     value={stats.tiny_notice_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Tier 2 Dock Power"
+                    label="Tier 2 dock power"
                     iconUrl={upgradeIconUrl("Tier_2_Dock_Power.png")}
                     value={stats.tier2_dock_power_mult}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Shiny Multiplier"
+                    label="Shiny multiplier"
                     iconUrl={upgradeIconUrl("Shiny_Multiplier.png")}
                     value={stats.shiny_multiplier}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Super Shiny Multiplier"
+                    label="Super shiny multiplier"
                     iconUrl={upgradeIconUrl("Super_Shiny_Multiplier.png")}
                     value={stats.super_shiny_multiplier}
                     decimals={2}
@@ -1004,7 +1004,7 @@ export function Fishing() {
                     <span className="fishingDockRowDrones">Drones: {dockDrones}</span>
                   </div>
                   <div className="fishingDockDroneControls">
-                    <span className="fishingDockDroneControlsLabel">Fishing Drone Count</span>
+                    <span className="fishingDockDroneControlsLabel">Fishing drone count</span>
                     <button
                       type="button"
                       className="fishingDockDroneBtn"
@@ -1031,7 +1031,7 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-upgrades" title="Available Upgrades" defaultExpanded={true}>
+        <Collapsible id="fishing-upgrades" title="Available upgrades" defaultExpanded={true}>
           <div className="fishingUpgradesPanel">
             <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
@@ -1042,10 +1042,10 @@ export function Fishing() {
                       <th className="fishingUpgradeThLvl">Lvl</th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThTime">
-                        Time (hh:min)
+                        Time to next
                         <Tooltip
                           content={{
-                            title: "Time (hh:min)",
+                            title: "Time to next level",
                             sections: [
                               {
                                 heading: "Meaning",
@@ -1065,10 +1065,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it's computed",
+                                heading: "How it is computed",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
-                                  "Uses the same total as the Fishing gains list above.",
+                                  "Uses the same total as the fishing gains list above.",
                                 ],
                               },
                             ],
@@ -1196,10 +1196,10 @@ export function Fishing() {
                       <th className="fishingUpgradeThLvl">Lvl</th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThTime">
-                        Time (hh:min)
+                        Time to next
                         <Tooltip
                           content={{
-                            title: "Time (hh:min)",
+                            title: "Time to next level",
                             sections: [
                               {
                                 heading: "Meaning",
@@ -1219,10 +1219,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it's computed",
+                                heading: "How it is computed",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
-                                  "Uses the same total as the Fishing gains list above.",
+                                  "Uses the same total as the fishing gains list above.",
                                 ],
                               },
                             ],
@@ -1342,10 +1342,10 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-enhancements" title="Available Enhancements" defaultExpanded={true}>
+        <Collapsible id="fishing-enhancements" title="Available enhancements" defaultExpanded={true}>
           <div className="fishingUpgradesPanel">
             <p className="fishingEnhancementsIntro">
-              Enhancements cost <img src={GEM_ICON_URL} alt="Gems" className="fishingGemIcon" /> Gems. They do not count toward completion. See{" "}
+              Enhancements cost <img src={GEM_ICON_URL} alt="gems" className="fishingGemIcon" /> gems. They do not count toward completion. See{" "}
               <a href="https://shminer.miraheze.org/wiki/Fishing#Enhancements" target="_blank" rel="noopener noreferrer">Fishing § Enhancements</a>.
             </p>
             <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
@@ -1363,10 +1363,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it's computed",
+                                heading: "How it is computed",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
-                                  "Uses the same total as the Fishing gains list above.",
+                                  "Uses the same total as the fishing gains list above.",
                                 ],
                               },
                             ],
@@ -1457,10 +1457,10 @@ export function Fishing() {
                             title: "+% gains",
                             sections: [
                               {
-                                heading: "How it's computed",
+                                heading: "How it is computed",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
-                                  "Uses the same total as the Fishing gains list above.",
+                                  "Uses the same total as the fishing gains list above.",
                                 ],
                               },
                             ],

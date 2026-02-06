@@ -361,12 +361,13 @@ export function ArchSim() {
     return Math.max(0.06, Math.min(0.28, alpha));
   }
 
+  /** Fragment upgrade level heat: higher level (closer to cap) = greener, low = red. */
   function heatStyle(level: number): CSSProperties {
     const a = heatAlphaFromLevel(level);
     if (a <= 0) return {};
     const maxRef = 50;
     const t = Math.max(0, Math.min(1, Math.log1p(Math.max(0, level)) / Math.log1p(maxRef)));
-    const hue = t < 0.5 ? 120 + (60 - 120) * (t / 0.5) : 60 + (30 - 60) * ((t - 0.5) / 0.5);
+    const hue = t < 0.5 ? 30 + (60 - 30) * (t / 0.5) : 60 + (120 - 60) * ((t - 0.5) / 0.5);
     const bg = `hsla(${hue.toFixed(1)}, 85%, 70%, ${a.toFixed(3)})`;
     const border = `hsla(${hue.toFixed(1)}, 85%, 38%, 0.35)`;
     return { backgroundColor: bg, borderColor: border };
@@ -381,12 +382,13 @@ export function ArchSim() {
     return { backgroundColor: bg, borderColor: border };
   }
 
+  /** Fragment upgrade level glow: higher level = greener. */
   function heatGlowStyle(level: number): CSSProperties {
     const lvl = Math.max(0, Math.trunc(level));
     if (lvl <= 0) return { color: "rgba(15,23,42,0.6)" };
     const maxRef = 50;
     const t = Math.max(0, Math.min(1, Math.log1p(lvl) / Math.log1p(maxRef)));
-    const hue = t < 0.5 ? 120 + (60 - 120) * (t / 0.5) : 60 + (30 - 60) * ((t - 0.5) / 0.5);
+    const hue = t < 0.5 ? 30 + (60 - 30) * (t / 0.5) : 60 + (120 - 60) * ((t - 0.5) / 0.5);
     const color = `hsl(${hue.toFixed(1)}, 75%, 35%)`;
     const glow = `0 0 8px hsla(${hue.toFixed(1)}, 75%, 45%, 0.9), 0 0 14px hsla(${hue.toFixed(1)}, 75%, 50%, 0.5), 0 0 22px hsla(${hue.toFixed(1)}, 70%, 55%, 0.3)`;
     return { color, textShadow: glow };

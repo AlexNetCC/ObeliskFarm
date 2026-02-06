@@ -1745,6 +1745,7 @@ a:hover {
   box-shadow: 0 10px 24px rgba(44, 62, 80, 0.20);
   overflow-wrap: break-word;
   word-break: break-word;
+  text-transform: none;
 }
 
 .tooltipTitle {
