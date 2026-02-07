@@ -773,3 +773,164 @@
     background-position: 100% 50%;
   }
 }
+
+/* MC simulation (variance) subsection */
+.fishingMcSection {
+  padding: 10px 0 4px;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+  margin-top: 8px;
+}
+.fishingMcInputRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.fishingMcLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.8);
+}
+.fishingMcInput {
+  width: 80px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+}
+.fishingMcResults {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+.fishingMcResultsTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(15, 23, 42, 0.65);
+  margin-bottom: 8px;
+}
+.fishingMcStats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fishingMcStatRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+}
+.fishingMcStatLabel {
+  color: rgba(15, 23, 42, 0.75);
+}
+.fishingMcStatRow .mono {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+.fishingMcPercentiles {
+  flex-wrap: wrap;
+}
+.fishingMcPercentiles .mono {
+  font-size: 12px;
+}
+
+/* Total-fish histogram */
+.fishingMcHistogramWrap {
+  margin-top: 10px;
+}
+.fishingMcHistogramBarRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 48px;
+}
+.fishingMcHistogramCell {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 2px;
+}
+.fishingMcHistogramBar {
+  width: 100%;
+  min-height: 0;
+  background: rgba(59, 130, 246, 0.7);
+  border-radius: 2px;
+  transition: height 0.15s ease;
+}
+.fishingMcHistogramAxis {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(15, 23, 42, 0.55);
+}
+.fishingMcHistogramAxisLabel {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+/* Per-fish block */
+.fishingMcPerFish {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+.fishingMcPerFishRow {
+  margin-bottom: 10px;
+}
+.fishingMcPerFishRow:last-child {
+  margin-bottom: 0;
+}
+.fishingMcPerFishHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.fishingMcPerFishHead .fishingFishIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.fishingMcPerFishName {
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.9);
+  min-width: 100px;
+}
+.fishingMcPerFishStats {
+  font-size: 11px;
+  color: rgba(15, 23, 42, 0.6);
+  margin-left: auto;
+}
+.fishingMcPerFishBars {
+  height: 24px;
+  gap: 1px;
+}
+.fishingMcPerFishCell {
+  height: 100%;
+  background: rgba(15, 23, 42, 0.05);
+}
+.fishingMcPerFishBar {
+  min-height: 0;
+  background: rgba(34, 197, 94, 0.6);
+}
+.fishingMcPerFishAxis {
+  margin-top: 2px;
+}

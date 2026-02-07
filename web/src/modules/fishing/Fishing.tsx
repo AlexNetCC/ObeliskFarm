@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import "./fishing.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
+import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
   AQUARIUM,
@@ -33,6 +34,20 @@ import {
 
 /** Fish card tier: 0 = none, 1 = Card (1.5×), 2 = Gilded (2×), 3 = Poly (4× base). */
 export type FishCardTier = 0 | 1 | 2 | 3;
+
+/** Sample from Poisson(lambda) using exponential inter-arrival. */
+function samplePoisson(rng: () => number, lambda: number): number {
+  if (lambda <= 0) return 0;
+  let count = 0;
+  let sum = 0;
+  while (sum < lambda) {
+    let u = rng();
+    if (u <= 0) u = 1e-10;
+    sum -= Math.log(u);
+    count++;
+  }
+  return count - 1;
+}
 
 type SavedState = {
   dronesPerDock?: Partial<Record<DockId, number>>;
@@ -455,6 +470,14 @@ export function Fishing() {
     saveJson(STORAGE_KEY, state);
   }, [state]);
 
+  const [mcState, setMcState] = useState<{
+    hours: number;
+    runs: number;
+    samples: number[] | null;
+    samplesPerFish: Record<string, number[]> | null;
+    running: boolean;
+  }>({ hours: 24, runs: 10000, samples: null, samplesPerFish: null, running: false });
+
   const upgradeLevels = state.upgradeLevels ?? {};
   const enhanceLevels = state.enhanceLevels ?? {};
   const skillTreeLevels = state.skillTreeLevels ?? {};
@@ -660,6 +683,66 @@ export function Fishing() {
     if (state.showDisabledFishGrayed) return fishingGainsRows;
     return fishingGainsRows.filter((r) => r.hasPower);
   }, [fishingGainsRows, state.showDisabledFishGrayed]);
+
+  /** Run MC: simulate each fill → rolls → catch attempt per fish; record total and per-fish. */
+  function runFishingMc() {
+    const { hours, runs } = mcState;
+    const dockIds = new Set(availableDocks.map((d) => d.id));
+    const doublePct = stats.double_tick_chance_pct / 100;
+    const triplePct = stats.triple_tick_chance_pct / 100;
+    type FishEntry = { fish: { id: string; name: string; powerRating: number }; ECR: number; totalMulti: number };
+    type DockEntry = { dockId: string; dockName: string; fillsPerHour: number; fish: FishEntry[] };
+    const docksWithPower: DockEntry[] = [];
+    for (const set of AQUARIUM) {
+      if (!dockIds.has(set.dockId)) continue;
+      const dock = DOCKS.find((d) => d.id === set.dockId)!;
+      const power = powerForDock(set.dockId);
+      if (power <= 0) continue;
+      const fillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const fish: FishEntry[] = set.fish.map((f) => ({
+        fish: f,
+        ECR: expectedCatchesPerRoll(power, f.powerRating),
+        totalMulti: stats.fish_income_multi * expectedShinyMulti * getCardMulti(f.id),
+      }));
+      docksWithPower.push({ dockId: set.dockId, dockName: dock.name, fillsPerHour, fish });
+    }
+    setMcState((s) => ({ ...s, running: true, samples: null, samplesPerFish: null }));
+    window.setTimeout(() => {
+      const rng = mulberry32((Date.now() & 0x7fffffff) >>> 0);
+      const samples: number[] = [];
+      const fishIds = new Set<string>();
+      for (const d of docksWithPower) for (const { fish: f } of d.fish) fishIds.add(f.id);
+      const samplesPerFish: Record<string, number[]> = {};
+      for (const id of fishIds) samplesPerFish[id] = [];
+      for (let i = 0; i < runs; i++) {
+        let total = 0;
+        const runPerFish: Record<string, number> = {};
+        for (const id of fishIds) runPerFish[id] = 0;
+        for (const { fillsPerHour, fish: fishList } of docksWithPower) {
+          const numFills = Math.floor(hours * fillsPerHour);
+          for (let f = 0; f < numFills; f++) {
+            const rolls = 1 + (rng() < doublePct ? 1 : 0) + (rng() < triplePct ? 2 : 0);
+            for (let r = 0; r < rolls; r++) {
+              for (const { fish: fDef, ECR, totalMulti } of fishList) {
+                const g = Math.floor(ECR);
+                const frac = ECR - g;
+                const raw = g + (rng() < frac ? 1 : 0);
+                const count = raw * totalMulti;
+                runPerFish[fDef.id] = (runPerFish[fDef.id] ?? 0) + count;
+                total += count;
+              }
+            }
+          }
+        }
+        samples.push(total);
+        for (const id of fishIds) samplesPerFish[id].push(runPerFish[id] ?? 0);
+      }
+      const sortNum = (a: number, b: number) => a - b;
+      samples.sort(sortNum);
+      for (const id of fishIds) samplesPerFish[id].sort(sortNum);
+      setMcState((s) => ({ ...s, running: false, samples, samplesPerFish }));
+    }, 0);
+  }
 
   /** Total fish per hour by fish id (sum across docks) for "time to next upgrade". */
   const totalFishPerHourByFishId = useMemo(() => {
@@ -1105,6 +1188,185 @@ export function Fishing() {
                 {Math.round(elixir3xFishingExternal.uptimeFraction * 100)}% uptime → {elixir3xFishingMulti.toFixed(2)}× multi)
               </span>
             </div>
+
+            <Collapsible id="fishing-mc" title="Variance (MC simulation)" defaultExpanded={false}>
+              <div className="fishingMcSection">
+                <p className="small" style={{ marginBottom: 8 }}>
+                  Simulate each catch attempt: every fill → rolls (double/triple) → catch roll per fish. EV above is the average; variance can be high.
+                </p>
+                <div className="fishingMcInputRow">
+                  <label className="fishingMcLabel">
+                    Hours
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0.1}
+                      max={720}
+                      step={0.5}
+                      className="fishingMcInput"
+                      value={mcState.hours}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (Number.isFinite(v)) setMcState((s) => ({ ...s, hours: Math.max(0.1, Math.min(720, v)) }));
+                      }}
+                      disabled={mcState.running}
+                      aria-label="Simulation hours"
+                    />
+                  </label>
+                  <label className="fishingMcLabel">
+                    Runs
+                    <input
+                      type="number"
+                      min={1000}
+                      max={100000}
+                      step={1000}
+                      className="fishingMcInput"
+                      value={mcState.runs}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (Number.isFinite(v)) setMcState((s) => ({ ...s, runs: Math.max(1000, Math.min(100000, v)) }));
+                      }}
+                      disabled={mcState.running}
+                      aria-label="MC runs"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={runFishingMc}
+                    disabled={mcState.running || visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).length === 0}
+                  >
+                    {mcState.running ? "Running…" : "Run simulation"}
+                  </button>
+                </div>
+                {mcState.samples && mcState.samples.length > 0 && (
+                  <div className="fishingMcResults">
+                    <div className="fishingMcResultsTitle">
+                      Total fish over the next {mcState.hours} h (N={mcState.samples.length.toLocaleString()})
+                    </div>
+                    {(() => {
+                      const s = mcState.samples;
+                      const mean = s.reduce((a, b) => a + b, 0) / s.length;
+                      const p10 = s[Math.floor(0.1 * s.length)] ?? 0;
+                      const p25 = s[Math.floor(0.25 * s.length)] ?? 0;
+                      const med = s[Math.floor(0.5 * s.length)] ?? 0;
+                      const p75 = s[Math.floor(0.75 * s.length)] ?? 0;
+                      const p90 = s[Math.floor(0.9 * s.length)] ?? 0;
+                      const evTotal = visibleGainsRows.reduce((sum, r) => sum + (r.hasPower ? r.fishPerHour * mcState.hours : 0), 0);
+                      const bins = 14;
+                      const lo = s[0] ?? 0;
+                      const hi = s[s.length - 1] ?? 0;
+                      const span = hi - lo || 1;
+                      const counts = new Array(bins).fill(0);
+                      for (const v of s) {
+                        const idx = Math.min(bins - 1, Math.floor(((v - lo) / span) * bins));
+                        counts[idx]++;
+                      }
+                      const maxCount = Math.max(...counts);
+                      return (
+                        <>
+                          <div className="fishingMcStats">
+                            <div className="fishingMcStatRow">
+                              <span className="fishingMcStatLabel">Mean (MC)</span>
+                              <span className="mono">{mean.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                            </div>
+                            <div className="fishingMcStatRow">
+                              <span className="fishingMcStatLabel">EV (expected)</span>
+                              <span className="mono">{evTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                            </div>
+                            <div className="fishingMcStatRow">
+                              <span className="fishingMcStatLabel">Median</span>
+                              <span className="mono">{med.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </div>
+                            <div className="fishingMcStatRow fishingMcPercentiles">
+                              <span className="fishingMcStatLabel">10th / 25th / 75th / 90th percentile</span>
+                              <span className="mono">{p10.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {p25.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {p75.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {p90.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </div>
+                          </div>
+                          <div className="fishingMcHistogramWrap">
+                            <div className="fishingMcHistogramBarRow">
+                              {counts.map((c, i) => {
+                                const barHeightPx = maxCount > 0 ? Math.max(c > 0 ? 4 : 0, Math.round((c / maxCount) * 48)) : 0;
+                                return (
+                                <div key={i} className="fishingMcHistogramCell" title={`${(lo + (span * i) / bins).toLocaleString(undefined, { maximumFractionDigits: 0 })}–${(lo + (span * (i + 1)) / bins).toLocaleString(undefined, { maximumFractionDigits: 0 })}: ${c}`}>
+                                  <div
+                                    className="fishingMcHistogramBar"
+                                    style={{ height: barHeightPx }}
+                                  />
+                                </div>
+                                );
+                              })}
+                            </div>
+                            <div className="fishingMcHistogramAxis small">
+                              <span>{lo.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              <span className="fishingMcHistogramAxisLabel">Fish count</span>
+                              <span>{hi.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+                {mcState.samplesPerFish && Object.keys(mcState.samplesPerFish).length > 0 && (() => {
+                  const fishIdsWithPower = new Set(visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).map((r) => r.fish.id));
+                  const fishIds = Object.keys(mcState.samplesPerFish).filter((id) => fishIdsWithPower.has(id));
+                  return (
+                  <div className="fishingMcPerFish">
+                    <div className="fishingMcResultsTitle">Per fish</div>
+                    {fishIds.map((fishId) => {
+                        const fish = getFishById(fishId);
+                        if (!fish) return null;
+                        const arr = mcState.samplesPerFish![fishId]!;
+                        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+                        const p10 = arr[Math.floor(0.1 * arr.length)] ?? 0;
+                        const p90 = arr[Math.floor(0.9 * arr.length)] ?? 0;
+                        const med = arr[Math.floor(0.5 * arr.length)] ?? 0;
+                        const lo = arr[0] ?? 0;
+                        const hi = arr[arr.length - 1] ?? 0;
+                        const span = hi - lo || 1;
+                        const bins = 10;
+                        const counts = new Array(bins).fill(0);
+                        for (const v of arr) {
+                          const idx = Math.min(bins - 1, Math.floor(((v - lo) / span) * bins));
+                          counts[idx]++;
+                        }
+                        const maxC = Math.max(...counts);
+                        return (
+                          <div key={fishId} className="fishingMcPerFishRow">
+                            <div className="fishingMcPerFishHead">
+                              <img src={fishIconUrl(fish.iconFile)} alt="" className="fishingFishIcon" />
+                              <span className="fishingMcPerFishName">{fish.name}</span>
+                              <span className="fishingMcPerFishStats mono small">
+                                mean {mean.toLocaleString(undefined, { maximumFractionDigits: 1 })} · med {med.toLocaleString(undefined, { maximumFractionDigits: 0 })} · P10 {p10.toLocaleString(undefined, { maximumFractionDigits: 0 })} / P90 {p90.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                            <div className="fishingMcHistogramBarRow fishingMcPerFishBars">
+                              {counts.map((c, i) => {
+                                const barHeightPx = maxC > 0 ? Math.max(c > 0 ? 2 : 0, Math.round((c / maxC) * 24)) : 0;
+                                return (
+                                <div key={i} className="fishingMcHistogramCell fishingMcPerFishCell" title={`${(lo + (span * i) / bins).toFixed(0)}–${(lo + (span * (i + 1)) / bins).toFixed(0)}: ${c}`}>
+                                  <div
+                                    className="fishingMcHistogramBar fishingMcPerFishBar"
+                                    style={{ height: barHeightPx }}
+                                  />
+                                </div>
+                                );
+                              })}
+                            </div>
+                            <div className="fishingMcHistogramAxis fishingMcPerFishAxis small">
+                              <span>{lo.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              <span className="fishingMcHistogramAxisLabel">Fish count</span>
+                              <span>{hi.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                  );
+                })()}
+              </div>
+            </Collapsible>
           </div>
         </Collapsible>
 
