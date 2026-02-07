@@ -186,6 +186,7 @@ export function Bombs() {
 
   const [params, setParams] = useState<GameParameters>(initial);
   const [autoBomberChaosTotem100, setAutoBomberChaosTotem100] = useState(false);
+  const [autoBomberOfflineGains, setAutoBomberOfflineGains] = useState(false);
 
   const externalFromGemEv = useMemo(() => {
     const ext = loadJson<{
@@ -241,7 +242,7 @@ export function Bombs() {
 
   const gameSpeedMult = typeof externalFromGemEv.game_speed_multiplier === "number" ? externalFromGemEv.game_speed_multiplier : 1.0;
   const autoBomberStats = useMemo(() => {
-    const drone10xMinPerHour = externalFromGemEv.drone;
+    const drone10xMinPerHour = autoBomberOfflineGains ? 0 : externalFromGemEv.drone;
     const drone10xUptime = drone10xMinPerHour / 60.0;
     const bomb10xFactor = 1.0 + 9.0 * drone10xUptime;
     const chaosUptime = autoBomberChaosTotem100 ? 1.0 : 0.0;
@@ -258,7 +259,7 @@ export function Bombs() {
     const gemEVPerHour = effectiveGemBombsPerHour * gemChance;
     const rechargeMinusDropped = gemBombsRechargedPerHour - gemBombsDroppedPerHour;
     return { gemBombsDroppedPerHour, gemBombsRechargedPerHour, gemEVPerHour, rechargeMinusDropped };
-  }, [effectiveParams, params.free_bomb_chance, params.gem_bomb_recharge_seconds, params.gem_bomb_recharge_card_level, params.gem_bomb_gem_chance, externalFromGemEv.drone, externalFromGemEv.game_speed_multiplier, gameSpeedMult, autoBomberChaosTotem100]);
+  }, [effectiveParams, params.free_bomb_chance, params.gem_bomb_recharge_seconds, params.gem_bomb_recharge_card_level, params.gem_bomb_gem_chance, externalFromGemEv.drone, externalFromGemEv.game_speed_multiplier, gameSpeedMult, autoBomberChaosTotem100, autoBomberOfflineGains]);
 
   return (
     <div className="container">
@@ -454,6 +455,10 @@ export function Bombs() {
                     heading: "10× Bomb Recharge",
                     lines: ["Only Elixir Drone is used here (runs on auto-pilot). Lootbug is not included."],
                   },
+                  {
+                    heading: "Offline Gains",
+                    lines: ["When checked, Elixir Drone 10× recharge is excluded from the auto-bomber calculation (offline = no drone buff)."],
+                  },
                 ],
               }}
               label="?"
@@ -464,7 +469,7 @@ export function Bombs() {
             <p className="small" style={{ marginBottom: 10 }}>
               Raw Gem Bombs: how many dropped by auto-bomber vs how many recharged (no D20/Battery refills, no Charge Magnets). Interval: {AUTO_BOMBER_INTERVAL_GAME_SEC} s game time ÷ Game Speed = {(AUTO_BOMBER_INTERVAL_GAME_SEC / gameSpeedMult).toFixed(2)} s real.
             </p>
-            <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <input
                 type="checkbox"
                 checked={autoBomberChaosTotem100}
@@ -472,6 +477,14 @@ export function Bombs() {
               />
               <img src={CHAOS_TOTEM_ICON} alt="" className="iconSmall" style={{ width: 20, height: 20 }} />
               <span>Chaos Totem 100% uptime</span>
+            </label>
+            <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={autoBomberOfflineGains}
+                onChange={(e) => setAutoBomberOfflineGains(e.target.checked)}
+              />
+              <span>Offline Gains = No Elixir Drone buff</span>
             </label>
             <div className="gemEvBombBlock">
               <div className="gemEvBombHeader">
