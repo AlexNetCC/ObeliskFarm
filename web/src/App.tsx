@@ -10,7 +10,8 @@ import { Fishing } from "./modules/fishing/Fishing";
 import { Drone } from "./modules/drone/Drone";
 import { Lootbug } from "./modules/lootbug/Lootbug";
 import { Items } from "./modules/items/Items";
-type ModuleId = "event" | "arch" | "gemev" | "stargazing" | "fishing" | "drone" | "lootbug" | "items";
+import { Bombs } from "./modules/bombs/Bombs";
+type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 
@@ -33,6 +34,7 @@ export function App() {
         { id: "event" as const, label: "Event Simulator", icon: "sprites/event/event_button.png" },
         { id: "arch" as const, label: "Archaeology Simulator", icon: "sprites/archaeology/archaeology.png" },
         { id: "gemev" as const, label: "Gem EV Calculator", icon: "sprites/common/gem.png" },
+        { id: "bombs" as const, label: "Bombs", icon: "sprites/event/gembomb.png" },
         { id: "stargazing" as const, label: "Stargazing Calculator", icon: "sprites/stargazing/stargazing.svg" },
         { id: "fishing" as const, label: "Fishing", icon: "https://static.wikitide.net/shminerwiki/f/fb/Fishing_Button.png" },
         { id: "drone" as const, label: "Drone", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
@@ -122,6 +124,8 @@ export function App() {
 
       {active === "gemev" ? (
         <GemEv />
+      ) : active === "bombs" ? (
+        <Bombs />
       ) : active === "event" ? (
         <EventSim />
       ) : active === "arch" ? (

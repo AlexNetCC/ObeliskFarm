@@ -29,11 +29,6 @@ type SavedStateV1 = {
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
-const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
-const WORKSHOP_BUTTON_ICON = "https://static.wikitide.net/shminerwiki/6/6f/Workshop_Button.png";
-/** Set true to show Founder Bomb section and chart bar again. */
-const FOUNDER_BOMB_VISIBLE = false;
-
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Math.trunc(n)));
@@ -213,6 +208,9 @@ export function GemEv() {
       chargeMagnetImpact?: number;
       lootbugItemChestsPerHour?: number;
       itemsPerChest?: number;
+      gemBombGemsPerHourFromBombs?: number;
+      gemBomb10xImpactFromBombs?: number;
+      chaosTotemImpactFromBombs?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
@@ -222,7 +220,10 @@ export function GemEv() {
     const chargeMagnetImpact = typeof ext?.chargeMagnetImpact === "number" ? ext.chargeMagnetImpact : 0;
     const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
     const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
-    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest };
+    const gemBombGemsPerHourFromBombs = typeof ext?.gemBombGemsPerHourFromBombs === "number" ? ext.gemBombGemsPerHourFromBombs : undefined;
+    const gemBomb10xImpactFromBombs = typeof ext?.gemBomb10xImpactFromBombs === "number" ? ext.gemBomb10xImpactFromBombs : undefined;
+    const chaosTotemImpactFromBombs = typeof ext?.chaosTotemImpactFromBombs === "number" ? ext.chaosTotemImpactFromBombs : undefined;
+    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
@@ -330,6 +331,11 @@ export function GemEv() {
     return Math.max(0, ev.gem_bomb_gems - withoutChaos);
   }, [effectiveParams, ev.gem_bomb_gems]);
 
+  /** Bomb contribution: from Bombs module when present, else from own params. */
+  const bombContribution = typeof external.gemBombGemsPerHourFromBombs === "number" ? external.gemBombGemsPerHourFromBombs : ev.gem_bomb_gems;
+  const gemBomb10xImpactForChart = typeof external.gemBomb10xImpactFromBombs === "number" ? external.gemBomb10xImpactFromBombs : gemBomb10xImpact;
+  const chaosTotemImpactForChart = typeof external.chaosTotemImpactFromBombs === "number" ? external.chaosTotemImpactFromBombs : chaosTotemImpact;
+
   /** When stonks is enabled: expected chests/h from stonks procs (base + super + ultra, all multis). */
   const stonksChestsPerHour = useMemo(() => {
     if (!stonksEnabled) return 0;
@@ -358,17 +364,32 @@ export function GemEv() {
       freebieChestsPerHour?: number;
       chaosTotemImpact?: number;
       stonksChestsPerHour?: number;
+      game_speed_multiplier?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
-    ext.gemBomb10xImpact = gemBomb10xImpact;
+    if (typeof external.gemBombGemsPerHourFromBombs !== "number") {
+      ext.gemBomb10xImpact = gemBomb10xImpact;
+      ext.chaosTotemImpact = chaosTotemImpact;
+    }
     ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
     ext.freebiesPerHour = freebiesPerHour;
     ext.freebieChestsPerHour = freebieChestsPerHour;
-    ext.chaosTotemImpact = chaosTotemImpact;
     ext.stonksChestsPerHour = stonksChestsPerHour;
+    ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour]);
+  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, external.gemBombGemsPerHourFromBombs]);
 
-  const totalWithLootbugAndDroneFuel = ev.total + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
+  const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
+
+  const evForChart = useMemo(() => ({
+    ...ev,
+    gem_bomb_gems: bombContribution,
+    total: (ev.total - ev.gem_bomb_gems) + bombContribution,
+  }), [ev, bombContribution]);
+
+  const breakdownForChart = useMemo(() => ({
+    ...breakdown,
+    gem_bomb_gems: { base: bombContribution, jackpot: 0.0, refresh_base: 0.0, refresh_jackpot: 0.0 },
+  }), [breakdown, bombContribution]);
 
   const marginal = useMemo(() => {
     const p2: GameParameters = { ...effectiveParams, freebie_gems_base: effectiveParams.freebie_gems_base + 1.0 };
@@ -443,42 +464,6 @@ export function GemEv() {
     [],
   );
 
-  const bombsInfo = useMemo(
-    () => ({
-      title: "BOMB MECHANICS",
-      sections: [
-        {
-          heading: "Free Bomb Chance",
-          lines: ["Chance that a bomb click consumes 0 charges.", "Applies to the entire dump (all charges at once).", "Affects all bomb types."],
-        },
-        {
-          heading: "Bomb cycle",
-          lines: [
-            "Early: Cherry → Battery → D20 → Gem. Cherry triple-charge bonus counts as extra battery detonations (more refills to all).",
-            "Late: Cherry → Gem → Battery → D20. Cherry triple-charge bonus counts as extra gem bomb detonations (direct gem EV).",
-            "Battery and D20 recursively refill all types regardless of cycle.",
-          ],
-        },
-        {
-          heading: "Total bomb types",
-          lines: [
-            "Count Founder Bomb, Veinmorph, and Megabomb. Base 10 + checked = total (max 13).",
-            "More bomb types = refill is more widely distributed (Battery and D20 spread charges across more targets).",
-          ],
-        },
-        {
-          heading: "Refill",
-          lines: [
-            "Battery bomb: refills all bomb types (Gem, Cherry, Battery, D20, and others) including itself (self-refill).",
-            "D20 bomb: refills all bomb types including itself (self-refill).",
-            "Charges are distributed evenly across all types (divided by total bomb types − 1 in the formula).",
-          ],
-        },
-      ],
-    }),
-    [],
-  );
-
   return (
     <div className="container">
       <div className="gemEvGrid">
@@ -487,7 +472,7 @@ export function GemEv() {
             <h1 className="title">Gem EV Calculator</h1>
             <p className="subtitle">Matches the desktop Gem EV layout: colored sections + contribution bar chart + Gift-EV.</p>
           </div>
-          <div className="badge">Freebies • Founder • Bombs</div>
+          <div className="badge">Freebies • Founder</div>
         </div>
 
         <div className="panel panelResults">
@@ -528,12 +513,9 @@ export function GemEv() {
             </div>
           </div>
 
-        <Collapsible
-            id="gemev-game-speed"
-            title="Game speed"
-            defaultExpanded={true}
-            className="gemEvSection tierHeader1"
-            headerRight={
+        <div id="gemev-game-speed" className="gemEvSection tierHeader1">
+            <div className="gemEvSectionHeader">
+              <span className="gemEvSectionTitle">Game speed</span>
               <Tooltip
                 content={{
                   title: "Game Speed",
@@ -550,8 +532,7 @@ export function GemEv() {
                 }}
                 label="?"
               />
-            }
-          >
+            </div>
             <div className="gemEvSectionBody gemEvGameSpeedSection">
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <div style={{ flex: "1", minWidth: "200px" }}>
@@ -573,7 +554,7 @@ export function GemEv() {
                 </div>
               </div>
             </div>
-          </Collapsible>
+          </div>
 
         <Collapsible
             id="gemev-freebie"
@@ -912,331 +893,6 @@ export function GemEv() {
             </div>
           </Collapsible>
 
-          <Collapsible
-            id="gemev-bombs"
-            title="BOMBS"
-            defaultExpanded={false}
-            className="gemEvSection tierHeader3"
-            headerRight={<Tooltip content={bombsInfo} />}
-          >
-            <div className="gemEvSectionBody">
-              {(external10x.lootbug > 0 || external10x.drone > 0) ? (
-                <div className="gemEvRow gemEvBomb10xGlow">
-                  <span className="mono small" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <img
-                      src="https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png"
-                      alt="10× Bomb Recharge"
-                      className="iconSmall"
-                      style={{ width: 24, height: 24, objectFit: "contain" }}
-                    />
-                    10× Bomb Recharge (Lootbug + Drone)
-                    <Tooltip
-                      content={{
-                        title: "10× Bomb Recharge min/h",
-                        sections: [
-                          {
-                            heading: "Source",
-                            lines: [
-                              "Sum of Lootbug and Elixir Drone 10× Bomb Recharge min/h. Opens Lootbug/Drone to update.",
-                              "Effective bomb recharge in calculations is divided by (1 + 9×uptime); 60 min/h ⇒ ÷10.",
-                            ],
-                          },
-                        ],
-                      }}
-                      label="?"
-                    />
-                  </span>
-                  <span className="mono small">{external10x.total.toFixed(1)} min/h</span>
-                </div>
-              ) : null}
-              <Stepper
-                label="Free Bomb Chance (%)"
-                value={params.free_bomb_chance * 100}
-                onChange={(v) => setParams((s) => ({ ...s, free_bomb_chance: v / 100 }))}
-                step={1}
-                min={0}
-                max={99}
-                decimals={1}
-              />
-
-              <div className="gemEvDivider" />
-
-              {FOUNDER_BOMB_VISIBLE ? (
-                <>
-                  <div className="gemEvSubSection">
-                    <div className="gemEvSubHeader">
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span className="mono" style={{ fontWeight: 900 }}>
-                          Founder Bomb
-                        </span>
-                        <Sprite path="sprites/event/founderbomb.png" alt="Founder Bomb" className="iconSmall" />
-                      </div>
-                      <CardToggles
-                        value={params.founder_bomb_recharge_card_level}
-                        disabled={!params.founder_enabled}
-                        onChange={(lvl) => setParams((s) => ({ ...s, founder_bomb_recharge_card_level: lvl }))}
-                      />
-                    </div>
-
-                    <Stepper
-                      label="Founder Bomb Interval (Seconds)"
-                      value={params.founder_bomb_interval_seconds}
-                      onChange={(v) => setParams((s) => ({ ...s, founder_bomb_interval_seconds: v }))}
-                      step={0.01}
-                      min={0.1}
-                      max={9999}
-                      decimals={2}
-                      disabled={!params.founder_enabled}
-                    />
-                    <p className="small" style={{ margin: "4px 0 0" }}>
-                      10% chance for 10 s of 2× speed (fixed).
-                    </p>
-                  </div>
-                  <div className="gemEvDivider" />
-                </>
-              ) : null}
-
-              <div className="gemEvInlineHead">
-                <span className="mono">Bomb cycle</span>
-              </div>
-              <div className="gemEvRow" style={{ flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                <label className="toggle" style={{ margin: 0 }}>
-                  <input
-                    type="radio"
-                    name="bomb_cycle"
-                    checked={(params.bomb_cycle ?? "early") === "early"}
-                    onChange={() => setParams((s) => ({ ...s, bomb_cycle: "early" }))}
-                  />
-                  Early: Cherry → Battery → D20 → Gem
-                </label>
-                <label className="toggle" style={{ margin: 0 }}>
-                  <input
-                    type="radio"
-                    name="bomb_cycle"
-                    checked={(params.bomb_cycle ?? "early") === "late"}
-                    onChange={() => setParams((s) => ({ ...s, bomb_cycle: "late" }))}
-                  />
-                  Late: Cherry → Gem → Battery → D20
-                </label>
-              </div>
-
-              <div className="gemEvDivider" />
-
-              <div className="gemEvInlineHead">
-                <span className="mono">Count as bomb types</span>
-              </div>
-              <div className="gemEvRow" style={{ flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-                <label className="toggle" style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={params.include_founder_bomb_in_total ?? true}
-                    onChange={(e) => setParams((s) => ({ ...s, include_founder_bomb_in_total: e.target.checked }))}
-                  />
-                  <Sprite path="sprites/event/founderbomb.png" alt="Founder Bomb" className="iconSmall" />
-                  Founder Bomb
-                </label>
-                <label className="toggle" style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={params.has_veinmorph_bomb ?? true}
-                    onChange={(e) => setParams((s) => ({ ...s, has_veinmorph_bomb: e.target.checked }))}
-                  />
-                  <Sprite path="sprites/event/veinmorph.png" alt="Veinmorph" className="iconSmall" label="sprites/event/veinmorph.png" />
-                  Veinmorph
-                </label>
-                <label className="toggle" style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={params.has_megabomb ?? false}
-                    onChange={(e) => setParams((s) => ({ ...s, has_megabomb: e.target.checked }))}
-                  />
-                  <Sprite path="sprites/event/megabomb.png" alt="Megabomb" className="iconSmall" label="sprites/event/megabomb.png" />
-                  Megabomb
-                </label>
-                <span className="mono small" style={{ opacity: 0.9 }}>
-                  Total: {effectiveParams.total_bomb_types}
-                </span>
-              </div>
-
-              <div className="gemEvDivider" />
-
-              <div className="gemEvBombBlock">
-                <div className="gemEvBombHeader">
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span className="mono" style={{ fontWeight: 900 }}>
-                      Gem Bomb
-                    </span>
-                    <Sprite path="sprites/event/gembomb.png" alt="Gem Bomb" className="iconSmall" />
-                    <Tooltip content={{ title: "Gem Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
-                  </div>
-                  <CardToggles value={params.gem_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, gem_bomb_recharge_card_level: lvl }))} />
-                </div>
-                <Stepper
-                  label={
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      Recharge (seconds, without Chaos Totem{" "}
-                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
-                      )
-                    </span>
-                  }
-                  value={params.gem_bomb_recharge_seconds}
-                  onChange={(v) => setParams((s) => ({ ...s, gem_bomb_recharge_seconds: v }))}
-                  step={0.01}
-                  min={0.1}
-                  max={9999}
-                  decimals={2}
-                />
-                <Stepper
-                  label="Gem Chance per Charge (%)"
-                  value={params.gem_bomb_gem_chance * 100}
-                  onChange={(v) => setParams((s) => ({ ...s, gem_bomb_gem_chance: v / 100 }))}
-                  step={0.5}
-                  min={0}
-                  max={100}
-                  decimals={1}
-                />
-              </div>
-
-              <div className="gemEvDivider" />
-
-              <div className="gemEvBombBlock">
-                <div className="gemEvBombHeader">
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span className="mono" style={{ fontWeight: 900 }}>
-                      Cherry Bomb
-                    </span>
-                    <Sprite path="sprites/event/cherrybomb.png" alt="Cherry Bomb" className="iconSmall" />
-                    <Tooltip content={{ title: "Cherry Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
-                  </div>
-                  <CardToggles value={params.cherry_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, cherry_bomb_recharge_card_level: lvl }))} />
-                </div>
-                <Stepper
-                  label={
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      Recharge (seconds, without Chaos Totem{" "}
-                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
-                      )
-                    </span>
-                  }
-                  value={params.cherry_bomb_recharge_seconds}
-                  onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_recharge_seconds: v }))}
-                  step={0.01}
-                  min={0.1}
-                  max={9999}
-                  decimals={2}
-                />
-                <Stepper
-                  label={
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      3× Charges Chance (%)
-                      <Tooltip
-                        content={{
-                          title: "3× charges chance",
-                          sections: [
-                            {
-                              heading: "Where to find it",
-                              lines: [
-                                <span key="workshop" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                  <img src={WORKSHOP_BUTTON_ICON} alt="Workshop" style={{ width: 18, height: 18, objectFit: "contain" }} />
-                                  Look up your value in the Workshop (Bombs section).
-                                </span>,
-                              ],
-                            },
-                          ],
-                        }}
-                      />
-                    </span>
-                  }
-                  value={params.cherry_bomb_triple_charge_chance * 100}
-                  onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_triple_charge_chance: v / 100 }))}
-                  step={1}
-                  min={0}
-                  max={100}
-                  decimals={1}
-                />
-              </div>
-
-              <div className="gemEvDivider" />
-
-              <div className="gemEvBombBlock">
-                <div className="gemEvBombHeader">
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span className="mono" style={{ fontWeight: 900 }}>
-                      Battery Bomb
-                    </span>
-                    <Sprite path="sprites/common/battery_bomb.png" alt="Battery Bomb" className="iconSmall" label="sprites/common/battery_bomb.png" />
-                    <Tooltip content={{ title: "Battery Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
-                  </div>
-                  <CardToggles value={params.battery_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, battery_bomb_recharge_card_level: lvl }))} />
-                </div>
-                <Stepper
-                  label={
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      Recharge (seconds, without Chaos Totem{" "}
-                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
-                      )
-                    </span>
-                  }
-                  value={params.battery_bomb_recharge_seconds}
-                  onChange={(v) => setParams((s) => ({ ...s, battery_bomb_recharge_seconds: v }))}
-                  step={0.01}
-                  min={0.1}
-                  max={9999}
-                  decimals={2}
-                />
-              </div>
-
-              <div className="gemEvDivider" />
-
-              <div className="gemEvBombBlock">
-                <div className="gemEvBombHeader">
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span className="mono" style={{ fontWeight: 900 }}>
-                      D20 Bomb
-                    </span>
-                    <Sprite path="sprites/common/d20_bomb.png" alt="D20 Bomb" className="iconSmall" label="sprites/common/d20_bomb.png" />
-                    <Tooltip content={{ title: "D20 Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
-                  </div>
-                  <CardToggles value={params.d20_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, d20_bomb_recharge_card_level: lvl }))} />
-                </div>
-                <Stepper
-                  label={
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      Recharge (seconds, without Chaos Totem{" "}
-                      <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />
-                      )
-                    </span>
-                  }
-                  value={params.d20_bomb_recharge_seconds}
-                  onChange={(v) => setParams((s) => ({ ...s, d20_bomb_recharge_seconds: v }))}
-                  step={0.01}
-                  min={0.1}
-                  max={9999}
-                  decimals={2}
-                />
-                <Stepper
-                  label="Charges Distributed"
-                  value={params.d20_bomb_charges_distributed}
-                  onChange={(v) => setParams((s) => ({ ...s, d20_bomb_charges_distributed: clampInt(v, 0, 9999) }))}
-                  step={1}
-                  min={0}
-                  max={9999}
-                  inputMode="numeric"
-                  decimals={0}
-                />
-                <Stepper
-                  label="Refill Chance (%)"
-                  value={params.d20_bomb_refill_chance * 100}
-                  onChange={(v) => setParams((s) => ({ ...s, d20_bomb_refill_chance: v / 100 }))}
-                  step={0.5}
-                  min={0}
-                  max={100}
-                  decimals={1}
-                />
-              </div>
-            </div>
-          </Collapsible>
-
         {chartOpen ? (
           <div className="modalOverlay" onMouseDown={() => setChartOpen(false)}>
             <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
@@ -1266,12 +922,12 @@ export function GemEv() {
                     </label>
                   </div>
                   <ContribBarChart
-                    ev={ev}
-                    breakdown={breakdown}
+                    ev={evForChart}
+                    breakdown={breakdownForChart}
                     lootbugNetGemsPerHour={external.lootbugNetGemsPerHour}
                     droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined}
-                    gemBomb10xImpact={gemBomb10xImpact}
-                    chaosTotemImpact={chaosTotemImpact}
+                    gemBomb10xImpact={gemBomb10xImpactForChart}
+                    chaosTotemImpact={chaosTotemImpactForChart}
                     chargeMagnetImpact={chargeMagnetImpactResolved}
                     showJackpotRefresh={showJackpotRefresh}
                     skillShardsEnabled={skillShardsEnabled}
