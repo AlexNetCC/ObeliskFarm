@@ -3,7 +3,7 @@ import "./items.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { loadJson, saveJson } from "../../lib/storage";
-import { calculateChargeMagnetGemsPerHour, calculateLuckyMultiplier, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateChargeMagnetGemsPerHour, calculateGemBombGemsPerHour, calculateLuckyMultiplier, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
@@ -55,7 +55,11 @@ export function Items() {
   const [state, setState] = useState<ItemsState>(() => {
     const saved = loadJson<Partial<ItemsState> & { chaosTotemDuration?: string }>(STORAGE_KEY);
     const base = { ...DEFAULT, ...saved };
-    if (typeof saved?.chaosTotemDuration === "string" && saved.chaosTotemDuration.trim()) {
+    // Prefer numeric duration fields so base duration persists; fall back to legacy string.
+    if (typeof saved?.chaosTotemDurationMin === "number" && typeof saved?.chaosTotemDurationSec === "number") {
+      base.chaosTotemDurationMin = Math.max(0, Math.trunc(saved.chaosTotemDurationMin));
+      base.chaosTotemDurationSec = Math.max(0, Math.min(59, Math.trunc(saved.chaosTotemDurationSec)));
+    } else if (typeof saved?.chaosTotemDuration === "string" && saved.chaosTotemDuration.trim()) {
       const parts = saved.chaosTotemDuration.trim().split(/[:\s]+/);
       if (parts.length >= 2) {
         const m = Number(parts[0]);
@@ -76,7 +80,7 @@ export function Items() {
   });
 
   useEffect(() => {
-    saveJson(STORAGE_KEY, state);
+    saveJson(STORAGE_KEY, { ...state, chaosTotemDuration: `${state.chaosTotemDurationMin}:${String(state.chaosTotemDurationSec).padStart(2, "0")}` });
   }, [state]);
 
   const update = (patch: Partial<ItemsState>) => setState((s) => ({ ...s, ...patch }));
@@ -108,7 +112,6 @@ export function Items() {
     typeof ext?.freebieChestsPerHour === "number" ? ext.freebieChestsPerHour : (typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0);
   const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
   const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
-  const chaosTotemImpact = typeof ext?.chaosTotemImpact === "number" ? ext.chaosTotemImpact : 0;
   const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour;
 
   /** Expected chests per Gift: base (1/12 × 32.5) × Lucky multiplier (3×/50× rolls). FYI only. */
@@ -140,11 +143,17 @@ export function Items() {
   const chargeMagnetsPerHour = itemsPerHourFromChests * (CHARGE_MAGNET_OBTAIN_CHANCE_PCT / 100);
   const chargeMagnetGemEvPerHour = chargeMagnetsPerHour * chargeMagnetGemsPerHour;
 
+  /** Chaos Totem contribution to Gem EV/h: computed live from Items state + Gem EV params (updates when duration/uptime change). */
+  const chaosTotemImpactLive =
+    calculateGemBombGemsPerHour(effectiveParamsForChargeMagnet) -
+    calculateGemBombGemsPerHour({ ...effectiveParamsForChargeMagnet, chaos_totem_uptime: 0 });
+
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.chaosTotemUptimePct = expectedUptimeFraction * 100;
+    ext.chaosTotemImpact = Math.max(0, chaosTotemImpactLive);
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [expectedUptimeFraction]);
+  }, [expectedUptimeFraction, chaosTotemImpactLive]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
@@ -400,15 +409,15 @@ export function Items() {
                     title: "Gem EV (FYI)",
                     lines: [
                       "Contribution of this Chaos Totem uptime to total Gem EV per hour.",
-                      "Value comes from Gem EV module; open or refresh Gem EV to see it.",
+                      "Updates live when you change base duration, obtain chance, or chests/h.",
                     ],
                   }}
                 />
               </span>
               <span
-                className={`itemsValue mono ${chaosTotemImpact > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
+                className={`itemsValue mono ${chaosTotemImpactLive > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
               >
-                {chaosTotemImpact > 0 ? `+${chaosTotemImpact.toFixed(1)} Gem/h` : "—"}
+                {chaosTotemImpactLive > 0 ? `+${chaosTotemImpactLive.toFixed(1)} Gem/h` : "—"}
               </span>
             </div>
           </div>
