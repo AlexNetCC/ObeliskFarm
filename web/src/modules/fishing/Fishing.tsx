@@ -528,6 +528,17 @@ export function Fishing() {
     });
   }
 
+  function setDockDronesTo(dockId: DockId, value: number) {
+    setState((prev) => {
+      const cur = prev.dronesPerDock[dockId] ?? 0;
+      const total = DOCKS.reduce((s, d) => s + (prev.dronesPerDock[d.id] ?? 0), 0);
+      const others = total - cur;
+      const maxThis = Math.max(0, droneCap - others);
+      const clamped = Math.max(0, Math.min(maxThis, value));
+      return { ...prev, dronesPerDock: { ...prev.dronesPerDock, [dockId]: clamped } };
+    });
+  }
+
   function setFishingUpgradeLevel(upgradeId: FishingUpgradeId, delta: number) {
     const costs = UPGRADE_COSTS[upgradeId];
     if (!costs?.length) return;
@@ -1304,6 +1315,15 @@ export function Fishing() {
                     <span className="fishingDockDroneControlsLabel">Fishing drone count</span>
                     <button
                       type="button"
+                      className="fishingDockDroneBtn fishingDockDroneBtnAll"
+                      onClick={() => setDockDronesTo(dock.id, 0)}
+                      disabled={dockDrones === 0}
+                      aria-label="Remove all drones"
+                    >
+                      −all
+                    </button>
+                    <button
+                      type="button"
                       className="fishingDockDroneBtn"
                       onClick={() => setDockDrones(dock.id, -1)}
                       disabled={!canSub}
@@ -1320,6 +1340,15 @@ export function Fishing() {
                       aria-label="Add drone"
                     >
                       +
+                    </button>
+                    <button
+                      type="button"
+                      className="fishingDockDroneBtn fishingDockDroneBtnAll"
+                      onClick={() => setDockDronesTo(dock.id, droneCap - (totalDronesAssigned - dockDrones))}
+                      disabled={!canAdd}
+                      aria-label="Add all drones to this dock"
+                    >
+                      +all
                     </button>
                   </div>
                 </div>
