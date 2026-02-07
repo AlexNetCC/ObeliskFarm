@@ -97,8 +97,8 @@ export class StargazingCalculator {
    * 2. Star Spawn Rate Multiplier: Increases the effective spawn chance
    * 3. At each spawn event, SS and regular stars are rolled independently:
    *    - Super Star can spawn (0 or 1 per event)
-   *    - Regular stars also roll (1/2/3/6 from double+triple); both can happen in the same event
-   * 4. Double/Triple Star Chance: Only for regular stars (1/2/3/6). Do not apply to SS; SS count uses triple_super_star_chance / super_star_10x only.
+   *    - Regular stars also roll (1/2/3/4/5/6 from double+triple; when both trigger, 4/5/6); both can happen in the same event
+   * 4. Double/Triple Star Chance: Only for regular stars (1/2/3/4/5/6). When both trigger, outcomes 4/5/6 (model: 1/3 each). Do not apply to SS; SS count uses triple_super_star_chance / super_star_10x only.
    * 5. Supernova/Supergiant/Radiant: Per star (each regular star can roll these)
    * 6. All Star Multiplier: Final multiplier on all stars
    */
@@ -115,8 +115,9 @@ export class StargazingCalculator {
   /**
    * Calculate expected number of REGULAR stars per spawn event.
    *
-   * Rolled independently of Super Star: every spawn event rolls regular stars (1/2/3/6).
-   * Double and triple rolled independently; both can trigger (→ 6 stars).
+   * Rolled independently of Super Star: every spawn event rolls regular stars (1/2/3/4/5/6).
+   * Double and triple rolled independently. When both trigger, in-game outcomes observed: 4, 5, 6.
+   * We model that as 1/3 each for 4, 5, 6 when both trigger (no in-game distribution known).
    * Each of these stars can independently roll supernova/supergiant/radiant (see multiplier).
    */
   calculate_stars_per_spawn(): number {
@@ -125,9 +126,13 @@ export class StargazingCalculator {
     const p_1 = (1 - p_double) * (1 - p_triple);
     const p_2 = p_double * (1 - p_triple);
     const p_3 = (1 - p_double) * p_triple;
-    const p_6 = p_double * p_triple;
+    const p_both = p_double * p_triple;
+    // When both trigger, observed outcomes 4, 5, 6; assume equal 1/3 each
+    const p_4 = p_both / 3;
+    const p_5 = p_both / 3;
+    const p_6 = p_both / 3;
 
-    return 1 * p_1 + 2 * p_2 + 3 * p_3 + 6 * p_6;
+    return 1 * p_1 + 2 * p_2 + 3 * p_3 + 4 * p_4 + 5 * p_5 + 6 * p_6;
   }
  
   /**
@@ -258,12 +263,61 @@ export class StargazingCalculator {
     return total_super_stars * clamp01(this.stats.auto_catch_chance) * offline_mult;
   }
  
+  /**
+   * Probabilities per floor clear for the hierarchy tree.
+   * Root = floor clear; then no star / star spawn (with regular 1/2/3/4/5/6 and SS 0/1/3/10).
+   */
+  get_spawn_tree(): {
+    spawn_chance_per_floor_clear: number;
+    no_star_pct: number;
+    star_spawn_pct: number;
+    regular: { stars: 1 | 2 | 3 | 4 | 5 | 6; pct: number }[];
+    super_star_pct: number;
+    super_star_outcomes: { count: 1 | 3 | 10; pct: number }[];
+  } {
+    const spawn_chance = Math.min(1, BASE_STAR_SPAWN_CHANCE * this.stats.star_spawn_rate_mult);
+    const p_double = clamp01(this.stats.double_star_chance);
+    const p_triple = clamp01(this.stats.triple_star_chance);
+    const p_1 = (1 - p_double) * (1 - p_triple);
+    const p_2 = p_double * (1 - p_triple);
+    const p_3 = (1 - p_double) * p_triple;
+    const p_both = p_double * p_triple;
+    const p_4 = p_both / 3;
+    const p_5 = p_both / 3;
+    const p_6 = p_both / 3;
+    const p_ss = clamp01(BASE_SUPER_STAR_SPAWN_CHANCE * this.stats.super_star_spawn_rate_mult);
+    const p_triple_ss = clamp01(this.stats.triple_super_star_chance);
+    const p_10x_ss = clamp01(this.stats.super_star_10x_chance);
+    const p_1_ss = Math.max(0, 1 - p_triple_ss - p_10x_ss);
+    return {
+      spawn_chance_per_floor_clear: spawn_chance,
+      no_star_pct: (1 - spawn_chance) * 100,
+      star_spawn_pct: spawn_chance * 100,
+      regular: [
+        { stars: 1, pct: p_1 * 100 },
+        { stars: 2, pct: p_2 * 100 },
+        { stars: 3, pct: p_3 * 100 },
+        { stars: 4, pct: p_4 * 100 },
+        { stars: 5, pct: p_5 * 100 },
+        { stars: 6, pct: p_6 * 100 },
+      ],
+      super_star_pct: p_ss * 100,
+      super_star_outcomes: [
+        { count: 1, pct: p_1_ss * 100 },
+        { count: 3, pct: p_triple_ss * 100 },
+        { count: 10, pct: p_10x_ss * 100 },
+      ],
+    };
+  }
+
   /** Get a summary of all calculated values. */
   get_summary(): {
     star_spawn_rate_per_hour: number;
+    stars_per_spawn: number;
     stars_per_hour_online: number;
     stars_per_hour_offline: number;
     super_star_spawn_rate_per_hour: number;
+    super_stars_per_spawn: number;
     super_stars_per_hour_online: number;
     super_stars_per_hour_offline: number;
     floor_clears_per_hour: number;
@@ -273,14 +327,16 @@ export class StargazingCalculator {
     return {
       // Star calculations
       star_spawn_rate_per_hour: this.calculate_star_spawn_rate_per_hour(),
+      stars_per_spawn: this.calculate_stars_per_spawn(),
       stars_per_hour_online: this.calculate_stars_per_hour_online(),
       stars_per_hour_offline: this.calculate_stars_per_hour_offline(),
- 
+
       // Super star calculations
       super_star_spawn_rate_per_hour: this.calculate_super_star_spawn_rate_per_hour(),
+      super_stars_per_spawn: this.calculate_super_stars_per_spawn(),
       super_stars_per_hour_online: this.calculate_super_stars_per_hour_online(),
       super_stars_per_hour_offline: this.calculate_super_stars_per_hour_offline(),
- 
+
       // Key stats
       floor_clears_per_hour: this.stats.floor_clears_per_hour,
       auto_catch_chance: this.stats.auto_catch_chance,

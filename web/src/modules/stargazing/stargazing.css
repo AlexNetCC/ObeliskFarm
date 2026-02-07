@@ -174,3 +174,56 @@
   object-fit: contain;
 }
 
+/* Spawn hierarchy tree (per floor clear) */
+.sgSpawnTree {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.82);
+  line-height: 1.45;
+}
+.sgSpawnTreeRoot {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.sgSpawnTreeBranch {
+  padding-left: 14px;
+  position: relative;
+  margin-top: 2px;
+}
+.sgSpawnTreeBranch::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(15, 23, 42, 0.18);
+}
+.sgSpawnTreeBranch > .sgSpawnTreeLabel {
+  margin-top: 4px;
+}
+.sgSpawnTreeHint {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.sgSpawnTreeIndent {
+  padding-left: 12px;
+  margin-top: 2px;
+  border-left: 1px solid rgba(15, 23, 42, 0.12);
+  margin-left: 2px;
+}
+.sgSpawnTreeLabel {
+  font-weight: 600;
+  margin-top: 2px;
+}
+.sgSpawnTreeLeaf {
+  padding-left: 8px;
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.sgSpawnTreeLeaf .mono {
+  color: rgba(15, 23, 42, 0.75);
+}
+

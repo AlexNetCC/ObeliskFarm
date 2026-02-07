@@ -372,6 +372,8 @@ export function Stargazing() {
     return calc.get_summary();
   }, [stats]);
 
+  const spawnTree = useMemo(() => new StargazingCalculator(stats).get_spawn_tree(), [stats]);
+
   /** Multiplier for selected card tier (Stars only; SS not affected). */
   const resultsCardMult = useMemo(() => {
     const sel = starCards.selected_card_for_results;
@@ -488,6 +490,50 @@ export function Stargazing() {
             <div className="small" style={{ marginTop: 10 }}>
               Spawn events/hour: <span className="mono">{fmt4(summary.star_spawn_rate_per_hour)}</span> • Super-star events/hour:{" "}
               <span className="mono">{fmt4(summary.super_star_spawn_rate_per_hour)}</span>
+            </div>
+            <div className="sgSpawnTree small" style={{ marginTop: 8 }}>
+              <div className="sgSpawnTreeRoot">
+                Floor clear <span style={{ fontWeight: 400, opacity: 0.8, fontSize: 11 }}>(base 2% spawn per clear × spawn rate mult)</span>
+              </div>
+              {spawnTree.no_star_pct > 0.001 && (
+                <div className="sgSpawnTreeBranch">
+                  No star at all (<span className="mono">{spawnTree.no_star_pct.toFixed(1)}%</span>)
+                </div>
+              )}
+              {spawnTree.star_spawn_pct > 0.001 && (
+                <div className="sgSpawnTreeBranch">
+                  <div className="sgSpawnTreeLabel">Star spawn (<span className="mono">{spawnTree.star_spawn_pct.toFixed(1)}%</span>) — regular and SS roll independently, both can occur</div>
+                  <div className="sgSpawnTreeIndent">
+                    <div className="sgSpawnTreeHint">(% of spawn events)</div>
+                    <div className="sgSpawnTreeLabel">Regular stars (always when spawn)</div>
+                    {spawnTree.regular
+                      .filter(({ pct }) => pct > 0.001)
+                      .map(({ stars, pct }) => (
+                        <div key={stars} className="sgSpawnTreeLeaf">
+                          {stars} star{stars > 1 ? "s" : ""} (<span className="mono">{pct.toFixed(1)}%</span>)
+                        </div>
+                      ))}
+                    {spawnTree.super_star_pct > 0.001 && (
+                      <>
+                        <div className="sgSpawnTreeLabel" style={{ marginTop: 4 }}>Super Star</div>
+                        {spawnTree.super_star_outcomes
+                          .filter(({ pct }) => (spawnTree.super_star_pct * pct) / 100 > 0.001)
+                          .map(({ count, pct }) => {
+                            const absolutePct = (spawnTree.super_star_pct * pct) / 100;
+                            return (
+                              <div key={count} className="sgSpawnTreeLeaf">
+                                {count} SS (<span className="mono">{absolutePct.toFixed(2)}%</span>)
+                              </div>
+                            );
+                          })}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="small" style={{ marginTop: 6, color: "var(--muted)" }}>
+              Hierarchy shows base spawn rates only. Star card multiplier (e.g. {resultsCardMult.toFixed(2)}× for selected card) applies to Stars/hour above, not to this tree.
             </div>
             {(droneBuffs.drone2xStarUptimeFraction > 0 || droneBuffs.drone3xSuperUptimeFraction > 0) && (
               <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
