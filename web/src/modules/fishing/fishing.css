@@ -934,3 +934,20 @@
 .fishingMcPerFishAxis {
   margin-top: 2px;
 }
+.fishingMcPerFishAxisTicks {
+  display: flex;
+  width: 100%;
+  margin-top: 2px;
+  font-size: 10px;
+  color: rgba(15, 23, 42, 0.55);
+}
+.fishingMcPerFishAxisTicks span {
+  flex: 1;
+  text-align: center;
+}
+.fishingMcPerFishAxisTicks span:first-child {
+  text-align: left;
+}
+.fishingMcPerFishAxisTicks span:last-child {
+  text-align: right;
+}

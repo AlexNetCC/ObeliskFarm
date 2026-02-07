@@ -1311,9 +1311,19 @@ export function Fishing() {
                 {mcState.samplesPerFish && Object.keys(mcState.samplesPerFish).length > 0 && (() => {
                   const fishIdsWithPower = new Set(visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).map((r) => r.fish.id));
                   const fishIds = Object.keys(mcState.samplesPerFish).filter((id) => fishIdsWithPower.has(id));
+                  const bins = 10;
+                  let globalHi = 0;
+                  for (const id of fishIds) {
+                    const a = mcState.samplesPerFish![id]!;
+                    if (a.length === 0) continue;
+                    const h = a[a.length - 1] ?? 0;
+                    if (h > globalHi) globalHi = h;
+                  }
+                  const globalLo = 0;
+                  const globalSpan = globalHi - globalLo || 1;
                   return (
                   <div className="fishingMcPerFish">
-                    <div className="fishingMcResultsTitle">Per fish</div>
+                    <div className="fishingMcResultsTitle">Per fish (same x-axis for comparison)</div>
                     {fishIds.map((fishId) => {
                         const fish = getFishById(fishId);
                         if (!fish) return null;
@@ -1322,13 +1332,9 @@ export function Fishing() {
                         const p10 = arr[Math.floor(0.1 * arr.length)] ?? 0;
                         const p90 = arr[Math.floor(0.9 * arr.length)] ?? 0;
                         const med = arr[Math.floor(0.5 * arr.length)] ?? 0;
-                        const lo = arr[0] ?? 0;
-                        const hi = arr[arr.length - 1] ?? 0;
-                        const span = hi - lo || 1;
-                        const bins = 10;
                         const counts = new Array(bins).fill(0);
                         for (const v of arr) {
-                          const idx = Math.min(bins - 1, Math.floor(((v - lo) / span) * bins));
+                          const idx = Math.min(bins - 1, Math.max(0, Math.floor(((v - globalLo) / globalSpan) * bins)));
                           counts[idx]++;
                         }
                         const maxC = Math.max(...counts);
@@ -1344,8 +1350,10 @@ export function Fishing() {
                             <div className="fishingMcHistogramBarRow fishingMcPerFishBars">
                               {counts.map((c, i) => {
                                 const barHeightPx = maxC > 0 ? Math.max(c > 0 ? 2 : 0, Math.round((c / maxC) * 24)) : 0;
+                                const binLo = globalLo + (globalSpan * i) / bins;
+                                const binHi = globalLo + (globalSpan * (i + 1)) / bins;
                                 return (
-                                <div key={i} className="fishingMcHistogramCell fishingMcPerFishCell" title={`${(lo + (span * i) / bins).toFixed(0)}–${(lo + (span * (i + 1)) / bins).toFixed(0)}: ${c}`}>
+                                <div key={i} className="fishingMcHistogramCell fishingMcPerFishCell" title={`${binLo.toFixed(0)}–${binHi.toFixed(0)}: ${c}`}>
                                   <div
                                     className="fishingMcHistogramBar fishingMcPerFishBar"
                                     style={{ height: barHeightPx }}
@@ -1354,10 +1362,14 @@ export function Fishing() {
                                 );
                               })}
                             </div>
-                            <div className="fishingMcHistogramAxis fishingMcPerFishAxis small">
-                              <span>{lo.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                              <span className="fishingMcHistogramAxisLabel">Fish count</span>
-                              <span>{hi.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            <div className="fishingMcPerFishAxis small">
+                              <div className="fishingMcPerFishAxisTicks">
+                                {[0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => (
+                                  <span key={t}>
+                                    {Math.round(globalLo + t * globalSpan).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         );
