@@ -529,6 +529,53 @@ export function GemEv() {
           </div>
 
         <Collapsible
+            id="gemev-game-speed"
+            title="Game speed"
+            defaultExpanded={true}
+            className="gemEvSection tierHeader1"
+            headerRight={
+              <Tooltip
+                content={{
+                  title: "Game Speed",
+                  sections: [
+                    {
+                      heading: "Stats value",
+                      lines: [
+                        "Game speed as × (e.g. 2× = half freebie timer). Same value as in the Stats screen (Stats button).",
+                        "Decimals allowed (e.g. 2.1×). Multiplicative with freebie cooldown and all bomb recharge times (not supply drop).",
+                        "1× = use VIP T10–T12; set >1 to override.",
+                      ],
+                    },
+                  ],
+                }}
+                label="?"
+              />
+            }
+          >
+            <div className="gemEvSectionBody gemEvGameSpeedSection">
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ flex: "1", minWidth: "200px" }}>
+                  <Stepper
+                    label={
+                      <>
+                        Game Speed
+                        <span className="mono" style={{ marginLeft: 4 }}>×</span>
+                      </>
+                    }
+                    value={getGameSpeedMultiplier(effectiveParams)}
+                    onChange={(v) => setParams((s) => ({ ...s, game_speed_multiplier: clamp(v, 1, 10) }))}
+                    step={0.01}
+                    min={1}
+                    max={10}
+                    decimals={2}
+                    showButtons={false}
+                  />
+                </div>
+              </div>
+            </div>
+          </Collapsible>
+
+        <Collapsible
             id="gemev-freebie"
             title="FREEBIE"
             defaultExpanded={false}
@@ -557,43 +604,6 @@ export function GemEv() {
               />
               <div className="gemEvInlineHead">
                 <span className="mono">Freebie timer</span>
-              </div>
-              <div className="gemEvGameSpeedWrap">
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <div style={{ flex: "1", minWidth: "260px" }}>
-                    <Stepper
-                      label={
-                        <>
-                          Game Speed
-                          <span className="mono" style={{ marginLeft: 4 }}>×</span>
-                        </>
-                      }
-                      value={getGameSpeedMultiplier(effectiveParams)}
-                      onChange={(v) => setParams((s) => ({ ...s, game_speed_multiplier: clamp(v, 1, 10) }))}
-                      step={0.01}
-                      min={1}
-                      max={10}
-                      decimals={2}
-                      showButtons={false}
-                    />
-                  </div>
-                  <Tooltip
-                    content={{
-                      title: "Game Speed",
-                      sections: [
-                        {
-                          heading: "Stats value",
-                          lines: [
-                            "Game speed as × (e.g. 2× = half freebie timer). Same value as in the Stats screen (Stats button).",
-                            "Decimals allowed (e.g. 2.1×). Multiplicative with freebie cooldown and all bomb recharge times (not supply drop).",
-                            "1× = use VIP T10–T12; set >1 to override.",
-                          ],
-                        },
-                      ],
-                    }}
-                    label="?"
-                  />
-                </div>
               </div>
               <Stepper
                 label="Freebie Timer (min) base"
