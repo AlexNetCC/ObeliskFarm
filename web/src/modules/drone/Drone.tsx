@@ -86,7 +86,7 @@ type ElixirState = {
   gasolineGuzzler: boolean;
   fuelDurationUpgradeLevel: number;
   fuelSaveChanceUpgradeLevel: number;
-  /** Upgrade Fuel Save Chance (%), additive with Coal Fuel Save. Decimal allowed. */
+  /** Upgrade Fuel Save Chance (%), multiplicative with Coal Fuel Save. Decimal allowed. */
   upgradeFuelSaveChancePct: number;
   /** Misc Fuel card: Fuel Duration 1.02× / 1.05× / 1.10× (card / gild / poly). */
   miscFuelCardTier: MiscFuelCardTier;
@@ -460,7 +460,9 @@ export function Drone() {
   const froggerFuelGemsPerHour = useMemo(() => {
     if (!state.froggerFueled || froggerFuelDurationSecReal <= 0) return 0;
     const fuelsPerHour = 3600 / froggerFuelDurationSecReal;
-    const saveChance = Math.min(1, state.fuelSaveChanceUpgradeLevel / 100 + state.upgradeFuelSaveChancePct / 100);
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [froggerFuelDurationSecReal, state.froggerFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
@@ -468,7 +470,9 @@ export function Drone() {
   const bombBearFuelGemsPerHour = useMemo(() => {
     if (!state.bombBearFueled || bombBearFuelDurationSecReal <= 0) return 0;
     const fuelsPerHour = 3600 / bombBearFuelDurationSecReal;
-    const saveChance = Math.min(1, state.fuelSaveChanceUpgradeLevel / 100 + state.upgradeFuelSaveChancePct / 100);
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [bombBearFuelDurationSecReal, state.bombBearFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
@@ -541,11 +545,13 @@ export function Drone() {
     return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes };
   }, [froggerBombIntervalSecReal, froggerBombsPerAutofire, droneBomb10xMinPerHour]);
 
-  /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. Save chance = Coal Fuel Save + Upgrade Fuel Save (additive), capped at 1. */
+  /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. Save chance = Coal and Upgrade Fuel Save combined multiplicatively. */
   const fuelGemsPerHour = useMemo(() => {
     if (fuelDurationSecReal <= 0) return 0;
     const fuelsPerHour = 3600 / fuelDurationSecReal;
-    const saveChance = Math.min(1, state.fuelSaveChanceUpgradeLevel / 100 + state.upgradeFuelSaveChancePct / 100);
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
@@ -789,7 +795,7 @@ export function Drone() {
                 title: "Fuel Save Chance",
                 lines: [
                   "Coal Upgrade: Fuel Save Chance +1% per level, max 20.",
-                  "Additive with Upgrade → Fuel Save Chance below.",
+                  "Multiplicative with Upgrade → Fuel Save Chance below.",
                 ],
               }}
             />
@@ -830,7 +836,7 @@ export function Drone() {
               tooltip={{
                 title: "Upgrade → Fuel Save Chance",
                 lines: [
-                  "Additional Fuel Save Chance (%), e.g. from other upgrades. Additive with Coal Fuel Save Chance above.",
+                  "Additional Fuel Save Chance (%), e.g. from other upgrades. Multiplicative with Coal Fuel Save Chance above.",
                 ],
               }}
             />
@@ -1012,7 +1018,7 @@ export function Drone() {
                           heading: "Formula",
                           lines: [
                             "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
-                            "Fuel Save Chance = Coal Fuel Save (+1%/level) + Upgrade → Fuel Save Chance (additive).",
+                            "Fuel Save Chance = Coal Fuel Save and Upgrade → Fuel Save Chance combined multiplicatively.",
                           ],
                         },
                       ],
@@ -1326,7 +1332,7 @@ export function Drone() {
                           heading: "Formula",
                           lines: [
                             "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
-                            "Fuel Save Chance = Coal Fuel Save (+1%/level) + Upgrade → Fuel Save Chance (additive).",
+                            "Fuel Save Chance = Coal Fuel Save and Upgrade → Fuel Save Chance combined multiplicatively.",
                           ],
                         },
                       ],
@@ -1523,7 +1529,7 @@ export function Drone() {
                           heading: "Formula",
                           lines: [
                             "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
-                            "Fuel Save Chance = Coal Fuel Save (+1%/level) + Upgrade → Fuel Save Chance (additive).",
+                            "Fuel Save Chance = Coal Fuel Save and Upgrade → Fuel Save Chance combined multiplicatively.",
                           ],
                         },
                       ],

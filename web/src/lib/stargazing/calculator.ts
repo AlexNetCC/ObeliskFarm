@@ -95,11 +95,11 @@ export class StargazingCalculator {
    * Game mechanics:
    * 1. Base chance: 1/50 (2%) per floor clear for a star to spawn
    * 2. Star Spawn Rate Multiplier: Increases the effective spawn chance
-   * 3. At each spawn event, either:
-   *    - A Super Star spawns (exclusive with regular stars)
-   *    - OR a Regular Star spawns (can be single/double/triple)
-   * 4. Double/Triple Star Chance: Only applies to regular star spawns
-   * 5. Supernova/Supergiant/Radiant: Multipliers on individual stars
+   * 3. At each spawn event, SS and regular stars are rolled independently:
+   *    - Super Star can spawn (0 or 1 per event)
+   *    - Regular stars also roll (1/2/3/6 from double+triple); both can happen in the same event
+   * 4. Double/Triple Star Chance: Only for regular stars (1/2/3/6). Do not apply to SS; SS count uses triple_super_star_chance / super_star_10x only.
+   * 5. Supernova/Supergiant/Radiant: Per star (each regular star can roll these)
    * 6. All Star Multiplier: Final multiplier on all stars
    */
   constructor(public readonly stats: PlayerStats) {}
@@ -115,28 +115,19 @@ export class StargazingCalculator {
   /**
    * Calculate expected number of REGULAR stars per spawn event.
    *
-   * Accounts for:
-   * - Double star chance (2 stars instead of 1)
-   * - Triple star chance (3 stars instead of 1)
-   *
-   * Note: Super Star spawns are exclusive with regular stars.
+   * Rolled independently of Super Star: every spawn event rolls regular stars (1/2/3/6).
+   * Double and triple rolled independently; both can trigger (→ 6 stars).
+   * Each of these stars can independently roll supernova/supergiant/radiant (see multiplier).
    */
   calculate_stars_per_spawn(): number {
-    // Probability of super star spawn (exclusive with regular stars)
-    const base_super_chance = BASE_SUPER_STAR_SPAWN_CHANCE; // 1/100 = 0.01
-    const p_super_star = clamp01(base_super_chance * this.stats.super_star_spawn_rate_mult);
- 
-    // Probability of regular star spawn (when not super star)
-    const p_regular_star = 1 - p_super_star;
- 
-    // Probability distribution for regular stars
+    const p_double = clamp01(this.stats.double_star_chance);
     const p_triple = clamp01(this.stats.triple_star_chance);
-    const p_double_raw = clamp01(this.stats.double_star_chance);
-    const p_double = p_double_raw * (1 - p_triple); // only if not triple
-    const p_single = Math.max(0, 1 - p_triple - p_double);
- 
-    // Expected regular stars per spawn event
-    return p_regular_star * (1 * p_single + 2 * p_double + 3 * p_triple);
+    const p_1 = (1 - p_double) * (1 - p_triple);
+    const p_2 = p_double * (1 - p_triple);
+    const p_3 = (1 - p_double) * p_triple;
+    const p_6 = p_double * p_triple;
+
+    return 1 * p_1 + 2 * p_2 + 3 * p_3 + 6 * p_6;
   }
  
   /**
@@ -229,7 +220,7 @@ export class StargazingCalculator {
   /**
    * Calculate the number of super star spawn events per hour.
    *
-   * IMPORTANT: Super Star spawns are EXCLUSIVE with Double/Triple Star spawns.
+   * SS is rolled per spawn event independently; regular stars (double/triple) also roll, so both can occur in the same event.
    */
   calculate_super_star_spawn_rate_per_hour(): number {
     // Number of star spawn events per hour

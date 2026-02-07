@@ -353,20 +353,13 @@ export function ArchSim() {
     return () => window.clearTimeout(t);
   }, [deleteLogArmedId]);
 
-  function heatAlphaFromLevel(level: number): number {
+  /** Heat relative to own cap: 0/cap = red, cap/cap = green. Same green for 5/5 and 25/25. */
+  function heatStyle(level: number, cap: number): CSSProperties {
     const lvl = Math.max(0, Math.trunc(level));
-    if (lvl <= 0) return 0;
-    const maxRef = 50;
-    const alpha = (Math.log1p(lvl) / Math.log1p(maxRef)) * 0.28;
-    return Math.max(0.06, Math.min(0.28, alpha));
-  }
-
-  /** Fragment upgrade level heat: higher level (closer to cap) = greener, low = red. */
-  function heatStyle(level: number): CSSProperties {
-    const a = heatAlphaFromLevel(level);
-    if (a <= 0) return {};
-    const maxRef = 50;
-    const t = Math.max(0, Math.min(1, Math.log1p(Math.max(0, level)) / Math.log1p(maxRef)));
+    const capSafe = Math.max(0, Math.trunc(cap));
+    const t = capSafe > 0 ? Math.min(1, lvl / capSafe) : 0;
+    if (t <= 0) return {};
+    const a = Math.max(0.06, Math.min(0.28, 0.06 + t * 0.22));
     const hue = t < 0.5 ? 30 + (60 - 30) * (t / 0.5) : 60 + (120 - 60) * ((t - 0.5) / 0.5);
     const bg = `hsla(${hue.toFixed(1)}, 85%, 70%, ${a.toFixed(3)})`;
     const border = `hsla(${hue.toFixed(1)}, 85%, 38%, 0.35)`;
@@ -382,12 +375,12 @@ export function ArchSim() {
     return { backgroundColor: bg, borderColor: border };
   }
 
-  /** Fragment upgrade level glow: higher level = greener. */
-  function heatGlowStyle(level: number): CSSProperties {
+  /** Glow relative to own cap: 0/cap = red, cap/cap = green. Pass cap for ratio; if cap <= 0 uses level-only (e.g. skills). */
+  function heatGlowStyle(level: number, cap?: number): CSSProperties {
     const lvl = Math.max(0, Math.trunc(level));
     if (lvl <= 0) return { color: "rgba(15,23,42,0.6)" };
-    const maxRef = 50;
-    const t = Math.max(0, Math.min(1, Math.log1p(lvl) / Math.log1p(maxRef)));
+    const capSafe = cap != null && cap > 0 ? Math.max(0, Math.trunc(cap)) : 0;
+    const t = capSafe > 0 ? Math.min(1, lvl / capSafe) : Math.max(0, Math.min(1, Math.log1p(lvl) / Math.log1p(50)));
     const hue = t < 0.5 ? 30 + (60 - 30) * (t / 0.5) : 60 + (120 - 60) * ((t - 0.5) / 0.5);
     const color = `hsl(${hue.toFixed(1)}, 75%, 35%)`;
     const glow = `0 0 8px hsla(${hue.toFixed(1)}, 75%, 45%, 0.9), 0 0 14px hsla(${hue.toFixed(1)}, 75%, 50%, 0.5), 0 0 22px hsla(${hue.toFixed(1)}, 70%, 55%, 0.3)`;
@@ -2690,7 +2683,7 @@ export function ArchSim() {
                           key={key}
                           className="fragmentUpgradeRow"
                           style={{
-                            ...(locked ? undefined : heatStyle(lvl)),
+                            ...(locked ? undefined : heatStyle(lvl, maxLvl)),
                             ...(isMaxed ? { color: "#888" } : undefined),
                           }}
                         >
@@ -2706,7 +2699,7 @@ export function ArchSim() {
                               ) : (
                                 <>
                                   <span className="small">lvl</span>{" "}
-                                  <span className="heatNum mono" style={isMaxed ? { color: "#888" } : heatStyle(lvl)}>
+                                  <span className="heatNum mono" style={isMaxed ? { color: "#888" } : heatStyle(lvl, maxLvl)}>
                                     {lvl}
                                   </span>{" "}
                                   <span className="small">/</span> <span className="mono">{maxLvl}</span>
@@ -2801,7 +2794,7 @@ export function ArchSim() {
                   const locked = build.unlockedStage < (GEM_UPGRADE_BONUSES[k].stage_unlock ?? 0);
                   const maxed = lvl >= max;
                   return (
-                    <div key={k} className={`gemUpgradeRow ${maxed ? "gemUpgradeMaxed" : ""} ${locked ? "gemUpgradeLocked" : ""}`} style={maxed || locked ? undefined : heatStyle(lvl)}>
+                    <div key={k} className={`gemUpgradeRow ${maxed ? "gemUpgradeMaxed" : ""} ${locked ? "gemUpgradeLocked" : ""}`} style={maxed || locked ? undefined : heatStyle(lvl, max)}>
                       <div className="label" style={{ alignItems: "center" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                           <Sprite path={u.icon} alt={`${k} gem upgrade`} className="iconSmall" />
@@ -2816,9 +2809,9 @@ export function ArchSim() {
                         ) : (
                           <span className="mono upgradeLevel">
                             <span className="small">lvl</span>{" "}
-                            <span className="heatNum mono" style={heatStyle(lvl)}>
-                              {lvl}
-                            </span>{" "}
+<span className="heatNum mono" style={heatStyle(lvl, max)}>
+                            {lvl}
+                          </span>{" "}
                             <span className="small">/</span> <span className="mono">{max}</span>
                           </span>
                         )}
@@ -3640,10 +3633,11 @@ export function ArchSim() {
                       >
                         {skills.map((s) => {
                           const v = b.skillPoints[s] ?? 0;
+                          const skillCap = getSkillPointCap(b, s);
                           return (
                             <span key={s}>
                               {abbr[s]}{" "}
-                              <span className="mono" style={heatGlowStyle(v)}>
+                              <span className="mono" style={heatGlowStyle(v, skillCap)}>
                                 {v}
                               </span>
                             </span>
