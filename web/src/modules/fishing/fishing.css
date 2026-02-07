@@ -866,7 +866,7 @@
 .fishingMcHistogramBar {
   width: 100%;
   min-height: 0;
-  background: rgba(59, 130, 246, 0.7);
+  background: rgba(92, 107, 192, 0.55);
   border-radius: 2px;
   transition: height 0.15s ease;
 }
@@ -929,7 +929,7 @@
 }
 .fishingMcPerFishBar {
   min-height: 0;
-  background: rgba(34, 197, 94, 0.6);
+  background: rgba(92, 107, 192, 0.55);
 }
 .fishingMcPerFishAxis {
   margin-top: 2px;
