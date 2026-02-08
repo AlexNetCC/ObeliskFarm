@@ -206,6 +206,7 @@ export function GemEv() {
       droneFuelGemsPerHour?: number;
       chaosTotemUptimePct?: number;
       chaosTotem100FromBombs?: boolean;
+      chaosTotemImpact?: number;
       chargeMagnetImpact?: number;
       lootbugItemChestsPerHour?: number;
       itemsPerChest?: number;
@@ -224,8 +225,9 @@ export function GemEv() {
     const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
     const gemBombGemsPerHourFromBombs = typeof ext?.gemBombGemsPerHourFromBombs === "number" ? ext.gemBombGemsPerHourFromBombs : undefined;
     const gemBomb10xImpactFromBombs = typeof ext?.gemBomb10xImpactFromBombs === "number" ? ext.gemBomb10xImpactFromBombs : undefined;
+    const chaosTotemImpactFromItems = typeof ext?.chaosTotemImpact === "number" ? ext.chaosTotemImpact : undefined;
     const chaosTotemImpactFromBombs = typeof ext?.chaosTotemImpactFromBombs === "number" ? ext.chaosTotemImpactFromBombs : undefined;
-    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
+    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
@@ -339,7 +341,10 @@ export function GemEv() {
   /** Bomb contribution: from Bombs module when present, else from own params. */
   const bombContribution = typeof external.gemBombGemsPerHourFromBombs === "number" ? external.gemBombGemsPerHourFromBombs : ev.gem_bomb_gems;
   const gemBomb10xImpactForChart = typeof external.gemBomb10xImpactFromBombs === "number" ? external.gemBomb10xImpactFromBombs : gemBomb10xImpact;
-  const chaosTotemImpactForChart = typeof external.chaosTotemImpactFromBombs === "number" ? external.chaosTotemImpactFromBombs : chaosTotemImpact;
+  /** Chaos Totem in chart: when 100% from Bombs use Bombs' impact; otherwise use Items (Tier 1) value so the chart shows the proportional Chaos Totem. */
+  const chaosTotemImpactForChart = external.chaosTotem100FromBombs
+    ? (typeof external.chaosTotemImpactFromBombs === "number" ? external.chaosTotemImpactFromBombs : chaosTotemImpact)
+    : (typeof external.chaosTotemImpactFromItems === "number" ? external.chaosTotemImpactFromItems : chaosTotemImpact);
 
   /** When stonks is enabled: expected chests/h from stonks procs (base + super + ultra, all multis). */
   const stonksChestsPerHour = useMemo(() => {

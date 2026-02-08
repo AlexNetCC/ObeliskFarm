@@ -9,8 +9,8 @@ const ELIXIR_BASE_INTERVAL_SEC = 360;
 const ELIXIR_SUIT_SEC_PER_LEVEL = 15;
 const ELIXIR_FUEL_BUFF_BASE_PCT = 60;
 const ELIXIR_FUEL_BUFF_PCT_PER_GRADE = 6;
-const COAL_FUEL_DURATION_MAX_LEVEL = 20;
-const COAL_FUEL_SAVE_MAX_LEVEL = 20;
+/** No cap: coal upgrades can go beyond former max 20. */
+const COAL_UPGRADE_MAX = 9999;
 /** 2× Game Speed buff: 2 min base; halved in real time when 2× Game Speed is active. */
 const GAME_SPEED_2X_BUFF_DURATION_SEC = 120;
 const ELIXIR_NUM_BUFFS_WITH_FISHING = 10;
@@ -343,11 +343,11 @@ function migrateFromV1(saved: Record<string, unknown>): Partial<ElixirState> {
   }
   if (typeof saved.fuelDurationMultPct === "number") {
     out.fuelDurationUpgradeLevel = Math.round(saved.fuelDurationMultPct - 100);
-    out.fuelDurationUpgradeLevel = clamp(out.fuelDurationUpgradeLevel, 0, COAL_FUEL_DURATION_MAX_LEVEL);
+    out.fuelDurationUpgradeLevel = clamp(out.fuelDurationUpgradeLevel, 0, COAL_UPGRADE_MAX);
   }
   if (typeof saved.fuelSaveChancePct === "number") {
     out.fuelSaveChanceUpgradeLevel = Math.round(saved.fuelSaveChancePct);
-    out.fuelSaveChanceUpgradeLevel = clamp(out.fuelSaveChanceUpgradeLevel, 0, COAL_FUEL_SAVE_MAX_LEVEL);
+    out.fuelSaveChanceUpgradeLevel = clamp(out.fuelSaveChanceUpgradeLevel, 0, COAL_UPGRADE_MAX);
   }
   return { ...saved, ...out } as Partial<ElixirState>;
 }
@@ -380,8 +380,8 @@ export function Drone() {
     const migrated = saved ? migrateFromV3(migrateFromV2(migrateFromV1(saved))) : {};
     const s = { ...DEFAULT, ...migrated } as ElixirState;
     s.gameSpeedMultiplier = clamp(s.gameSpeedMultiplier, 1, 10);
-    s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_FUEL_DURATION_MAX_LEVEL);
-    s.fuelSaveChanceUpgradeLevel = clamp(s.fuelSaveChanceUpgradeLevel, 0, COAL_FUEL_SAVE_MAX_LEVEL);
+    s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_UPGRADE_MAX);
+    s.fuelSaveChanceUpgradeLevel = clamp(s.fuelSaveChanceUpgradeLevel, 0, COAL_UPGRADE_MAX);
     s.upgradeFuelSaveChancePct = clamp(s.upgradeFuelSaveChancePct ?? DEFAULT.upgradeFuelSaveChancePct, 0, 100);
     s.miscFuelCardTier = clamp(Math.round(Number(s.miscFuelCardTier ?? 0)), 0, 3) as MiscFuelCardTier;
     s.fuelDurationRelicLevel = Math.max(0, Math.trunc(Number(s.fuelDurationRelicLevel ?? 0)));
@@ -867,14 +867,14 @@ export function Drone() {
               value={state.fuelSaveChanceUpgradeLevel}
               onChange={(n) => update({ fuelSaveChanceUpgradeLevel: n })}
               min={0}
-              max={COAL_FUEL_SAVE_MAX_LEVEL}
+              max={COAL_UPGRADE_MAX}
               step={1}
               stepLarge={5}
               suffix=""
               tooltip={{
                 title: "Fuel Save Chance",
                 lines: [
-                  "Coal Upgrade: Fuel Save Chance +1% per level, max 20.",
+                  "Coal Upgrade: Fuel Save Chance +1% per level (no cap).",
                   "Multiplicative with Upgrade → Fuel Save Chance below.",
                 ],
               }}
@@ -884,14 +884,14 @@ export function Drone() {
               value={state.fuelDurationUpgradeLevel}
               onChange={(n) => update({ fuelDurationUpgradeLevel: n })}
               min={0}
-              max={COAL_FUEL_DURATION_MAX_LEVEL}
+              max={COAL_UPGRADE_MAX}
               step={1}
               stepLarge={5}
               suffix=""
               tooltip={{
                 title: "Fuel Duration",
                 lines: [
-                  "Coal Upgrade: Fuel Duration +1% per level, max 20.",
+                  "Coal Upgrade: Fuel Duration +1% per level (no cap).",
                   "Effective: +" + state.fuelDurationUpgradeLevel + "%.",
                 ],
               }}
