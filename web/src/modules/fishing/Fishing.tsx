@@ -609,19 +609,23 @@ export function Fishing() {
 
   /** Base tick duration in seconds (60 + reduction, e.g. -40 → 20). */
   const tickDurationSec = Math.max(1, 60 + stats.fishing_tick_reduction);
-  /** Elixir 3× Fishing Tick Speed: from Drone module (fishing_external.json). Open Drone to sync. */
-  const elixir3xFishingExternal = (() => {
+  /** Elixir 3× and Angler Drone: from Drone module (fishing_external.json). Open Drone to sync. */
+  const fishingExternalData = (() => {
     const ext = loadJson<{
       elixir3xFishingTickSpeedMinPerHour?: number;
       elixir3xFishingTickSpeedUptimeFraction?: number;
+      anglerTicksPerHour?: number;
     }>(FISHING_EXTERNAL_KEY);
     const minPerHour = typeof ext?.elixir3xFishingTickSpeedMinPerHour === "number" ? ext.elixir3xFishingTickSpeedMinPerHour : 0;
     const uptimeFraction =
       typeof ext?.elixir3xFishingTickSpeedUptimeFraction === "number"
         ? Math.max(0, Math.min(1, ext.elixir3xFishingTickSpeedUptimeFraction))
         : 0;
-    return { minPerHour, uptimeFraction };
+    const anglerTicksPerHour = typeof ext?.anglerTicksPerHour === "number" ? Math.max(0, ext.anglerTicksPerHour) : 0;
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour };
   })();
+  const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
+  const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
 
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
   /** Fish/h multiplier from Elixir 3× buff (1 = no buff, 3 = 100% uptime). */
@@ -632,6 +636,8 @@ export function Fishing() {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rod = stats.fishing_rod_power;
     const dronePower = stats.drone_base_power;
+    const anglerFactor =
+      anglerTicksPerHour > 0 && effectiveTickSec > 0 ? (anglerTicksPerHour * effectiveTickSec) / 3600 : 0;
     return AQUARIUM.filter((set) => dockIds.has(set.dockId)).flatMap((set) => {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const rodHere = state.activeDockId === set.dockId ? rod : 0;
@@ -643,14 +649,15 @@ export function Fishing() {
       const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
       return set.fish.map((f) => {
         const catchPct = catchChancePercent(powerOnThisDock, f.powerRating);
-        const baseFishPerHour =
+        const base =
           dockFillsPerHour *
           expectedRollsPerFill *
           expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
           stats.fish_income_multi *
           expectedShinyMulti;
         const cardMulti = getCardMulti(f.id);
-        const fishPerHour = baseFishPerHour * cardMulti;
+        const baseFishPerHour = base * cardMulti;
+        const fishPerHour = baseFishPerHour * (1 + anglerFactor);
         const totalMulti = stats.fish_income_multi * expectedShinyMulti * cardMulti;
         const hasPower = powerOnThisDock > 0;
         return {
@@ -658,6 +665,7 @@ export function Fishing() {
           dockName: dock.name,
           hasPower,
           fish: f,
+          baseFishPerHour,
           fishPerHour,
           catchPct,
           totalMulti,
@@ -667,6 +675,7 @@ export function Fishing() {
   }, [
     availableDocks,
     effectiveTickSec,
+    anglerTicksPerHour,
     expectedShinyMulti,
     stats.fishing_rod_power,
     stats.drone_base_power,
@@ -683,6 +692,16 @@ export function Fishing() {
     if (state.showDisabledFishGrayed) return fishingGainsRows;
     return fishingGainsRows.filter((r) => r.hasPower);
   }, [fishingGainsRows, state.showDisabledFishGrayed]);
+
+  /** Export for Drone (Angler): effective tick duration and base fish gains (without Angler) so Drone can compute extra. */
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
+    ext.effectiveTickSec = effectiveTickSec;
+    ext.fishGains = visibleGainsRows
+      .filter((r) => r.hasPower && r.baseFishPerHour > 0)
+      .map((r) => ({ fishId: r.fish.id, fishName: r.fish.name, fishPerHour: r.baseFishPerHour }));
+    saveJson(FISHING_EXTERNAL_KEY, ext);
+  }, [effectiveTickSec, visibleGainsRows]);
 
   /** Run MC: simulate each fill → rolls → catch attempt per fish; record total and per-fish. */
   function runFishingMc() {

@@ -35,6 +35,14 @@ const BOMB_BEAR_LOOTBUG_SPAWN_PCT_MAX = 90;
 const BOMB_BEAR_FUEL_DURATION_BASE_SEC = 240; // 4:00
 const BOMB_BEAR_FUEL_DURATION_SEC_PER_GRADE = 12; // +0:12
 
+/** Angler Drone: 2 Fishing Ticks every 1140 s (game time). Suit: Time Between Fishing Ticks −40 s (e.g. −2 s per level → 1100 s at 20). */
+const ANGLER_BASE_INTERVAL_SEC = 1140;
+const ANGLER_TICKS_PER_INTERVAL = 2;
+const ANGLER_SUIT_SEC_PER_LEVEL = 2; // 1140 - 20*2 = 1100
+/** Angler fuel duration: same pattern as Frogger (3:00 + 0:09 per grade). */
+const ANGLER_FUEL_DURATION_BASE_SEC = 180;
+const ANGLER_FUEL_DURATION_SEC_PER_GRADE = 9;
+
 const GASOLINE_GUZZLER_FUEL_DURATION_PCT = 20;
 
 const ELIXIR_BUFF_ICONS =
@@ -106,9 +114,15 @@ type ElixirState = {
   bombBearDroneOn: boolean;
   bombBearGradeLevel: number;
   bombBearFueled: boolean;
+  /** Angler Drone: gives fishing ticks; when fueled, buff (extra ticks / legendary % / duration). */
+  anglerDroneOn: boolean;
+  anglerSuitLevel: number;
+  anglerGradeLevel: number;
+  anglerFueled: boolean;
 };
 
-const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v3";
+const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v4";
+const STORAGE_KEY_V3 = "obeliskfarm:web:drone_elixir_save.json:v3";
 const STORAGE_KEY_V2 = "obeliskfarm:web:drone_elixir_save.json:v2";
 const STORAGE_KEY_V1 = "obeliskfarm:web:drone_elixir_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -144,6 +158,10 @@ const DEFAULT: ElixirState = {
   bombBearDroneOn: true,
   bombBearGradeLevel: 0,
   bombBearFueled: false,
+  anglerDroneOn: true,
+  anglerSuitLevel: 0,
+  anglerGradeLevel: 0,
+  anglerFueled: false,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -343,12 +361,23 @@ function migrateFromV2(migrated: Partial<ElixirState>): Partial<ElixirState> {
   };
 }
 
+function migrateFromV3(migrated: Partial<ElixirState>): Partial<ElixirState> {
+  return {
+    ...migrated,
+    anglerDroneOn: typeof migrated.anglerDroneOn === "boolean" ? migrated.anglerDroneOn : DEFAULT.anglerDroneOn,
+    anglerSuitLevel: clamp(migrated.anglerSuitLevel ?? DEFAULT.anglerSuitLevel, 0, 20),
+    anglerGradeLevel: clamp(migrated.anglerGradeLevel ?? DEFAULT.anglerGradeLevel, 0, 45),
+    anglerFueled: typeof migrated.anglerFueled === "boolean" ? migrated.anglerFueled : DEFAULT.anglerFueled,
+  };
+}
+
 export function Drone() {
   const [state, setState] = useState<ElixirState>(() => {
     const saved = loadJson<Record<string, unknown>>(STORAGE_KEY)
+      ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V3)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V2)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V1);
-    const migrated = saved ? migrateFromV2(migrateFromV1(saved)) : {};
+    const migrated = saved ? migrateFromV3(migrateFromV2(migrateFromV1(saved))) : {};
     const s = { ...DEFAULT, ...migrated } as ElixirState;
     s.gameSpeedMultiplier = clamp(s.gameSpeedMultiplier, 1, 10);
     s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_FUEL_DURATION_MAX_LEVEL);
@@ -370,6 +399,10 @@ export function Drone() {
     s.bombBearDroneOn = typeof migrated.bombBearDroneOn === "boolean" ? migrated.bombBearDroneOn : DEFAULT.bombBearDroneOn;
     s.bombBearGradeLevel = clamp(s.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, 45);
     s.bombBearFueled = typeof migrated.bombBearFueled === "boolean" ? migrated.bombBearFueled : DEFAULT.bombBearFueled;
+    s.anglerDroneOn = typeof migrated.anglerDroneOn === "boolean" ? migrated.anglerDroneOn : DEFAULT.anglerDroneOn;
+    s.anglerSuitLevel = clamp(s.anglerSuitLevel ?? DEFAULT.anglerSuitLevel, 0, 20);
+    s.anglerGradeLevel = clamp(s.anglerGradeLevel ?? DEFAULT.anglerGradeLevel, 0, 45);
+    s.anglerFueled = typeof migrated.anglerFueled === "boolean" ? migrated.anglerFueled : DEFAULT.anglerFueled;
     return s;
   });
 
@@ -447,6 +480,24 @@ export function Drone() {
   );
   const bombBearFuelDurationSecReal = bombBearFuelDurationGameSec / gameSpeedMult;
 
+  /** Angler: interval (game time) = 1140 − suit×2 s; real time = interval / game speed. Ticks per hour = 2 × 3600 / (interval/gameSpeed) = 7200×gameSpeed/interval. */
+  const anglerIntervalSecGame = Math.max(1, ANGLER_BASE_INTERVAL_SEC - state.anglerSuitLevel * ANGLER_SUIT_SEC_PER_LEVEL);
+  const anglerIntervalSecReal = anglerIntervalSecGame / gameSpeedMult;
+  const anglerTicksPerHour = (ANGLER_TICKS_PER_INTERVAL * 3600) / anglerIntervalSecReal;
+
+  /** Angler fuel duration: 3:00 base + 0:09 per grade (shared multipliers). */
+  const anglerFuelDurationFromGradeSec = ANGLER_FUEL_DURATION_BASE_SEC + state.anglerGradeLevel * ANGLER_FUEL_DURATION_SEC_PER_GRADE;
+  const anglerFuelDurationGameSec = Math.round(
+    anglerFuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
+    (state.axolotlSkin ? 1.1 : 1) *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
+  );
+  const anglerFuelDurationSecReal = anglerFuelDurationGameSec / gameSpeedMult;
+
   /** Bomb Bear Lootbug spawn rate multiplier when ON and fueled: 1 + min(90%, 30% + 3%×grade). Applied multiplicatively in Lootbug. */
   const bombBearLootbugSpawnRateMult = useMemo(() => {
     if (!state.bombBearDroneOn || !state.bombBearFueled) return 1;
@@ -475,6 +526,16 @@ export function Drone() {
     const saveChance = 1 - (1 - coal) * (1 - upgrade);
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [bombBearFuelDurationSecReal, state.bombBearFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
+
+  /** Angler fuel cost (100% fueled): same formula. */
+  const anglerFuelGemsPerHour = useMemo(() => {
+    if (!state.anglerFueled || anglerFuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / anglerFuelDurationSecReal;
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [anglerFuelDurationSecReal, state.anglerFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
   const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
   const buffDurations = useMemo(() => {
@@ -561,10 +622,11 @@ export function Drone() {
     const elixirFuelGems = state.elixirDroneOn && state.fueled ? fuelGemsPerHour : 0;
     const froggerFuelGems = state.froggerDroneOn && state.froggerFueled ? froggerFuelGemsPerHour : 0;
     const bombBearFuelGems = state.bombBearDroneOn && state.bombBearFueled ? bombBearFuelGemsPerHour : 0;
-    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems;
+    const anglerFuelGems = state.anglerDroneOn && state.anglerFueled ? anglerFuelGemsPerHour : 0;
+    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems;
     ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -605,8 +667,9 @@ export function Drone() {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
     ext.elixir3xFishingTickSpeedMinPerHour = elixir3xFishingTickSpeedMinPerHour;
     ext.elixir3xFishingTickSpeedUptimeFraction = elixir3xFishingTickSpeedUptimeFraction;
+    ext.anglerTicksPerHour = state.anglerDroneOn ? anglerTicksPerHour : 0;
     saveJson(FISHING_EXTERNAL_KEY, ext);
-  }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction]);
+  }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction, state.anglerDroneOn, anglerTicksPerHour]);
 
   /** Drone's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
   const drone10xGemEvPerHour = (() => {
@@ -616,6 +679,23 @@ export function Drone() {
     if (total10x <= 0) return 0;
     return impact * (droneBomb10xMinPerHour / total10x);
   })();
+
+  /** Fishing data for Angler subsection: read from Fishing module external. Extra fish/h per type = fishPerHour × (anglerTicksPerHour × effectiveTickSec / 3600). Recomputes when suit/grade change (anglerTicksPerHour depends on suit). */
+  const anglerFishingData = useMemo(() => {
+    const ext = loadJson<{
+      effectiveTickSec?: number;
+      fishGains?: Array<{ fishId: string; fishName: string; fishPerHour: number }>;
+    }>(FISHING_EXTERNAL_KEY);
+    const effectiveTickSec = typeof ext?.effectiveTickSec === "number" ? ext.effectiveTickSec : 0;
+    const gains = Array.isArray(ext?.fishGains) ? ext.fishGains : [];
+    const ticks = state.anglerDroneOn ? anglerTicksPerHour : 0;
+    const factor = effectiveTickSec > 0 && ticks > 0 ? (ticks * effectiveTickSec) / 3600 : 0;
+    const extraPerFish = gains.map((g) => ({ ...g, extraFishPerHour: g.fishPerHour * factor }));
+    const totalExtraFishPerHour = extraPerFish.reduce((s, x) => s + x.extraFishPerHour, 0);
+    const totalBaseFishPerHour = gains.reduce((s, g) => s + g.fishPerHour, 0);
+    const extraFishPct = totalBaseFishPerHour > 0 ? (totalExtraFishPerHour / totalBaseFishPerHour) * 100 : 0;
+    return { effectiveTickSec, extraPerFish, totalExtraFishPerHour, totalBaseFishPerHour, extraFishPct };
+  }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, anglerTicksPerHour]);
 
   /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. When buff active, use live calc from Lootbug gems+net10x so it updates on every Drone change; else value from Lootbug. */
   const bombBearLootbugGemsEvPerHour = (() => {
@@ -1574,6 +1654,169 @@ export function Drone() {
               {bombBearLootbugGemsEvPerHour > 0 ? `+${bombBearLootbugGemsEvPerHour.toFixed(1)}` : "—"}
             </span>
           </div>
+        </div>
+      </Collapsible>
+
+      <Collapsible id="drone-angler" title="Angler Drone" defaultExpanded={true}>
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            Gives 2 Fishing Ticks every {ANGLER_BASE_INTERVAL_SEC} s (game time). Suit: Time Between Fishing Ticks −40 s. Integrates with Fishing module for ticks and extra fish.
+          </p>
+          <div className="droneCheckboxRow">
+            <input
+              id="angler-drone-on"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.anglerDroneOn}
+              onChange={(e) => update({ anglerDroneOn: e.target.checked })}
+            />
+            <label htmlFor="angler-drone-on" className="droneLabel">
+              Drone: {state.anglerDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Angler Drone",
+                lines: ["When OFF, Angler contributions (fishing ticks, fuel cost) are not sent. Open Fishing module to sync fish gains for the Fishing subsection below."],
+              }}
+            />
+          </div>
+          <div className="droneSectionTitle">Settings</div>
+          <Stepper
+            label="Angler Suit level"
+            value={state.anglerSuitLevel}
+            onChange={(n) => update({ anglerSuitLevel: n })}
+            min={0}
+            max={20}
+            step={1}
+            stepLarge={5}
+            tooltip={{
+              title: "Angler Suit",
+              lines: ["Time Between Fishing Ticks −2 s per level (base 1140 s). Real time = game time ÷ game speed."],
+            }}
+          />
+          <div className="droneRow">
+            <span className="droneLabel">→ Interval (2 ticks every)</span>
+            <span className="droneStepperValue">
+              {anglerIntervalSecGame} s game{gameSpeedMult > 1 ? ` = ${anglerIntervalSecReal.toFixed(1)} s real` : ""}
+            </span>
+          </div>
+          <div className="droneCheckboxRow">
+            <img
+              src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png"
+              alt=""
+              className="droneSkillIcon"
+              aria-hidden
+            />
+            <input
+              id="angler-fueled"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.anglerFueled}
+              onChange={(e) => update({ anglerFueled: e.target.checked })}
+            />
+            <label htmlFor="angler-fueled" className="droneLabel">
+              Drone fueled
+            </label>
+          </div>
+          {state.anglerFueled ? (
+            <div className="droneSubSection">
+              <div className="droneSubTitle">When fueled</div>
+              <Stepper
+                label="Grade level"
+                value={state.anglerGradeLevel}
+                onChange={(n) => update({ anglerGradeLevel: n })}
+                min={0}
+                max={45}
+                step={1}
+                stepLarge={5}
+                tooltip={{
+                  title: "Angler grade (fuel buff)",
+                  lines: [
+                    "Buff: 1% chance +6 ticks / +2% Legendary Fish Chance / 1:45 duration at grade 0; +6 ticks / +2% / +0:05.25 per grade. Max (Polychrome): +222 ticks / +52% / 3:09.",
+                    "Fuel duration: 3:00 at grade 0, +0:09 per grade. Same fuel multipliers as other drones.",
+                  ],
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {state.anglerFueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel (Angler)</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">{(anglerFuelDurationGameSec / 60).toFixed(1)} min</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">
+                {anglerFuelDurationSecReal >= 60
+                  ? Math.floor(anglerFuelDurationSecReal / 60) + ":" + String(Math.round(anglerFuelDurationSecReal % 60)).padStart(2, "0")
+                  : Math.round(anglerFuelDurationSecReal) + " s"}
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      lines: [
+                        "Average gems per hour spent on fuel to keep the Angler Drone fueled 100% of the time.",
+                        "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span className="droneFuelGemsValue" aria-label={`${anglerFuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{anglerFuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="droneSection">
+          <div className="droneSectionTitle">Fishing</div>
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            Ticks from this drone and extra fish based on your Fishing module selection (location, rod, etc.). Open Fishing to update.
+          </p>
+          <div className="droneRow">
+            <span className="droneLabel">Fishing ticks per hour (from drone)</span>
+            <span className="droneStepperValue">
+              {state.anglerDroneOn ? anglerTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+            </span>
+          </div>
+          {state.anglerDroneOn && anglerFishingData.extraPerFish.length > 0 ? (
+            <>
+              <div className="droneRow">
+                <span className="droneLabel">Total extra fish/h (from ticks)</span>
+                <span className="droneStepperValue">
+                  {anglerFishingData.totalExtraFishPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                  {" "}({anglerFishingData.extraFishPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%)
+                </span>
+              </div>
+              <div className="droneSubTitle" style={{ marginTop: 8, marginBottom: 4 }}>Extra fish by type</div>
+              <ul className="droneList small" style={{ margin: 0, paddingLeft: 20 }}>
+                {anglerFishingData.extraPerFish.map(({ fishName, extraFishPerHour }) => (
+                  <li key={fishName}>
+                    <span className="mono">{fishName}</span>: +{extraFishPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : state.anglerDroneOn ? (
+            <p className="droneHint small" style={{ marginBottom: 0 }}>
+              No fish with power in Fishing module. Open Fishing, select a dock and ensure rod/drones give power to at least one fish.
+            </p>
+          ) : null}
         </div>
       </Collapsible>
     </div>
