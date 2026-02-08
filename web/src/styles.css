@@ -1015,6 +1015,8 @@ body {
 }
 
 .tbValue {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   font-weight: 900;
 }
@@ -1290,6 +1292,8 @@ a:hover {
 }
 
 .worldMonumentsValue {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: 22px;
   font-weight: 900;
   color: rgba(50, 32, 16, 0.98);
@@ -1333,6 +1337,8 @@ a:hover {
 }
 
 .prestigeValue {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: 18px;
   font-weight: 900;
   color: var(--text);

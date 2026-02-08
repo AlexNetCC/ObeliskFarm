@@ -59,6 +59,31 @@
   min-width: 0;
 }
 
+/* Fishing tick subsection: brown tint, centered lines, seconds with 2 decimals, compact font */
+.fishingTickSection {
+  margin-bottom: 10px;
+  border-color: rgba(139, 90, 43, 0.28);
+  background: rgba(248, 240, 228, 0.75);
+  box-shadow: 0 0 10px rgba(139, 90, 43, 0.15);
+}
+.fishingTickRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  font-size: 12px;
+}
+.fishingTickRow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+}
+.fishingTickRow .mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Boat level row: brown glow so it stands out at top of Your stats */
 .fishingBoatLevelRow {
   display: grid;

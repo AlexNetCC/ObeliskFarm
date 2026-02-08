@@ -228,6 +228,7 @@
 }
 
 .itemsValue {
+  font-family: var(--mono);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--text);

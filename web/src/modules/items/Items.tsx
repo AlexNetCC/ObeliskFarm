@@ -310,7 +310,7 @@ export function Items() {
             }}
           />
           </span>
-          <span className="itemsValue">{gameSpeedMult.toFixed(2)}×</span>
+          <span className="itemsValue mono">{gameSpeedMult.toFixed(2)}×</span>
         </div>
       </div>
 

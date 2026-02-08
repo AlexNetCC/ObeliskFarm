@@ -104,6 +104,7 @@
 }
 
 .droneFuelGemsValue {
+  font-family: var(--mono);
   color: #c62828;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -251,6 +252,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   font-size: 13px;
@@ -305,6 +307,7 @@
 }
 
 .droneBuffPlotSummaryValue {
+  font-family: var(--mono);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -356,6 +359,7 @@
 }
 
 .droneBuffPlotRight {
+  font-family: var(--mono);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;

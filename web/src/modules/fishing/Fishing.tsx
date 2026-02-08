@@ -1317,9 +1317,9 @@ export function Fishing() {
                               })}
                             </div>
                             <div className="fishingMcHistogramAxis small">
-                              <span>{lo.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              <span className="mono">{lo.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                               <span className="fishingMcHistogramAxisLabel">Fish count</span>
-                              <span>{hi.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              <span className="mono">{hi.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </div>
                           </div>
                         </>
@@ -1384,7 +1384,7 @@ export function Fishing() {
                             <div className="fishingMcPerFishAxis small">
                               <div className="fishingMcPerFishAxisTicks">
                                 {[0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => (
-                                  <span key={t}>
+                                  <span key={t} className="mono">
                                     {Math.round(globalLo + t * globalSpan).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                   </span>
                                 ))}
@@ -1403,7 +1403,7 @@ export function Fishing() {
 
         <Collapsible
           id="fishing-your-stats"
-          title="Your stats (from game)"
+          title="Your stats"
           defaultExpanded={true}
           className="fishingLeftPanel"
           headerRight={
@@ -1413,6 +1413,16 @@ export function Fishing() {
             </>
           }
         >
+          <div className="fishingSection fishingTickSection">
+            <div className="fishingTickRows">
+              <div className="fishingTickRow">
+                1 Fishing Tick = <span className="mono">{tickDurationSec.toFixed(2)}</span> Seconds
+              </div>
+              <div className="fishingTickRow">
+                <strong>Effective</strong> 1 Fishing Tick = <span className="mono">{effectiveTickSec.toFixed(2)}</span> Seconds
+              </div>
+            </div>
+          </div>
           <div className="fishingBoatLevelRow">
             <StatRow
               label="Boat level (T1)"

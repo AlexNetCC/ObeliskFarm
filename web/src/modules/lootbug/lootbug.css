@@ -111,6 +111,7 @@
 }
 
 .lootbugValue {
+  font-family: var(--mono);
   min-width: 56px;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
