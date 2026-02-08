@@ -6,6 +6,7 @@ import { loadJson, saveJson } from "../../lib/storage";
 import { calculateChargeMagnetGemsPerHour, calculateGemBombGemsPerHour, calculateLuckyMultiplier, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
+const BOMBS_STORAGE_KEY = "obeliskfarm:web:bombs_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
@@ -126,11 +127,12 @@ export function Items() {
     chaosTotemsPerHour * (durationGameMin / gameSpeedMult);
   const expectedUptimeFraction = Math.min(1, Math.max(0, expectedUptimeMinPerHour / 60));
 
-  /** Params for Charge Magnet value: same merge as Gem EV (bomb settings + 10× min/h + Chaos Totem uptime). */
+  /** Params for Charge Magnet value: bomb settings from Bombs module (so bomb cycle etc. apply), 10× from external, Chaos Totem from Items. */
   const effectiveParamsForChargeMagnet = (() => {
     const base = defaultGameParameters();
-    const saved = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
-    const merged: GameParameters = { ...base, ...(saved?.params ?? {}) };
+    const gemevSaved = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
+    const bombsSaved = loadJson<{ params?: Partial<GameParameters> }>(BOMBS_STORAGE_KEY);
+    const merged: GameParameters = { ...base, ...(gemevSaved?.params ?? {}), ...(bombsSaved?.params ?? {}) };
     const total10x = typeof ext?.total10xMinPerHour === "number"
       ? ext.total10xMinPerHour
       : (ext?.lootbugBomb10xMinPerHour ?? 0) + (ext?.droneBomb10xMinPerHour ?? 0);
@@ -429,6 +431,23 @@ export function Items() {
             </div>
             <div className="itemsChaosTotemEffect">
               1 Charge Magnet → 20 charges to every bomb (Gem, Cherry, Battery, D20)
+            </div>
+            <div className="itemsRow">
+              <span className="itemsLabel">
+                1 Charge Magnet (in Gems)
+                <Tooltip
+                  content={{
+                    title: "1 Charge Magnet (in Gems)",
+                    lines: [
+                      "Contribution of one Charge Magnet to Gem EV. Uses Gem EV bomb settings (recharge times, gem chance, 10× min/h, Chaos Totem, and bomb cycle early/late).",
+                      "Same value × Charge Magnets per hour = → Gem EV (FYI) below.",
+                    ],
+                  }}
+                />
+              </span>
+              <span className="itemsValue mono">
+                {chargeMagnetGemsPerHour > 0 ? chargeMagnetGemsPerHour.toFixed(1) : "—"}
+              </span>
             </div>
             <div className="itemsRow">
               <span className="itemsLabel">
