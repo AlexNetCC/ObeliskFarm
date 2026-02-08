@@ -185,23 +185,23 @@
 .droneCoalUpgradesBlock {
   background: rgba(55, 65, 81, 0.25);
   border-radius: 10px;
-  padding: 12px;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  padding: 6px 8px;
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
 
 .droneUpgradesBlock {
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;
-  padding: 12px;
+  padding: 6px 8px;
 }
 
 .droneBlockHeader {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 4px;
   font-weight: 700;
   font-size: 13px;
   color: var(--text);
@@ -230,8 +230,8 @@
 }
 
 .droneStepperBtn {
-  padding: 8px 12px;
-  min-width: 38px;
+  padding: 4px 8px;
+  min-width: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

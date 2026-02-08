@@ -2447,7 +2447,7 @@ export function ArchSim() {
         </div>
 
         {/* Column 2: upgrades/cards */}
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 6 }}>
           <Collapsible
             id="arch-fragment-upgrades"
             title="Fragment upgrades"
@@ -2759,12 +2759,12 @@ export function ArchSim() {
           </Collapsible>
 
           <Collapsible id="arch-gem-upgrades" title="Gem upgrades" defaultExpanded={true} headerRight={<Sprite path="sprites/common/gem.png" alt="Gem" className="iconSmall" />}>
-            <div className="panel gemPanel" style={{ background: "var(--tier1)" }}>
-              <div className="small" style={{ marginBottom: 10 }}>
+            <div className="panel gemPanel" style={{ background: "var(--tier1)", padding: "6px 8px" }}>
+              <div className="small" style={{ marginBottom: 4 }}>
                 Permanent. Maxed levels are highlighted.
               </div>
 
-              <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 4 }}>
                 {(
                   [
                     {
@@ -2846,12 +2846,12 @@ export function ArchSim() {
               Per block type + tier. Card effects: HP −10/−20/−35% and XP +10/+20/+35% (polychrome can be boosted by the Stage 34 fragment upgrade).
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
               {BLOCK_TYPES.map((bt) => {
                 const color = BLOCK_COLORS[bt];
                 return (
-                  <div key={bt} style={{ border: "1px solid rgba(15,23,42,0.10)", borderRadius: 10, padding: 10, background: "var(--tier2)" }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                  <div key={bt} style={{ border: "1px solid rgba(15,23,42,0.10)", borderRadius: 10, padding: 6, background: "var(--tier2)" }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
                       <span className="mono" style={{ color, fontWeight: 900 }}>
                         {bt.toUpperCase()}
                       </span>
@@ -2869,28 +2869,28 @@ export function ArchSim() {
                           style={{
                             display: "grid",
                             gridTemplateColumns: "1fr",
-                            gap: 6,
+                            gap: 4,
                             alignItems: "center",
                             justifyItems: "center",
-                            marginBottom: 8,
-                            padding: "6px 8px",
+                            marginBottom: 4,
+                            padding: "4px 6px",
                             border: "1px solid rgba(15,23,42,0.08)",
                             borderRadius: 10,
                             background: "rgba(255,255,255,0.72)",
                           }}
                         >
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center" }}>
                             <Sprite path={icon} alt={`${bt} icon`} className="iconSmall" />
                             <div className="mono">
                               {bt} T{tier}
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
                             <button
                               className={`btn btnSecondary ${cur === 1 ? "cardBtnActive" : ""}`}
                               type="button"
                               onClick={() => setBlockCard(bt, t, 1)}
-                              style={{ padding: "6px 10px" }}
+                              style={{ padding: "3px 6px" }}
                             >
                               Card {cur === 1 ? "✓" : ""}
                             </button>
@@ -2898,7 +2898,7 @@ export function ArchSim() {
                               className={`btn btnSecondary ${cur === 2 ? "cardBtnActive" : ""}`}
                               type="button"
                               onClick={() => setBlockCard(bt, t, 2)}
-                              style={{ padding: "6px 10px" }}
+                              style={{ padding: "3px 6px" }}
                             >
                               Gild {cur === 2 ? "✓" : ""}
                             </button>
@@ -2906,7 +2906,7 @@ export function ArchSim() {
                               className={`btn btnSecondary ${cur === 3 ? "cardBtnActive" : ""}`}
                               type="button"
                               onClick={() => setBlockCard(bt, t, 3)}
-                              style={{ padding: "6px 10px" }}
+                              style={{ padding: "3px 6px" }}
                             >
                               Poly {cur === 3 ? "✓" : ""}
                             </button>
@@ -2918,13 +2918,13 @@ export function ArchSim() {
                 );
               })}
 
-              <div style={{ gridColumn: "1 / -1", border: "1px solid rgba(15,23,42,0.10)", borderRadius: 10, padding: 10, background: "var(--tier2)" }}>
-                <div className="label" style={{ justifyContent: "center", gap: 12 }}>
+              <div style={{ gridColumn: "1 / -1", border: "1px solid rgba(15,23,42,0.10)", borderRadius: 10, padding: 6, background: "var(--tier2)" }}>
+                <div className="label" style={{ justifyContent: "center", gap: 8 }}>
                   <span className="mono">Misc card (ability cooldown)</span>
                   <span className="mono">{build.miscCardLevel === 0 ? "OFF" : build.miscCardLevel === 1 ? "Card" : build.miscCardLevel === 2 ? "Gild" : "Poly"}</span>
                 </div>
                 <div className="small">Card: −3% cooldown • Gild: −6% • Poly: −10%</div>
-                <div className="btnRow" style={{ marginTop: 8, justifyContent: "center" }}>
+                <div className="btnRow" style={{ marginTop: 4, justifyContent: "center" }}>
                   <button className={`btn btnSecondary ${build.miscCardLevel === 1 ? "cardBtnActive" : ""}`} type="button" onClick={() => setMiscCard(1)}>
                     Card {build.miscCardLevel === 1 ? "✓" : ""}
                   </button>

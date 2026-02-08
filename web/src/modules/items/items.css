@@ -1,26 +1,26 @@
-/* Items module layout */
+/* Items module layout (compact spacing per project rule) */
 
 .itemsGrid {
   max-width: 560px;
   margin: 0 auto;
-  padding: 18px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .itemsChestsBlock {
   border: 2px solid rgba(15, 23, 42, 0.2);
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 8px 10px;
   background: rgba(255, 255, 255, 0.92);
 }
 
 .itemsBlockHeader {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .itemsBlockHeader .itemsBlockTitle {
@@ -28,7 +28,7 @@
 }
 
 .itemsBlockTitle {
-  margin: 0 0 12px 0;
+  margin: 0 0 6px 0;
   font-size: 16px;
   font-weight: 900;
   color: var(--text);
@@ -41,22 +41,22 @@
 .itemsChargeMagnet {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .itemsChestsBarBlock {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .itemsChestsBarHeader {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .itemsChestsBarWrap {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .itemsChestsBarBg {
@@ -96,7 +96,7 @@
 .itemsChestsBarLegend {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 6px;
   font-size: 12px;
   color: var(--text);
 }
@@ -182,8 +182,8 @@
 .itemsGameSpeedToggle {
   border: 2px solid rgba(15, 23, 42, 0.2);
   border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 14px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
   background: rgba(255, 255, 255, 0.92);
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
@@ -213,7 +213,7 @@
 .itemsGameSpeedReadOnly {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -249,27 +249,27 @@
 .itemsSection {
   border: 2px ridge var(--ridge);
   border-radius: 10px;
-  padding: 12px;
+  padding: 6px 8px;
   background: rgba(255, 255, 255, 0.92);
 }
 
 .itemsIntro {
   font-size: 13px;
   color: var(--text);
-  margin: 0 0 14px 0;
+  margin: 0 0 6px 0;
   line-height: 1.45;
 }
 
 .itemsChaosTotem {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 }
 
 .itemsChaosTotemHeader {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .itemsItemIcon {
@@ -287,18 +287,18 @@
 .itemsChaosTotemEffect {
   font-size: 12px;
   color: rgba(15, 23, 42, 0.8);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .itemsRow {
   display: grid;
   grid-template-columns: 1fr auto auto;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
 }
 
 .itemsInput {
-  padding: 8px 10px;
+  padding: 4px 8px;
   border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 8px;
   font: inherit;

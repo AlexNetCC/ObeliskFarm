@@ -1653,20 +1653,20 @@ export function EventSim() {
                 <p className="small">Permanent (not event currency)</p>
               </div>
               <div className="small">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   {ui.upgrades.gemLevels.map((lvl, idx) => {
                     const max = getGemMaxLevel(ui.prestige, idx);
                     const icon = gemUpgradeIconFilename(idx);
                     return (
-                      <div key={idx} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 10 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <div key={idx} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 6 }}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                           <Sprite path={icon ? `sprites/event/${icon}` : null} alt={GEM_UPGRADE_NAMES[idx] ?? `Gem ${idx + 1}`} label={icon ?? ""} />
                           <div className="mono">{GEM_UPGRADE_NAMES[idx] ?? `Gem ${idx + 1}`}</div>
                         </div>
                         <div className="small">
                           lvl <span className="mono">{lvl}</span> / <span className="mono">{max}</span>
                         </div>
-                        <div className="btnRow" style={{ marginTop: 8 }}>
+                        <div className="btnRow" style={{ marginTop: 4 }}>
                           <button
                             className="btn btnSecondary"
                             disabled={lvl <= 0}
