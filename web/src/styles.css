@@ -397,6 +397,18 @@ body {
   color: #94a3b8;
 }
 
+/* Target Prestige (Advanced): WebGL silver hologram when collapsed */
+.collapseWrap.eventTargetPrestige:not(:has(.collapseBody)) .collapseHeader {
+  position: relative;
+  overflow: hidden;
+}
+.eventTargetPrestigeShaderWrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .archGrid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1180,6 +1192,12 @@ a:hover {
   grid-template-columns: 1fr;
   gap: 14px;
   margin-bottom: 14px;
+}
+
+/* Current Upgrades subsection: constrained width like Fishing */
+.eventSimCurrentUpgradesWrap {
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 @media (min-width: 900px) {

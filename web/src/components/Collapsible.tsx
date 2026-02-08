@@ -5,10 +5,12 @@ export function Collapsible(props: {
   title: React.ReactNode;
   defaultExpanded?: boolean;
   headerRight?: React.ReactNode;
+  /** Rendered inside the header (e.g. shader overlay). Receives current expanded state. */
+  headerOverlay?: (expanded: boolean) => React.ReactNode;
   className?: string;
   children: React.ReactNode;
 }) {
-  const { id, title, defaultExpanded, headerRight, className, children } = props;
+  const { id, title, defaultExpanded, headerRight, headerOverlay, className, children } = props;
 
   const storageKey = useMemo(() => `obeliskfarm:web:ui:collapse:${id}`, [id]);
   const [expanded, setExpanded] = useState<boolean>(() => {
@@ -33,6 +35,7 @@ export function Collapsible(props: {
   return (
     <div className={className ? `collapseWrap ${className}` : "collapseWrap"}>
       <div className="collapseHeader">
+        {headerOverlay?.(expanded)}
         <button className="collapseToggle" type="button" onClick={() => setExpanded((x) => !x)} aria-expanded={expanded}>
           {expanded ? "▼" : "▶"}
         </button>

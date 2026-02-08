@@ -18,9 +18,17 @@ import { mulberry32 } from "../../lib/rng";
 import { assetUrl } from "../../lib/assets";
 import { currencyIconFilename, gemUpgradeIconFilename, upgradeIconFilename } from "../../lib/event/icons";
 import { Collapsible } from "../../components/Collapsible";
+import { SilverHologramCanvas } from "../../components/SilverHologramCanvas";
 import { Tooltip } from "../../components/Tooltip";
 
-type SavedStateV1 = { prestige: number; upgrade_levels: Record<string, number[]>; gem_levels: number[]; world_monuments?: number };
+type SavedStateV1 = {
+  prestige: number;
+  upgrade_levels: Record<string, number[]>;
+  gem_levels: number[];
+  world_monuments?: number;
+  targetPrestigeOverride?: boolean;
+  targetPrestige?: number;
+};
 
 export type EventMcComparisonMethodId = "default" | "multiStart3" | "wide" | "stable" | "wideMulti2";
 
@@ -82,6 +90,10 @@ type UiState = {
   waveBandStep: number;
   /** When true: band = highest reward wave reached (EVENT_REWARD_WAVES), tie-break by currency/h. */
   useRewardMilestones: boolean;
+  /** When true: MC only considers setups whose attack damage does not exceed enemy HP at target prestige wave. */
+  targetPrestigeOverride: boolean;
+  /** Target prestige for override (e.g. 120). Wave = (targetPrestige + 1) * 5. */
+  targetPrestige: number;
   devOnlyMcTuning: boolean;
   // Developer comparison (only used in sub-window)
   comparisonMethods: EventMcComparisonMethodId[];
@@ -182,6 +194,8 @@ export function EventSim() {
       mcRunsPerCombo: 500,
       waveBandStep: 0,
       useRewardMilestones: true,
+      targetPrestigeOverride: saved?.targetPrestigeOverride ?? false,
+      targetPrestige: clampInt(saved?.targetPrestige ?? 120, 0, 999),
       devOnlyMcTuning: false,
       comparisonMethods: ["default", "multiStart3"],
       comparisonReplicates: 3,
@@ -294,11 +308,13 @@ export function EventSim() {
           "4": ui.upgrades.levels[4].slice(),
         },
         gem_levels: ui.upgrades.gemLevels.slice(),
+        targetPrestigeOverride: ui.targetPrestigeOverride,
+        targetPrestige: ui.targetPrestige,
       };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui.prestige, ui.worldMonuments, ui.upgrades]);
+  }, [ui.prestige, ui.worldMonuments, ui.upgrades, ui.targetPrestigeOverride, ui.targetPrestige]);
 
   useEffect(() => {
     if (!resetUpgradesArmed) return;
@@ -397,6 +413,7 @@ export function EventSim() {
               seedBase: null,
               waveBandStep: ctx.waveBandStep,
               useRewardMilestones: ctx.useRewardMilestones,
+              targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
             },
           });
         }, 0);
@@ -458,6 +475,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10 + (comp.multiStartRun + 1),
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
+                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
               },
             });
             setProgress(null);
@@ -496,6 +514,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10,
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
+                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
               },
             });
             setProgress(null);
@@ -516,6 +535,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500,
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
+                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
               },
             });
             setProgress(null);
@@ -644,6 +664,7 @@ export function EventSim() {
           seedBase: null,
           waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
           useRewardMilestones: ui.useRewardMilestones ?? false,
+          targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
         },
       });
     } catch (e) {
@@ -660,6 +681,7 @@ export function EventSim() {
           seedBase: null,
           waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
           useRewardMilestones: ui.useRewardMilestones ?? false,
+          targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
           progressCallback: (cur: number, total2: number, curWave: number, bestWave: number) => {
             if (cur % 25 === 0 || cur === total2) setProgress({ cur, total: total2, curWave, bestWave });
           },
@@ -768,6 +790,7 @@ export function EventSim() {
         seedBase: 1_000_000,
         waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
         useRewardMilestones: ui.useRewardMilestones ?? false,
+        targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
       },
     });
   }
@@ -905,6 +928,63 @@ export function EventSim() {
               );
             })}
           </div>
+
+          <Collapsible
+            id="event-target-prestige"
+            className="eventPlayerStatsDark eventTargetPrestige"
+            title="Target Prestige (Advanced)"
+            defaultExpanded={false}
+            headerOverlay={(expanded) =>
+              !expanded ? (
+                <div className="eventTargetPrestigeShaderWrap">
+                  <SilverHologramCanvas />
+                </div>
+              ) : null
+            }
+          >
+            <div className="eventPlayerStatsDarkInner">
+              <label className="labelRow">
+                <input
+                  type="checkbox"
+                  checked={ui.targetPrestigeOverride}
+                  onChange={(e) =>
+                    setUi((s) => ({ ...s, targetPrestigeOverride: e.target.checked }))
+                  }
+                />
+                <span>Override simulation with target prestige goal</span>
+              </label>
+              {ui.targetPrestigeOverride && (
+                <div className="kv kvCompact" style={{ marginTop: 6 }}>
+                  <kbd>Target Prestige</kbd>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={999}
+                    value={ui.targetPrestige}
+                    onChange={(e) => {
+                      const v = parseNumber(e.target.value);
+                      setUi((s) => ({ ...s, targetPrestige: clampInt(v, 0, 999) }));
+                    }}
+                  />
+                </div>
+              )}
+              <Tooltip
+                content={{
+                  title: "Target Prestige (Advanced)",
+                  sections: [
+                    {
+                      heading: "Override",
+                      lines: [
+                        "When enabled, the optimizer only considers setups whose attack damage does not exceed enemy HP at the target prestige wave.",
+                        "Extra attack beyond one-shotting that wave is ignored, so results favor builds that reach the goal without over-investing in damage.",
+                      ],
+                    },
+                  ],
+                }}
+              />
+            </div>
+          </Collapsible>
 
           <Collapsible
             id="event-player-stats"
@@ -1378,6 +1458,7 @@ export function EventSim() {
                                 seedBase: null,
                                 waveBandStep,
                                 useRewardMilestones,
+                                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
                               },
                             });
                           }}
@@ -1446,9 +1527,10 @@ export function EventSim() {
       </div>
 
       <div className="eventSimBottom">
-        <div className="panel">
-          <div className="panelHeader">
-            <h2 className="panelTitle">Current Upgrades</h2>
+        <div className="eventSimCurrentUpgradesWrap">
+          <div className="panel">
+            <div className="panelHeader">
+              <h2 className="panelTitle">Current Upgrades</h2>
             <p className="panelHint">
               Total points: <span className="mono">{totalPoints}</span>
             </p>
@@ -1853,6 +1935,7 @@ export function EventSim() {
               </div>
             ) : null}
           </div>
+        </div>
         </div>
       </div>
 
