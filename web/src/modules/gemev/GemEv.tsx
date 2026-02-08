@@ -205,6 +205,7 @@ export function GemEv() {
       lootbugNetGemsPerHour?: number;
       droneFuelGemsPerHour?: number;
       chaosTotemUptimePct?: number;
+      chaosTotem100FromBombs?: boolean;
       chargeMagnetImpact?: number;
       lootbugItemChestsPerHour?: number;
       itemsPerChest?: number;
@@ -217,13 +218,14 @@ export function GemEv() {
     const lootbugNetGemsPerHour = typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0;
     const droneFuelGemsPerHour = typeof ext?.droneFuelGemsPerHour === "number" ? ext.droneFuelGemsPerHour : 0;
     const chaosTotemUptimePct = typeof ext?.chaosTotemUptimePct === "number" ? ext.chaosTotemUptimePct : 0;
+    const chaosTotem100FromBombs = Boolean(ext?.chaosTotem100FromBombs);
     const chargeMagnetImpact = typeof ext?.chargeMagnetImpact === "number" ? ext.chargeMagnetImpact : 0;
     const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
     const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
     const gemBombGemsPerHourFromBombs = typeof ext?.gemBombGemsPerHourFromBombs === "number" ? ext.gemBombGemsPerHourFromBombs : undefined;
     const gemBomb10xImpactFromBombs = typeof ext?.gemBomb10xImpactFromBombs === "number" ? ext.gemBomb10xImpactFromBombs : undefined;
     const chaosTotemImpactFromBombs = typeof ext?.chaosTotemImpactFromBombs === "number" ? ext.chaosTotemImpactFromBombs : undefined;
-    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
+    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
@@ -299,7 +301,10 @@ export function GemEv() {
     p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
 
     p.bomb_recharge_10x_min_per_hour = external10x.total;
-    p.chaos_totem_uptime = Math.max(0, Math.min(1, (external.chaosTotemUptimePct ?? 0) / 100));
+    // When Bombs has "Chaos Totem 100% Uptime" checked, use 100% so Gem EV matches bomb contribution
+    p.chaos_totem_uptime = external.chaosTotem100FromBombs
+      ? 1
+      : Math.max(0, Math.min(1, (external.chaosTotemUptimePct ?? 0) / 100));
 
     // Ensure positive time values
     p.freebie_timer_minutes = clamp(p.freebie_timer_minutes, 0.1, 10_000);
@@ -312,7 +317,7 @@ export function GemEv() {
     p.founder_bomb_speed_duration_seconds = clamp(p.founder_bomb_speed_duration_seconds, 0, 10_000);
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, external10x.total, external.chaosTotemUptimePct]);
+  }, [params, stonksEnabled, skillShardsEnabled, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);

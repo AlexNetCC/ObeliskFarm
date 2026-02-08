@@ -106,10 +106,12 @@ export function Items() {
     stonksChestsPerHour?: number;
     lootbugItemChestsPerHour?: number;
     chaosTotemImpact?: number;
+    chaosTotem100FromBombs?: boolean;
     total10xMinPerHour?: number;
     lootbugBomb10xMinPerHour?: number;
     droneBomb10xMinPerHour?: number;
   }>(GEMEV_EXTERNAL_KEY);
+  const chaosTotem100FromBombs = Boolean(ext?.chaosTotem100FromBombs);
   const freebieChestsPerHour =
     typeof ext?.freebieChestsPerHour === "number" ? ext.freebieChestsPerHour : (typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0);
   const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
@@ -128,7 +130,7 @@ export function Items() {
     chaosTotemsPerHour * (durationGameMin / gameSpeedMult);
   const expectedUptimeFraction = Math.min(1, Math.max(0, expectedUptimeMinPerHour / 60));
 
-  /** Params for Charge Magnet value: bomb settings from Bombs module (so bomb cycle etc. apply), 10× from external, Chaos Totem from Items. */
+  /** Params for Charge Magnet value: bomb settings from Bombs module (so bomb cycle etc. apply), 10× from external, Chaos Totem from Items or 100% when set in Bombs. */
   const effectiveParamsForChargeMagnet = (() => {
     const base = defaultGameParameters();
     const gemevSaved = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
@@ -138,7 +140,7 @@ export function Items() {
       ? ext.total10xMinPerHour
       : (ext?.lootbugBomb10xMinPerHour ?? 0) + (ext?.droneBomb10xMinPerHour ?? 0);
     merged.bomb_recharge_10x_min_per_hour = total10x;
-    merged.chaos_totem_uptime = expectedUptimeFraction;
+    merged.chaos_totem_uptime = chaosTotem100FromBombs ? 1 : expectedUptimeFraction;
     return merged;
   })();
   const chargeMagnetGemsPerHour = calculateChargeMagnetGemsPerHour(effectiveParamsForChargeMagnet, 20);
@@ -158,8 +160,10 @@ export function Items() {
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
-    ext.chaosTotemUptimePct = expectedUptimeFraction * 100;
-    ext.chaosTotemImpact = Math.max(0, chaosTotemImpactLive);
+    if (!ext.chaosTotem100FromBombs) {
+      ext.chaosTotemUptimePct = expectedUptimeFraction * 100;
+      ext.chaosTotemImpact = Math.max(0, chaosTotemImpactLive);
+    }
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [expectedUptimeFraction, chaosTotemImpactLive]);
 
@@ -368,98 +372,137 @@ export function Items() {
             <div className="itemsChaosTotemEffect">
               Bomb Damage 3.00×, Bomb Recharge Rate 2.00×
             </div>
-            <div className="itemsRow itemsDurationRow">
-              <span className="itemsLabel">
-                Base duration (bomb's tooltip)
-                <Tooltip
-                  content={{
-                    title: "Base duration",
-                    sections: [
-                      {
-                        heading: "Meaning",
-                        lines: ["Duration of the Chaos Totem buff in game time. Base from table: 2m30."],
-                      },
-                      { heading: "Format", lines: ["Enter minutes and seconds in the two fields."] },
-                    ],
-                  }}
-                />
-              </span>
-              <span className="itemsDurationFields">
-                <input
-                  className="itemsInput itemsDurationInput"
-                  type="number"
-                  min={0}
-                  max={999}
-                  value={state.chaosTotemDurationMin}
-                  onChange={(e) => update({ chaosTotemDurationMin: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
-                  aria-label="Chaos Totem duration minutes"
-                />
-                <span className="itemsDurationSep">min</span>
-                <input
-                  className="itemsInput itemsDurationInput"
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={state.chaosTotemDurationSec}
-                  onChange={(e) => update({ chaosTotemDurationSec: Math.max(0, Math.min(59, Math.trunc(Number(e.target.value) || 0))) })}
-                  aria-label="Chaos Totem duration seconds"
-                />
-                <span className="itemsDurationSep">sec</span>
-              </span>
-            </div>
-            <div className="itemsRow">
-              <span className="itemsLabel">
-                Average Chaos Totems / h
-                <Tooltip
-                  content={{
-                    title: "Average Chaos Totems / h",
-                    lines: [
-                      "Expected Chaos Totems per hour from Item Chests.",
-                      "Formula: Items per hour (from chests) × (obtain chance ÷ 100).",
-                    ],
-                  }}
-                />
-              </span>
-              <span className="itemsValue mono">
-                {chaosTotemsPerHour.toFixed(2)}
-              </span>
-            </div>
-            <div className="itemsRow">
-              <span className="itemsLabel">
-                Expected Uptime
-                <Tooltip
-                  content={{
-                    title: "Expected Uptime",
-                    lines: [
-                      "Expected real-time minutes per hour Chaos Totem is active. Gem EV uses this for bomb recharge.",
-                      "Formula: Chaos Totems/h × (base duration in game min ÷ game speed).",
-                    ],
-                  }}
-                />
-              </span>
-              <span className="itemsValue mono">
-                {expectedUptimeMinPerHour.toFixed(2)} min
-              </span>
-            </div>
-            <div className="itemsRow itemsChaosTotemGemEvRow">
-              <span className="itemsLabel">
-                → Gem EV (FYI)
-                <Tooltip
-                  content={{
-                    title: "Gem EV (FYI)",
-                    lines: [
-                      "Contribution of this Chaos Totem uptime to total Gem EV per hour.",
-                      "Updates live when you change base duration, obtain chance, or chests/h.",
-                    ],
-                  }}
-                />
-              </span>
-              <span
-                className={`itemsValue mono ${chaosTotemImpactLive > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
-              >
-                {chaosTotemImpactLive > 0 ? `+${chaosTotemImpactLive.toFixed(1)} Gem/h` : "—"}
-              </span>
-            </div>
+            {chaosTotem100FromBombs ? (
+              <>
+                <div className="itemsRow">
+                  <span className="itemsLabel">
+                    100% uptime (Bombs)
+                    <Tooltip
+                      content={{
+                        title: "100% uptime (Bombs)",
+                        lines: [
+                          "Chaos Totem 100% Uptime is checked in the Bombs module. Bomb contribution in Gem EV uses 100% uptime; base duration and chests from Items are not used.",
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="itemsValue mono itemsChaosTotemGemEv">100%</span>
+                </div>
+                <div className="itemsRow itemsChaosTotemGemEvRow">
+                  <span className="itemsLabel">
+                    → Gem EV (FYI)
+                    <Tooltip
+                      content={{
+                        title: "Gem EV (FYI)",
+                        lines: [
+                          "Contribution of Chaos Totem (100% uptime) to total Gem EV per hour from bomb recharge.",
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span
+                    className={`itemsValue mono ${chaosTotemImpactLive > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
+                  >
+                    {chaosTotemImpactLive > 0 ? `+${chaosTotemImpactLive.toFixed(1)} Gem/h` : "—"}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="itemsRow itemsDurationRow">
+                  <span className="itemsLabel">
+                    Base duration (bomb's tooltip)
+                    <Tooltip
+                      content={{
+                        title: "Base duration",
+                        sections: [
+                          {
+                            heading: "Meaning",
+                            lines: ["Duration of the Chaos Totem buff in game time. Base from table: 2m30."],
+                          },
+                          { heading: "Format", lines: ["Enter minutes and seconds in the two fields."] },
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="itemsDurationFields">
+                    <input
+                      className="itemsInput itemsDurationInput"
+                      type="number"
+                      min={0}
+                      max={999}
+                      value={state.chaosTotemDurationMin}
+                      onChange={(e) => update({ chaosTotemDurationMin: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+                      aria-label="Chaos Totem duration minutes"
+                    />
+                    <span className="itemsDurationSep">min</span>
+                    <input
+                      className="itemsInput itemsDurationInput"
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={state.chaosTotemDurationSec}
+                      onChange={(e) => update({ chaosTotemDurationSec: Math.max(0, Math.min(59, Math.trunc(Number(e.target.value) || 0))) })}
+                      aria-label="Chaos Totem duration seconds"
+                    />
+                    <span className="itemsDurationSep">sec</span>
+                  </span>
+                </div>
+                <div className="itemsRow">
+                  <span className="itemsLabel">
+                    Average Chaos Totems / h
+                    <Tooltip
+                      content={{
+                        title: "Average Chaos Totems / h",
+                        lines: [
+                          "Expected Chaos Totems per hour from Item Chests.",
+                          "Formula: Items per hour (from chests) × (obtain chance ÷ 100).",
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="itemsValue mono">
+                    {chaosTotemsPerHour.toFixed(2)}
+                  </span>
+                </div>
+                <div className="itemsRow">
+                  <span className="itemsLabel">
+                    Expected Uptime
+                    <Tooltip
+                      content={{
+                        title: "Expected Uptime",
+                        lines: [
+                          "Expected real-time minutes per hour Chaos Totem is active. Gem EV uses this for bomb recharge.",
+                          "Formula: Chaos Totems/h × (base duration in game min ÷ game speed).",
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="itemsValue mono">
+                    {expectedUptimeMinPerHour.toFixed(2)} min
+                  </span>
+                </div>
+                <div className="itemsRow itemsChaosTotemGemEvRow">
+                  <span className="itemsLabel">
+                    → Gem EV (FYI)
+                    <Tooltip
+                      content={{
+                        title: "Gem EV (FYI)",
+                        lines: [
+                          "Contribution of this Chaos Totem uptime to total Gem EV per hour.",
+                          "Updates live when you change base duration, obtain chance, or chests/h.",
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span
+                    className={`itemsValue mono ${chaosTotemImpactLive > 0 ? "itemsChaosTotemGemEv" : "itemsChaosTotemGemEvMuted"}`}
+                  >
+                    {chaosTotemImpactLive > 0 ? `+${chaosTotemImpactLive.toFixed(1)} Gem/h` : "—"}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="itemsChargeMagnet">

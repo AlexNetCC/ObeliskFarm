@@ -180,12 +180,15 @@ const bombsInfo = {
 export function Bombs() {
   const initial = useMemo(() => {
     const base = defaultGameParameters();
-    const saved = loadJson<{ params?: Partial<GameParameters> }>(STORAGE_KEY);
+    const saved = loadJson<{ params?: Partial<GameParameters>; chaosTotem100Uptime?: boolean }>(STORAGE_KEY);
     return { ...base, ...(saved?.params ?? {}) } as GameParameters;
   }, []);
 
   const [params, setParams] = useState<GameParameters>(initial);
-  const [autoBomberChaosTotem100, setAutoBomberChaosTotem100] = useState(false);
+  const [chaosTotem100Uptime, setChaosTotem100Uptime] = useState(() => {
+    const saved = loadJson<{ chaosTotem100Uptime?: boolean }>(STORAGE_KEY);
+    return saved?.chaosTotem100Uptime ?? false;
+  });
   const [autoBomberOfflineGains, setAutoBomberOfflineGains] = useState(false);
 
   const externalFromGemEv = useMemo(() => {
@@ -205,20 +208,19 @@ export function Bombs() {
   }, []); // re-read when module is shown (component remounts when switching back from Gem EV / Items / Lootbug / Drone)
 
   useEffect(() => {
-    const t = window.setTimeout(() => saveJson(STORAGE_KEY, { params }), 250);
+    const t = window.setTimeout(() => saveJson(STORAGE_KEY, { params, chaosTotem100Uptime }), 250);
     return () => window.clearTimeout(t);
-  }, [params]);
+  }, [params, chaosTotem100Uptime]);
 
   const effectiveParams = useMemo(() => {
     const p = normalizeBombParams(params, externalFromGemEv.total);
     if (typeof externalFromGemEv.game_speed_multiplier === "number") {
       p.game_speed_multiplier = externalFromGemEv.game_speed_multiplier;
     }
-    p.chaos_totem_uptime = typeof externalFromGemEv.chaosTotemUptimePct === "number"
-      ? Math.max(0, Math.min(1, externalFromGemEv.chaosTotemUptimePct / 100))
-      : 0;
+    // When toggle on: 100%. When off: 0% so Gem EV and bomb contribution update immediately without opening Items.
+    p.chaos_totem_uptime = chaosTotem100Uptime ? 1 : 0;
     return p;
-  }, [params, externalFromGemEv.total, externalFromGemEv.game_speed_multiplier, externalFromGemEv.chaosTotemUptimePct]);
+  }, [params, externalFromGemEv.total, externalFromGemEv.game_speed_multiplier, chaosTotem100Uptime]);
 
   const gemBombGemsPerHour = useMemo(() => calculateGemBombGemsPerHour(effectiveParams), [effectiveParams]);
   const gemBomb10xImpact = useMemo(() => {
@@ -237,15 +239,17 @@ export function Bombs() {
     ext.chaosTotemImpactFromBombs = chaosTotemImpact;
     ext.gemBomb10xImpact = gemBomb10xImpact;
     ext.chaosTotemImpact = chaosTotemImpact;
+    ext.chaosTotem100FromBombs = chaosTotem100Uptime;
+    ext.chaosTotemUptimePct = chaosTotem100Uptime ? 100 : 0;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [gemBombGemsPerHour, gemBomb10xImpact, chaosTotemImpact]);
+  }, [gemBombGemsPerHour, gemBomb10xImpact, chaosTotemImpact, chaosTotem100Uptime]);
 
   const gameSpeedMult = typeof externalFromGemEv.game_speed_multiplier === "number" ? externalFromGemEv.game_speed_multiplier : 1.0;
   const autoBomberStats = useMemo(() => {
     const drone10xMinPerHour = autoBomberOfflineGains ? 0 : externalFromGemEv.drone;
     const drone10xUptime = drone10xMinPerHour / 60.0;
     const bomb10xFactor = 1.0 + 9.0 * drone10xUptime;
-    const chaosUptime = autoBomberChaosTotem100 ? 1.0 : 0.0;
+    const chaosUptime = chaosTotem100Uptime ? 1.0 : 0.0;
     const chaosFactor = 1.0 + chaosUptime;
     const gameSpeedBonus = getGameSpeedBonus({ ...effectiveParams, game_speed_multiplier: gameSpeedMult });
     const effGemSec = Math.max(0.01, params.gem_bomb_recharge_seconds) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
@@ -259,7 +263,7 @@ export function Bombs() {
     const gemEVPerHour = effectiveGemBombsPerHour * gemChance;
     const rechargeMinusDropped = gemBombsRechargedPerHour - gemBombsDroppedPerHour;
     return { gemBombsDroppedPerHour, gemBombsRechargedPerHour, gemEVPerHour, rechargeMinusDropped };
-  }, [effectiveParams, params.free_bomb_chance, params.gem_bomb_recharge_seconds, params.gem_bomb_recharge_card_level, params.gem_bomb_gem_chance, externalFromGemEv.drone, externalFromGemEv.game_speed_multiplier, gameSpeedMult, autoBomberChaosTotem100, autoBomberOfflineGains]);
+  }, [effectiveParams, params.free_bomb_chance, params.gem_bomb_recharge_seconds, params.gem_bomb_recharge_card_level, params.gem_bomb_gem_chance, externalFromGemEv.drone, externalFromGemEv.game_speed_multiplier, gameSpeedMult, chaosTotem100Uptime, autoBomberOfflineGains]);
 
   return (
     <div className="container">
@@ -294,6 +298,25 @@ export function Bombs() {
             </span>
             <span className="mono bombsGameSpeedValue">{gameSpeedMult.toFixed(2)}×</span>
           </div>
+          <label className="toggle bombsChaosTotem100Toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 0 }}>
+            <input
+              type="checkbox"
+              checked={chaosTotem100Uptime}
+              onChange={(e) => setChaosTotem100Uptime(e.target.checked)}
+            />
+            <img src={CHAOS_TOTEM_ICON} alt="" className="iconSmall" style={{ width: 20, height: 20 }} aria-hidden />
+            <span>Chaos Totem 100% Uptime?</span>
+            <Tooltip
+              content={{
+                title: "Chaos Totem 100% Uptime",
+                lines: [
+                  "When checked, bomb calculations use 100% Chaos Totem uptime (2× recharge always). Recharge fields then mean the in-game value with Chaos Totem active.",
+                  "When unchecked, Chaos Totem uptime comes from Items (chests × duration). Recharge fields are base values without Chaos Totem.",
+                ],
+              }}
+              label="?"
+            />
+          </label>
         </div>
         <Collapsible
           id="bombs-bomb-input"
@@ -407,7 +430,7 @@ export function Bombs() {
               </div>
               <CardToggles value={params.gem_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, gem_bomb_recharge_card_level: lvl }))} />
             </div>
-            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds, without Chaos Totem <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />)</span>} value={params.gem_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
+            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds{chaosTotem100Uptime ? ")" : ", without Chaos Totem)"}{chaosTotem100Uptime ? null : <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />}</span>} value={params.gem_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
             <Stepper label="Gem Chance per Charge (%)" value={params.gem_bomb_gem_chance * 100} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_gem_chance: v / 100 }))} step={0.5} min={0} max={100} decimals={1} />
           </div>
 
@@ -422,7 +445,7 @@ export function Bombs() {
               </div>
               <CardToggles value={params.cherry_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, cherry_bomb_recharge_card_level: lvl }))} />
             </div>
-            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds, without Chaos Totem <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />)</span>} value={params.cherry_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
+            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds{chaosTotem100Uptime ? ")" : ", without Chaos Totem)"}{chaosTotem100Uptime ? null : <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />}</span>} value={params.cherry_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
             <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>3× Charges Chance (%) <Tooltip content={{ title: "3× charges chance", sections: [{ heading: "Where to find it", lines: [<span key="w" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><img src={WORKSHOP_BUTTON_ICON} alt="Workshop" style={{ width: 18, height: 18, objectFit: "contain" }} /> Look up your value in the Workshop (Bombs section).</span>] }] }} /></span>} value={params.cherry_bomb_triple_charge_chance * 100} onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_triple_charge_chance: v / 100 }))} step={1} min={0} max={100} decimals={1} />
           </div>
 
@@ -437,7 +460,7 @@ export function Bombs() {
               </div>
               <CardToggles value={params.battery_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, battery_bomb_recharge_card_level: lvl }))} />
             </div>
-            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds, without Chaos Totem <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />)</span>} value={params.battery_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, battery_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
+            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds{chaosTotem100Uptime ? ")" : ", without Chaos Totem)"}{chaosTotem100Uptime ? null : <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />}</span>} value={params.battery_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, battery_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
           </div>
 
           <div className="gemEvDivider" />
@@ -451,7 +474,7 @@ export function Bombs() {
               </div>
               <CardToggles value={params.d20_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, d20_bomb_recharge_card_level: lvl }))} />
             </div>
-            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds, without Chaos Totem <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />)</span>} value={params.d20_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, d20_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
+            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds{chaosTotem100Uptime ? ")" : ", without Chaos Totem)"}{chaosTotem100Uptime ? null : <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />}</span>} value={params.d20_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, d20_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
             <Stepper label="Charges Distributed" value={params.d20_bomb_charges_distributed} onChange={(v) => setParams((s) => ({ ...s, d20_bomb_charges_distributed: clampInt(v, 0, 9999) }))} step={1} min={0} max={9999} inputMode="numeric" decimals={0} />
             <Stepper label="Refill Chance (%)" value={params.d20_bomb_refill_chance * 100} onChange={(v) => setParams((s) => ({ ...s, d20_bomb_refill_chance: v / 100 }))} step={0.5} min={0} max={100} decimals={1} />
           </div>
@@ -493,15 +516,6 @@ export function Bombs() {
             <p className="small" style={{ marginBottom: 10 }}>
               Raw Gem Bombs: how many dropped by auto-bomber vs how many recharged (no D20/Battery refills, no Charge Magnets). Interval: {AUTO_BOMBER_INTERVAL_GAME_SEC} s game time ÷ Game Speed = {(AUTO_BOMBER_INTERVAL_GAME_SEC / gameSpeedMult).toFixed(2)} s real.
             </p>
-            <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <input
-                type="checkbox"
-                checked={autoBomberChaosTotem100}
-                onChange={(e) => setAutoBomberChaosTotem100(e.target.checked)}
-              />
-              <img src={CHAOS_TOTEM_ICON} alt="" className="iconSmall" style={{ width: 20, height: 20 }} />
-              <span>Chaos Totem 100% uptime</span>
-            </label>
             <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <input
                 type="checkbox"
