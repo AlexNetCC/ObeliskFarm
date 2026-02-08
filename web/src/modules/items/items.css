@@ -183,7 +183,7 @@
   border: 2px solid rgba(15, 23, 42, 0.2);
   border-radius: 12px;
   padding: 14px 16px;
-  margin-bottom: 0;
+  margin-bottom: 14px;
   background: rgba(255, 255, 255, 0.92);
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
@@ -232,6 +232,18 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+.itemsValueWithIcon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.itemsGemIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .itemsSection {

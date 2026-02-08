@@ -271,6 +271,30 @@ export function Bombs() {
       </div>
 
       <div className="panel" style={{ maxWidth: 720, margin: "0 auto" }}>
+        <div className={`bombsGameSpeedToggle ${gameSpeedMult > 1 ? "bombsGameSpeedToggleOn" : ""}`}>
+          <div className="bombsGameSpeedReadOnly">
+            <span className="bombsGameSpeedLabel">
+              Game speed
+              <Tooltip
+                content={{
+                  title: "Game speed",
+                  sections: [
+                    {
+                      heading: "Source",
+                      lines: [
+                        "Taken from Gem EV Calculator. Same value as Stats screen.",
+                        "Auto-bomber interval and recharge in real time = game time ÷ game speed.",
+                      ],
+                    },
+                    { heading: "Edit", lines: ["Change it in the Gem EV Calculator module."] },
+                  ],
+                }}
+                label="?"
+              />
+            </span>
+            <span className="mono bombsGameSpeedValue">{gameSpeedMult.toFixed(2)}×</span>
+          </div>
+        </div>
         <Collapsible
           id="bombs-bomb-input"
           title="Bomb Input"

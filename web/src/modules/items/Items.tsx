@@ -11,6 +11,7 @@ const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
 const CHARGE_MAGNET_ICON = "https://static.wikitide.net/shminerwiki/f/fc/Charge_Magnet.png";
+const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
 
 /** Base: one of 12 Gift outcomes is "25–40 Item Chests" (avg 32.5). Lucky multiplier (3×/50× rolls) applied. */
 const CHESTS_PER_GIFT_BASE = 32.5 / 12;
@@ -150,6 +151,11 @@ export function Items() {
     calculateGemBombGemsPerHour(effectiveParamsForChargeMagnet) -
     calculateGemBombGemsPerHour({ ...effectiveParamsForChargeMagnet, chaos_totem_uptime: 0 });
 
+  /** Value of 1 chest in Gem/h from Tier 1 items (Charge Magnet + Chaos Totem). */
+  const valueOfOneChestGemPerHour =
+    state.itemsPerChest * (CHARGE_MAGNET_OBTAIN_CHANCE_PCT / 100) * chargeMagnetGemsPerHour +
+    (chestsPerHour > 0 ? chaosTotemImpactLive / chestsPerHour : 0);
+
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.chaosTotemUptimePct = expectedUptimeFraction * 100;
@@ -165,6 +171,29 @@ export function Items() {
 
   return (
     <div className="itemsGrid">
+      <div className={`itemsGameSpeedToggle ${gameSpeedMult > 1 ? "itemsGameSpeedToggleOn" : ""}`}>
+        <div className="itemsGameSpeedReadOnly">
+          <span className="itemsLabel">
+            Game speed
+            <Tooltip
+              content={{
+                title: "Game speed",
+                sections: [
+                  {
+                    heading: "Source",
+                    lines: [
+                      "Taken from Gem EV Calculator. Same value as Stats screen.",
+                    ],
+                  },
+                  { heading: "Edit", lines: ["Change it in the Gem EV Calculator module."] },
+                ],
+              }}
+            />
+          </span>
+          <span className="itemsValue mono">{gameSpeedMult.toFixed(2)}×</span>
+        </div>
+      </div>
+
       <div className="itemsChestsBlock">
         <div className="itemsBlockHeader">
           <img src={CHEST_ICON} alt="" className="itemsItemIcon" aria-hidden />
@@ -271,48 +300,57 @@ export function Items() {
             <span className="itemsLabel">Items per hour (from chests)</span>
             <span className="itemsValue mono itemsPerHourGlow">{itemsPerHourFromChests.toFixed(2)}</span>
           </div>
-          <Collapsible id="items-chests-per-gift" title="Chests per Gift (FYI)" defaultExpanded={false} className="itemsChestsPerGiftCollapsible">
-            <div className="itemsSection itemsChestsPerGiftSection">
-              <div className="itemsRow">
-                <span className="itemsLabel">
-                  Expected chests per Gift
-                  <Tooltip
-                    content={{
-                      title: "Expected chests per Gift",
+          <div className="itemsRow">
+            <span className="itemsLabel">
+              Value of 1 Chest (Tier 1)
+              <Tooltip
+                content={{
+                  title: "Value of 1 Chest (Tier 1)",
+                  sections: [
+                    {
+                      heading: "Meaning",
                       lines: [
-                        "One of 12 base Gift outcomes is \"25–40 Item Chests\" (avg 32.5). Base: 32.5 ÷ 12.",
-                        "Lucky multiplier (1/20 for 3×, 1/2500 for 50×) applied to quantities. FYI only.",
+                        "Expected gem-equivalent from the Tier 1 items in one chest (Charge Magnet + Chaos Totem).",
+                        "Same number as the contribution to Gem/h from one chest; shown here as Gems (one-hour equivalent).",
                       ],
-                    }}
-                  />
-                </span>
-                <span className="itemsValue mono itemsChestsPerGiftValue">{expectedChestsPerGift.toFixed(2)}</span>
-              </div>
-            </div>
-          </Collapsible>
-        </div>
-      </div>
-
-      <div className={`itemsGameSpeedToggle ${gameSpeedMult > 1 ? "itemsGameSpeedToggleOn" : ""}`}>
-        <div className="itemsGameSpeedReadOnly">
-          <span className="itemsLabel">
-            Game speed
-          <Tooltip
-            content={{
-              title: "Game speed",
-              sections: [
-                {
-                  heading: "Source",
-                  lines: [
-                    "Taken from Gem EV Calculator. Same value as Stats screen.",
+                    },
+                    {
+                      heading: "Formula",
+                      lines: [
+                        "Charge Magnet: items per chest × 2.6% × value of 1 Charge Magnet (in Gems).",
+                        "Chaos Totem: (Chaos Totem Gem EV per hour) ÷ chests per hour.",
+                      ],
+                    },
                   ],
-                },
-                { heading: "Edit", lines: ["Change it in the Gem EV Calculator module."] },
-              ],
-            }}
-          />
-          </span>
-          <span className="itemsValue mono">{gameSpeedMult.toFixed(2)}×</span>
+                }}
+              />
+            </span>
+            <span className="itemsValue mono itemsValueWithIcon">
+              {Number.isFinite(valueOfOneChestGemPerHour) && valueOfOneChestGemPerHour > 0 ? (
+                <>
+                  {valueOfOneChestGemPerHour.toFixed(1)}
+                  <img src={GEM_ICON} alt="" className="itemsGemIcon" aria-hidden />
+                </>
+              ) : (
+                "—"
+              )}
+            </span>
+          </div>
+          <div className="itemsRow">
+            <span className="itemsLabel">
+              Expected chests per Gift (FYI)
+              <Tooltip
+                content={{
+                  title: "Expected chests per Gift",
+                  lines: [
+                    "One of 12 base Gift outcomes is \"25–40 Item Chests\" (avg 32.5). Base: 32.5 ÷ 12.",
+                    "Lucky multiplier (1/20 for 3×, 1/2500 for 50×) applied to quantities. FYI only.",
+                  ],
+                }}
+              />
+            </span>
+            <span className="itemsValue mono itemsChestsPerGiftValue">{expectedChestsPerGift.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
@@ -434,10 +472,10 @@ export function Items() {
             </div>
             <div className="itemsRow">
               <span className="itemsLabel">
-                1 Charge Magnet (in Gems)
+                1 Charge Magnet
                 <Tooltip
                   content={{
-                    title: "1 Charge Magnet (in Gems)",
+                    title: "1 Charge Magnet",
                     lines: [
                       "Contribution of one Charge Magnet to Gem EV. Uses Gem EV bomb settings (recharge times, gem chance, 10× min/h, Chaos Totem, and bomb cycle early/late).",
                       "Same value × Charge Magnets per hour = → Gem EV (FYI) below.",
@@ -445,8 +483,15 @@ export function Items() {
                   }}
                 />
               </span>
-              <span className="itemsValue mono">
-                {chargeMagnetGemsPerHour > 0 ? chargeMagnetGemsPerHour.toFixed(1) : "—"}
+              <span className="itemsValue mono itemsValueWithIcon">
+                {chargeMagnetGemsPerHour > 0 ? (
+                  <>
+                    {chargeMagnetGemsPerHour.toFixed(1)}
+                    <img src={GEM_ICON} alt="" className="itemsGemIcon" aria-hidden />
+                  </>
+                ) : (
+                  "—"
+                )}
               </span>
             </div>
             <div className="itemsRow">

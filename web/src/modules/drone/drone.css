@@ -58,6 +58,11 @@
   text-shadow: 0 0 12px rgba(46, 125, 50, 0.5);
 }
 
+.droneGameSpeedToggleOn .droneStepperValue {
+  color: #1b5e20;
+  text-shadow: 0 0 12px rgba(46, 125, 50, 0.5);
+}
+
 .droneGrid {
   max-width: 560px;
   margin: 0 auto;

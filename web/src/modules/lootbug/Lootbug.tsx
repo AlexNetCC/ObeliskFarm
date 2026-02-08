@@ -492,59 +492,33 @@ export function Lootbug() {
   return (
     <div className="container">
       <div className="lootbugGrid">
-      <div className="lootbugIntro">
-        <p>
-          Lootbugs spawn on the main screen every 20 game minutes (base). Tap to claim a free reward,
-          or pay Gems for an additional reward. Golden Lootbugs grant the Gem buff for free.
-        </p>
-        <p>
-          Enter your stats below to see effective values (e.g. time between spawns). Stats and
-          sources follow the{" "}
-          <a
-            href="https://shminer.miraheze.org/wiki/Stats#Lootbugs"
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            Stats
-          </a>{" "}
-          and{" "}
-          <a
-            href="https://shminer.miraheze.org/wiki/Lootbugs"
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            Lootbugs
-          </a>{" "}
-          wiki pages.
-        </p>
-      </div>
-
-      <Collapsible id="lootbug-stats" title="Lootbug stats" defaultExpanded={true}>
-        <div className="lootbugSection">
-          <div className="lootbugSectionTitle">Your stats</div>
+        <div className={`lootbugGameSpeedToggle lootbugGameSpeedTop ${gameSpeed > 1 ? "lootbugGameSpeedToggleOn" : ""}`}>
           <div className="lootbugGameSpeedReadOnly">
-            <div className="lootbugRow lootbugGameSpeedRow">
-              <span className="lootbugLabel">
-                Game Speed
-                <Tooltip
-                  content={{
-                    title: "Game Speed",
-                    sections: [
-                      {
-                        heading: "Source",
-                        lines: [
-                          "Taken from Gem EV Calculator. Same value as Stats screen.",
-                          "Lootbugs spawn every 20 game minutes; game speed affects real-time spawn rate.",
-                        ],
-                      },
-                      { heading: "Edit", lines: ["Change it in the Gem EV Calculator module."] },
-                    ],
-                  }}
-                />
-              </span>
-              <span className="lootbugValue lootbugGameSpeedValue">{gameSpeed.toFixed(2)}×</span>
-            </div>
+            <span className="lootbugLabel">
+              Game speed
+              <Tooltip
+                content={{
+                  title: "Game speed",
+                  sections: [
+                    {
+                      heading: "Source",
+                      lines: [
+                        "Taken from Gem EV Calculator. Same value as Stats screen.",
+                        "Lootbugs spawn every 20 game minutes; game speed affects real-time spawn rate.",
+                      ],
+                    },
+                    { heading: "Edit", lines: ["Change it in the Gem EV Calculator module."] },
+                  ],
+                }}
+              />
+            </span>
+            <span className="lootbugValue lootbugGameSpeedValue">{gameSpeed.toFixed(2)}×</span>
           </div>
+        </div>
+
+        <Collapsible id="lootbug-stats" title="Lootbug stats" defaultExpanded={true}>
+          <div className="lootbugSection">
+            <div className="lootbugSectionTitle">Your stats</div>
           {effectiveSpawnMinReal > 0 && (
             <div className="lootbugRow">
               <span className="lootbugLabel">
