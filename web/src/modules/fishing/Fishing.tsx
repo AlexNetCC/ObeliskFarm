@@ -373,7 +373,7 @@ function NumberRow(props: {
   );
 }
 
-/** Read-only stat row (value computed from upgrades/enhancements). */
+/** Read-only stat row: label and value on one line. */
 function StatRow(props: {
   label: string;
   iconUrl?: string;
@@ -384,18 +384,14 @@ function StatRow(props: {
   const { label, iconUrl, value, decimals = 0, suffix = "" } = props;
   const displayValue = Number.isFinite(value) ? value.toFixed(decimals) : "—";
   return (
-    <div className="fishingRow">
-      <div className="fishingLabel">
-        <div className="fishingLabelLeft">
-          {iconUrl ? (
-            <img src={iconUrl} alt="" className="iconSmall" style={{ width: 18, height: 18, objectFit: "contain" }} />
-          ) : null}
-          <span className="fishingLabelName">{label}</span>
-        </div>
+    <div className="fishingRow fishingRowInline">
+      <div className="fishingLabelLeft">
+        {iconUrl ? (
+          <img src={iconUrl} alt="" className="iconSmall" style={{ width: 18, height: 18, objectFit: "contain" }} />
+        ) : null}
+        <span className="fishingLabelName">{label}</span>
       </div>
-      <div className="fishingRowInputBlock">
-        <span className="mono fishingRowValue">{displayValue}{suffix}</span>
-      </div>
+      <span className="mono fishingRowValue">{displayValue}{suffix}</span>
     </div>
   );
 }
@@ -2321,23 +2317,12 @@ export function Fishing() {
 
         <Collapsible id="fishing-fish-cards" title="Fish Cards" defaultExpanded={true}>
           <div className="fishingFishCardsPanel">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div className="fishingFishCardsGrid">
               {ALL_FISH.map((f) => {
                 const tier = (state.fishCardTier[f.id] ?? 0) as FishCardTier;
                 return (
-                  <div
-                    key={f.id}
-                    style={{
-                      border: "1px solid rgba(15,23,42,0.10)",
-                      borderRadius: 10,
-                      padding: 10,
-                      background: "var(--tier2)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div key={f.id} className="fishingFishCardCell">
+                    <div className="fishingFishCardCellTop">
                       <img src={fishIconUrl(f.iconFile)} alt="" className="fishingFishCardIcon" />
                       <span className="mono">{f.name}</span>
                     </div>
@@ -2349,7 +2334,7 @@ export function Fishing() {
                 );
               })}
             </div>
-            <div className="fishingFishCardsValuePack" style={{ marginTop: 12 }}>
+            <div className="fishingFishCardsValuePack">
               <label className="toggle">
                 <input
                   type="checkbox"
@@ -2359,7 +2344,7 @@ export function Fishing() {
                 Value Pack (potency poly ×1.15)
               </label>
             </div>
-            <div className="small" style={{ marginTop: 8, opacity: 0.85 }}>
+            <div className="small" style={{ marginTop: 6, opacity: 0.85 }}>
               Card: 50% second fish (1.5×). Gilded: 100% second fish (2×). Poly: 4× base. Poly multi from upgrades and Value Pack applies on top.
             </div>
           </div>
