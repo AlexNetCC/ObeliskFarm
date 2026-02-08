@@ -1420,6 +1420,21 @@ export function Fishing() {
               </div>
               <div className="fishingTickRow">
                 <strong>Effective</strong> 1 Fishing Tick = <span className="mono">{effectiveTickSec.toFixed(2)}</span> Seconds
+                <Tooltip
+                  content={{
+                    title: "Effective fishing tick",
+                    lines: [
+                      "Time per tick when Elixir Drone 3× Fishing Tick Speed is taken into account. When the buff is active, ticks run 3× faster (real time).",
+                      "Fish per hour and fills per hour use this value.",
+                    ],
+                  }}
+                  label="?"
+                />
+                {effectiveTickSec < tickDurationSec && tickDurationSec > 0 ? (
+                  <span className="fishingTickBetterPulse">
+                    ({((1 - effectiveTickSec / tickDurationSec) * 100).toFixed(0)}% faster)
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>

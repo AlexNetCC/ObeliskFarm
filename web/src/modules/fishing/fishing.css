@@ -84,6 +84,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+.fishingTickBetterPulse {
+  margin-left: 6px;
+  color: #1b5e20;
+  font-weight: 600;
+  animation: fishingTickBetterPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes fishingTickBetterPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* Boat level row: brown glow so it stands out at top of Your stats */
 .fishingBoatLevelRow {
   display: grid;
