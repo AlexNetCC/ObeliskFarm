@@ -13,7 +13,7 @@ import {
   type UpgradeState,
 } from "../../lib/event/optimizer";
 import { monteCarloOptimizeGuided, estimateReachProbabilityGivenState, type MCOptimizationResult, type PrestigeReachMcResult } from "../../lib/event/monteCarloOptimizer";
-import { applyUpgrades, calculateMaterials, getGemMaxLevel, runFullSimulation } from "../../lib/event/simulation";
+import { applyUpgrades, calculateMaterials, getGemMaxLevel, runFullSimulation, runFullSimulationWithHpPerWave, type HpPerWaveRow } from "../../lib/event/simulation";
 import { mulberry32 } from "../../lib/rng";
 import { assetUrl } from "../../lib/assets";
 import { currencyIconFilename, gemUpgradeIconFilename, upgradeIconFilename } from "../../lib/event/icons";
@@ -26,6 +26,9 @@ type SavedStateV1 = {
   upgrade_levels: Record<string, number[]>;
   gem_levels: number[];
   world_monuments?: number;
+  targetWaveOverride?: boolean;
+  targetWave?: number;
+  /** Legacy: was target prestige; loaded and converted to wave if targetWave missing */
   targetPrestigeOverride?: boolean;
   targetPrestige?: number;
 };
@@ -90,10 +93,10 @@ type UiState = {
   waveBandStep: number;
   /** When true: band = highest reward wave reached (EVENT_REWARD_WAVES), tie-break by currency/h. */
   useRewardMilestones: boolean;
-  /** When true: MC only considers setups whose attack damage does not exceed enemy HP at target prestige wave. */
-  targetPrestigeOverride: boolean;
-  /** Target prestige for override (e.g. 120). Wave = (targetPrestige + 1) * 5. */
-  targetPrestige: number;
+  /** When true: MC only considers setups whose attack damage does not exceed enemy HP at target wave. */
+  targetWaveOverride: boolean;
+  /** Target wave for override (e.g. 200). Only setups with atk <= enemy HP at this wave are considered. */
+  targetWave: number;
   devOnlyMcTuning: boolean;
   // Developer comparison (only used in sub-window)
   comparisonMethods: EventMcComparisonMethodId[];
@@ -194,8 +197,12 @@ export function EventSim() {
       mcRunsPerCombo: 500,
       waveBandStep: 0,
       useRewardMilestones: true,
-      targetPrestigeOverride: saved?.targetPrestigeOverride ?? false,
-      targetPrestige: clampInt(saved?.targetPrestige ?? 120, 0, 999),
+      targetWaveOverride: saved?.targetWaveOverride ?? saved?.targetPrestigeOverride ?? false,
+      targetWave: clampInt(
+        saved?.targetWave ?? (saved?.targetPrestige != null ? getPrestigeWaveRequirement(saved.targetPrestige) : 200),
+        0,
+        99999,
+      ),
       devOnlyMcTuning: false,
       comparisonMethods: ["default", "multiStart3"],
       comparisonReplicates: 3,
@@ -238,6 +245,7 @@ export function EventSim() {
   const PRESTIGE_REACH_SIGNIFICANT = 0.95;
   const [waveHistogramOpen, setWaveHistogramOpen] = useState(false);
   const [waveHistogramSamples, setWaveHistogramSamples] = useState<number[] | null>(null);
+  const [waveHistogramHpPerWave, setWaveHistogramHpPerWave] = useState<HpPerWaveRow[] | null>(null);
   const [waveHistogramLoading, setWaveHistogramLoading] = useState(false);
   type ComparisonReplicateRow = {
     methodId: EventMcComparisonMethodId;
@@ -308,13 +316,13 @@ export function EventSim() {
           "4": ui.upgrades.levels[4].slice(),
         },
         gem_levels: ui.upgrades.gemLevels.slice(),
-        targetPrestigeOverride: ui.targetPrestigeOverride,
-        targetPrestige: ui.targetPrestige,
+        targetWaveOverride: ui.targetWaveOverride,
+        targetWave: ui.targetWave,
       };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui.prestige, ui.worldMonuments, ui.upgrades, ui.targetPrestigeOverride, ui.targetPrestige]);
+  }, [ui.prestige, ui.worldMonuments, ui.upgrades, ui.targetWaveOverride, ui.targetWave]);
 
   useEffect(() => {
     if (!resetUpgradesArmed) return;
@@ -413,7 +421,7 @@ export function EventSim() {
               seedBase: null,
               waveBandStep: ctx.waveBandStep,
               useRewardMilestones: ctx.useRewardMilestones,
-              targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+              targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
             },
           });
         }, 0);
@@ -475,7 +483,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10 + (comp.multiStartRun + 1),
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
-                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
               },
             });
             setProgress(null);
@@ -514,7 +522,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10,
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
-                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
               },
             });
             setProgress(null);
@@ -535,7 +543,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500,
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
-                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
               },
             });
             setProgress(null);
@@ -664,7 +672,7 @@ export function EventSim() {
           seedBase: null,
           waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
           useRewardMilestones: ui.useRewardMilestones ?? false,
-          targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+          targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
         },
       });
     } catch (e) {
@@ -681,7 +689,7 @@ export function EventSim() {
           seedBase: null,
           waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
           useRewardMilestones: ui.useRewardMilestones ?? false,
-          targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+          targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
           progressCallback: (cur: number, total2: number, curWave: number, bestWave: number) => {
             if (cur % 25 === 0 || cur === total2) setProgress({ cur, total: total2, curWave, bestWave });
           },
@@ -790,7 +798,7 @@ export function EventSim() {
         seedBase: 1_000_000,
         waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
         useRewardMilestones: ui.useRewardMilestones ?? false,
-        targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+        targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
       },
     });
   }
@@ -932,52 +940,50 @@ export function EventSim() {
           <Collapsible
             id="event-target-prestige"
             className="eventPlayerStatsDark eventTargetPrestige"
-            title="Target Prestige (Advanced)"
+            title="Target Wave (Advanced)"
             defaultExpanded={false}
-            headerOverlay={(expanded) =>
-              !expanded ? (
-                <div className="eventTargetPrestigeShaderWrap">
-                  <SilverHologramCanvas />
-                </div>
-              ) : null
-            }
+            headerOverlay={() => (
+              <div className="eventTargetPrestigeShaderWrap">
+                <SilverHologramCanvas />
+              </div>
+            )}
           >
             <div className="eventPlayerStatsDarkInner">
               <label className="labelRow">
                 <input
                   type="checkbox"
-                  checked={ui.targetPrestigeOverride}
+                  checked={ui.targetWaveOverride}
                   onChange={(e) =>
-                    setUi((s) => ({ ...s, targetPrestigeOverride: e.target.checked }))
+                    setUi((s) => ({ ...s, targetWaveOverride: e.target.checked }))
                   }
                 />
-                <span>Override simulation with target prestige goal</span>
+                <span>Override simulation with target wave goal</span>
               </label>
-              {ui.targetPrestigeOverride && (
+              {ui.targetWaveOverride && (
                 <div className="kv kvCompact" style={{ marginTop: 6 }}>
-                  <kbd>Target Prestige</kbd>
+                  <kbd>Target Wave</kbd>
                   <input
                     type="number"
                     inputMode="numeric"
                     min={0}
-                    max={999}
-                    value={ui.targetPrestige}
+                    max={99999}
+                    value={ui.targetWave}
                     onChange={(e) => {
                       const v = parseNumber(e.target.value);
-                      setUi((s) => ({ ...s, targetPrestige: clampInt(v, 0, 999) }));
+                      setUi((s) => ({ ...s, targetWave: clampInt(v, 0, 99999) }));
                     }}
                   />
                 </div>
               )}
               <Tooltip
                 content={{
-                  title: "Target Prestige (Advanced)",
+                  title: "Target Wave (Advanced)",
                   sections: [
                     {
-                      heading: "Override",
+                      heading: "Target wave",
                       lines: [
-                        "When enabled, the optimizer only considers setups whose attack damage does not exceed enemy HP at the target prestige wave.",
-                        "Extra attack beyond one-shotting that wave is ignored, so results favor builds that reach the goal without over-investing in damage.",
+                        "When enabled, the optimizer suggests upgrades to get you closer to the target wave (you don't have to reach it).",
+                        "If your current attack already one-shots enemies at the target wave, damage-only upgrades (pure atk, crit) are skipped; HP, speed, and atk+HP upgrades are still suggested.",
                       ],
                     },
                   ],
@@ -1137,11 +1143,13 @@ export function EventSim() {
                       setWaveHistogramOpen(true);
                       setWaveHistogramLoading(true);
                       setWaveHistogramSamples(null);
+                      setWaveHistogramHpPerWave(null);
                       setTimeout(() => {
                         const rng = mulberry32((Date.now() & 0x7fffffff) >>> 0);
-                        const sim = runFullSimulation(result.playerStats, result.enemyStats, 500, rng);
+                        const sim = runFullSimulationWithHpPerWave(result.playerStats, result.enemyStats, 500, rng);
                         const waves = sim.results.map((r) => r[0]);
                         setWaveHistogramSamples(waves);
+                        setWaveHistogramHpPerWave(sim.hpPerWave.length > 0 ? sim.hpPerWave : null);
                         setWaveHistogramLoading(false);
                       }, 0);
                     }}
@@ -1165,7 +1173,31 @@ export function EventSim() {
                       ) : null}
                     </span>
                     <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      {mcStats.tieBreakByRewardMilestones ? (
+                      {ui.targetWaveOverride ? (
+                        (() => {
+                          const wave = ui.targetWave;
+                          const info = getRewardMilestoneDisplayLabel(wave, ui.worldMonuments);
+                          return (
+                            <>
+                              Wave {wave}
+                              {info ? (
+                                <>
+                                  {" "}
+                                  (
+                                  <img
+                                    src={info.iconUrl}
+                                    alt=""
+                                    className="iconSmall"
+                                    style={{ width: 18, height: 18, verticalAlign: "middle" }}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  {info.label})
+                                </>
+                              ) : null}
+                            </>
+                          );
+                        })()
+                      ) : mcStats.tieBreakByRewardMilestones ? (
                         (() => {
                           const nextWave = getNextRewardMilestoneAfterPrestige(ui.prestige);
                           const info = getRewardMilestoneDisplayLabel(nextWave, ui.worldMonuments);
@@ -1369,14 +1401,17 @@ export function EventSim() {
                           4: Math.round(mats.mat4 * scale),
                         };
                       })();
-                const targetWave = getPrestigeWaveRequirement(ui.prestige + 1);
+                const targetWave = ui.targetWaveOverride
+                  ? clampInt(ui.targetWave, 0, 99999)
+                  : getPrestigeWaveRequirement(ui.prestige + 1);
                 const nextPrestigeLabel = ui.prestige + 1;
+                const useTargetWaveGoal = ui.targetWaveOverride;
                 return (
                   <Collapsible
                     id="event-prestige-1h"
                     title={
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        Will I reach next prestige in X hours farming?
+                        {useTargetWaveGoal ? "Will I reach target wave in X hours farming?" : "Will I reach next prestige in X hours farming?"}
                         <Tooltip
                           content={{
                             title: "Next prestige in 1h",
@@ -1410,7 +1445,11 @@ export function EventSim() {
                       Budget after 1h (from suggested build’s currency/h): Tier 1 {formatInt(budget1h[1])}, Tier 2 {formatInt(budget1h[2])}, Tier 3 {formatInt(budget1h[3])}, Tier 4 {formatInt(budget1h[4])}.
                     </div>
                     <div className="small" style={{ marginBottom: 8 }}>
-                      Next prestige (you are {ui.prestige}): wave <span className="mono">{targetWave}</span> for prestige {nextPrestigeLabel}
+                      {useTargetWaveGoal ? (
+                        <>Target wave: <span className="mono">{targetWave}</span></>
+                      ) : (
+                        <>Next prestige (you are {ui.prestige}): wave <span className="mono">{targetWave}</span> for prestige {nextPrestigeLabel}</>
+                      )}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <button
@@ -1458,7 +1497,7 @@ export function EventSim() {
                                 seedBase: null,
                                 waveBandStep,
                                 useRewardMilestones,
-                                targetPrestige: ui.targetPrestigeOverride ? clampInt(ui.targetPrestige, 0, 999) : null,
+                                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
                               },
                             });
                           }}
@@ -1502,7 +1541,7 @@ export function EventSim() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {prestigeReachMcResult[7].probability <= PRESTIGE_REACH_SIGNIFICANT ? (
                             <div className="mono" style={{ color: "var(--muted)" }}>
-                              Not even 8 hours farming will yield next Prestige!
+                              {useTargetWaveGoal ? "Not even 8 hours farming will yield target wave!" : "Not even 8 hours farming will yield next Prestige!"}
                             </div>
                           ) : null}
                           {PRESTIGE_REACH_HOURS.map((h, i) => {
@@ -2343,6 +2382,58 @@ export function EventSim() {
                     <div className="small" style={{ marginTop: 6, color: "var(--muted)", textAlign: "center" }}>
                       Max wave reached (N=500)
                     </div>
+                    {waveHistogramHpPerWave && waveHistogramHpPerWave.length > 0 ? (
+                      (() => {
+                        const rows = waveHistogramHpPerWave;
+                        const W2 = 480;
+                        const H2 = 200;
+                        const pad2 = 10;
+                        const axisH2 = 28;
+                        const plotH2 = H2 - pad2 * 2 - axisH2;
+                        const xMin = Math.min(...rows.map((r) => r.wave));
+                        const xMax = Math.max(...rows.map((r) => r.wave));
+                        const yMax = Math.min(100, Math.ceil(Math.max(...rows.map((r) => r.meanLostPct + r.stdLostPct)) * 1.1) || 100);
+                        const scaleX = (w: number) => pad2 + ((w - xMin) / (xMax - xMin || 1)) * (W2 - pad2 * 2);
+                        const scaleY = (pct: number) => H2 - pad2 - axisH2 - (pct / yMax) * plotH2;
+                        const meanPath = "M " + rows.map((r) => `${scaleX(r.wave)},${scaleY(r.meanLostPct)}`).join(" L ");
+                        const upperPoints = rows.map((r) => `${scaleX(r.wave)},${scaleY(Math.min(100, r.meanLostPct + r.stdLostPct))}`);
+                        const lowerPoints = rows.map((r) => `${scaleX(r.wave)},${scaleY(Math.max(0, r.meanLostPct - r.stdLostPct))}`);
+                        const bandPath = "M " + upperPoints.join(" L ") + " L " + lowerPoints.slice().reverse().join(" L ") + " Z";
+                        return (
+                          <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(15,23,42,0.12)" }}>
+                            <div className="small" style={{ marginBottom: 8, color: "var(--muted)", textAlign: "center" }}>
+                              HP lost % at end of wave (mean ± SD, N=500)
+                            </div>
+                            <svg width="100%" viewBox={`0 0 ${W2} ${H2}`} style={{ display: "block" }} aria-label="HP lost percent by wave">
+                              <path d={`M ${bandPath}`} fill="rgba(220, 80, 70, 0.2)" stroke="none" />
+                              <path d={meanPath} fill="none" stroke="rgba(200, 60, 50, 0.9)" strokeWidth={2} strokeLinejoin="round" />
+                              <line x1={pad2} x2={W2 - pad2} y1={H2 - pad2 - axisH2} y2={H2 - pad2 - axisH2} stroke="rgba(15,23,42,0.2)" strokeWidth={1} />
+                              <line x1={pad2} x2={pad2} y1={pad2} y2={H2 - pad2 - axisH2} stroke="rgba(15,23,42,0.2)" strokeWidth={1} />
+                              {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+                                const y = H2 - pad2 - axisH2 - t * plotH2;
+                                const pct = (t * yMax).toFixed(0);
+                                return (
+                                  <g key={t}>
+                                    <line x1={pad2} x2={pad2 - 4} y1={y} y2={y} stroke="rgba(15,23,42,0.25)" strokeWidth={1} />
+                                    <text x={pad2 - 6} y={y + 4} textAnchor="end" fontSize="9" fill="rgba(71,85,105,0.9)">{pct}%</text>
+                                  </g>
+                                );
+                              })}
+                              {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+                                const x = pad2 + t * (W2 - pad2 * 2);
+                                const w = Math.round(xMin + t * (xMax - xMin));
+                                return (
+                                  <g key={t}>
+                                    <line x1={x} x2={x} y1={H2 - pad2 - axisH2} y2={H2 - pad2 - axisH2 + 4} stroke="rgba(15,23,42,0.25)" strokeWidth={1} />
+                                    <text x={x} y={H2 - pad2 - 6} textAnchor="middle" fontSize="10" fontWeight="700" fill="rgba(71,85,105,0.9)">{w}</text>
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          </div>
+                        );
+                      })()
+                    ) : null}
                   </div>
                 );
               })()

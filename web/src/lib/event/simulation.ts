@@ -85,8 +85,15 @@ export function applyUpgrades(
   return { player: p, enemy: e };
 }
 
-export function simulateEventRun(player: PlayerStats, enemy: EnemyStats, rng: Rng): { wave: number; subwave: number; time: number } {
+/** If provided, will be filled with { w: wave, hpPct: playerHp/player.health } at the end of each completed wave. */
+export function simulateEventRun(
+  player: PlayerStats,
+  enemy: EnemyStats,
+  rng: Rng,
+  hpAtWaveEnd?: Array<{ w: number; hpPct: number }>,
+): { wave: number; subwave: number; time: number } {
   let playerHp = player.health;
+  const maxHp = player.health;
   let time = 0.0;
   let pAtkProg = 0.0;
   let eAtkProg = 0.0;
@@ -154,6 +161,9 @@ export function simulateEventRun(player: PlayerStats, enemy: EnemyStats, rng: Rn
 
       if (playerHp <= 0 && finalSubwave === 0) finalSubwave = subwave;
     }
+    if (hpAtWaveEnd && maxHp > 0) {
+      hpAtWaveEnd.push({ w: wave, hpPct: Math.max(0, playerHp / maxHp) });
+    }
   }
 
   return { wave, subwave: finalSubwave, time: time / gameSpeed };
@@ -178,6 +188,57 @@ export function runFullSimulation(
 
   results.sort((a, b) => (a[0] + 1 - a[1] * 0.2) - (b[0] + 1 - b[1] * 0.2));
   return { results, avgWave: totalDistance / runs, avgTime: totalTime / runs };
+}
+
+export type HpPerWaveRow = { wave: number; meanLostPct: number; stdLostPct: number; n: number };
+
+/** Runs N simulations with HP tracking; returns wave distribution and per-wave mean ± std of HP lost %. */
+export function runFullSimulationWithHpPerWave(
+  player: PlayerStats,
+  enemy: EnemyStats,
+  runs: number,
+  rng: Rng,
+): { results: Array<[number, number, number]>; avgWave: number; avgTime: number; hpPerWave: HpPerWaveRow[] } {
+  const results: Array<[number, number, number]> = [];
+  const allHpAtWaveEnd: Array<{ w: number; hpPct: number }>[] = [];
+  let totalDistance = 0.0;
+  let totalTime = 0.0;
+
+  for (let i = 0; i < runs; i += 1) {
+    const hpAtWaveEnd: Array<{ w: number; hpPct: number }> = [];
+    const r = simulateEventRun(player, enemy, rng, hpAtWaveEnd);
+    results.push([r.wave, r.subwave, r.time]);
+    allHpAtWaveEnd.push(hpAtWaveEnd);
+    totalDistance += r.wave + 1 - r.subwave * 0.2;
+    totalTime += r.time;
+  }
+
+  results.sort((a, b) => (a[0] + 1 - a[1] * 0.2) - (b[0] + 1 - b[1] * 0.2));
+
+  const waveToLostPct = new Map<number, number[]>();
+  for (const run of allHpAtWaveEnd) {
+    for (const { w, hpPct } of run) {
+      const lostPct = (1 - hpPct) * 100;
+      if (!waveToLostPct.has(w)) waveToLostPct.set(w, []);
+      waveToLostPct.get(w)!.push(lostPct);
+    }
+  }
+  const waves = Array.from(waveToLostPct.keys()).sort((a, b) => a - b);
+  const hpPerWave: HpPerWaveRow[] = waves.map((wave) => {
+    const arr = waveToLostPct.get(wave)!;
+    const n = arr.length;
+    const mean = arr.reduce((a, b) => a + b, 0) / n;
+    const variance = n > 1 ? arr.reduce((acc, x) => acc + (x - mean) ** 2, 0) / (n - 1) : 0;
+    const std = Math.sqrt(variance);
+    return { wave, meanLostPct: mean, stdLostPct: std, n };
+  });
+
+  return {
+    results,
+    avgWave: totalDistance / runs,
+    avgTime: totalTime / runs,
+    hpPerWave,
+  };
 }
 
 export function calculateMaterials(wave: number, player: PlayerStats): { mat1: number; mat2: number; mat3: number; mat4: number } {

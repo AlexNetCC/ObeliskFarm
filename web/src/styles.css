@@ -397,8 +397,8 @@ body {
   color: #94a3b8;
 }
 
-/* Target Prestige (Advanced): WebGL silver hologram when collapsed */
-.collapseWrap.eventTargetPrestige:not(:has(.collapseBody)) .collapseHeader {
+/* Target Wave (Advanced): WebGL silver hologram on header (collapsed and expanded) */
+.collapseWrap.eventTargetPrestige .collapseHeader {
   position: relative;
   overflow: hidden;
 }

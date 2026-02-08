@@ -1,6 +1,6 @@
 // Ported from ObeliskGemEV/event/monte_carlo_optimizer.py (guided single-core MC).
 
-import { COSTS, getPrestigeWaveRequirement, getRewardBand } from "./constants";
+import { COSTS, getPrestigeWaveRequirement, getRewardBand, isDamageOnlyUpgrade } from "./constants";
 import { applyUpgrades, runFullSimulation, calculateMaterials, getEnemyHpAtWave } from "./simulation";
 import { createBaseEnemyStats, type EnemyStats, type PlayerStats } from "./stats";
 import { greedyOptimize, type Budget, type UpgradeState, copyState, createEmptyState, getMaxLevelWithCaps, isUpgradeUnlocked, canAllocateUpgrade } from "./optimizer";
@@ -55,8 +55,10 @@ function buildCandidateState(args: {
   initialState: UpgradeState;
   seed: number;
   epsilonGreedy: number;
+  /** When set with requiredAtk: skip damage-only upgrades that would push atk above this (target-wave cap). */
+  requiredAtk?: number | null;
 }): UpgradeState {
-  const { budget, prestige, initialState, seed, epsilonGreedy } = args;
+  const { budget, prestige, initialState, seed, epsilonGreedy, requiredAtk } = args;
   const rng = makeRng(seed);
 
   const state = copyState(initialState);
@@ -89,6 +91,13 @@ function buildCandidateState(args: {
       const baseCost = COSTS[a.tier][a.idx];
       const nextCost = Math.round(baseCost * 1.25 ** currentLevel);
       if (nextCost > remaining[a.tier]) continue;
+
+      if (requiredAtk != null && requiredAtk > 0 && isDamageOnlyUpgrade(a.tier, a.idx)) {
+        const testState = copyState(state);
+        testState.levels[a.tier][a.idx] = currentLevel + 1;
+        const { player } = applyUpgrades(testState.levels, prestige, testState.gemLevels);
+        if (player.atk > requiredAtk) continue;
+      }
 
       const prio = tierPriorityScore[a.tier]?.[a.idx] ?? 10;
       const eff = prio / (nextCost + 1) ** 0.35;
@@ -234,8 +243,8 @@ export function monteCarloOptimizeGuided(args: {
   waveBandStep?: number | null;
   /** When true: band = highest reward wave reached (EVENT_REWARD_WAVES), tie-break by currency/h. */
   useRewardMilestones?: boolean | null;
-  /** When set: only consider setups whose atk does not exceed enemy HP at this prestige's wave. */
-  targetPrestige?: number | null;
+  /** When set: used as reference; optimizer skips damage-only upgrades once atk >= enemy HP at this wave. */
+  targetWave?: number | null;
 }): MCOptimizationResult {
   const {
     budget,
@@ -247,22 +256,31 @@ export function monteCarloOptimizeGuided(args: {
     progressCallback = null,
     waveBandStep: waveBandStepArg = null,
     useRewardMilestones = false,
-    targetPrestige: targetPrestigeArg = null,
+    targetWave: targetWaveArg = null,
   } = args;
   const waveBandStep = waveBandStepArg != null && waveBandStepArg > 0 ? Math.trunc(waveBandStepArg) : 0;
   const useReward = Boolean(useRewardMilestones);
   const bandMode = useReward || waveBandStep > 0;
-  const targetPrestige = targetPrestigeArg != null && Number.isFinite(targetPrestigeArg) ? Math.max(0, Math.trunc(targetPrestigeArg)) : null;
-  const targetWave = targetPrestige != null ? getPrestigeWaveRequirement(targetPrestige) : null;
+  const targetWave = targetWaveArg != null && Number.isFinite(targetWaveArg) ? Math.max(0, Math.trunc(targetWaveArg)) : null;
 
   const initialState = initialStateArg ? copyState(initialStateArg) : createEmptyState();
+  const { enemy: enemyBase } = applyUpgrades(initialState.levels, prestige, initialState.gemLevels);
+  const requiredAtk = targetWave != null ? getEnemyHpAtWave(enemyBase, targetWave) : null;
+
   const nCandidates = Math.max(1, Math.trunc(numRuns));
   const runs = Math.max(1, Math.trunc(eventRunsPerCombination));
   const seedBaseLocal = (seedBase ?? (Date.now() & 0x7fffffff)) & 0x7fffffff;
 
   const candidates: UpgradeState[] = [];
   try {
-    const greedy = greedyOptimize({ budget, prestige, initialState, targetWave: null, seed: seedBaseLocal + 123 });
+    const greedy = greedyOptimize({
+      budget,
+      prestige,
+      initialState,
+      targetWave: null,
+      requiredAtk: requiredAtk ?? undefined,
+      seed: seedBaseLocal + 123,
+    });
     candidates.push(copyState(greedy.upgrades));
   } catch {
     // ignore
@@ -277,6 +295,7 @@ export function monteCarloOptimizeGuided(args: {
         initialState,
         seed: seedBaseLocal + i,
         epsilonGreedy: eps,
+        requiredAtk: requiredAtk ?? undefined,
       }),
     );
   }
@@ -290,13 +309,6 @@ export function monteCarloOptimizeGuided(args: {
 
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const cand = candidates[idx];
-    if (targetWave != null) {
-      const { player, enemy } = applyUpgrades(cand.levels, prestige, cand.gemLevels);
-      if (player.atk > getEnemyHpAtWave(enemy, targetWave)) {
-        if (progressCallback) progressCallback(idx + 1, candidates.length, 0, bestWave);
-        continue;
-      }
-    }
     const ev = evaluateStateSerial({ state: cand, prestige, runs, seed: seedBaseLocal + 10_000 + (idx + 1) });
     allResults.push({ state: copyState(cand), wave: ev.wave, time: ev.time });
 
