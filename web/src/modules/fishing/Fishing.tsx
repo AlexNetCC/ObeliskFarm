@@ -72,6 +72,8 @@ type FishingState = {
   fishCardTier: Partial<Record<string, FishCardTier>>;
   /** Sushi Misc card: 0 = none, 1 = Card +5 ticks, 2 = Gilded +10, 3 = Poly +20. */
   sushiCardTier: FishCardTier;
+  /** Fishing Rod card: 0 = none, 1 = Card 1.02×, 2 = Gilded 1.05×, 3 = Poly 1.10× rod power. */
+  fishingRodCardTier: FishCardTier;
   valuePackPotencyPoly: boolean;
   skillTreeLevels: Partial<Record<FishingSkillId, number>>;
   legendaryFishFound: number;
@@ -84,6 +86,9 @@ const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
 const SUSHI_BASE_TICKS = 90;
 const SUSHI_CARD_TICKS: Record<FishCardTier, number> = { 0: 0, 1: 5, 2: 10, 3: 20 };
 const SUSHI_MC_RUNS = 10000;
+
+/** Fishing Rod card: Fishing Rod Power. Card 1.02×, Gilded 1.05×, Poly 1.10×. */
+const FISHING_ROD_CARD_MULT: Record<FishCardTier, number> = { 0: 1, 1: 1.02, 2: 1.05, 3: 1.1 };
 
 /** Elixir 3× Fishing Tick Speed buff icon (same as Drone module). */
 const ELIXIR_3X_FISHING_BUFF_ICON = "https://static.wikitide.net/shminerwiki/8/87/Triple_Fish_Tick_Chance.png";
@@ -253,6 +258,8 @@ type TotalFishOptions = {
   skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
   fishCardTier?: Partial<Record<string, number>>;
   legendaryFishFound?: number;
+  /** Fishing Rod card tier (0–3) for rod power mult 1 / 1.02 / 1.05 / 1.10. */
+  fishingRodCardTier?: FishCardTier;
 };
 
 /**
@@ -279,10 +286,12 @@ function computeTotalFishPerHour(
   const doublePct = stats.double_tick_chance_pct / 100;
   const triplePct = stats.triple_tick_chance_pct / 100;
   const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+  const rodMult = (skillOptions?.fishingRodCardTier != null) ? FISHING_ROD_CARD_MULT[skillOptions.fishingRodCardTier] : 1;
+  const baseRod = Math.round(stats.fishing_rod_power * rodMult);
   let total = 0;
   for (const set of AQUARIUM) {
     const dock = DOCKS.find((d) => d.id === set.dockId)!;
-    const rod = activeDockId === set.dockId ? stats.fishing_rod_power : 0;
+    const rod = activeDockId === set.dockId ? baseRod : 0;
     const n = dronesPerDock[set.dockId] ?? 0;
     const powerOnThisDock = rod + n * stats.drone_base_power;
     const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
@@ -304,6 +313,7 @@ function computeTotalFishPerHourFromStats(
   dronesPerDock: Record<DockId, number>,
   activeDockId: DockId,
   elixir3xFishingExternal: { uptimeFraction: number },
+  effectiveRodPowerOverride?: number,
 ): number {
   const s = stats.shiny_fish_chance_pct / 100;
   const s2 = stats.super_shiny_chance_pct / 100;
@@ -316,10 +326,11 @@ function computeTotalFishPerHourFromStats(
   const doublePct = stats.double_tick_chance_pct / 100;
   const triplePct = stats.triple_tick_chance_pct / 100;
   const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+  const rodForActive = effectiveRodPowerOverride ?? stats.fishing_rod_power;
   let total = 0;
   for (const set of AQUARIUM) {
     const dock = DOCKS.find((d) => d.id === set.dockId)!;
-    const rod = activeDockId === set.dockId ? stats.fishing_rod_power : 0;
+    const rod = activeDockId === set.dockId ? rodForActive : 0;
     const n = dronesPerDock[set.dockId] ?? 0;
     const powerOnThisDock = rod + n * stats.drone_base_power;
     const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
@@ -506,7 +517,8 @@ export function Fishing() {
     const valuePackPotencyPoly = saved?.valuePackPotencyPoly ?? false;
     const skillTreeLevels = saved?.skillTreeLevels ?? {};
     const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
-    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
+    const fishingRodCardTier = clamp(Math.trunc(Number(saved?.fishingRodCardTier ?? 0)), 0, 3) as FishCardTier;
+    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
   });
 
   useEffect(() => {
@@ -536,6 +548,8 @@ export function Fishing() {
     legendaryFishFound: state.legendaryFishFound,
   };
   const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillTreeOptions);
+  /** Rod power with Fishing Rod card (1× / 1.02× / 1.05× / 1.10×). Rounded so display and calculations use the same integer. */
+  const effectiveRodPower = Math.round(stats.fishing_rod_power * FISHING_ROD_CARD_MULT[state.fishingRodCardTier]);
 
   /** Expected multiplier from Shiny (chance × multi) and Super Shiny (only when already shiny). */
   const expectedShinyMulti = useMemo(() => {
@@ -651,7 +665,7 @@ export function Fishing() {
 
   /** Power on a dock: rod only on the dock you're fishing at (active); else 0. Plus drones on this dock. */
   function powerForDock(dockId: DockId): number {
-    const rod = state.activeDockId === dockId ? stats.fishing_rod_power : 0;
+    const rod = state.activeDockId === dockId ? effectiveRodPower : 0;
     const n = state.dronesPerDock[dockId] ?? 0;
     return rod + n * stats.drone_base_power;
   }
@@ -689,7 +703,7 @@ export function Fishing() {
 
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
-    const rod = stats.fishing_rod_power;
+    const rod = effectiveRodPower;
     const dronePower = stats.drone_base_power;
     const sets = AQUARIUM.filter((set) => dockIds.has(set.dockId));
     return sets.flatMap((set) => {
@@ -731,7 +745,7 @@ export function Fishing() {
     effectiveTickSec,
     extraFillsPerDockPerHour,
     expectedShinyMulti,
-    stats.fishing_rod_power,
+    effectiveRodPower,
     stats.drone_base_power,
     stats.fish_income_multi,
     stats.double_tick_chance_pct,
@@ -933,6 +947,7 @@ export function Fishing() {
       skillTreeLevels: state.skillTreeLevels,
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
+      fishingRodCardTier: state.fishingRodCardTier,
     };
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
@@ -1035,6 +1050,7 @@ export function Fishing() {
     state.skillTreeLevels,
     state.fishCardTier,
     state.legendaryFishFound,
+    state.fishingRodCardTier,
     elixir3xFishingExternal,
     availableT1Upgrades,
     availableT2Upgrades,
@@ -1117,6 +1133,7 @@ export function Fishing() {
       skillTreeLevels: state.skillTreeLevels,
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
+      fishingRodCardTier: state.fishingRodCardTier,
     };
     const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOpts);
     const currentTotal = computeTotalFishPerHour(
@@ -1198,9 +1215,9 @@ export function Fishing() {
           ...newStats,
           fishing_tick_reduction: currentStats.fishing_tick_reduction,
         };
-        const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
-        const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
-        const totalChancesOnly = computeTotalFishPerHourFromStats(statsChancesOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalChancesOnly = computeTotalFishPerHourFromStats(statsChancesOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
         breakdownMap.set(def.id, [
           { label: "Tick -2s", pct: ((totalTickOnly - currentTotal) / currentTotal) * 100 },
           { label: "Double +2%", pct: ((totalDoubleOnly - totalTickOnly) / currentTotal) * 100 },
@@ -1218,8 +1235,8 @@ export function Fishing() {
           ...newStats,
           fish_income_multi: currentStats.fish_income_multi,
         };
-        const totalFishMultiOnly = computeTotalFishPerHourFromStats(statsFishMultiOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
-        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalFishMultiOnly = computeTotalFishPerHourFromStats(statsFishMultiOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
         breakdownMap.set(def.id, [
           { label: "Fish mult +1%/card", pct: ((totalFishMultiOnly - currentTotal) / currentTotal) * 100 },
           { label: "Shiny +0.1%/card", pct: ((totalShinyOnly - currentTotal) / currentTotal) * 100 },
@@ -1243,9 +1260,9 @@ export function Fishing() {
           drone_base_power: currentStats.drone_base_power,
           tier2_dock_power_mult: currentStats.tier2_dock_power_mult,
         };
-        const totalDroneOnly = computeTotalFishPerHourFromStats(statsDroneOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
-        const totalT2Only = computeTotalFishPerHourFromStats(statsT2Only, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
-        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalDroneOnly = computeTotalFishPerHourFromStats(statsDroneOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalT2Only = computeTotalFishPerHourFromStats(statsT2Only, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
         breakdownMap.set(def.id, [
           { label: "T2 dock +3%", pct: ((totalT2Only - currentTotal) / currentTotal) * 100 },
           { label: "Drone power +2%", pct: ((totalDroneOnly - currentTotal) / currentTotal) * 100 },
@@ -1272,6 +1289,8 @@ export function Fishing() {
     state.skillTreeLevels,
     state.fishCardTier,
     state.legendaryFishFound,
+    state.fishingRodCardTier,
+    effectiveRodPower,
     elixir3xFishingExternal,
   ]);
 
@@ -1770,7 +1789,7 @@ export function Fishing() {
                   <StatRow
                     label="Fishing rod power"
                     iconUrl={upgradeIconUrl("Fishing_Rod_Power.png")}
-                    value={Math.round(stats.fishing_rod_power)}
+                    value={effectiveRodPower}
                     decimals={0}
                   />
                   <StatRow
@@ -2629,6 +2648,25 @@ export function Fishing() {
 
         <Collapsible id="fishing-fish-cards" title="Fish Cards" defaultExpanded={true}>
           <div className="fishingFishCardsPanel">
+            <div className="fishingFishCardsGrid" style={{ marginBottom: 10 }}>
+              <div className="fishingFishCardCell">
+                <div className="fishingFishCardCellTop">
+                  <img src={upgradeIconUrl("Fishing_Rod_Power.png")} alt="" className="fishingFishCardIcon" />
+                  <span className="mono">Fishing Rod Power</span>
+                  <Tooltip
+                    content={{
+                      title: "Fishing Rod card",
+                      lines: ["Multiplies your Fishing Rod Power. Card 1.02×, Gilded 1.05×, Poly 1.10×."],
+                    }}
+                  />
+                </div>
+                <FishCardTierToggles
+                  value={state.fishingRodCardTier}
+                  onChange={(t) => setState((prev) => ({ ...prev, fishingRodCardTier: t }))}
+                />
+                <div className="small" style={{ marginTop: 4, opacity: 0.85 }}>Card 1.02× · Gilded 1.05× · Poly 1.10×</div>
+              </div>
+            </div>
             <div className="fishingFishCardsGrid">
               {ALL_FISH.map((f) => {
                 const tier = (state.fishCardTier[f.id] ?? 0) as FishCardTier;

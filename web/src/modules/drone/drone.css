@@ -269,6 +269,14 @@
   object-fit: contain;
 }
 
+/** Drone icon in collapsible header (next to Drone ON/OFF). */
+.droneHeaderIcon {
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .droneBuffPlotLabel {
   display: inline-flex;
   align-items: center;

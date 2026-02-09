@@ -44,6 +44,14 @@ const ANGLER_SUIT_SEC_PER_LEVEL = 2; // 1140 - 20*2 = 1100
 const ANGLER_FUEL_DURATION_BASE_SEC = 180;
 const ANGLER_FUEL_DURATION_SEC_PER_GRADE = 9;
 
+/** Starburst Drone: Stargazing. Suit: Triple Star Chance 6% base + 1% per level. Fuel buff: +100% Auto-catch (always), +15% Star Spawn Rate at grade 0, +1% per grade; duration 2:20 at grade 0, +0:09 per grade. */
+const STARBURST_TRIPLE_STAR_PCT_BASE = 6;
+const STARBURST_TRIPLE_STAR_PCT_PER_LEVEL = 1;
+const STARBURST_FUEL_DURATION_BASE_SEC = 140; // 2:20
+const STARBURST_FUEL_DURATION_SEC_PER_GRADE = 9;
+const STARBURST_STAR_SPAWN_PCT_BASE = 15;
+const STARBURST_STAR_SPAWN_PCT_PER_GRADE = 1;
+
 const GASOLINE_GUZZLER_FUEL_DURATION_PCT = 20;
 
 const ELIXIR_BUFF_ICONS =
@@ -120,9 +128,15 @@ type ElixirState = {
   anglerSuitLevel: number;
   anglerGradeLevel: number;
   anglerFueled: boolean;
+  /** Starburst Drone: Stargazing; suit = Triple Star Chance, fuel = +100% Auto-catch / +X% Star Spawn Rate. */
+  starburstDroneOn: boolean;
+  starburstSuitLevel: number;
+  starburstGradeLevel: number;
+  starburstFueled: boolean;
 };
 
-const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v4";
+const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v5";
+const STORAGE_KEY_V4 = "obeliskfarm:web:drone_elixir_save.json:v4";
 const STORAGE_KEY_V3 = "obeliskfarm:web:drone_elixir_save.json:v3";
 const STORAGE_KEY_V2 = "obeliskfarm:web:drone_elixir_save.json:v2";
 const STORAGE_KEY_V1 = "obeliskfarm:web:drone_elixir_save.json:v1";
@@ -166,6 +180,10 @@ const DEFAULT: ElixirState = {
   anglerSuitLevel: 0,
   anglerGradeLevel: 0,
   anglerFueled: false,
+  starburstDroneOn: true,
+  starburstSuitLevel: 0,
+  starburstGradeLevel: 0,
+  starburstFueled: false,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -375,13 +393,24 @@ function migrateFromV3(migrated: Partial<ElixirState>): Partial<ElixirState> {
   };
 }
 
+function migrateFromV4(migrated: Partial<ElixirState>): Partial<ElixirState> {
+  return {
+    ...migrated,
+    starburstDroneOn: typeof migrated.starburstDroneOn === "boolean" ? migrated.starburstDroneOn : DEFAULT.starburstDroneOn,
+    starburstSuitLevel: clamp(migrated.starburstSuitLevel ?? DEFAULT.starburstSuitLevel, 0, 20),
+    starburstGradeLevel: clamp(migrated.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, 45),
+    starburstFueled: typeof migrated.starburstFueled === "boolean" ? migrated.starburstFueled : DEFAULT.starburstFueled,
+  };
+}
+
 export function Drone() {
   const [state, setState] = useState<ElixirState>(() => {
     const saved = loadJson<Record<string, unknown>>(STORAGE_KEY)
+      ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V4)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V3)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V2)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V1);
-    const migrated = saved ? migrateFromV3(migrateFromV2(migrateFromV1(saved))) : {};
+    const migrated = saved ? migrateFromV4(migrateFromV3(migrateFromV2(migrateFromV1(saved)))) : {};
     const s = { ...DEFAULT, ...migrated } as ElixirState;
     s.gameSpeedMultiplier = clamp(s.gameSpeedMultiplier, 1, 10);
     s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_UPGRADE_MAX);
@@ -407,6 +436,10 @@ export function Drone() {
     s.anglerSuitLevel = clamp(s.anglerSuitLevel ?? DEFAULT.anglerSuitLevel, 0, 20);
     s.anglerGradeLevel = clamp(s.anglerGradeLevel ?? DEFAULT.anglerGradeLevel, 0, 45);
     s.anglerFueled = typeof migrated.anglerFueled === "boolean" ? migrated.anglerFueled : DEFAULT.anglerFueled;
+    s.starburstDroneOn = typeof migrated.starburstDroneOn === "boolean" ? migrated.starburstDroneOn : DEFAULT.starburstDroneOn;
+    s.starburstSuitLevel = clamp(s.starburstSuitLevel ?? DEFAULT.starburstSuitLevel, 0, 20);
+    s.starburstGradeLevel = clamp(s.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, 45);
+    s.starburstFueled = typeof migrated.starburstFueled === "boolean" ? migrated.starburstFueled : DEFAULT.starburstFueled;
     return s;
   });
 
@@ -541,6 +574,33 @@ export function Drone() {
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [anglerFuelDurationSecReal, state.anglerFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
+  /** Starburst: Triple Star Chance from suit (when ON). 6% base + 1% per level. */
+  const starburstTripleStarChancePct = state.starburstDroneOn ? STARBURST_TRIPLE_STAR_PCT_BASE + state.starburstSuitLevel * STARBURST_TRIPLE_STAR_PCT_PER_LEVEL : 0;
+  /** Starburst fuel duration: 2:20 base + 0:09 per grade (same coal/card mults). */
+  const starburstFuelDurationFromGradeSec = STARBURST_FUEL_DURATION_BASE_SEC + state.starburstGradeLevel * STARBURST_FUEL_DURATION_SEC_PER_GRADE;
+  const starburstFuelDurationGameSec = Math.round(
+    starburstFuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
+    (state.axolotlSkin ? 1.1 : 1) *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
+  );
+  const starburstFuelDurationSecReal = starburstFuelDurationGameSec / gameSpeedMult;
+  /** When fueled: +15% at grade 0, +1% per grade. Applied as mult (1 + pct/100) for uptime fraction in Stargazing. */
+  const starburstStarSpawnRatePct = state.starburstDroneOn && state.starburstFueled
+    ? STARBURST_STAR_SPAWN_PCT_BASE + state.starburstGradeLevel * STARBURST_STAR_SPAWN_PCT_PER_GRADE
+    : 0;
+  const starburstFuelGemsPerHour = useMemo(() => {
+    if (!state.starburstFueled || starburstFuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / starburstFuelDurationSecReal;
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [starburstFuelDurationSecReal, state.starburstFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
+
   const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
   const buffDurations = useMemo(() => {
     const list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
@@ -627,10 +687,11 @@ export function Drone() {
     const froggerFuelGems = state.froggerDroneOn && state.froggerFueled ? froggerFuelGemsPerHour : 0;
     const bombBearFuelGems = state.bombBearDroneOn && state.bombBearFueled ? bombBearFuelGemsPerHour : 0;
     const anglerFuelGems = state.anglerDroneOn && state.anglerFueled ? anglerFuelGemsPerHour : 0;
-    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems;
+    const starburstFuelGems = state.starburstDroneOn && state.starburstFueled ? starburstFuelGemsPerHour : 0;
+    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems + starburstFuelGems;
     ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -660,13 +721,42 @@ export function Drone() {
 
   const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
   const elixir2xStarMinPerHour = drone2xStarUptimeFraction * 60;
+  /** Starburst: when ON and fueled, 100% uptime of +Star Spawn Rate and 100% Auto-catch (60 min/h). */
+  const starburstStarSpawnRateUptimeFraction = state.starburstDroneOn && state.starburstFueled ? 1 : 0;
+  const starburstAutoCatch100MinPerHour = state.starburstDroneOn && state.starburstFueled ? 60 : 0;
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
     ext.drone2xStarUptimeFraction = drone2xStarUptimeFraction;
     ext.drone3xSuperUptimeFraction = drone3xSuperUptimeFraction;
     ext.elixir2xStarMinPerHour = elixir2xStarMinPerHour;
+    ext.starburstTripleStarChancePct = starburstTripleStarChancePct;
+    ext.starburstStarSpawnRateUptimeFraction = starburstStarSpawnRateUptimeFraction;
+    ext.starburstStarSpawnRatePct = starburstStarSpawnRatePct;
+    ext.starburstAutoCatch100MinPerHour = starburstAutoCatch100MinPerHour;
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
-  }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction, elixir2xStarMinPerHour]);
+  }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction, elixir2xStarMinPerHour, starburstTripleStarChancePct, starburstStarSpawnRateUptimeFraction, starburstStarSpawnRatePct, starburstAutoCatch100MinPerHour]);
+
+  /** +% star / SS gain from Starburst (offline): from Stargazing (with vs without drone). */
+  const starburstStarGainPct = (() => {
+    const ext = loadJson<{
+      stargazingStarsPerHourOnline?: number;
+      stargazingStarsPerHourOffline?: number;
+      stargazingStarsPerHourOnlineWithoutStarburst?: number;
+      stargazingStarsPerHourOfflineWithoutStarburst?: number;
+      stargazingSuperStarsPerHourOffline?: number;
+      stargazingSuperStarsPerHourOfflineWithoutStarburst?: number;
+    }>(STARGAZING_EXTERNAL_KEY);
+    const withOn = typeof ext?.stargazingStarsPerHourOnline === "number" ? ext.stargazingStarsPerHourOnline : NaN;
+    const withOff = typeof ext?.stargazingStarsPerHourOffline === "number" ? ext.stargazingStarsPerHourOffline : NaN;
+    const withoutOn = typeof ext?.stargazingStarsPerHourOnlineWithoutStarburst === "number" ? ext.stargazingStarsPerHourOnlineWithoutStarburst : NaN;
+    const withoutOff = typeof ext?.stargazingStarsPerHourOfflineWithoutStarburst === "number" ? ext.stargazingStarsPerHourOfflineWithoutStarburst : NaN;
+    const withSSOff = typeof ext?.stargazingSuperStarsPerHourOffline === "number" ? ext.stargazingSuperStarsPerHourOffline : NaN;
+    const withoutSSOff = typeof ext?.stargazingSuperStarsPerHourOfflineWithoutStarburst === "number" ? ext.stargazingSuperStarsPerHourOfflineWithoutStarburst : NaN;
+    const pctOn = Number.isFinite(withOn) && Number.isFinite(withoutOn) && withoutOn > 0 ? ((withOn - withoutOn) / withoutOn) * 100 : NaN;
+    const pctOff = Number.isFinite(withOff) && Number.isFinite(withoutOff) && withoutOff > 0 ? ((withOff - withoutOff) / withoutOff) * 100 : NaN;
+    const pctSSOff = Number.isFinite(withSSOff) && Number.isFinite(withoutSSOff) && withoutSSOff > 0 ? ((withSSOff - withoutSSOff) / withoutSSOff) * 100 : NaN;
+    return { pctOn, pctOff, pctSSOff };
+  })();
 
   const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
   useEffect(() => {
@@ -960,9 +1050,13 @@ export function Drone() {
         </div>
       </Collapsible>
 
-      <Collapsible id="drone-elixir" title="Elixir Drone" defaultExpanded={true}>
-        <div className="droneSection">
-          <div className="droneCheckboxRow">
+      <Collapsible
+        id="drone-elixir"
+        title="Elixir Drone"
+        defaultExpanded={true}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/b/bd/Drone_Elixir.png" alt="" className="droneHeaderIcon" aria-hidden />
             <input
               id="elixir-drone-on"
               type="checkbox"
@@ -980,6 +1074,9 @@ export function Drone() {
               }}
             />
           </div>
+        }
+      >
+        <div className="droneSection">
           <div className="droneSectionTitle">Settings</div>
 
           <Stepper
@@ -1362,9 +1459,13 @@ export function Drone() {
         </div>
       </Collapsible>
 
-      <Collapsible id="drone-frogger" title="Frogger Drone" defaultExpanded={true}>
-        <div className="droneSection">
-          <div className="droneCheckboxRow">
+      <Collapsible
+        id="drone-frogger"
+        title="Frogger Drone"
+        defaultExpanded={true}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/e/e8/Drone_Frogger.png" alt="" className="droneHeaderIcon" aria-hidden />
             <input
               id="frogger-drone-on"
               type="checkbox"
@@ -1382,6 +1483,9 @@ export function Drone() {
               }}
             />
           </div>
+        }
+      >
+        <div className="droneSection">
           <div className="droneSectionTitle">Settings</div>
 
           <Stepper
@@ -1563,12 +1667,13 @@ export function Drone() {
         </div>
       </Collapsible>
 
-      <Collapsible id="drone-bomb-bear" title="Bomb Bear Drone" defaultExpanded={true}>
-        <div className="droneSection">
-          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            When fueled, Bomb Bear increases Lootbug spawn rate (multiplicative with Lootbug stats). Do not enable Bomb Bear here if the Lootbug spawn rate you entered in Lootbug was already measured with Bomb Bear buff active in-game, or the bonus would be counted twice.
-          </p>
-          <div className="droneCheckboxRow">
+      <Collapsible
+        id="drone-bomb-bear"
+        title="Bomb Bear Drone"
+        defaultExpanded={true}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/6/6c/Drone_Bear.png" alt="" className="droneHeaderIcon" aria-hidden />
             <input
               type="checkbox"
               id="bomb-bear-drone-on"
@@ -1599,6 +1704,12 @@ export function Drone() {
               }}
             />
           </div>
+        }
+      >
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            When fueled, Bomb Bear increases Lootbug spawn rate (multiplicative with Lootbug stats). Do not enable Bomb Bear here if the Lootbug spawn rate you entered in Lootbug was already measured with Bomb Bear buff active in-game, or the bonus would be counted twice.
+          </p>
           <div className="droneSectionTitle">Settings</div>
           <div className="droneCheckboxRow">
             <img
@@ -1723,12 +1834,13 @@ export function Drone() {
         </div>
       </Collapsible>
 
-      <Collapsible id="drone-angler" title="Angler Drone" defaultExpanded={true}>
-        <div className="droneSection">
-          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            Gives 2 Fishing Ticks every {ANGLER_BASE_INTERVAL_SEC} s (game time). Suit: Time Between Fishing Ticks −40 s. Integrates with Fishing module for ticks and extra fish.
-          </p>
-          <div className="droneCheckboxRow">
+      <Collapsible
+        id="drone-angler"
+        title="Angler Drone"
+        defaultExpanded={true}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/5/54/Drone_Angler.png" alt="" className="droneHeaderIcon" aria-hidden />
             <input
               id="angler-drone-on"
               type="checkbox"
@@ -1746,6 +1858,12 @@ export function Drone() {
               }}
             />
           </div>
+        }
+      >
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            Gives 2 Fishing Ticks every {ANGLER_BASE_INTERVAL_SEC} s (game time). Suit: Time Between Fishing Ticks −40 s. Integrates with Fishing module for ticks and extra fish.
+          </p>
           <div className="droneSectionTitle">Settings</div>
           <Stepper
             label="Angler Suit level"
@@ -1879,6 +1997,209 @@ export function Drone() {
               No fish with power in Fishing module. Open Fishing, select a dock and ensure rod/drones give power to at least one fish.
             </p>
           ) : null}
+        </div>
+      </Collapsible>
+
+      <Collapsible
+        id="drone-starburst"
+        title="Starburst Drone"
+        defaultExpanded={true}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/5/54/Drone_Starburst.png" alt="" className="droneHeaderIcon" aria-hidden />
+            <input
+              id="starburst-drone-on"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.starburstDroneOn}
+              onChange={(e) => update({ starburstDroneOn: e.target.checked })}
+            />
+            <label htmlFor="starburst-drone-on" className="droneLabel">
+              Drone: {state.starburstDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Starburst Drone",
+                lines: ["When OFF, Starburst contributions (Triple Star Chance, Star Spawn Rate, 100% Auto-catch, fuel cost) are not sent to Stargazing."],
+              }}
+            />
+          </div>
+        }
+      >
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            Suit: Triple Star Chance. When fueled: +100% Auto-catch (always), +Star Spawn Rate. Effect is applied in the Stargazing module when this drone is ON.
+          </p>
+          <div className="droneSectionTitle">Settings</div>
+          <Stepper
+            label="Starburst Suit level"
+            value={state.starburstSuitLevel}
+            onChange={(n) => update({ starburstSuitLevel: n })}
+            min={0}
+            max={20}
+            step={1}
+            stepLarge={5}
+            tooltip={{
+              title: "Starburst Suit",
+              lines: [
+                "Triple Star Chance: 6% base + 1% per level. Stargazing uses this when drone is ON.",
+              ],
+            }}
+          />
+          <div className="droneRow">
+            <span className="droneLabel">→ Triple Star Chance (suit)</span>
+            <span className="droneStepperValue">
+              {state.starburstDroneOn ? `${starburstTripleStarChancePct}%` : "—"}
+            </span>
+          </div>
+          <div className="droneCheckboxRow">
+            <img
+              src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png"
+              alt=""
+              className="droneSkillIcon"
+              aria-hidden
+            />
+            <input
+              id="starburst-fueled"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.starburstFueled}
+              onChange={(e) => update({ starburstFueled: e.target.checked })}
+            />
+            <label htmlFor="starburst-fueled" className="droneLabel">
+              Drone fueled
+            </label>
+          </div>
+          {state.starburstFueled ? (
+            <div className="droneSubSection">
+              <div className="droneSubTitle">When fueled</div>
+              <Stepper
+                label="Grade level"
+                value={state.starburstGradeLevel}
+                onChange={(n) => update({ starburstGradeLevel: n })}
+                min={0}
+                max={45}
+                step={1}
+                stepLarge={5}
+                tooltip={{
+                  title: "Starburst grade (fuel buff)",
+                  lines: [
+                    "Buff: +100% Auto-catch (always), +15% Star Spawn Rate at grade 0, +1% per grade. Duration: 2:20 at grade 0, +0:09 per grade.",
+                    "Same fuel duration multipliers (Coal, Cards, etc.) as other drones.",
+                  ],
+                }}
+              />
+              <div className="droneRow">
+                <span className="droneLabel">→ Star Spawn Rate (fuel buff)</span>
+                <span className="droneStepperValue">
+                  {state.starburstDroneOn ? `+${starburstStarSpawnRatePct}%` : "—"}
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {state.starburstFueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel (Starburst)</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">{formatMinSec(starburstFuelDurationGameSec)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">{formatMinSec(starburstFuelDurationSecReal)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      lines: [
+                        "Average gems per hour spent on fuel to keep the Starburst Drone fueled 100% of the time.",
+                        "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span className="droneFuelGemsValue" aria-label={`${starburstFuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{starburstFuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="droneSection">
+          <div className="droneSectionTitle">Stargazing</div>
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            Triple Star Chance (suit), Star Spawn Rate and 100% Auto-catch (when fueled) are sent to the Stargazing module. Open Stargazing to see the combined effect.
+          </p>
+          {state.starburstFueled && state.starburstDroneOn ? (
+            <>
+              <div className="droneRow">
+                <span className="droneLabel">Star Spawn Rate (fuel buff)</span>
+                <span className="droneStepperValue">+{starburstStarSpawnRatePct}%</span>
+              </div>
+              <div className="droneRow">
+                <span className="droneLabel">100% Auto-catch</span>
+                <span className="droneStepperValue">60 min/h (full uptime when fueled)</span>
+              </div>
+            </>
+          ) : null}
+          {state.starburstDroneOn && (Number.isFinite(starburstStarGainPct.pctOff) || Number.isFinite(starburstStarGainPct.pctSSOff)) ? (
+            <>
+              <div className="droneRow droneFuelGemsRow droneBomb10xRow">
+                <span className="droneFuelGemsLabel">
+                  <img src={`${ELIXIR_BUFF_ICONS}5/5b/2x_Spawn_Rate_Buff.png`} alt="" className="droneSkillIcon" aria-hidden />
+                  <span className="droneLabel">
+                    Star offline
+                    <Tooltip
+                      content={{
+                        title: "Star offline",
+                        lines: ["+% gain to stars per hour (offline) from Starburst Drone. With vs without drone; from Stargazing. Open Stargazing to update."],
+                      }}
+                    />
+                  </span>
+                </span>
+                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={Number.isFinite(starburstStarGainPct.pctOff) ? `+${starburstStarGainPct.pctOff.toFixed(1)}% star gain from drone` : "—"}>
+                  {Number.isFinite(starburstStarGainPct.pctOff) ? `+${starburstStarGainPct.pctOff.toFixed(1)}%` : "—"}
+                </span>
+              </div>
+              <div className="droneRow droneFuelGemsRow droneBomb10xRow">
+                <span className="droneFuelGemsLabel">
+                  <img src={`${ELIXIR_BUFF_ICONS}7/72/Triple_Super_Star_Chance_Buff.png`} alt="" className="droneSkillIcon" aria-hidden />
+                  <span className="droneLabel">
+                    SS offline
+                    <Tooltip
+                      content={{
+                        title: "SS offline",
+                        lines: ["+% gain to super stars per hour (offline) from Starburst Drone. With vs without drone; from Stargazing. Open Stargazing to update."],
+                      }}
+                    />
+                  </span>
+                </span>
+                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={Number.isFinite(starburstStarGainPct.pctSSOff) ? `+${starburstStarGainPct.pctSSOff.toFixed(1)}% super star gain from drone` : "—"}>
+                  {Number.isFinite(starburstStarGainPct.pctSSOff) ? `+${starburstStarGainPct.pctSSOff.toFixed(1)}%` : "—"}
+                </span>
+              </div>
+            </>
+          ) : state.starburstDroneOn ? (
+            <p className="droneHint small" style={{ marginTop: 8, marginBottom: 0 }}>
+              Open Stargazing once to see +% star gain from drone.
+            </p>
+          ) : (
+            <p className="droneHint small" style={{ marginTop: 8, marginBottom: 0 }}>
+              Turn drone ON and open Stargazing to see +% star gain from drone.
+            </p>
+          )}
         </div>
       </Collapsible>
     </div>

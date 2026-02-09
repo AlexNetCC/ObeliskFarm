@@ -325,13 +325,17 @@ export function Stargazing() {
     return () => window.clearTimeout(t);
   }, [resetArmed]);
 
-  /** 2× Star Spawn Rate: Elixir (Drone) + Lootbug (incl. Golden) + Founder Supply Drop. Same buff; durations add (e.g. 3+5+2 = 10 min/h → 1/6 uptime). 3× Super Star from Drone Elixir only. */
+  /** 2× Star Spawn Rate: Elixir (Drone) + Lootbug (incl. Golden) + Founder Supply Drop. Same buff; durations add (e.g. 3+5+2 = 10 min/h → 1/6 uptime). 3× Super Star from Drone Elixir only. Starburst Drone: Triple Star (suit), Star Spawn Rate + Auto-catch (when fueled). */
   const droneBuffs = (() => {
     const sg = loadJson<{
       elixir2xStarMinPerHour?: number;
       drone3xSuperUptimeFraction?: number;
       founderSupplyDrop2xStarMinPerHour?: number;
       founderSupplyDropAutoCatch100MinPerHour?: number;
+      starburstTripleStarChancePct?: number;
+      starburstStarSpawnRateUptimeFraction?: number;
+      starburstStarSpawnRatePct?: number;
+      starburstAutoCatch100MinPerHour?: number;
     }>(STARGAZING_EXTERNAL_KEY);
     const gemev = loadJson<{ lootbug2xStarMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
     const elixirMin = typeof sg?.elixir2xStarMinPerHour === "number" ? Math.max(0, sg.elixir2xStarMinPerHour) : 0;
@@ -339,29 +343,42 @@ export function Stargazing() {
     const founder2xMin = typeof sg?.founderSupplyDrop2xStarMinPerHour === "number" ? Math.max(0, sg.founderSupplyDrop2xStarMinPerHour) : 0;
     const total2xStarMinPerHour = elixirMin + lootbugMin + founder2xMin;
     const total2xUptimeFraction = Math.min(1, total2xStarMinPerHour / 60);
+    const founderAutoCatchMin = typeof sg?.founderSupplyDropAutoCatch100MinPerHour === "number" ? Math.max(0, sg.founderSupplyDropAutoCatch100MinPerHour) : 0;
+    const starburstAutoCatchMin = typeof sg?.starburstAutoCatch100MinPerHour === "number" ? Math.max(0, sg.starburstAutoCatch100MinPerHour) : 0;
+    const totalAutoCatch100MinPerHour = Math.min(60, founderAutoCatchMin + starburstAutoCatchMin);
     return {
       total2xStarMinPerHour,
       total2xUptimeFraction,
       drone3xSuperUptimeFraction: typeof sg?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.drone3xSuperUptimeFraction)) : 0,
-      founderSupplyDropAutoCatch100MinPerHour: typeof sg?.founderSupplyDropAutoCatch100MinPerHour === "number" ? Math.max(0, sg.founderSupplyDropAutoCatch100MinPerHour) : 0,
+      founderSupplyDropAutoCatch100MinPerHour: totalAutoCatch100MinPerHour,
+      founderOnlyAutoCatch100MinPerHour: founderAutoCatchMin,
+      starburstTripleStarChancePct: typeof sg?.starburstTripleStarChancePct === "number" ? Math.max(0, sg.starburstTripleStarChancePct) : 0,
+      starburstStarSpawnRateUptimeFraction: typeof sg?.starburstStarSpawnRateUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.starburstStarSpawnRateUptimeFraction)) : 0,
+      starburstStarSpawnRatePct: typeof sg?.starburstStarSpawnRatePct === "number" ? Math.max(0, sg.starburstStarSpawnRatePct) : 0,
+      starburstAutoCatch100MinPerHour: starburstAutoCatchMin,
     };
   })();
+
+  const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
   const stats = useMemo<PlayerStats>(() => {
     const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
-    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffs.total2xUptimeFraction);
+    const starburstStarMult = 1 + droneBuffs.starburstStarSpawnRateUptimeFraction * (droneBuffs.starburstStarSpawnRatePct / 100);
+    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffs.total2xUptimeFraction) * starburstStarMult;
     const super_star_spawn_rate_mult = baseSuperMult * (1 + 2 * droneBuffs.drone3xSuperUptimeFraction);
     const autoCatchBase = clamp(ui.auto_catch_chance, 0, 100) / 100;
     const founderAutoCatchMin = Math.min(60, droneBuffs.founderSupplyDropAutoCatch100MinPerHour);
     const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderAutoCatchMin) + founderAutoCatchMin) / 60;
+    const tripleStarBasePct = clamp(ui.triple_star_chance, 0, 100);
+    const triple_star_chance = Math.min(1, (tripleStarBasePct + droneBuffs.starburstTripleStarChancePct) / 100);
     return {
       floor_clears_per_hour,
       star_spawn_rate_mult,
       auto_catch_chance,
       double_star_chance: clamp(ui.double_star_chance, 0, 100) / 100,
-      triple_star_chance: clamp(ui.triple_star_chance, 0, 100) / 100,
+      triple_star_chance,
       super_star_spawn_rate_mult,
       triple_super_star_chance: clamp(ui.triple_super_star_chance, 0, 100) / 100,
       super_star_10x_chance: clamp(ui.super_star_10x_chance, 0, 100) / 100,
@@ -381,12 +398,73 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour]);
+  }, [ui, ctrlF, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct]);
+
+  /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
+  const statsWithoutStarburst = useMemo<PlayerStats>(() => {
+    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
+    const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
+    const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
+    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffs.total2xUptimeFraction);
+    const super_star_spawn_rate_mult = baseSuperMult * (1 + 2 * droneBuffs.drone3xSuperUptimeFraction);
+    const autoCatchBase = clamp(ui.auto_catch_chance, 0, 100) / 100;
+    const founderOnlyMin = Math.min(60, droneBuffs.founderOnlyAutoCatch100MinPerHour);
+    const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderOnlyMin) + founderOnlyMin) / 60;
+    const triple_star_chance = clamp(ui.triple_star_chance, 0, 100) / 100;
+    return {
+      floor_clears_per_hour,
+      star_spawn_rate_mult,
+      auto_catch_chance,
+      double_star_chance: clamp(ui.double_star_chance, 0, 100) / 100,
+      triple_star_chance,
+      super_star_spawn_rate_mult,
+      triple_super_star_chance: clamp(ui.triple_super_star_chance, 0, 100) / 100,
+      super_star_10x_chance: clamp(ui.super_star_10x_chance, 0, 100) / 100,
+      star_supernova_chance: clamp(ui.star_supernova_chance, 0, 100) / 100,
+      star_supernova_mult: clamp(ui.star_supernova_mult, 0, 1_000_000),
+      star_supergiant_chance: clamp(ui.star_supergiant_chance, 0, 100) / 100,
+      star_supergiant_mult: clamp(ui.star_supergiant_mult, 0, 1_000_000),
+      star_radiant_chance: clamp(ui.star_radiant_chance, 0, 100) / 100,
+      star_radiant_mult: clamp(ui.star_radiant_mult, 0, 1_000_000),
+      super_star_supernova_chance: clamp(ui.super_star_supernova_chance, 0, 100) / 100,
+      super_star_supernova_mult: clamp(ui.super_star_supernova_mult, 0, 1_000_000),
+      super_star_supergiant_chance: clamp(ui.super_star_supergiant_chance, 0, 100) / 100,
+      super_star_supergiant_mult: clamp(ui.super_star_supergiant_mult, 0, 1_000_000),
+      super_star_radiant_chance: clamp(ui.super_star_radiant_chance, 0, 100) / 100,
+      super_star_radiant_mult: clamp(ui.super_star_radiant_mult, 0, 1_000_000),
+      all_star_mult: clamp(ui.all_star_mult, 0, 1_000_000),
+      novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
+      ctrl_f_stars_enabled: ctrlF,
+    };
+  }, [ui, ctrlF, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderOnlyAutoCatch100MinPerHour]);
 
   const summary = useMemo(() => {
     const calc = new StargazingCalculator(stats);
     return calc.get_summary();
   }, [stats]);
+
+  const summaryWithoutStarburst = useMemo(() => {
+    const calc = new StargazingCalculator(statsWithoutStarburst);
+    return calc.get_summary();
+  }, [statsWithoutStarburst]);
+
+  /** Write stars/h and super stars/h with and without Starburst to external so Drone can show +% gain. */
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
+    ext.stargazingStarsPerHourOnline = summary.stars_per_hour_online;
+    ext.stargazingStarsPerHourOffline = summary.stars_per_hour_offline;
+    ext.stargazingSuperStarsPerHourOffline = summary.super_stars_per_hour_offline;
+    if (hasStarburst) {
+      ext.stargazingStarsPerHourOnlineWithoutStarburst = summaryWithoutStarburst.stars_per_hour_online;
+      ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburst.stars_per_hour_offline;
+      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburst.super_stars_per_hour_offline;
+    } else {
+      ext.stargazingStarsPerHourOnlineWithoutStarburst = summary.stars_per_hour_online;
+      ext.stargazingStarsPerHourOfflineWithoutStarburst = summary.stars_per_hour_offline;
+      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summary.super_stars_per_hour_offline;
+    }
+    saveJson(STARGAZING_EXTERNAL_KEY, ext);
+  }, [hasStarburst, summary.stars_per_hour_online, summary.stars_per_hour_offline, summary.super_stars_per_hour_offline, summaryWithoutStarburst.stars_per_hour_online, summaryWithoutStarburst.stars_per_hour_offline, summaryWithoutStarburst.super_stars_per_hour_offline]);
 
   const spawnTree = useMemo(() => new StargazingCalculator(stats).get_spawn_tree(), [stats]);
 
@@ -547,12 +625,13 @@ export function Stargazing() {
                 </div>
               )}
             </div>
-            {(droneBuffs.total2xStarMinPerHour > 0 || droneBuffs.drone3xSuperUptimeFraction > 0 || droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0) && (
+            {(droneBuffs.total2xStarMinPerHour > 0 || droneBuffs.drone3xSuperUptimeFraction > 0 || droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 || droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0) && (
               <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   Includes 2× Star (Elixir + Lootbug incl. Golden + Founder Supply; minutes add)
                   {droneBuffs.drone3xSuperUptimeFraction > 0 && ", 3× Super Star (Elixir)"}
-                  {droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 && ", 100% Auto-catch (Founder Supply)"}
+                  {droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 && ", 100% Auto-catch (Founder Supply + Starburst when fueled)"}
+                  {(droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0) && ", Starburst Drone (Triple Star suit, Star Spawn when fueled)"}
                   <Tooltip
                     content={{
                       title: "External buffs",
@@ -572,7 +651,13 @@ export function Stargazing() {
                         {
                           heading: "100% Auto-catch",
                           lines: [
-                            "Founder Supply Drop gives 8 min (÷ game speed) of 100% Star Auto-catch per drop. Blended with your base auto-catch over the hour.",
+                            "Founder Supply Drop gives 8 min (÷ game speed) of 100% Star Auto-catch per drop. Starburst Drone when fueled adds up to 60 min/h. Blended with your base auto-catch over the hour.",
+                          ],
+                        },
+                        {
+                          heading: "Starburst Drone",
+                          lines: [
+                            "From Drone module. Suit: Triple Star Chance (6% base + 1% per level) added to your stat. When fueled: +Star Spawn Rate (15% at grade 0, +1% per grade) and 100% Auto-catch for the full hour.",
                           ],
                         },
                       ],

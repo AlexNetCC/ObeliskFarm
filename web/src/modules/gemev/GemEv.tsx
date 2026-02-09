@@ -304,10 +304,12 @@ export function GemEv() {
     p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
 
     p.bomb_recharge_10x_min_per_hour = external10x.total;
-    // When Bombs has "Chaos Totem 100% Uptime" checked, use 100% so Gem EV matches bomb contribution
+    // Chaos Totem: Bombs/Items override when set; otherwise use Gem EV params
     p.chaos_totem_uptime = external.chaosTotem100FromBombs
       ? 1
-      : Math.max(0, Math.min(1, (external.chaosTotemUptimePct ?? 0) / 100));
+      : typeof external.chaosTotemUptimePct === "number"
+        ? Math.max(0, Math.min(1, external.chaosTotemUptimePct / 100))
+        : Math.max(0, Math.min(1, p.chaos_totem_uptime ?? 0));
 
     // Ensure positive time values
     p.freebie_timer_minutes = clamp(p.freebie_timer_minutes, 0.1, 10_000);
