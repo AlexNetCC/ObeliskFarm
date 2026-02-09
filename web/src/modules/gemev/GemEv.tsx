@@ -395,6 +395,7 @@ export function GemEv() {
       total10xMinPerHour?: number;
       freebiesPerHour?: number;
       freebieChestsPerHour?: number;
+      founderSupplyDropItemChestsPerHour?: number;
       chaosTotemImpact?: number;
       stonksChestsPerHour?: number;
       game_speed_multiplier?: number;

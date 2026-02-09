@@ -6,6 +6,8 @@ An interactive calculator toolkit for the Android game **Idle Obelisk Miner**.
 
 **Core focus:** Monte Carlo simulators for build optimization, plus Gem EV and supporting calculators (Bombs, Drone, Lootbug, Stargazing, Items).
 
+Disclaimer: This tool would not have been possible without heavy AI assistance for implementation and iteration. Design and testing was done by myself.
+
 ## Web App
 
 The main interface is the **web app** (no install, runs in the browser):

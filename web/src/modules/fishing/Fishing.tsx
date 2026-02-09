@@ -57,6 +57,7 @@ type SavedState = {
   enhanceLevels?: Partial<Record<EnhanceId, number>>;
   fishCardTier?: Partial<Record<string, FishCardTier>>;
   sushiCardTier?: FishCardTier;
+  fishingRodCardTier?: FishCardTier;
   valuePackPotencyPoly?: boolean;
   skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
   legendaryFishFound?: number;
