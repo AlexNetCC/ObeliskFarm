@@ -681,7 +681,7 @@ export function Drone() {
   }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
   useEffect(() => {
-    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number; bombBearLootbugSpawnRateMult?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
+    const ext = loadJson<{ lootbugBomb10xMinPerHour?: number; droneBomb10xMinPerHour?: number; droneFuelGemsPerHour?: number; elixirFuelGemsPerHour?: number; bombBearLootbugSpawnRateMult?: number }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.droneBomb10xMinPerHour = state.elixirDroneOn ? droneBomb10xMinPerHour : 0;
     const elixirFuelGems = state.elixirDroneOn && state.fueled ? fuelGemsPerHour : 0;
     const froggerFuelGems = state.froggerDroneOn && state.froggerFueled ? froggerFuelGemsPerHour : 0;
@@ -689,6 +689,7 @@ export function Drone() {
     const anglerFuelGems = state.anglerDroneOn && state.anglerFueled ? anglerFuelGemsPerHour : 0;
     const starburstFuelGems = state.starburstDroneOn && state.starburstFueled ? starburstFuelGemsPerHour : 0;
     ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems + starburstFuelGems;
+    ext.elixirFuelGemsPerHour = elixirFuelGems;
     ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled]);

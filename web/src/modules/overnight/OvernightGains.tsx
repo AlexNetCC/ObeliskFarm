@@ -119,6 +119,7 @@ function Stepper(props: {
 type OvernightState = {
   sleepHours: number;
   gemBombActive: boolean;
+  offlineNoElixirBuff: boolean;
   bankedFreebies: number;
   bankedLootbugs: number;
 };
@@ -126,6 +127,7 @@ type OvernightState = {
 const DEFAULT_STATE: OvernightState = {
   sleepHours: 8,
   gemBombActive: true,
+  offlineNoElixirBuff: false,
   bankedFreebies: 0,
   bankedLootbugs: 0,
 };
@@ -298,6 +300,7 @@ export function OvernightGains() {
       game_speed_multiplier?: number;
       droneBomb10xMinPerHour?: number;
       droneFuelGemsPerHour?: number;
+      elixirFuelGemsPerHour?: number;
       lootbugEvPerClaim?: number;
       chaosTotem100FromBombs?: boolean;
     }>(GEMEV_EXTERNAL_KEY);
@@ -306,24 +309,29 @@ export function OvernightGains() {
       : getGameSpeedMultiplier(gemEvParams);
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? Math.max(0, ext.droneBomb10xMinPerHour) : 0;
     const droneFuel = typeof ext?.droneFuelGemsPerHour === "number" ? Math.max(0, ext.droneFuelGemsPerHour) : 0;
+    const elixirFuel = typeof ext?.elixirFuelGemsPerHour === "number" ? Math.max(0, ext.elixirFuelGemsPerHour) : 0;
     const lootbugEv = typeof ext?.lootbugEvPerClaim === "number"
       ? ext.lootbugEvPerClaim
       : null;
     const chaos100 = typeof ext?.chaosTotem100FromBombs === "boolean" ? ext.chaosTotem100FromBombs : false;
-    return { gameSpeed, drone10x, droneFuel, lootbugEv, chaos100 };
+    return { gameSpeed, drone10x, droneFuel, elixirFuel, lootbugEv, chaos100 };
   })();
+
+  /** When offline (screen off): no Elixir Drone buff (10× = 0) and no Elixir fuel cost. */
+  const effectiveDrone10x = state.offlineNoElixirBuff ? 0 : external.drone10x;
+  const effectiveDroneFuel = state.offlineNoElixirBuff ? Math.max(0, external.droneFuel - external.elixirFuel) : external.droneFuel;
 
   const effectiveParams = useMemo(() => {
     const p: GameParameters = { ...gemEvParams };
     p.game_speed_multiplier = external.gameSpeed;
-    p.bomb_recharge_10x_min_per_hour = external.drone10x;
+    p.bomb_recharge_10x_min_per_hour = effectiveDrone10x;
     p.chaos_totem_uptime = external.chaos100 ? 1 : 0;
     return p;
-  }, [gemEvParams, external.gameSpeed, external.drone10x, external.chaos100]);
+  }, [gemEvParams, external.gameSpeed, effectiveDrone10x, external.chaos100]);
 
   const autoBomberGemEvPerHour = useMemo(() => {
     if (!state.gemBombActive) return 0;
-    const drone10xUptime = external.drone10x / 60.0;
+    const drone10xUptime = effectiveDrone10x / 60.0;
     const bomb10xFactor = 1.0 + 9.0 * drone10xUptime;
     const chaosUptime = external.chaos100 ? 1.0 : 0.0;
     const chaosFactor = 1.0 + chaosUptime;
@@ -337,7 +345,7 @@ export function OvernightGains() {
     const effectiveGemBombsPerHour = Math.min(gemBombsDroppedPerHour, gemBombsRechargedPerHour);
     const gemChance = Math.max(0, Math.min(1, gemEvParams.gem_bomb_gem_chance)) + getGemBombGemChanceT12Bonus(effectiveParams);
     return effectiveGemBombsPerHour * gemChance;
-  }, [state.gemBombActive, external.chaos100, effectiveParams, gemEvParams, external.drone10x, external.gameSpeed]);
+  }, [state.gemBombActive, external.chaos100, effectiveParams, gemEvParams, effectiveDrone10x, external.gameSpeed]);
 
   const freebieEvPerClaim = useMemo(() => getFreebieEvPerClaim(effectiveParams), [effectiveParams]);
   const founderGemsPerEvent = useMemo(() => getFounderGemsPerSingleEvent(effectiveParams), [effectiveParams]);
@@ -350,14 +358,14 @@ export function OvernightGains() {
     const freebies = state.bankedFreebies * freebieEvPerClaim;
     const founder = founderGemsPerEvent;
     const lootbugs = state.bankedLootbugs * lootbugEvPerClaim;
-    const droneFuel = hours * external.droneFuel;
-    const total = autoBomber + freebies + founder + lootbugs - droneFuel;
-    return { autoBomber, freebies, founder, lootbugs, droneFuel: -droneFuel, total };
-  }, [state.sleepHours, state.bankedFreebies, state.bankedLootbugs, state.gemBombActive, autoBomberGemEvPerHour, freebieEvPerClaim, founderGemsPerEvent, lootbugEvPerClaim, external.droneFuel]);
+    const droneFuelCost = hours * effectiveDroneFuel;
+    const total = autoBomber + freebies + founder + lootbugs - droneFuelCost;
+    return { autoBomber, freebies, founder, lootbugs, droneFuel: -droneFuelCost, total };
+  }, [state.sleepHours, state.bankedFreebies, state.bankedLootbugs, state.gemBombActive, autoBomberGemEvPerHour, freebieEvPerClaim, founderGemsPerEvent, lootbugEvPerClaim, effectiveDroneFuel]);
 
   const overnightTotal = contributions.total;
   /** Ongoing gem EV per hour (rate × hours). Does not include one-time payouts. */
-  const gemEvPerHourRate = (state.gemBombActive ? autoBomberGemEvPerHour : 0) - external.droneFuel;
+  const gemEvPerHourRate = (state.gemBombActive ? autoBomberGemEvPerHour : 0) - effectiveDroneFuel;
   const oneTimeTotal = contributions.freebies + contributions.founder + contributions.lootbugs;
 
   const overnightInfo = {
@@ -503,6 +511,26 @@ export function OvernightGains() {
               <span className="label">Chaos Totem 100% Uptime</span>
               <span className="mono small">{external.chaos100 ? "Yes" : "No"}</span>
               <Tooltip content={{ title: "Chaos Totem", lines: ["Taken from Bombs module. Change it there to affect overnight calculation.", "When off, Chaos Totem is excluded from overnight calculation."] }} label="?" />
+            </div>
+            <div className="overnightRow overnightRowSingle overnightRowBordered">
+              <label className="toggle" style={{ margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={state.offlineNoElixirBuff}
+                  onChange={(e) => setState((s) => ({ ...s, offlineNoElixirBuff: e.target.checked }))}
+                />
+                <span>Offline Gains = No Elixir Drone buff</span>
+              </label>
+              <Tooltip
+                content={{
+                  title: "Offline Gains",
+                  lines: [
+                    "When checked: fully offline (screen off). You do not get the Elixir Drone 10× Bomb Recharge buff.",
+                    "You also do not spend Elixir fuel, so that cost is excluded from overnight.",
+                  ],
+                }}
+                label="?"
+              />
             </div>
             <div className="overnightRow overnightRowDouble">
               <Stepper label="Banked freebies" value={state.bankedFreebies} onChange={(v) => setState((s) => ({ ...s, bankedFreebies: Math.max(0, v) }))} step={1} min={0} max={999} decimals={0} />
