@@ -287,7 +287,7 @@ function computeTotalFishPerHour(
   const triplePct = stats.triple_tick_chance_pct / 100;
   const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
   const rodMult = (skillOptions?.fishingRodCardTier != null) ? FISHING_ROD_CARD_MULT[skillOptions.fishingRodCardTier] : 1;
-  const baseRod = Math.round(stats.fishing_rod_power * rodMult);
+  const baseRod = Math.round(stats.fishing_rod_power * rodMult); // round only once, after card mult
   let total = 0;
   for (const set of AQUARIUM) {
     const dock = DOCKS.find((d) => d.id === set.dockId)!;
@@ -548,7 +548,7 @@ export function Fishing() {
     legendaryFishFound: state.legendaryFishFound,
   };
   const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillTreeOptions);
-  /** Rod power with Fishing Rod card (1× / 1.02× / 1.05× / 1.10×). Rounded so display and calculations use the same integer. */
+  /** Rod power: base (from lib, unrounded) × Fishing Rod card mult (1× / 1.02× / 1.05× / 1.10×). Round only once at the end. */
   const effectiveRodPower = Math.round(stats.fishing_rod_power * FISHING_ROD_CARD_MULT[state.fishingRodCardTier]);
 
   /** Expected multiplier from Shiny (chance × multi) and Super Shiny (only when already shiny). */

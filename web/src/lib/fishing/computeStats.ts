@@ -74,13 +74,14 @@ export function computeFishingStatsFromLevels(
   const boat_level = u("upgrade_boat");
   const t2_boat_level = u("upgrade_t2_boat");
 
-  // Fishing Rod: base 10, ×1.16 per level (first upgrade 10×1.16 ≈ 11.6 → 12). Rod Multiplier +0.04x (upgrade), +0.05x (enhance). Skill: Motley School +10% per level.
+  // Fishing Rod: base 10, ×1.16 per level. Rod Multiplier +0.04x (upgrade), +0.05x (enhance). Skill: Motley School +10% per level.
+  // Not rounded here: Fishing Rod card in the UI is a separate multiplier; rounding happens only once at the end (after card).
   const ROD_POWER_BASE = 10;
   const rodBase = ROD_POWER_BASE * Math.pow(1.16, u("fishing_rod"));
   const rodMultiUpgrade = 1 + 0.04 * u("rod_multiplier");
   const rodMultiEnhance = 1 + 0.05 * e("enhance_rod_multiplier");
   const rodMultiSkill = 1 + 0.1 * skill("motley_school");
-  const fishing_rod_power = Math.round(rodBase * rodMultiUpgrade * rodMultiEnhance * rodMultiSkill);
+  const fishing_rod_power = rodBase * rodMultiUpgrade * rodMultiEnhance * rodMultiSkill;
 
   // Fish Income Multiplier: +0.03x (upgrade), +0.05x (enhance). Additive on base 1. Skill: Fishing With Friends +3% per level; With This Fish I Summon +1% per fish card per level.
   const effectiveFishCardCount =
