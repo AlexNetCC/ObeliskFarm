@@ -56,6 +56,7 @@ type SavedState = {
   upgradeLevels?: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels?: Partial<Record<EnhanceId, number>>;
   fishCardTier?: Partial<Record<string, FishCardTier>>;
+  sushiCardTier?: FishCardTier;
   valuePackPotencyPoly?: boolean;
   skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
   legendaryFishFound?: number;
@@ -69,6 +70,8 @@ type FishingState = {
   upgradeLevels: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels: Partial<Record<EnhanceId, number>>;
   fishCardTier: Partial<Record<string, FishCardTier>>;
+  /** Sushi Misc card: 0 = none, 1 = Card +5 ticks, 2 = Gilded +10, 3 = Poly +20. */
+  sushiCardTier: FishCardTier;
   valuePackPotencyPoly: boolean;
   skillTreeLevels: Partial<Record<FishingSkillId, number>>;
   legendaryFishFound: number;
@@ -76,6 +79,11 @@ type FishingState = {
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
 const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
+
+/** Sushi: base 90 ticks. Sushi Misc card: Card +5, Gilded +10, Poly +20. */
+const SUSHI_BASE_TICKS = 90;
+const SUSHI_CARD_TICKS: Record<FishCardTier, number> = { 0: 0, 1: 5, 2: 10, 3: 20 };
+const SUSHI_MC_RUNS = 10000;
 
 /** Elixir 3× Fishing Tick Speed buff icon (same as Drone module). */
 const ELIXIR_3X_FISHING_BUFF_ICON = "https://static.wikitide.net/shminerwiki/8/87/Triple_Fish_Tick_Chance.png";
@@ -145,6 +153,7 @@ function FishCardTierToggles(props: { value: FishCardTier; onChange: (t: FishCar
     </div>
   );
 }
+
 
 /** Interpolate green (t=1) → red (t=0). t in [0,1]. Muted palette. */
 function heatmapColor(t: number): string {
@@ -456,10 +465,11 @@ export function Fishing() {
     const showDisabledFishGrayed = saved?.showDisabledFishGrayed ?? false;
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
     const fishCardTier = saved?.fishCardTier ?? {};
+    const sushiCardTier = clamp(Math.trunc(Number(saved?.sushiCardTier ?? 0)), 0, 3) as FishCardTier;
     const valuePackPotencyPoly = saved?.valuePackPotencyPoly ?? false;
     const skillTreeLevels = saved?.skillTreeLevels ?? {};
     const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
-    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
+    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
   });
 
   useEffect(() => {
@@ -473,6 +483,12 @@ export function Fishing() {
     samplesPerFish: Record<string, number[]> | null;
     running: boolean;
   }>({ hours: 24, runs: 10000, samples: null, samplesPerFish: null, running: false });
+
+  const [sushiMcState, setSushiMcState] = useState<{
+    samples: number[] | null;
+    samplesPerFish: Record<string, number[]> | null;
+    running: boolean;
+  }>({ samples: null, samplesPerFish: null, running: false });
 
   const upgradeLevels = state.upgradeLevels ?? {};
   const enhanceLevels = state.enhanceLevels ?? {};
@@ -756,6 +772,58 @@ export function Fishing() {
       samples.sort(sortNum);
       for (const id of fishIds) samplesPerFish[id].sort(sortNum);
       setMcState((s) => ({ ...s, running: false, samples, samplesPerFish }));
+    }, 0);
+  }
+
+  /** Sushi: ticks per Sushi (90 + card bonus), EV fish per Sushi at current power (total + per fish). */
+  const ticksPerSushi = SUSHI_BASE_TICKS + SUSHI_CARD_TICKS[state.sushiCardTier];
+  const sushiEvAndTotal = useMemo(() => {
+    const rowsWithPower = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0);
+    const totalFishPerHour = rowsWithPower.reduce((s, r) => s + r.fishPerHour, 0);
+    const ticksPerHour = effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0;
+    const fishPerSushiEv = ticksPerHour > 0 ? (ticksPerSushi * totalFishPerHour) / ticksPerHour : 0;
+    const fishPerSushiEvPerFish = rowsWithPower.map((r) => ({
+      fishId: r.fish.id,
+      fishName: r.fish.name,
+      iconFile: r.fish.iconFile,
+      fishPerSushiEv: ticksPerHour > 0 ? (ticksPerSushi * r.fishPerHour) / ticksPerHour : 0,
+    }));
+    return { totalFishPerHour, fishPerSushiEv, fishPerSushiEvPerFish };
+  }, [visibleGainsRows, effectiveTickSec, ticksPerSushi]);
+
+  function runSushiMc() {
+    const { fishPerSushiEv, fishPerSushiEvPerFish } = sushiEvAndTotal;
+    const meanFishPerSushi = fishPerSushiEv;
+    setSushiMcState((s) => ({ ...s, running: true, samples: null, samplesPerFish: null }));
+    window.setTimeout(() => {
+      const rng = mulberry32((Date.now() & 0x7fffffff) >>> 0);
+      const samples: number[] = [];
+      const fishIds = fishPerSushiEvPerFish.map((f) => f.fishId);
+      const sumEv = fishPerSushiEvPerFish.reduce((s, f) => s + f.fishPerSushiEv, 0);
+      const probsNorm = sumEv > 0 ? fishPerSushiEvPerFish.map((f) => f.fishPerSushiEv / sumEv) : fishPerSushiEvPerFish.map(() => 0);
+      const samplesPerFish: Record<string, number[]> = {};
+      for (const id of fishIds) samplesPerFish[id] = [];
+      for (let i = 0; i < SUSHI_MC_RUNS; i++) {
+        const totalFish = samplePoisson(rng, meanFishPerSushi);
+        const runPerFish: Record<string, number> = {};
+        for (const id of fishIds) runPerFish[id] = 0;
+        for (let k = 0; k < totalFish; k++) {
+          let u = rng();
+          for (let j = 0; j < probsNorm.length; j++) {
+            u -= probsNorm[j];
+            if (u <= 0) {
+              runPerFish[fishIds[j]] = (runPerFish[fishIds[j]] ?? 0) + 1;
+              break;
+            }
+          }
+        }
+        const total = Object.values(runPerFish).reduce((a, b) => a + b, 0);
+        samples.push(total);
+        for (const id of fishIds) samplesPerFish[id].push(runPerFish[id] ?? 0);
+      }
+      samples.sort((a, b) => a - b);
+      for (const id of fishIds) samplesPerFish[id].sort((a, b) => a - b);
+      setSushiMcState((s) => ({ ...s, running: false, samples, samplesPerFish }));
     }, 0);
   }
 
@@ -1390,6 +1458,131 @@ export function Fishing() {
                         );
                       })}
                   </div>
+                  );
+                })()}
+              </div>
+            </Collapsible>
+          </div>
+        </Collapsible>
+
+        <Collapsible id="fishing-sushi" title="Sushi" defaultExpanded={true}>
+          <div className="fishingSection">
+            <div className="fishingSectionHeader">
+              <img src="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png" alt="" className="fishingSushiIcon" aria-hidden />
+              <span className="fishingSectionTitle">Sushi</span>
+            </div>
+            <p className="small" style={{ marginBottom: 8, opacity: 0.85 }}>Sushi gives <span className="mono">{ticksPerSushi}</span> fishing ticks.</p>
+            <div className="fishingFishCardsGrid fishingSushiCardGrid">
+              <div className="fishingFishCardCell">
+                <div className="fishingFishCardCellTop">
+                  <span className="mono">Sushi Misc Card</span>
+                </div>
+                <FishCardTierToggles
+                  value={state.sushiCardTier}
+                  onChange={(t) => setState((prev) => ({ ...prev, sushiCardTier: t }))}
+                />
+              </div>
+            </div>
+            <div className="fishingSushiStats">
+              <div className="fishingSushiStatRow">
+                <span className="fishingSushiStatLabel">
+                  Average EV (fish per Sushi)
+                  <Tooltip
+                    content={{
+                      title: "Average EV (fish per Sushi)",
+                      sections: [
+                        { heading: "Meaning", lines: ["Expected fish from one Sushi at your current power and dock setup. Total and per fish."] },
+                        { heading: "Formula", lines: ["Ticks per Sushi × (fish/h ÷ ticks/h). Uses same gains as the list above."] },
+                      ],
+                    }}
+                  />
+                </span>
+                <span className="mono">{sushiEvAndTotal.fishPerSushiEv.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })} total</span>
+              </div>
+              {sushiEvAndTotal.fishPerSushiEvPerFish.length > 0 && (
+                <div className="fishingSushiEvPerFish">
+                  {sushiEvAndTotal.fishPerSushiEvPerFish.map(({ fishId, fishName, iconFile, fishPerSushiEv }) => (
+                    <div key={fishId} className="fishingSushiStatRow fishingSushiEvPerFishRow">
+                      <span className="fishingSushiStatLabel">
+                        <img src={fishIconUrl(iconFile)} alt="" className="fishingSushiEvFishIcon" aria-hidden />
+                        {fishName}
+                      </span>
+                      <span className="mono">{fishPerSushiEv.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Collapsible id="fishing-sushi-mc" title="Variance (MC simulation)" defaultExpanded={true}>
+              <div className="fishingSushiMcSection">
+                <p className="small" style={{ marginBottom: 8 }}>
+                  Simulate opening N={SUSHI_MC_RUNS.toLocaleString()} sushis; histogram of total fish per Sushi.
+                </p>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={runSushiMc}
+                  disabled={sushiMcState.running || visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).length === 0}
+                >
+                  {sushiMcState.running ? "Running…" : "Run simulation"}
+                </button>
+                {sushiMcState.samples && sushiMcState.samples.length > 0 && sushiMcState.samplesPerFish && (() => {
+                  const s = sushiMcState.samples;
+                  const mean = s.reduce((a, b) => a + b, 0) / s.length;
+                  const p10 = s[Math.floor(0.1 * s.length)] ?? 0;
+                  const p25 = s[Math.floor(0.25 * s.length)] ?? 0;
+                  const med = s[Math.floor(0.5 * s.length)] ?? 0;
+                  const p75 = s[Math.floor(0.75 * s.length)] ?? 0;
+                  const p90 = s[Math.floor(0.9 * s.length)] ?? 0;
+                  const lo = s[0] ?? 0;
+                  const hi = s[s.length - 1] ?? 0;
+                  const bins = 14;
+                  const span = hi - lo || 1;
+                  const counts = new Array(bins).fill(0);
+                  for (const v of s) {
+                    const idx = Math.min(bins - 1, Math.floor(((v - lo) / span) * bins));
+                    counts[idx]++;
+                  }
+                  const maxCount = Math.max(...counts);
+                  const fishIdsWithSamples = sushiEvAndTotal.fishPerSushiEvPerFish.filter((f) => sushiMcState.samplesPerFish![f.fishId]?.length);
+                  return (
+                    <>
+                      <div className="fishingSushiMcStats">
+                        <div className="fishingSushiMcStatRow">
+                          <span className="fishingSushiMcStatLabel">Mean (MC)</span>
+                          <span className="mono">{mean.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="fishingSushiMcStatRow">
+                          <span className="fishingSushiMcStatLabel">EV (expected)</span>
+                          <span className="mono">{sushiEvAndTotal.fishPerSushiEv.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="fishingSushiMcStatRow">
+                          <span className="fishingSushiMcStatLabel">Median</span>
+                          <span className="mono">{med.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                        <div className="fishingSushiMcStatRow">
+                          <span className="fishingSushiMcStatLabel">10th / 25th / 75th / 90th %</span>
+                          <span className="mono">{p10.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {p25.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {p75.toLocaleString(undefined, { maximumFractionDigits: 0 })} / {p90.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                      </div>
+                      <div className="fishingMcHistogramWrap">
+                        <div className="fishingMcHistogramBarRow">
+                          {counts.map((c, i) => {
+                            const barHeightPx = maxCount > 0 ? Math.max(c > 0 ? 4 : 0, Math.round((c / maxCount) * 48)) : 0;
+                            return (
+                              <div key={i} className="fishingMcHistogramCell" title={`${(lo + (span * i) / bins).toLocaleString(undefined, { maximumFractionDigits: 0 })}–${(lo + (span * (i + 1)) / bins).toLocaleString(undefined, { maximumFractionDigits: 0 })}: ${c}`}>
+                                <div className="fishingMcHistogramBar" style={{ height: barHeightPx }} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="fishingMcHistogramAxis small">
+                          <span className="mono">{lo.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                          <span className="fishingMcHistogramAxisLabel">Fish per Sushi (total)</span>
+                          <span className="mono">{hi.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                      </div>
+                    </>
                   );
                 })()}
               </div>

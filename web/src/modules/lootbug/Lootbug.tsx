@@ -377,6 +377,27 @@ export function Lootbug() {
 
   const goldenPct = clamp(state.goldenChancePct, 0, 100) / 100;
 
+  /** 2× Star Spawn Rate from Lootbug: free (2 min) + gem (10 min). Gem part: full if "2x Star Spawn Rate" is bought, else only golden occurrence. Written to external for Drone overlap incl. Lootbug. */
+  const lootbug2xStarMinPerHour = useMemo(() => {
+    if (gameSpeed <= 0) return 0;
+    const freeBuff = FREE_BUFFS.find((b) => b.name === "2x Star Spawn Rate");
+    const gemBuff = GEM_BUFFS.find((b) => b.name === "2x Star Spawn Rate");
+    const freeMin = getDurationMinutes(freeBuff?.duration ?? null) ?? 0;
+    const gemMin = getDurationMinutes(gemBuff?.duration ?? null) ?? 0;
+    let freeMinPerHour = 0;
+    if (freeBuff && totalFreeWeight > 0) {
+      const perHour = (lootbugsPerHour * getWeight(freeBuff)) / totalFreeWeight;
+      freeMinPerHour = (perHour * freeMin) / gameSpeed;
+    }
+    let gemMinPerHour = 0;
+    if (gemBuff && totalGemWeightAll > 0) {
+      const perHour = (lootbugsPerHour * getWeight(gemBuff)) / totalGemWeightAll;
+      const effectiveRate = buyGemBuffsSet.has("2x Star Spawn Rate") ? 1 : goldenPct;
+      gemMinPerHour = (perHour * effectiveRate * gemMin) / gameSpeed;
+    }
+    return freeMinPerHour + gemMinPerHour;
+  }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct]);
+
   const totalGemCostPerHour = useMemo(() => {
     if (totalGemWeightAll <= 0) return 0;
     let sum = 0;
@@ -474,6 +495,7 @@ export function Lootbug() {
       lootbugGemsPerHour?: number;
       lootbugNet10xGemEvPerHour?: number;
       lootbugNetGemsPerHour?: number;
+      lootbug2xStarMinPerHour?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
     ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
@@ -481,8 +503,9 @@ export function Lootbug() {
     ext.lootbugGemsPerHour = gemsPerHour;
     ext.lootbugNet10xGemEvPerHour = net10xGemEvPerHour;
     ext.lootbugNetGemsPerHour = netGemsPerHour;
+    ext.lootbug2xStarMinPerHour = lootbug2xStarMinPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour]);
+  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour]);
 
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";

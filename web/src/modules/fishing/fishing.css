@@ -39,6 +39,75 @@
   letter-spacing: 0.2px;
 }
 
+.fishingSushiIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.fishingSushiStats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+.fishingSushiStatRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.fishingSushiStatLabel {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.fishingSushiEvPerFish {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fishingSushiEvPerFishRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fishingSushiEvPerFishRow .fishingSushiStatLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.fishingSushiEvFishIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.fishingSushiMcSection {
+  margin-top: 6px;
+}
+.fishingSushiMcStats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.fishingSushiMcStatRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.fishingSushiMcStatRow .mono,
+.fishingSushiMcStatLabel {
+  font-size: 12px;
+}
+.fishingSushiMcStatRow .mono {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+
 .fishingRows {
   display: grid;
   gap: 10px;
@@ -751,6 +820,15 @@
   gap: 6px;
 }
 
+/* Sushi: single card row full width of section (no wrap) */
+.fishingSushiCardGrid {
+  grid-template-columns: 1fr;
+  max-width: none;
+}
+.fishingSushiCardGrid .fishingCardTierRow {
+  flex-wrap: nowrap;
+}
+
 .fishingFishCardCell {
   border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: 10px;
@@ -1030,4 +1108,18 @@
 }
 .fishingMcPerFishAxisTicks span:last-child {
   text-align: right;
+}
+
+/* Sushi per-fish histogram: no absolute numbers on axis, just fewer/more */
+.fishingSushiPerFishAxisNoNumbers {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 2px;
+  font-size: 10px;
+  color: rgba(15, 23, 42, 0.55);
+}
+.fishingSushiPerFishAxisLow,
+.fishingSushiPerFishAxisHigh {
+  flex: 0 0 auto;
 }

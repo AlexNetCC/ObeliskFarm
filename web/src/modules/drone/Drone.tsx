@@ -4,6 +4,7 @@ import { Tooltip } from "../../components/Tooltip";
 import { Collapsible } from "../../components/Collapsible";
 import { loadJson, saveJson } from "../../lib/storage";
 import { calculateGemBombGemsPerHour, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
+import { FREE_BUFFS, GEM_BUFFS, getDurationMinutes, getWeight } from "../../lib/lootbug/constants";
 
 const ELIXIR_BASE_INTERVAL_SEC = 360;
 const ELIXIR_SUIT_SEC_PER_LEVEL = 15;
@@ -127,6 +128,9 @@ const STORAGE_KEY_V2 = "obeliskfarm:web:drone_elixir_save.json:v2";
 const STORAGE_KEY_V1 = "obeliskfarm:web:drone_elixir_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+const LOOTBUG_STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
+const LOOTBUG_BASE_SPAWN_MIN = 20;
+const DEFAULT_ACTIVE_GEM_BUFFS = ["2x Game Speed", "10x Bomb Recharge"];
 const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
 /** 1 fuel = 5 gems (in-game cost). */
 const GEMS_PER_FUEL = 5;
@@ -1129,6 +1133,44 @@ export function Drone() {
             const pStar = cycleSec > 0 && star ? Math.min(1, star.sec / cycleSec) : 0;
             const pSuper = cycleSec > 0 && superStar ? Math.min(1, superStar.sec / cycleSec) : 0;
             const starSuperOverlapPct = (pStar * pSuper) * 100;
+            /** 2× Star Spawn Rate min/h from Lootbug: computed from saved Lootbug state so value updates without opening Lootbug. */
+            const lootbug2xStarMinPerHour = (() => {
+              const lootbugSave = loadJson<{ spawnRateMultiplier?: number; tripleChancePct?: number; goldenChancePct?: number; activeGemBuffs?: string[] }>(LOOTBUG_STORAGE_KEY) ?? {};
+              const gameSpeed = gameSpeedMult;
+              if (gameSpeed <= 0) return 0;
+              const spawnRateMult = clamp(lootbugSave.spawnRateMultiplier ?? 1, 0.1, 20);
+              const triplePct = clamp(lootbugSave.tripleChancePct ?? 0, 0, 100) / 100;
+              const goldenPct = clamp(lootbugSave.goldenChancePct ?? 0, 0, 100) / 100;
+              const activeGemBuffs = Array.isArray(lootbugSave.activeGemBuffs) ? lootbugSave.activeGemBuffs : DEFAULT_ACTIVE_GEM_BUFFS;
+              const buyGemBuffsSet = new Set(activeGemBuffs);
+              const effectiveSpawnRateMult = spawnRateMult * bombBearLootbugSpawnRateMult;
+              const effectiveSpawnMinGame = effectiveSpawnRateMult > 0 ? LOOTBUG_BASE_SPAWN_MIN / effectiveSpawnRateMult : 0;
+              const effectiveSpawnMinReal = gameSpeed > 0 && effectiveSpawnMinGame > 0 ? effectiveSpawnMinGame / gameSpeed : 0;
+              const spawnsPerHour = effectiveSpawnMinReal > 0 ? 60 / effectiveSpawnMinReal : 0;
+              const expectedLootbugsPerSpawn = 1 + 2 * triplePct;
+              const lootbugsPerHour = spawnsPerHour * expectedLootbugsPerSpawn;
+              const totalFreeWeight = FREE_BUFFS.reduce((s, b) => s + getWeight(b), 0);
+              const totalGemWeightAll = GEM_BUFFS.reduce((s, b) => s + getWeight(b), 0);
+              const freeBuff = FREE_BUFFS.find((b) => b.name === "2x Star Spawn Rate");
+              const gemBuff = GEM_BUFFS.find((b) => b.name === "2x Star Spawn Rate");
+              const freeMin = getDurationMinutes(freeBuff?.duration ?? null) ?? 0;
+              const gemMin = getDurationMinutes(gemBuff?.duration ?? null) ?? 0;
+              let freeMinPerHour = 0;
+              if (freeBuff && totalFreeWeight > 0) {
+                const perHour = (lootbugsPerHour * getWeight(freeBuff)) / totalFreeWeight;
+                freeMinPerHour = (perHour * freeMin) / gameSpeed;
+              }
+              let gemMinPerHour = 0;
+              if (gemBuff && totalGemWeightAll > 0) {
+                const perHour = (lootbugsPerHour * getWeight(gemBuff)) / totalGemWeightAll;
+                const effectiveRate = buyGemBuffsSet.has("2x Star Spawn Rate") ? 1 : goldenPct;
+                gemMinPerHour = (perHour * effectiveRate * gemMin) / gameSpeed;
+              }
+              return freeMinPerHour + gemMinPerHour;
+            })();
+            const lootbug2xStarUptimeFraction = Math.min(1, lootbug2xStarMinPerHour / 60);
+            const combined2xStarUptime = 1 - (1 - pStar) * (1 - lootbug2xStarUptimeFraction);
+            const starSuperOverlapInclLootbugPct = combined2xStarUptime * pSuper * 100;
             return (
               <div className="droneBuffPlotSummaryBlock">
                 <div className="droneBuffPlotSummary">
@@ -1180,6 +1222,31 @@ export function Drone() {
                     />
                   </span>
                   <span className="droneBuffPlotSummaryValue">{starSuperOverlapPct.toFixed(2)}%</span>
+                </div>
+                <div className="droneBuffPlotSummary">
+                  <span className="droneBuffPlotSummaryLabel">
+                    Star Spawn Rate + SS Rate overlap incl. Lootbug
+                    <Tooltip
+                      content={{
+                        title: "Star Spawn Rate & SS Rate overlap incl. Lootbug",
+                        sections: [
+                          {
+                            heading: "Meaning",
+                            lines: [
+                              "Same overlap (2× Star and 3× Super Star both active) but 2× Star uptime includes Lootbug: free 2× Star Spawn Rate plus gem buff (bought or from Golden Lootbug).",
+                            ],
+                          },
+                          {
+                            heading: "Formula",
+                            lines: [
+                              "Combined 2× Star uptime = 1 − (1 − Drone uptime) × (1 − Lootbug min/h ÷ 60). Overlap = combined 2× Star × Drone 3× Super uptime. Uses saved Lootbug state (no need to open Lootbug).",
+                            ],
+                          },
+                        ],
+                      }}
+                    />
+                  </span>
+                  <span className="droneBuffPlotSummaryValue">{starSuperOverlapInclLootbugPct.toFixed(2)}%</span>
                 </div>
                 <div className="droneBuffPlotSummary droneBomb10xRow">
                   <span className="droneBuffPlotSummaryLabel">
