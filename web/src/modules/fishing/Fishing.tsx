@@ -1179,15 +1179,66 @@ export function Fishing() {
           double_tick_chance_pct: currentStats.double_tick_chance_pct,
           triple_tick_chance_pct: currentStats.triple_tick_chance_pct,
         };
+        const statsDoubleOnly: ComputedFishingStats = {
+          ...newStats,
+          triple_tick_chance_pct: currentStats.triple_tick_chance_pct,
+        };
         const statsChancesOnly: ComputedFishingStats = {
           ...newStats,
           fishing_tick_reduction: currentStats.fishing_tick_reduction,
         };
         const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
         const totalChancesOnly = computeTotalFishPerHourFromStats(statsChancesOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
         breakdownMap.set(def.id, [
           { label: "Tick -2s", pct: ((totalTickOnly - currentTotal) / currentTotal) * 100 },
-          { label: "Double +2%, Triple +1%", pct: ((totalChancesOnly - currentTotal) / currentTotal) * 100 },
+          { label: "Double +2%", pct: ((totalDoubleOnly - totalTickOnly) / currentTotal) * 100 },
+          { label: "Triple +1%", pct: ((totalChancesOnly - totalDoubleOnly) / currentTotal) * 100 },
+        ]);
+      }
+
+      if (currentTotal > 0 && def.id === "with_this_fish_i_summon_two_more_fish") {
+        const newStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, { ...skillOpts, skillTreeLevels: newSkillLevels });
+        const statsFishMultiOnly: ComputedFishingStats = {
+          ...newStats,
+          shiny_fish_chance_pct: currentStats.shiny_fish_chance_pct,
+        };
+        const statsShinyOnly: ComputedFishingStats = {
+          ...newStats,
+          fish_income_multi: currentStats.fish_income_multi,
+        };
+        const totalFishMultiOnly = computeTotalFishPerHourFromStats(statsFishMultiOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        breakdownMap.set(def.id, [
+          { label: "Fish mult +1%/card", pct: ((totalFishMultiOnly - currentTotal) / currentTotal) * 100 },
+          { label: "Shiny +0.1%/card", pct: ((totalShinyOnly - currentTotal) / currentTotal) * 100 },
+        ]);
+      }
+
+      if (currentTotal > 0 && def.id === "completionist_gatekeeper") {
+        const newStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, { ...skillOpts, skillTreeLevels: newSkillLevels });
+        const statsDroneOnly: ComputedFishingStats = {
+          ...newStats,
+          super_shiny_chance_pct: currentStats.super_shiny_chance_pct,
+          tier2_dock_power_mult: currentStats.tier2_dock_power_mult,
+        };
+        const statsT2Only: ComputedFishingStats = {
+          ...newStats,
+          drone_base_power: currentStats.drone_base_power,
+          super_shiny_chance_pct: currentStats.super_shiny_chance_pct,
+        };
+        const statsShinyOnly: ComputedFishingStats = {
+          ...newStats,
+          drone_base_power: currentStats.drone_base_power,
+          tier2_dock_power_mult: currentStats.tier2_dock_power_mult,
+        };
+        const totalDroneOnly = computeTotalFishPerHourFromStats(statsDroneOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalT2Only = computeTotalFishPerHourFromStats(statsT2Only, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        breakdownMap.set(def.id, [
+          { label: "T2 dock +3%", pct: ((totalT2Only - currentTotal) / currentTotal) * 100 },
+          { label: "Drone power +2%", pct: ((totalDroneOnly - currentTotal) / currentTotal) * 100 },
+          { label: "Super shiny +1%", pct: ((totalShinyOnly - currentTotal) / currentTotal) * 100 },
         ]);
       }
 
