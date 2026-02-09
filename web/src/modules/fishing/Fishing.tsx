@@ -298,6 +298,43 @@ function computeTotalFishPerHour(
   return total;
 }
 
+/** Same formula as computeTotalFishPerHour but from precomputed stats (for skill breakdown). */
+function computeTotalFishPerHourFromStats(
+  stats: ComputedFishingStats,
+  dronesPerDock: Record<DockId, number>,
+  activeDockId: DockId,
+  elixir3xFishingExternal: { uptimeFraction: number },
+): number {
+  const s = stats.shiny_fish_chance_pct / 100;
+  const s2 = stats.super_shiny_chance_pct / 100;
+  const expectedShinyMulti =
+    (1 - s) * 1 +
+    s * (1 - s2) * stats.shiny_multiplier +
+    s * s2 * stats.shiny_multiplier * stats.super_shiny_multiplier;
+  const tickDurationSec = Math.max(1, 60 + stats.fishing_tick_reduction);
+  const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
+  const doublePct = stats.double_tick_chance_pct / 100;
+  const triplePct = stats.triple_tick_chance_pct / 100;
+  const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+  let total = 0;
+  for (const set of AQUARIUM) {
+    const dock = DOCKS.find((d) => d.id === set.dockId)!;
+    const rod = activeDockId === set.dockId ? stats.fishing_rod_power : 0;
+    const n = dronesPerDock[set.dockId] ?? 0;
+    const powerOnThisDock = rod + n * stats.drone_base_power;
+    const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+    for (const f of set.fish) {
+      total +=
+        dockFillsPerHour *
+        expectedRollsPerFill *
+        expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
+        stats.fish_income_multi *
+        expectedShinyMulti;
+    }
+  }
+  return total;
+}
+
 function NumberRow(props: {
   label: string;
   iconUrl?: string;
@@ -1070,6 +1107,7 @@ export function Fishing() {
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
     };
+    const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOpts);
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
@@ -1132,6 +1170,25 @@ export function Fishing() {
             { label: "Fishing Drones +5", pct: pctFromDrones },
           ]);
         }
+      }
+
+      if (currentTotal > 0 && def.id === "lets_pick_up_the_pace") {
+        const newStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, { ...skillOpts, skillTreeLevels: newSkillLevels });
+        const statsTickOnly: ComputedFishingStats = {
+          ...newStats,
+          double_tick_chance_pct: currentStats.double_tick_chance_pct,
+          triple_tick_chance_pct: currentStats.triple_tick_chance_pct,
+        };
+        const statsChancesOnly: ComputedFishingStats = {
+          ...newStats,
+          fishing_tick_reduction: currentStats.fishing_tick_reduction,
+        };
+        const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        const totalChancesOnly = computeTotalFishPerHourFromStats(statsChancesOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal);
+        breakdownMap.set(def.id, [
+          { label: "Tick -2s", pct: ((totalTickOnly - currentTotal) / currentTotal) * 100 },
+          { label: "Double +2%, Triple +1%", pct: ((totalChancesOnly - currentTotal) / currentTotal) * 100 },
+        ]);
       }
 
       const costForNext = def.costs[lvl] ?? 0;
@@ -1651,8 +1708,8 @@ export function Fishing() {
                   <StatRow
                     label="Fishing rod power"
                     iconUrl={upgradeIconUrl("Fishing_Rod_Power.png")}
-                    value={stats.fishing_rod_power}
-                    decimals={2}
+                    value={Math.round(stats.fishing_rod_power)}
+                    decimals={0}
                   />
                   <StatRow
                     label="Fishing drone cap"
@@ -1664,8 +1721,8 @@ export function Fishing() {
                   <StatRow
                     label="Drone base power"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
-                    value={stats.drone_base_power}
-                    decimals={2}
+                    value={Math.round(stats.drone_base_power)}
+                    decimals={0}
                     suffix=""
                   />
                   <StatRow
@@ -1815,7 +1872,7 @@ export function Fishing() {
                         />
                       </span>
                     </label>
-                    <span className="fishingDockRowPower">Power: {dockPower}</span>
+                    <span className="fishingDockRowPower">Power: {Math.round(dockPower)}</span>
                     <span className="fishingDockRowDrones">Drones: {dockDrones}</span>
                   </div>
                   <div className="fishingDockDroneControls">
@@ -1873,6 +1930,23 @@ export function Fishing() {
                     <tr>
                       <th className="fishingUpgradeThName">Upgrade</th>
                       <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCostEffic">
+                        Cost Effic.
+                        <Tooltip
+                          content={{
+                            title: "Cost efficiency",
+                            sections: [
+                              {
+                                heading: "How it works",
+                                lines: [
+                                  "Marginal % gain divided by hours to get the cost for the next level.",
+                                  "Higher = more gain per hour of farming invested.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThTime">
                         Time to next
@@ -1902,23 +1976,6 @@ export function Fishing() {
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
                                   "Uses the same total as the fishing gains list above.",
-                                ],
-                              },
-                            ],
-                          }}
-                        />
-                      </th>
-                      <th className="fishingUpgradeThCostEffic">
-                        Cost Effic.
-                        <Tooltip
-                          content={{
-                            title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by hours to get the cost for the next level.",
-                                  "Higher = more gain per hour of farming invested.",
                                 ],
                               },
                             ],
@@ -1980,6 +2037,33 @@ export function Fishing() {
                           ) : null}
                         </div>
                       </td>
+                      <td className="fishingUpgradeTdCostEffic">
+                        {!isMaxed &&
+                        marginalPct != null &&
+                        hoursToNext != null &&
+                        hoursToNext > 0
+                          ? (() => {
+                              const costEffic = marginalPct / hoursToNext;
+                              const heatT =
+                                costEfficHeatMax > costEfficHeatMin
+                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
+                                  : 0.5;
+                              const rateColor = heatmapColor(heatT);
+                              return (
+                                <span
+                                  style={{
+                                    backgroundColor: rateColor,
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {costEffic.toFixed(2)}
+                                </span>
+                              );
+                            })()
+                          : "—"}
+                      </td>
                       <td className="fishingUpgradeTdCost">
                         {isMaxed ? (
                           <span className="fishingUpgradeMaxed">Maxed</span>
@@ -2010,33 +2094,6 @@ export function Fishing() {
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
                       </td>
-                      <td className="fishingUpgradeTdCostEffic">
-                        {!isMaxed &&
-                        marginalPct != null &&
-                        hoursToNext != null &&
-                        hoursToNext > 0
-                          ? (() => {
-                              const costEffic = marginalPct / hoursToNext;
-                              const heatT =
-                                costEfficHeatMax > costEfficHeatMin
-                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
-                                  : 0.5;
-                              const rateColor = heatmapColor(heatT);
-                              return (
-                                <span
-                                  style={{
-                                    backgroundColor: rateColor,
-                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                    padding: "2px 6px",
-                                    borderRadius: 4,
-                                  }}
-                                >
-                                  {costEffic.toFixed(2)}
-                                </span>
-                              );
-                            })()
-                          : "—"}
-                      </td>
                     </tr>
                   );
                 })}
@@ -2051,6 +2108,23 @@ export function Fishing() {
                     <tr>
                       <th className="fishingUpgradeThName">Upgrade</th>
                       <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCostEffic">
+                        Cost Effic.
+                        <Tooltip
+                          content={{
+                            title: "Cost efficiency",
+                            sections: [
+                              {
+                                heading: "How it works",
+                                lines: [
+                                  "Marginal % gain divided by hours to get the cost for the next level.",
+                                  "Higher = more gain per hour of farming invested.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThTime">
                         Time to next
@@ -2080,23 +2154,6 @@ export function Fishing() {
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
                                   "Uses the same total as the fishing gains list above.",
-                                ],
-                              },
-                            ],
-                          }}
-                        />
-                      </th>
-                      <th className="fishingUpgradeThCostEffic">
-                        Cost Effic.
-                        <Tooltip
-                          content={{
-                            title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by hours to get the cost for the next level.",
-                                  "Higher = more gain per hour of farming invested.",
                                 ],
                               },
                             ],
@@ -2158,6 +2215,33 @@ export function Fishing() {
                           ) : null}
                         </div>
                       </td>
+                      <td className="fishingUpgradeTdCostEffic">
+                        {!isMaxed &&
+                        marginalPct != null &&
+                        hoursToNext != null &&
+                        hoursToNext > 0
+                          ? (() => {
+                              const costEffic = marginalPct / hoursToNext;
+                              const heatT =
+                                costEfficHeatMax > costEfficHeatMin
+                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
+                                  : 0.5;
+                              const rateColor = heatmapColor(heatT);
+                              return (
+                                <span
+                                  style={{
+                                    backgroundColor: rateColor,
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {costEffic.toFixed(2)}
+                                </span>
+                              );
+                            })()
+                          : "—"}
+                      </td>
                       <td className="fishingUpgradeTdCost">
                         {isMaxed ? (
                           <span className="fishingUpgradeMaxed">Maxed</span>
@@ -2186,33 +2270,6 @@ export function Fishing() {
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
                       </td>
-                      <td className="fishingUpgradeTdCostEffic">
-                        {!isMaxed &&
-                        marginalPct != null &&
-                        hoursToNext != null &&
-                        hoursToNext > 0
-                          ? (() => {
-                              const costEffic = marginalPct / hoursToNext;
-                              const heatT =
-                                costEfficHeatMax > costEfficHeatMin
-                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
-                                  : 0.5;
-                              const rateColor = heatmapColor(heatT);
-                              return (
-                                <span
-                                  style={{
-                                    backgroundColor: rateColor,
-                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                    padding: "2px 6px",
-                                    borderRadius: 4,
-                                  }}
-                                >
-                                  {costEffic.toFixed(2)}
-                                </span>
-                              );
-                            })()
-                          : "—"}
-                      </td>
                     </tr>
                   );
                 })}
@@ -2236,6 +2293,23 @@ export function Fishing() {
                     <tr>
                       <th className="fishingUpgradeThName">Enhancement</th>
                       <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCostEffic">
+                        Cost Effic.
+                        <Tooltip
+                          content={{
+                            title: "Cost efficiency",
+                            sections: [
+                              {
+                                heading: "How it works",
+                                lines: [
+                                  "Marginal % gain divided by gem cost for the next level.",
+                                  "Higher = more gain per gem invested.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThSpeed">
                         +% gains
@@ -2248,23 +2322,6 @@ export function Fishing() {
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
                                   "Uses the same total as the fishing gains list above.",
-                                ],
-                              },
-                            ],
-                          }}
-                        />
-                      </th>
-                      <th className="fishingUpgradeThCostEffic">
-                        Cost Effic.
-                        <Tooltip
-                          content={{
-                            title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by gem cost for the next level.",
-                                  "Higher = more gain per gem invested.",
                                 ],
                               },
                             ],
@@ -2318,21 +2375,6 @@ export function Fishing() {
                               ) : null}
                             </div>
                           </td>
-                          <td className="fishingUpgradeTdCost">
-                            {isMaxed ? (
-                              <span className="fishingUpgradeMaxed">Maxed</span>
-                            ) : nextCostEntry ? (
-                              <span className="fishingUpgradeCostBox">
-                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
-                              </span>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                          <td className="fishingUpgradeTdSpeed">
-                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
-                          </td>
                           <td className="fishingUpgradeTdCostEffic">
                             {!isMaxed &&
                             marginalPct != null &&
@@ -2360,6 +2402,21 @@ export function Fishing() {
                                 })()
                               : "—"}
                           </td>
+                          <td className="fishingUpgradeTdCost">
+                            {isMaxed ? (
+                              <span className="fishingUpgradeMaxed">Maxed</span>
+                            ) : nextCostEntry ? (
+                              <span className="fishingUpgradeCostBox">
+                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="fishingUpgradeTdSpeed">
+                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                          </td>
                         </tr>
                       );
                     })}
@@ -2374,6 +2431,23 @@ export function Fishing() {
                     <tr>
                       <th className="fishingUpgradeThName">Enhancement</th>
                       <th className="fishingUpgradeThLvl">Lvl</th>
+                      <th className="fishingUpgradeThCostEffic">
+                        Cost Effic.
+                        <Tooltip
+                          content={{
+                            title: "Cost efficiency",
+                            sections: [
+                              {
+                                heading: "How it works",
+                                lines: [
+                                  "Marginal % gain divided by gem cost for the next level.",
+                                  "Higher = more gain per gem invested.",
+                                ],
+                              },
+                            ],
+                          }}
+                        />
+                      </th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThSpeed">
                         +% gains
@@ -2386,23 +2460,6 @@ export function Fishing() {
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
                                   "Uses the same total as the fishing gains list above.",
-                                ],
-                              },
-                            ],
-                          }}
-                        />
-                      </th>
-                      <th className="fishingUpgradeThCostEffic">
-                        Cost Effic.
-                        <Tooltip
-                          content={{
-                            title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by gem cost for the next level.",
-                                  "Higher = more gain per gem invested.",
                                 ],
                               },
                             ],
@@ -2456,21 +2513,6 @@ export function Fishing() {
                               ) : null}
                             </div>
                           </td>
-                          <td className="fishingUpgradeTdCost">
-                            {isMaxed ? (
-                              <span className="fishingUpgradeMaxed">Maxed</span>
-                            ) : nextCostEntry ? (
-                              <span className="fishingUpgradeCostBox">
-                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
-                              </span>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                          <td className="fishingUpgradeTdSpeed">
-                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
-                          </td>
                           <td className="fishingUpgradeTdCostEffic">
                             {!isMaxed &&
                             marginalPct != null &&
@@ -2497,6 +2539,21 @@ export function Fishing() {
                                   );
                                 })()
                               : "—"}
+                          </td>
+                          <td className="fishingUpgradeTdCost">
+                            {isMaxed ? (
+                              <span className="fishingUpgradeMaxed">Maxed</span>
+                            ) : nextCostEntry ? (
+                              <span className="fishingUpgradeCostBox">
+                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="fishingUpgradeTdSpeed">
+                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
                           </td>
                         </tr>
                       );
@@ -2564,10 +2621,7 @@ export function Fishing() {
               <thead>
                 <tr>
                   <th className="fishingUpgradeThName">Skill</th>
-                  <th className="fishingUpgradeThLvl">Obelisk</th>
                   <th className="fishingUpgradeThLvl">Lvl</th>
-                  <th className="fishingUpgradeThCost">Cost (next)</th>
-                  <th className="fishingUpgradeThSpeed">+% gains</th>
                   <th className="fishingUpgradeThCostEffic">
                     Cost Effic.
                     <Tooltip
@@ -2585,6 +2639,8 @@ export function Fishing() {
                       }}
                     />
                   </th>
+                  <th className="fishingUpgradeThCost">Cost (next)</th>
+                  <th className="fishingUpgradeThSpeed">+% gains</th>
                 </tr>
               </thead>
               <tbody>
@@ -2619,9 +2675,6 @@ export function Fishing() {
                         </div>
                       </td>
                       <td className="fishingUpgradeTdLvl">
-                        <span className="mono">{def.obeliskLevel}</span>
-                      </td>
-                      <td className="fishingUpgradeTdLvl">
                         <span className="fishingUpgradeLevelLabel">
                           <span className="mono">{lvl}</span> / {maxLvl}
                         </span>
@@ -2646,21 +2699,6 @@ export function Fishing() {
                             </button>
                           ) : null}
                         </div>
-                      </td>
-                      <td className="fishingUpgradeTdCost">
-                        {isMaxed ? (
-                          <span className="fishingUpgradeMaxed">Maxed</span>
-                        ) : nextCost != null ? (
-                          <span className="fishingUpgradeCostBox">
-                            <img src={SKILL_POINT_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                            <span className="mono">{nextCost.toLocaleString()}</span>
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="fishingUpgradeTdSpeed">
-                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
                       </td>
                       <td className="fishingUpgradeTdCostEffic">
                         {costEffic != null ? (
@@ -2696,6 +2734,21 @@ export function Fishing() {
                         ) : (
                           "—"
                         )}
+                      </td>
+                      <td className="fishingUpgradeTdCost">
+                        {isMaxed ? (
+                          <span className="fishingUpgradeMaxed">Maxed</span>
+                        ) : nextCost != null ? (
+                          <span className="fishingUpgradeCostBox">
+                            <img src={SKILL_POINT_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                            <span className="mono">{nextCost.toLocaleString()}</span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="fishingUpgradeTdSpeed">
+                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
                       </td>
                     </tr>
                   );
