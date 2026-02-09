@@ -673,11 +673,17 @@
 .fishingUpgradeTable th.fishingUpgradeThCostEffic {
   min-width: 4.5em;
   text-align: right;
+  font-weight: 700;
+  color: #0d6b0d;
+  text-shadow: 0 0 8px rgba(13, 107, 13, 0.5);
 }
 .fishingUpgradeTable td.fishingUpgradeTdCostEffic {
   text-align: right;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #0d6b0d;
+  text-shadow: 0 0 6px rgba(13, 107, 13, 0.4);
 }
 
 .fishingUpgradeTable tbody tr.fishingUpgradeRow {
