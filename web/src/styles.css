@@ -243,6 +243,42 @@ body {
   background: rgba(252, 231, 243, 0.98);
 }
 
+.navTileOvernight {
+  border-color: rgba(55, 65, 81, 0.5);
+  background: rgba(55, 65, 81, 0.92);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.navTileOvernight:hover {
+  background: rgba(75, 85, 99, 0.95);
+  color: #fff;
+}
+
+.navTileOvernight.navTileActive {
+  border-color: rgba(75, 85, 99, 0.8);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.15),
+    0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.navOvernightIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.navOvernightIcon {
+  width: 20px;
+  height: 20px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.navTileOvernight:hover .navOvernightIcon {
+  color: #fff;
+}
+
 .navEmoji {
   width: 22px;
   display: inline-flex;

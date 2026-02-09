@@ -778,3 +778,21 @@ export function calculateTotalEvPerHour(params: GameParameters): TotalEv {
   return { gems_base, stonks_ev, skill_shards_ev, founder_speed_boost, founder_gems, gem_bomb_gems, founder_bomb_boost, total };
 }
 
+/** Expected gem EV per single freebie claim (one pop). Used for overnight banked freebies. */
+export function getFreebieEvPerClaim(params: GameParameters): number {
+  const freebiesPerHour = calculateFreebiesPerHour(params);
+  if (freebiesPerHour <= 0) return 0;
+  const gemsBase = calculateGemsBasePerHour(params);
+  const stonks = calculateStonksEvPerHour(params);
+  const skillShards = calculateSkillShardsEvPerHour(params);
+  return (gemsBase + stonks + skillShards) / freebiesPerHour;
+}
+
+/** Expected founder supply gems from a single drop event (one roll at start of night: 1, 2, or 3 drops). Overnight: only this one event. */
+export function getFounderGemsPerSingleEvent(params: GameParameters): number {
+  if (!params.founder_enabled) return 0;
+  const founderGemsPerHour = calculateFounderGemsPerHour(params);
+  const intervalMin = getFounderDropIntervalMinutes(params);
+  return founderGemsPerHour * (intervalMin / 60.0);
+}
+

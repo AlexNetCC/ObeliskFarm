@@ -444,6 +444,14 @@ export function Lootbug() {
 
   const netGemsPerHour = gemsPerHour - totalGemCostPerHour;
 
+  /** Gem value of +10 Cherry Charges free buff per hour (for EV per claim). Only +2 Gems, +10 Cherry and 10× count toward overnight EV. */
+  const cherryChargesGemsPerHourFromLootbug = useMemo(() => {
+    const buff = FREE_BUFFS.find((b) => b.name === "+10 Cherry Charges");
+    if (!buff || totalFreeWeight <= 0 || lootbugsPerHour <= 0) return 0;
+    const chargesPerHourFromBuff = lootbugsPerHour * (getWeight(buff) / totalFreeWeight) * 10;
+    return calculateCherryChargesGemsPerHour(gameSpeedParams, chargesPerHourFromBuff);
+  }, [lootbugsPerHour, totalFreeWeight, gameSpeedParams]);
+
   /** Lootbug gains without Bomb Bear (base spawn rate only). Used to compute Gem EV/h delta from Bomb Bear for Drone module. */
   const bombBearLootbugGemsEvPerHour = useMemo(() => {
     if (bombBearLootbugSpawnRateMult <= 1) return 0;
@@ -496,6 +504,11 @@ export function Lootbug() {
     bombRecharge10xMinPerHour,
   ]);
 
+  /** EV per single lootbug claim (gem value): only +2 Gems, +10 Cherry Charges, and 10× Bomb Recharge (when that gem buff exists on a banked lootbug roll). Used by Overnight Gains. */
+  const lootbugEvPerClaim = lootbugsPerHour > 0
+    ? (gemsPerHour + cherryChargesGemsPerHourFromLootbug + net10xGemEvPerHour) / lootbugsPerHour
+    : 0;
+
   useEffect(() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
@@ -506,6 +519,7 @@ export function Lootbug() {
       lootbugNet10xGemEvPerHour?: number;
       lootbugNetGemsPerHour?: number;
       lootbug2xStarMinPerHour?: number;
+      lootbugEvPerClaim?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
     ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
@@ -514,8 +528,9 @@ export function Lootbug() {
     ext.lootbugNet10xGemEvPerHour = net10xGemEvPerHour;
     ext.lootbugNetGemsPerHour = netGemsPerHour;
     ext.lootbug2xStarMinPerHour = lootbug2xStarMinPerHour;
+    ext.lootbugEvPerClaim = lootbugEvPerClaim;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour]);
+  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};

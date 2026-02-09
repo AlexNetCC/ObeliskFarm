@@ -1305,9 +1305,8 @@ export function Fishing() {
               <span>Fishing</span>
             </span>
           </h1>
-          <p className="subtitle">Enter your fishing stats and toggle docks. Same formulas as game (beta).</p>
+          <p className="subtitle">Enter your fishing stats and toggle docks. Same formulas as game.</p>
         </div>
-        <div className="badge">BETA</div>
       </div>
 
       <div className="fishingLayoutGrid">

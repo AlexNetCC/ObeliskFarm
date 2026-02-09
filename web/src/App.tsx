@@ -11,13 +11,27 @@ import { Drone } from "./modules/drone/Drone";
 import { Lootbug } from "./modules/lootbug/Lootbug";
 import { Items } from "./modules/items/Items";
 import { Bombs } from "./modules/bombs/Bombs";
-type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items";
+import { OvernightGains } from "./modules/overnight/OvernightGains";
+type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
   const src = props.path.startsWith("http://") || props.path.startsWith("https://") ? props.path : assetUrl(props.path);
   return <img className={props.className ?? "icon"} src={src} alt={props.alt} />;
+}
+
+function MoonStarsIcon() {
+  return (
+    <span className="icon navOvernightIconWrap" aria-hidden="true">
+      <svg className="navOvernightIcon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 3a6 6 0 0 0 6 6c0 2.2-1.2 4.1-3 5.2A6 6 0 0 1 6 12a6 6 0 0 1 6-9Z" />
+        <circle cx="18" cy="6" r="1" fill="currentColor" />
+        <circle cx="20" cy="14" r="0.8" fill="currentColor" />
+        <circle cx="5" cy="18" r="0.7" fill="currentColor" />
+      </svg>
+    </span>
+  );
 }
 
 export function App() {
@@ -40,6 +54,7 @@ export function App() {
         { id: "drone" as const, label: "Drone", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
         { id: "lootbug" as const, label: "Lootbug", icon: "https://static.wikitide.net/shminerwiki/8/86/Lootbug_Default.png" },
         { id: "items" as const, label: "Items / Chests", icon: "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png" },
+        { id: "overnight" as const, label: "Overnight Gains", icon: "" },
       ] as const,
     [],
   );
@@ -80,21 +95,15 @@ export function App() {
             <button
               key={m.id}
               type="button"
-              className={`navTile ${active === m.id ? "navTileActive" : ""}`}
+              className={`navTile ${active === m.id ? "navTileActive" : ""} ${m.id === "overnight" ? "navTileOvernight" : ""}`}
               onClick={() => setActive(m.id)}
             >
-              <Sprite path={m.icon} alt={m.label} className="icon" />
+              {m.id === "overnight" ? <MoonStarsIcon /> : <Sprite path={m.icon} alt={m.label} className="icon" />}
               <span className="navTileLabel">
                 <span>{m.label}</span>
                 {(m.id === "event" || m.id === "arch") && (
                   <span className="navWorkingHorse" aria-hidden="true" title="Main module">
                     ❤
-                  </span>
-                )}
-                {m.id === "fishing" && (
-                  <span className="navBetaBadge" aria-hidden="true">
-                    BETA
-                    <Tooltip content={{ title: "WIP", lines: ["Work in progress."] }} />
                   </span>
                 )}
               </span>
@@ -138,6 +147,8 @@ export function App() {
         <Items />
       ) : active === "fishing" ? (
         <Fishing />
+      ) : active === "overnight" ? (
+        <OvernightGains />
       ) : (
         <Stargazing />
       )}
