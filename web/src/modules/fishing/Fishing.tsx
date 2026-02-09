@@ -1314,7 +1314,7 @@ export function Fishing() {
         <Collapsible
           id="fishing-gains"
           title="Fishing gains (by fish)"
-          defaultExpanded={true}
+          defaultExpanded={false}
           headerRight={
             <Tooltip
               content={{
@@ -1604,7 +1604,7 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-sushi" title="Sushi" defaultExpanded={true}>
+        <Collapsible id="fishing-sushi" title="Sushi" defaultExpanded={false}>
           <div className="fishingSection">
             <div className="fishingSectionHeader">
               <img src="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png" alt="" className="fishingSushiIcon" aria-hidden />
@@ -1652,7 +1652,7 @@ export function Fishing() {
                 </div>
               )}
             </div>
-            <Collapsible id="fishing-sushi-mc" title="Variance (MC simulation)" defaultExpanded={true}>
+            <Collapsible id="fishing-sushi-mc" title="Variance (MC simulation)" defaultExpanded={false}>
               <div className="fishingSushiMcSection">
                 <p className="small" style={{ marginBottom: 8 }}>
                   Simulate opening N={SUSHI_MC_RUNS.toLocaleString()} sushis; histogram of total fish per Sushi.
@@ -1732,7 +1732,7 @@ export function Fishing() {
         <Collapsible
           id="fishing-your-stats"
           title="Your stats"
-          defaultExpanded={true}
+          defaultExpanded={false}
           className="fishingLeftPanel"
           headerRight={
             <>
@@ -1912,7 +1912,7 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-docks" title="Docks" defaultExpanded={true}>
+        <Collapsible id="fishing-docks" title="Docks" defaultExpanded={false}>
           <div className="fishingDocksBox">
             {totalDronesAssigned < droneCap && droneCap > 0 ? (
               <div className="fishingDroneCapWarning" role="alert">
@@ -2003,9 +2003,9 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-upgrades" title="Available upgrades" defaultExpanded={true}>
+        <Collapsible id="fishing-upgrades" title="Available upgrades" defaultExpanded={false}>
           <div className="fishingUpgradesPanel">
-            <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
+            <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={false} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
                 <table className="fishingUpgradeTable">
                   <thead>
@@ -2362,13 +2362,13 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-enhancements" title="Available enhancements" defaultExpanded={true}>
+        <Collapsible id="fishing-enhancements" title="Available enhancements" defaultExpanded={false}>
           <div className="fishingUpgradesPanel">
             <p className="fishingEnhancementsIntro">
               Enhancements cost <img src={GEM_ICON_URL} alt="gems" className="fishingGemIcon" /> gems. They do not count toward completion. See{" "}
               <a href="https://shminer.miraheze.org/wiki/Fishing#Enhancements" target="_blank" rel="noopener noreferrer">Fishing § Enhancements</a>.
             </p>
-            <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
+            <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={false} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
                 <table className="fishingUpgradeTable">
                   <thead>
@@ -2647,7 +2647,7 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-fish-cards" title="Fish Cards" defaultExpanded={true}>
+        <Collapsible id="fishing-fish-cards" title="Fish Cards" defaultExpanded={false}>
           <div className="fishingFishCardsPanel">
             <div className="fishingFishCardsGrid" style={{ marginBottom: 10 }}>
               <div className="fishingFishCardCell">
@@ -2701,7 +2701,7 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-skill-tree" title="Skill Tree" defaultExpanded={true}>
+        <Collapsible id="fishing-skill-tree" title="Skill Tree" defaultExpanded={false}>
           <div className="small" style={{ marginBottom: 8 }}>
             Skills cost skill points (from Obelisk level). Cost efficiency = marginal % gain per skill point for the next level.
           </div>

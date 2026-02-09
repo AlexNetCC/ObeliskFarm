@@ -375,7 +375,7 @@ export function Items() {
         </div>
       </div>
 
-      <Collapsible id="items-tier1" title="Tier 1 Items" defaultExpanded={true}>
+      <Collapsible id="items-tier1" title="Tier 1 Items" defaultExpanded={false}>
         <div className="itemsSection">
           <p className="itemsIntro">
             Tier 1 items are obtained from Item Chests with the exception of Skill Shards which are obtained via Freebie packs.

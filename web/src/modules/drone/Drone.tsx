@@ -156,7 +156,7 @@ function clampInt(n: number, min: number, max: number): number {
 
 const DEFAULT: ElixirState = {
   gameSpeedMultiplier: 1,
-  elixirDroneOn: true,
+  elixirDroneOn: false,
   elixirSuitLevel: 8,
   elixirGradeLevel: 0,
   fishingUnlocked: true,
@@ -169,18 +169,18 @@ const DEFAULT: ElixirState = {
   fuelDurationRelicLevel: 0,
   axolotlSkin: false,
   fuelDurationWorld3Level: 0,
-  froggerDroneOn: true,
+  froggerDroneOn: false,
   froggerSuitLevel: 8,
   froggerGradeLevel: 0,
   froggerFueled: false,
-  bombBearDroneOn: true,
+  bombBearDroneOn: false,
   bombBearGradeLevel: 0,
   bombBearFueled: false,
-  anglerDroneOn: true,
+  anglerDroneOn: false,
   anglerSuitLevel: 0,
   anglerGradeLevel: 0,
   anglerFueled: false,
-  starburstDroneOn: true,
+  starburstDroneOn: false,
   starburstSuitLevel: 0,
   starburstGradeLevel: 0,
   starburstFueled: false,
@@ -855,7 +855,7 @@ export function Drone() {
         </p>
       </div>
 
-      <Collapsible id="drone-fuel-save-duration" title="Fuel Save/Duration" defaultExpanded={true}>
+      <Collapsible id="drone-fuel-save-duration" title="Fuel Save/Duration" defaultExpanded={false}>
         <div className="droneSection">
           <div className="droneUpgradesBlock" style={{ marginTop: 0 }}>
             <div className="droneBlockHeader">
@@ -1053,7 +1053,7 @@ export function Drone() {
       <Collapsible
         id="drone-elixir"
         title="Elixir Drone"
-        defaultExpanded={true}
+        defaultExpanded={false}
         headerRight={
           <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
             <img src="https://static.wikitide.net/shminerwiki/b/bd/Drone_Elixir.png" alt="" className="droneHeaderIcon" aria-hidden />
@@ -1462,7 +1462,7 @@ export function Drone() {
       <Collapsible
         id="drone-frogger"
         title="Frogger Drone"
-        defaultExpanded={true}
+        defaultExpanded={false}
         headerRight={
           <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
             <img src="https://static.wikitide.net/shminerwiki/e/e8/Drone_Frogger.png" alt="" className="droneHeaderIcon" aria-hidden />
@@ -1670,7 +1670,7 @@ export function Drone() {
       <Collapsible
         id="drone-bomb-bear"
         title="Bomb Bear Drone"
-        defaultExpanded={true}
+        defaultExpanded={false}
         headerRight={
           <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
             <img src="https://static.wikitide.net/shminerwiki/6/6c/Drone_Bear.png" alt="" className="droneHeaderIcon" aria-hidden />
@@ -1837,7 +1837,7 @@ export function Drone() {
       <Collapsible
         id="drone-angler"
         title="Angler Drone"
-        defaultExpanded={true}
+        defaultExpanded={false}
         headerRight={
           <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
             <img src="https://static.wikitide.net/shminerwiki/5/54/Drone_Angler.png" alt="" className="droneHeaderIcon" aria-hidden />
@@ -2003,7 +2003,7 @@ export function Drone() {
       <Collapsible
         id="drone-starburst"
         title="Starburst Drone"
-        defaultExpanded={true}
+        defaultExpanded={false}
         headerRight={
           <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
             <img src="https://static.wikitide.net/shminerwiki/5/54/Drone_Starburst.png" alt="" className="droneHeaderIcon" aria-hidden />

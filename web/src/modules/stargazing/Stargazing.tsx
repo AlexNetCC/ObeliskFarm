@@ -668,7 +668,7 @@ export function Stargazing() {
             )}
           </div>
 
-        <Collapsible id="stargazing-star-cards" title="Star Cards" defaultExpanded={true}>
+        <Collapsible id="stargazing-star-cards" title="Star Cards" defaultExpanded={false}>
             <div className="sgSection" style={{ marginTop: 0 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {STAR_CARD_IDS.map((id) => {
@@ -740,7 +740,7 @@ export function Stargazing() {
             </div>
           </Collapsible>
 
-        <Collapsible id="stargazing-your-stats" title="Your stats (from game)" defaultExpanded={true} className="sgLeftPanel" headerRight={<span className="small" style={{ opacity: 0.85 }}>Percent inputs are %.</span>}>
+        <Collapsible id="stargazing-your-stats" title="Your stats (from game)" defaultExpanded={false} className="sgLeftPanel" headerRight={<span className="small" style={{ opacity: 0.85 }}>Percent inputs are %.</span>}>
           <div className="sgGrid">
             {/* CTRL+F should be at the very top (matches desktop emphasis). */}
             <div className="sgSection" style={{ background: "rgba(227,242,253,0.55)" }}>

@@ -555,7 +555,7 @@ export function Lootbug() {
           </div>
         </div>
 
-        <Collapsible id="lootbug-stats" title="Lootbug stats" defaultExpanded={true}>
+        <Collapsible id="lootbug-stats" title="Lootbug stats" defaultExpanded={false}>
           <div className="lootbugSection">
             <div className="lootbugSectionTitle">Your stats</div>
           {effectiveSpawnMinReal > 0 && (
@@ -683,7 +683,7 @@ export function Lootbug() {
         </div>
       </Collapsible>
 
-      <Collapsible id="lootbug-gains" title="Lootbug gains" defaultExpanded={true}>
+      <Collapsible id="lootbug-gains" title="Lootbug gains" defaultExpanded={false}>
         <div className="lootbugSection">
           <div className="lootbugGemsBlock">
             <div className="lootbugRow">
@@ -758,7 +758,7 @@ export function Lootbug() {
         </div>
       </Collapsible>
 
-      <Collapsible id="lootbug-free-buffs" title="Free buffs" defaultExpanded={true}>
+      <Collapsible id="lootbug-free-buffs" title="Free buffs" defaultExpanded={false}>
         <div className="lootbugSection lootbugBuffsSection">
           <table className="lootbugTable">
               <thead>
@@ -864,7 +864,7 @@ export function Lootbug() {
         </div>
       </Collapsible>
 
-      <Collapsible id="lootbug-gem-buffs" title="Gem buffs" defaultExpanded={true}>
+      <Collapsible id="lootbug-gem-buffs" title="Gem buffs" defaultExpanded={false}>
         <div className="lootbugSection lootbugBuffsSection">
           <p className="lootbugHint" style={{ marginBottom: 10 }}>
             Per hour and min/h use the full pool (all buffs can appear). Toggle Buy for buffs you pay for; only those count toward Gem/h.

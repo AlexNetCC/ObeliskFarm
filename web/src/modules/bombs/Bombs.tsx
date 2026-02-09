@@ -321,7 +321,7 @@ export function Bombs() {
         <Collapsible
           id="bombs-bomb-input"
           title="Bomb Input"
-          defaultExpanded={true}
+          defaultExpanded={false}
           className="gemEvSection tierHeader1"
           headerRight={<Tooltip content={bombsInfo} label="?" />}
         >
@@ -484,7 +484,7 @@ export function Bombs() {
         <Collapsible
           id="bombs-auto-bomber"
           title="Auto-Bomber"
-          defaultExpanded={true}
+          defaultExpanded={false}
           className="gemEvSection tierHeader1"
           headerRight={
             <Tooltip

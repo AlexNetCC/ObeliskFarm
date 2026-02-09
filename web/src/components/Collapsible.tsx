@@ -21,7 +21,7 @@ export function Collapsible(props: {
     } catch {
       // ignore
     }
-    return defaultExpanded ?? true;
+    return defaultExpanded ?? false;
   });
 
   useEffect(() => {

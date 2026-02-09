@@ -2292,7 +2292,7 @@ export function ArchSim() {
                 <Tooltip content={SKILLS_TOOLTIP} />
               </span>
             }
-            defaultExpanded={true}
+            defaultExpanded={false}
           >
             <div className="small" style={{ marginBottom: 8 }}>
               Toggle skills that affect the simulation.
@@ -2451,7 +2451,7 @@ export function ArchSim() {
           <Collapsible
             id="arch-fragment-upgrades"
             title="Fragment upgrades"
-            defaultExpanded={true}
+            defaultExpanded={false}
             headerRight={<Sprite path="sprites/common/skill_shard.png" alt="Fragment upgrades" className="iconSmall" />}
           >
             <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
@@ -2758,7 +2758,7 @@ export function ArchSim() {
             </div>
           </Collapsible>
 
-          <Collapsible id="arch-gem-upgrades" title="Gem upgrades" defaultExpanded={true} headerRight={<Sprite path="sprites/common/gem.png" alt="Gem" className="iconSmall" />}>
+          <Collapsible id="arch-gem-upgrades" title="Gem upgrades" defaultExpanded={false} headerRight={<Sprite path="sprites/common/gem.png" alt="Gem" className="iconSmall" />}>
             <div className="panel gemPanel" style={{ background: "var(--tier1)", padding: "6px 8px" }}>
               <div className="small" style={{ marginBottom: 4 }}>
                 Permanent. Maxed levels are highlighted.
@@ -2841,7 +2841,7 @@ export function ArchSim() {
             </div>
           </Collapsible>
 
-          <Collapsible id="arch-cards" title="Cards" defaultExpanded={true} headerRight={<Sprite path="sprites/archaeology/cards.png" alt="Cards" className="iconSmall" />}>
+          <Collapsible id="arch-cards" title="Cards" defaultExpanded={false} headerRight={<Sprite path="sprites/archaeology/cards.png" alt="Cards" className="iconSmall" />}>
             <div className="small" style={{ marginBottom: 8 }}>
               Per block type + tier. Card effects: HP −10/−20/−35% and XP +10/+20/+35% (polychrome can be boosted by the Stage 34 fragment upgrade).
             </div>
