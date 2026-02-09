@@ -425,7 +425,6 @@ export function Stargazing() {
               <span>Stargazing Calculator</span>
             </span>
           </h1>
-          <p className="subtitle">Web port of the desktop Stargazing module (same formulas, autosaves in this browser).</p>
         </div>
         <div className="badge">Stars • Super Stars • CTRL+F</div>
       </div>

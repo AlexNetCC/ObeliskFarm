@@ -2417,7 +2417,7 @@ export function ArchSim() {
 
             <div className="sectionTitle">Mods</div>
             <div className="small" style={{ marginBottom: 8 }}>
-              Mod chances are <span className="mono">per block hit</span> (matches the desktop semantics).
+              Mod chances are <span className="mono">per block hit</span>.
             </div>
             <div className="small" style={{ marginBottom: 6 }}>
               Speed Mod: when multiple blocks trigger it, <strong>duration</strong> adds (more hits at 2× speed); speed stays 2×. Speed Mod and Flurry <strong>stack multiplicatively</strong> (2× × 2× = 4× speed when both active).

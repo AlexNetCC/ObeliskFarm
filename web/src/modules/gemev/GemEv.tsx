@@ -480,7 +480,6 @@ export function GemEv() {
         <div className="header">
           <div>
             <h1 className="title">Gem EV Calculator</h1>
-            <p className="subtitle">Matches the desktop Gem EV layout: colored sections + contribution bar chart + Gift-EV.</p>
           </div>
           <div className="badge">Freebies • Founder</div>
         </div>

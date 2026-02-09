@@ -1067,17 +1067,11 @@ export function Drone() {
             <div className="droneSectionTitle">Fuel</div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (game time)</span>
-              <span className="droneStepperValue">
-                {(fuelDurationGameSec / 60).toFixed(1)} min
-              </span>
+              <span className="droneStepperValue">{formatMinSec(fuelDurationGameSec)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (real time)</span>
-              <span className="droneStepperValue">
-                {fuelDurationSecReal >= 60
-                  ? Math.floor(fuelDurationSecReal / 60) + ":" + String(Math.round(fuelDurationSecReal % 60)).padStart(2, "0")
-                  : Math.round(fuelDurationSecReal) + " s"}
-              </span>
+              <span className="droneStepperValue">{formatMinSec(fuelDurationSecReal)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">Fuel Duration Multiplier</span>
@@ -1444,17 +1438,11 @@ export function Drone() {
             <div className="droneSectionTitle">Fuel (Frogger)</div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (game time)</span>
-              <span className="droneStepperValue">
-                {(froggerFuelDurationGameSec / 60).toFixed(1)} min
-              </span>
+              <span className="droneStepperValue">{formatMinSec(froggerFuelDurationGameSec)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (real time)</span>
-              <span className="droneStepperValue">
-                {froggerFuelDurationSecReal >= 60
-                  ? Math.floor(froggerFuelDurationSecReal / 60) + ":" + String(Math.round(froggerFuelDurationSecReal % 60)).padStart(2, "0")
-                  : Math.round(froggerFuelDurationSecReal) + " s"}
-              </span>
+              <span className="droneStepperValue">{formatMinSec(froggerFuelDurationSecReal)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">Fuel Duration Multiplier</span>
@@ -1641,17 +1629,11 @@ export function Drone() {
             <div className="droneSectionTitle">Fuel (Bomb Bear)</div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (game time)</span>
-              <span className="droneStepperValue">
-                {(bombBearFuelDurationGameSec / 60).toFixed(1)} min
-              </span>
+              <span className="droneStepperValue">{formatMinSec(bombBearFuelDurationGameSec)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (real time)</span>
-              <span className="droneStepperValue">
-                {bombBearFuelDurationSecReal >= 60
-                  ? Math.floor(bombBearFuelDurationSecReal / 60) + ":" + String(Math.round(bombBearFuelDurationSecReal % 60)).padStart(2, "0")
-                  : Math.round(bombBearFuelDurationSecReal) + " s"}
-              </span>
+              <span className="droneStepperValue">{formatMinSec(bombBearFuelDurationSecReal)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">Fuel Duration Multiplier</span>
@@ -1813,15 +1795,11 @@ export function Drone() {
             <div className="droneSectionTitle">Fuel (Angler)</div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (game time)</span>
-              <span className="droneStepperValue">{(anglerFuelDurationGameSec / 60).toFixed(1)} min</span>
+              <span className="droneStepperValue">{formatMinSec(anglerFuelDurationGameSec)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">1 fuel lasts (real time)</span>
-              <span className="droneStepperValue">
-                {anglerFuelDurationSecReal >= 60
-                  ? Math.floor(anglerFuelDurationSecReal / 60) + ":" + String(Math.round(anglerFuelDurationSecReal % 60)).padStart(2, "0")
-                  : Math.round(anglerFuelDurationSecReal) + " s"}
-              </span>
+              <span className="droneStepperValue">{formatMinSec(anglerFuelDurationSecReal)}</span>
             </div>
             <div className="droneRow">
               <span className="droneLabel">Fuel Duration Multiplier</span>
