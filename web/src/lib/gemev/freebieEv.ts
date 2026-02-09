@@ -179,6 +179,33 @@ export function getFounderDropIntervalMinutes(params: GameParameters): number {
   return 60.0 - 2.0 * (lvl - 1);
 }
 
+/** Per supply drop (before double/triple): 2 Item Chests, 50 Cherry Bomb charges, 4 min 2× Star Spawn Rate, 8 min 100% Star Auto-catch. Durations divided by game speed. */
+export interface FounderSupplyDropPerHour {
+  itemChestsPerHour: number;
+  cherryChargesPerHour: number;
+  starSpawn2xMinPerHour: number;
+  starAutoCatch100MinPerHour: number;
+}
+
+export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupplyDropPerHour {
+  const zero = { itemChestsPerHour: 0, cherryChargesPerHour: 0, starSpawn2xMinPerHour: 0, starAutoCatch100MinPerHour: 0 };
+  if (!params.founder_enabled) return zero;
+  const founderDropInterval = getFounderDropIntervalMinutes(params);
+  const founderDropsPerHour = 60.0 / founderDropInterval;
+  const doubleChance = clamp01(getDoubleDropChance(params));
+  const tripleChance = clamp01(getTripleDropChance(params));
+  const singleChance = 1.0 - doubleChance - tripleChance;
+  const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
+  const gameSpeedMult = getGameSpeedMultiplier(params);
+  const eventsPerHour = founderDropsPerHour * expectedDropsPerEvent;
+  return {
+    itemChestsPerHour: eventsPerHour * 2,
+    cherryChargesPerHour: eventsPerHour * 50,
+    starSpawn2xMinPerHour: eventsPerHour * (4.0 / gameSpeedMult),
+    starAutoCatch100MinPerHour: eventsPerHour * (8.0 / gameSpeedMult),
+  };
+}
+
 export function getDoubleDropChance(params: GameParameters): number {
   const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
   if (lvl < 2) return 0.0;
@@ -480,7 +507,10 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   const giftEvPerGift = calculateGiftEvPerGift(params);
   const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift;
 
-  return baseGems + bonusGems + giftGems;
+  const supplyDrop = getFounderSupplyDropPerHour(params);
+  const cherryGems = calculateCherryChargesGemsPerHour(params, supplyDrop.cherryChargesPerHour);
+
+  return baseGems + bonusGems + giftGems + cherryGems;
 }
 
 /** Extra clicks per hour per bomb type (e.g. 20 each for Charge Magnet). Omit or use number to add same to all. */

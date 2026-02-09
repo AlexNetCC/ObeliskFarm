@@ -16,6 +16,7 @@ import {
   calculateTotalEvPerHour,
   defaultGameParameters,
   getEffectiveFreebieTimerMinutes,
+  getFounderSupplyDropPerHour,
   getGameSpeedMultiplier,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
@@ -352,16 +353,36 @@ export function GemEv() {
     return calculateStonksChestsPerHour(effectiveParams);
   }, [stonksEnabled, effectiveParams]);
 
-  /** Charge Magnet impact: from Items (external) when set, else computed here so the overview chart shows it without opening Items. */
+  const founderSupplyDrop = useMemo(() => getFounderSupplyDropPerHour(effectiveParams), [effectiveParams]);
+
+  /** Charge Magnet impact: from Items (external) when set, else computed here. Includes founder supply drop chests; founder share is moved to Founder bar. */
   const chargeMagnetImpactResolved = useMemo(() => {
-    const ext = loadJson<{ chargeMagnetImpact?: number; lootbugItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
+    const ext = loadJson<{ chargeMagnetImpact?: number; lootbugItemChestsPerHour?: number; founderSupplyDropItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
     if (typeof ext?.chargeMagnetImpact === "number") return ext.chargeMagnetImpact;
-    const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0);
+    const founderChests = ext?.founderSupplyDropItemChestsPerHour ?? founderSupplyDrop.itemChestsPerHour;
+    const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0) + founderChests;
     const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
     const chargeMagnetsPerHour = chestsPerHour * itemsPerChest * 0.026;
     const valuePerMagnet = calculateChargeMagnetGemsPerHour(effectiveParams, 20);
     return chargeMagnetsPerHour * valuePerMagnet;
-  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour]);
+  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour]);
+
+  /** Founder supply drop item chests → Charge Magnet + Chaos Totem value. Shown in Founder bar; excluded from Gem Bomb bar. */
+  const { founderSupplyDropItemsGemValue, chargeMagnetForChart, chaosTotemForChart } = useMemo(() => {
+    const ext = loadJson<{ lootbugItemChestsPerHour?: number; founderSupplyDropItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
+    const founderChests = ext?.founderSupplyDropItemChestsPerHour ?? founderSupplyDrop.itemChestsPerHour;
+    const totalChests = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0) + founderChests;
+    const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
+    const valuePerMagnet = calculateChargeMagnetGemsPerHour(effectiveParams, 20);
+    const founderChargeMagnetPart = founderChests * itemsPerChest * 0.026 * valuePerMagnet;
+    const founderChaosTotemPart = totalChests > 0 ? (founderChests / totalChests) * chaosTotemImpactForChart : 0;
+    const itemsValue = founderChargeMagnetPart + founderChaosTotemPart;
+    return {
+      founderSupplyDropItemsGemValue: itemsValue,
+      chargeMagnetForChart: Math.max(0, chargeMagnetImpactResolved - founderChargeMagnetPart),
+      chaosTotemForChart: Math.max(0, chaosTotemImpactForChart - founderChaosTotemPart),
+    };
+  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, chargeMagnetImpactResolved, chaosTotemImpactForChart]);
 
   useEffect(() => {
     const ext = loadJson<{
@@ -384,9 +405,18 @@ export function GemEv() {
     ext.freebiesPerHour = freebiesPerHour;
     ext.freebieChestsPerHour = freebieChestsPerHour;
     ext.stonksChestsPerHour = stonksChestsPerHour;
+    ext.founderSupplyDropItemChestsPerHour = founderSupplyDrop.itemChestsPerHour;
     ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, external.gemBombGemsPerHourFromBombs]);
+  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, external.gemBombGemsPerHourFromBombs]);
+
+  const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
+    ext.founderSupplyDrop2xStarMinPerHour = founderSupplyDrop.starSpawn2xMinPerHour;
+    ext.founderSupplyDropAutoCatch100MinPerHour = founderSupplyDrop.starAutoCatch100MinPerHour;
+    saveJson(STARGAZING_EXTERNAL_KEY, ext);
+  }, [founderSupplyDrop.starSpawn2xMinPerHour, founderSupplyDrop.starAutoCatch100MinPerHour]);
 
   const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
 
@@ -936,8 +966,9 @@ export function GemEv() {
                     lootbugNetGemsPerHour={external.lootbugNetGemsPerHour}
                     droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined}
                     gemBomb10xImpact={gemBomb10xImpactForChart}
-                    chaosTotemImpact={chaosTotemImpactForChart}
-                    chargeMagnetImpact={chargeMagnetImpactResolved}
+                    chaosTotemImpact={chaosTotemForChart}
+                    chargeMagnetImpact={chargeMagnetForChart}
+                    founderSupplyDropItemsGemValue={founderSupplyDropItemsGemValue}
                     showJackpotRefresh={showJackpotRefresh}
                     skillShardsEnabled={skillShardsEnabled}
                   />

@@ -60,6 +60,7 @@ type SavedStateV1 = {
 
 const STORAGE_KEY = "obeliskfarm:web:stargazing_save.json:v1";
 const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
+const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 
 function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -324,12 +325,25 @@ export function Stargazing() {
     return () => window.clearTimeout(t);
   }, [resetArmed]);
 
-  /** Drone Elixir buffs: 2× Star Spawn Rate and 3× Super Star Spawn Rate (multiply when overlapping). From Drone module. */
+  /** 2× Star Spawn Rate: Elixir (Drone) + Lootbug (incl. Golden) + Founder Supply Drop. Same buff; durations add (e.g. 3+5+2 = 10 min/h → 1/6 uptime). 3× Super Star from Drone Elixir only. */
   const droneBuffs = (() => {
-    const ext = loadJson<{ drone2xStarUptimeFraction?: number; drone3xSuperUptimeFraction?: number }>(STARGAZING_EXTERNAL_KEY);
+    const sg = loadJson<{
+      elixir2xStarMinPerHour?: number;
+      drone3xSuperUptimeFraction?: number;
+      founderSupplyDrop2xStarMinPerHour?: number;
+      founderSupplyDropAutoCatch100MinPerHour?: number;
+    }>(STARGAZING_EXTERNAL_KEY);
+    const gemev = loadJson<{ lootbug2xStarMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    const elixirMin = typeof sg?.elixir2xStarMinPerHour === "number" ? Math.max(0, sg.elixir2xStarMinPerHour) : 0;
+    const lootbugMin = typeof gemev?.lootbug2xStarMinPerHour === "number" ? Math.max(0, gemev.lootbug2xStarMinPerHour) : 0;
+    const founder2xMin = typeof sg?.founderSupplyDrop2xStarMinPerHour === "number" ? Math.max(0, sg.founderSupplyDrop2xStarMinPerHour) : 0;
+    const total2xStarMinPerHour = elixirMin + lootbugMin + founder2xMin;
+    const total2xUptimeFraction = Math.min(1, total2xStarMinPerHour / 60);
     return {
-      drone2xStarUptimeFraction: typeof ext?.drone2xStarUptimeFraction === "number" ? Math.min(1, Math.max(0, ext.drone2xStarUptimeFraction)) : 0,
-      drone3xSuperUptimeFraction: typeof ext?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, ext.drone3xSuperUptimeFraction)) : 0,
+      total2xStarMinPerHour,
+      total2xUptimeFraction,
+      drone3xSuperUptimeFraction: typeof sg?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.drone3xSuperUptimeFraction)) : 0,
+      founderSupplyDropAutoCatch100MinPerHour: typeof sg?.founderSupplyDropAutoCatch100MinPerHour === "number" ? Math.max(0, sg.founderSupplyDropAutoCatch100MinPerHour) : 0,
     };
   })();
 
@@ -337,13 +351,15 @@ export function Stargazing() {
     const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
-    // Drone 2× Star: effective = base × (1 + uptime); 3× Super Star: effective = base × (1 + 2×uptime). When both overlap they multiply in-game.
-    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffs.drone2xStarUptimeFraction);
+    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffs.total2xUptimeFraction);
     const super_star_spawn_rate_mult = baseSuperMult * (1 + 2 * droneBuffs.drone3xSuperUptimeFraction);
+    const autoCatchBase = clamp(ui.auto_catch_chance, 0, 100) / 100;
+    const founderAutoCatchMin = Math.min(60, droneBuffs.founderSupplyDropAutoCatch100MinPerHour);
+    const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderAutoCatchMin) + founderAutoCatchMin) / 60;
     return {
       floor_clears_per_hour,
       star_spawn_rate_mult,
-      auto_catch_chance: clamp(ui.auto_catch_chance, 0, 100) / 100,
+      auto_catch_chance,
       double_star_chance: clamp(ui.double_star_chance, 0, 100) / 100,
       triple_star_chance: clamp(ui.triple_star_chance, 0, 100) / 100,
       super_star_spawn_rate_mult,
@@ -365,7 +381,7 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, droneBuffs.drone2xStarUptimeFraction, droneBuffs.drone3xSuperUptimeFraction]);
+  }, [ui, ctrlF, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour]);
 
   const summary = useMemo(() => {
     const calc = new StargazingCalculator(stats);
@@ -531,28 +547,32 @@ export function Stargazing() {
                 </div>
               )}
             </div>
-            <div className="small" style={{ marginTop: 6, color: "var(--muted)" }}>
-              Hierarchy shows base spawn rates only. Star card multiplier (e.g. {resultsCardMult.toFixed(2)}× for selected card) applies to Stars/hour above, not to this tree.
-            </div>
-            {(droneBuffs.drone2xStarUptimeFraction > 0 || droneBuffs.drone3xSuperUptimeFraction > 0) && (
+            {(droneBuffs.total2xStarMinPerHour > 0 || droneBuffs.drone3xSuperUptimeFraction > 0 || droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0) && (
               <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  Includes Drone Elixir: 2× Star Spawn, 3× Super Star Spawn
+                  Includes 2× Star (Elixir + Lootbug incl. Golden + Founder Supply; minutes add)
+                  {droneBuffs.drone3xSuperUptimeFraction > 0 && ", 3× Super Star (Elixir)"}
+                  {droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 && ", 100% Auto-catch (Founder Supply)"}
                   <Tooltip
                     content={{
-                      title: "Drone Elixir buffs",
+                      title: "External buffs",
                       sections: [
                         {
-                          heading: "Source",
+                          heading: "2× Star Spawn Rate",
                           lines: [
-                            "Rates above use uptime from the Drone module (Elixir 2× Star Spawn Rate, 3× Super Star Spawn Rate).",
-                            "Open Drone to refresh.",
+                            "Same buff from three sources: Drone Elixir, Lootbug (free + gem; gem or Golden Lootbug), Founder Supply Drop. They do not multiply; their durations add (e.g. 3 + 5 + 2 = 10 min/h → 1/6 uptime). That uptime acts as a multiplier for star gain.",
                           ],
                         },
                         {
-                          heading: "Overlap",
+                          heading: "3× Super Star",
                           lines: [
-                            "In-game, when both buffs are active they multiply. We apply average uptime (equivalent effect).",
+                            "From Drone Elixir only. When active together with 2× Star they multiply in-game; we use average uptime.",
+                          ],
+                        },
+                        {
+                          heading: "100% Auto-catch",
+                          lines: [
+                            "Founder Supply Drop gives 8 min (÷ game speed) of 100% Star Auto-catch per drop. Blended with your base auto-catch over the hour.",
                           ],
                         },
                       ],

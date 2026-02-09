@@ -93,6 +93,10 @@
   background: rgba(230, 81, 0, 0.75);
 }
 
+.itemsChestsBarFounder {
+  background: rgba(120, 80, 180, 0.8);
+}
+
 .itemsChestsBarLegend {
   display: flex;
   flex-wrap: wrap;
@@ -130,6 +134,10 @@
 
 .itemsChestsBarLegendSwatch.itemsChestsBarLootbug {
   background: rgba(230, 81, 0, 0.75);
+}
+
+.itemsChestsBarLegendSwatch.itemsChestsBarFounder {
+  background: rgba(120, 80, 180, 0.8);
 }
 
 .itemsChestsPerGiftCollapsible .collapseTitle {

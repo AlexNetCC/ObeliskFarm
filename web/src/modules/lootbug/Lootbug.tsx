@@ -24,6 +24,7 @@ const LOOTBUG_BASE_SPAWN_MIN = 20;
 const STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
 
 type LootbugState = {
   spawnRateMultiplier: number;
@@ -398,6 +399,15 @@ export function Lootbug() {
     return freeMinPerHour + gemMinPerHour;
   }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct]);
 
+  /** Fishing +12 Ticks (gem buff): procs per hour. Bought = every gem roll; else Golden Lootbug chance only. Written to Fishing module. */
+  const lootbugFishing12TicksProcsPerHour = useMemo(() => {
+    const buff = GEM_BUFFS.find((b) => b.name === "Fishing +12 Ticks");
+    if (!buff || totalGemWeightAll <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
+    const effectiveRate = buyGemBuffsSet.has("Fishing +12 Ticks") ? 1 : goldenPct;
+    return perHour * effectiveRate;
+  }, [lootbugsPerHour, totalGemWeightAll, buyGemBuffsSet, goldenPct]);
+
   const totalGemCostPerHour = useMemo(() => {
     if (totalGemWeightAll <= 0) return 0;
     let sum = 0;
@@ -506,6 +516,12 @@ export function Lootbug() {
     ext.lootbug2xStarMinPerHour = lootbug2xStarMinPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour]);
+
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
+    ext.lootbugFishing12TicksProcsPerHour = lootbugFishing12TicksProcsPerHour;
+    saveJson(FISHING_EXTERNAL_KEY, ext);
+  }, [lootbugFishing12TicksProcsPerHour]);
 
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";

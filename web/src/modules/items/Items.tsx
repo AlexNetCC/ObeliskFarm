@@ -99,12 +99,13 @@ export function Items() {
   })();
 
 
-  /** Chests per hour = freebie chests/h (Gem EV; jackpot=5 chests, refresh=+1 chest) + stonks chests/h + Lootbug "+1 Item Chest" per hour. */
+  /** Chests per hour = freebie + stonks + Lootbug "+1 Item Chest" + Founder Supply Drop (2 chests per drop). */
   const ext = loadJson<{
     freebiesPerHour?: number;
     freebieChestsPerHour?: number;
     stonksChestsPerHour?: number;
     lootbugItemChestsPerHour?: number;
+    founderSupplyDropItemChestsPerHour?: number;
     chaosTotemImpact?: number;
     chaosTotem100FromBombs?: boolean;
     total10xMinPerHour?: number;
@@ -116,7 +117,8 @@ export function Items() {
     typeof ext?.freebieChestsPerHour === "number" ? ext.freebieChestsPerHour : (typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0);
   const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
   const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
-  const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour;
+  const founderSupplyDropItemChestsPerHour = typeof ext?.founderSupplyDropItemChestsPerHour === "number" ? ext.founderSupplyDropItemChestsPerHour : 0;
+  const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour + founderSupplyDropItemChestsPerHour;
 
   /** Expected chests per Gift: base (1/12 × 32.5) × Lucky multiplier (3×/50× rolls). FYI only. */
   const expectedChestsPerGift = CHESTS_PER_GIFT_BASE * calculateLuckyMultiplier();
@@ -279,6 +281,15 @@ export function Items() {
                       }}
                       title={`Lootbug: ${lootbugItemChestsPerHour.toFixed(2)}/h`}
                     />
+                    {founderSupplyDropItemChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarFounder"
+                        style={{
+                          width: `${(founderSupplyDropItemChestsPerHour / chestsPerHour) * 100}%`,
+                        }}
+                        title={`Founder Supply Drop: ${founderSupplyDropItemChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -297,6 +308,12 @@ export function Items() {
                   <span className="itemsChestsBarLegendSwatch itemsChestsBarLootbug" />
                   Lootbug
                 </span>
+                {founderSupplyDropItemChestsPerHour > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarFounder" />
+                    Founder Supply Drop
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>

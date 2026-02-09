@@ -187,7 +187,7 @@ function formatUpgradeNextEffect(
     case "rod_multiplier":
       return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
     case "drone_multiplier":
-      return `${current.drone_base_power.toFixed(2)}→${next.drone_base_power.toFixed(2)}`;
+      return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
     case "drone_base_power":
       return `${current.drone_base_power.toFixed(2)}→${next.drone_base_power.toFixed(2)}`;
     case "drone_cloner":
@@ -228,7 +228,7 @@ function formatEnhanceNextEffect(
     case "enhance_tick_speed":
       return `${current.fishing_tick_reduction.toFixed(1)}s→${next.fishing_tick_reduction.toFixed(1)}s`;
     case "enhance_drone_multiplier":
-      return `${current.drone_base_power.toFixed(2)}→${next.drone_base_power.toFixed(2)}`;
+      return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
     case "enhance_token_multiplier":
       return `${current.token_gain_multi.toFixed(2)}×→${next.token_gain_multi.toFixed(2)}×`;
     case "enhance_shiny_multiplier":
@@ -664,6 +664,7 @@ export function Fishing() {
       elixir3xFishingTickSpeedMinPerHour?: number;
       elixir3xFishingTickSpeedUptimeFraction?: number;
       anglerTicksPerHour?: number;
+      lootbugFishing12TicksProcsPerHour?: number;
     }>(FISHING_EXTERNAL_KEY);
     const minPerHour = typeof ext?.elixir3xFishingTickSpeedMinPerHour === "number" ? ext.elixir3xFishingTickSpeedMinPerHour : 0;
     const uptimeFraction =
@@ -671,42 +672,46 @@ export function Fishing() {
         ? Math.max(0, Math.min(1, ext.elixir3xFishingTickSpeedUptimeFraction))
         : 0;
     const anglerTicksPerHour = typeof ext?.anglerTicksPerHour === "number" ? Math.max(0, ext.anglerTicksPerHour) : 0;
-    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour };
+    const lootbugFishing12TicksProcsPerHour = typeof ext?.lootbugFishing12TicksProcsPerHour === "number" ? Math.max(0, ext.lootbugFishing12TicksProcsPerHour) : 0;
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, lootbugFishing12TicksProcsPerHour };
   })();
   const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
   const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
+  const lootbugFishing12TicksProcsPerHour = fishingExternalData.lootbugFishing12TicksProcsPerHour;
 
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
   /** Fish/h multiplier from Elixir 3× buff (1 = no buff, 3 = 100% uptime). */
   const elixir3xFishingMulti =
     effectiveTickSec > 0 ? Math.min(3, tickDurationSec / effectiveTickSec) : 1;
 
+  /** When a tick from Angler, Lootbug, or Sushi happens, it ticks on every dock (not distributed). So each dock gets the same +fills. */
+  const extraFillsPerDockPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour;
+
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rod = stats.fishing_rod_power;
     const dronePower = stats.drone_base_power;
-    const anglerFactor =
-      anglerTicksPerHour > 0 && effectiveTickSec > 0 ? (anglerTicksPerHour * effectiveTickSec) / 3600 : 0;
-    return AQUARIUM.filter((set) => dockIds.has(set.dockId)).flatMap((set) => {
+    const sets = AQUARIUM.filter((set) => dockIds.has(set.dockId));
+    return sets.flatMap((set) => {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const rodHere = state.activeDockId === set.dockId ? rod : 0;
       const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
       const powerOnThisDock = rodHere + dronesHere * dronePower;
       const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const fillsPerHour = dockFillsPerHour + extraFillsPerDockPerHour;
       const doublePct = stats.double_tick_chance_pct / 100;
       const triplePct = stats.triple_tick_chance_pct / 100;
       const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
       return set.fish.map((f) => {
         const catchPct = catchChancePercent(powerOnThisDock, f.powerRating);
-        const base =
-          dockFillsPerHour *
+        const catchMulti =
           expectedRollsPerFill *
           expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
           stats.fish_income_multi *
           expectedShinyMulti;
         const cardMulti = getCardMulti(f.id);
-        const baseFishPerHour = base * cardMulti;
-        const fishPerHour = baseFishPerHour * (1 + anglerFactor);
+        const baseFishPerHour = dockFillsPerHour * catchMulti * cardMulti;
+        const fishPerHour = fillsPerHour * catchMulti * cardMulti;
         const totalMulti = stats.fish_income_multi * expectedShinyMulti * cardMulti;
         const hasPower = powerOnThisDock > 0;
         return {
@@ -724,7 +729,7 @@ export function Fishing() {
   }, [
     availableDocks,
     effectiveTickSec,
-    anglerTicksPerHour,
+    extraFillsPerDockPerHour,
     expectedShinyMulti,
     stats.fishing_rod_power,
     stats.drone_base_power,
@@ -742,13 +747,18 @@ export function Fishing() {
     return fishingGainsRows.filter((r) => r.hasPower);
   }, [fishingGainsRows, state.showDisabledFishGrayed]);
 
-  /** Export for Drone (Angler): effective tick duration and base fish gains (without Angler) so Drone can compute extra. */
+  /** Export for Drone (Angler): base (bar only) and full fish/h (with global ticks). Drone uses difference for extra from Angler + Lootbug. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
     ext.effectiveTickSec = effectiveTickSec;
     ext.fishGains = visibleGainsRows
-      .filter((r) => r.hasPower && r.baseFishPerHour > 0)
-      .map((r) => ({ fishId: r.fish.id, fishName: r.fish.name, fishPerHour: r.baseFishPerHour }));
+      .filter((r) => r.hasPower && (r.baseFishPerHour > 0 || r.fishPerHour > 0))
+      .map((r) => ({
+        fishId: r.fish.id,
+        fishName: r.fish.name,
+        baseFishPerHour: r.baseFishPerHour,
+        fishPerHour: r.fishPerHour,
+      }));
     saveJson(FISHING_EXTERNAL_KEY, ext);
   }, [effectiveTickSec, visibleGainsRows]);
 
@@ -766,7 +776,8 @@ export function Fishing() {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const power = powerForDock(set.dockId);
       if (power <= 0) continue;
-      const fillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const fillsPerHour =
+        3600 / (dock.baseTicksNeeded * effectiveTickSec) + extraFillsPerDockPerHour;
       const fish: FishEntry[] = set.fish.map((f) => ({
         fish: f,
         ECR: expectedCatchesPerRoll(power, f.powerRating),

@@ -120,6 +120,8 @@ export function ContribBarChart(props: {
   gemBomb10xImpact?: number;
   chaosTotemImpact?: number;
   chargeMagnetImpact?: number;
+  /** Founder supply drop item chests (Charge Magnet + Chaos Totem value). Shown in Founder bar, excluded from Gem Bomb. */
+  founderSupplyDropItemsGemValue?: number;
   /** When true, Freebie Gems / Stonks / Skill Shards bars show base/jackpot/refresh segments. When false, solid blue. */
   showJackpotRefresh?: boolean;
   /** When false, Skill Shards row is hidden entirely. */
@@ -133,6 +135,7 @@ export function ContribBarChart(props: {
     gemBomb10xImpact,
     chaosTotemImpact,
     chargeMagnetImpact,
+    founderSupplyDropItemsGemValue = 0,
     showJackpotRefresh = true,
     skillShardsEnabled = true,
   } = props;
@@ -166,14 +169,16 @@ export function ContribBarChart(props: {
     ev.total +
     (hasLootbug && typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0) +
     (hasDroneFuel && typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0) +
-    (chargeMagnetImpact ?? 0);
+    (chargeMagnetImpact ?? 0) +
+    founderSupplyDropItemsGemValue;
   const gemBombValueForDisplay = ev.gem_bomb_gems + (chargeMagnetImpact ?? 0);
+  const founderValueForDisplay = ev.founder_speed_boost + ev.founder_gems + founderSupplyDropItemsGemValue;
 
   const valuesTopBase: number[] = [
     ev.gems_base,
     ev.stonks_ev,
     ...(skillShardsEnabled ? [ev.skill_shards_ev] : []),
-    ev.founder_speed_boost + ev.founder_gems,
+    founderValueForDisplay,
     gemBombValueForDisplay,
   ];
   const valuesTop = [
@@ -185,7 +190,7 @@ export function ContribBarChart(props: {
     pct(ev.gems_base, totalForPct),
     pct(ev.stonks_ev, totalForPct),
     ...(skillShardsEnabled ? [pct(ev.skill_shards_ev, totalForPct)] : []),
-    pct(ev.founder_speed_boost + ev.founder_gems, totalForPct),
+    pct(founderValueForDisplay, totalForPct),
     pct(gemBombValueForDisplay, totalForPct),
   ];
   const pcts = [
@@ -212,7 +217,7 @@ export function ContribBarChart(props: {
     ...(skillShardsEnabled
       ? [sumEntry(breakdown.gems_base), sumEntry(breakdown.stonks_ev), sumEntry(breakdown.skill_shards_ev)]
       : [sumEntry(breakdown.gems_base), sumEntry(breakdown.stonks_ev)]),
-    sumEntry(founderSpeed) + sumEntry(founderGems),
+    sumEntry(founderSpeed) + sumEntry(founderGems) + founderSupplyDropItemsGemValue,
     sumEntry(gemBomb),
   );
   const extraMin = [hasLootbug ? lootbugNetGemsPerHour : null, hasDroneFuel ? droneFuelGemsPerHour : null].filter(
@@ -378,13 +383,14 @@ export function ContribBarChart(props: {
           });
           founderGemsTotal = sumEntry(gems);
         }
+        const founderItemsTotal = isFounderRow ? founderSupplyDropItemsGemValue : 0;
 
         const totalBarLen = isLootbugRow
           ? (typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0)
           : isDroneFuelRow
             ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
             : isFounderRow
-              ? founderSpeedTotal + founderGemsTotal
+              ? founderSpeedTotal + founderGemsTotal + founderItemsTotal
               : isGemBombRow && entry != null
                 ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
                 : entry != null
@@ -551,6 +557,17 @@ export function ContribBarChart(props: {
                 />
               ) : null,
             )}
+            {isFounderRow && founderItemsTotal > 0 ? (
+              <rect
+                x={xOf(founderSpeedTotal + founderGemsTotal)}
+                y={y0}
+                width={wOf(founderItemsTotal)}
+                height={barH}
+                fill="url(#patChargeMagnet)"
+                stroke="rgba(15,23,42,0.45)"
+                strokeWidth={0.6}
+              />
+            ) : null}
 
             {isFounderRow && founderSpeedTotal > 0 && wOf(founderSpeedTotal) >= 40 ? (
               <text

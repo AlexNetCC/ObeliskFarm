@@ -659,12 +659,14 @@ export function Drone() {
   }, [state.elixirDroneOn, state.fishingUnlocked, numBuffs, intervalSec, buffDurations]);
 
   const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
+  const elixir2xStarMinPerHour = drone2xStarUptimeFraction * 60;
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
     ext.drone2xStarUptimeFraction = drone2xStarUptimeFraction;
     ext.drone3xSuperUptimeFraction = drone3xSuperUptimeFraction;
+    ext.elixir2xStarMinPerHour = elixir2xStarMinPerHour;
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
-  }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction]);
+  }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction, elixir2xStarMinPerHour]);
 
   const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
   useEffect(() => {
@@ -684,21 +686,36 @@ export function Drone() {
     return impact * (droneBomb10xMinPerHour / total10x);
   })();
 
-  /** Fishing data for Angler subsection: read from Fishing module external. Extra fish/h per type = fishPerHour × (anglerTicksPerHour × effectiveTickSec / 3600). Recomputes when suit/grade change (anglerTicksPerHour depends on suit). */
+  /** Fishing data for Angler subsection: read from Fishing. Extra = full − base (global ticks from Angler + Lootbug apply to every dock). */
   const anglerFishingData = useMemo(() => {
     const ext = loadJson<{
       effectiveTickSec?: number;
-      fishGains?: Array<{ fishId: string; fishName: string; fishPerHour: number }>;
+      fishGains?: Array<{
+        fishId: string;
+        fishName: string;
+        baseFishPerHour?: number;
+        fishPerHour?: number;
+      }>;
     }>(FISHING_EXTERNAL_KEY);
     const effectiveTickSec = typeof ext?.effectiveTickSec === "number" ? ext.effectiveTickSec : 0;
     const gains = Array.isArray(ext?.fishGains) ? ext.fishGains : [];
-    const ticks = state.anglerDroneOn ? anglerTicksPerHour : 0;
-    const factor = effectiveTickSec > 0 && ticks > 0 ? (ticks * effectiveTickSec) / 3600 : 0;
-    const extraPerFish = gains.map((g) => ({ ...g, extraFishPerHour: g.fishPerHour * factor }));
-    const totalExtraFishPerHour = extraPerFish.reduce((s, x) => s + x.extraFishPerHour, 0);
-    const totalBaseFishPerHour = gains.reduce((s, g) => s + g.fishPerHour, 0);
+    const extraPerFish = gains.map((g) => {
+      const base = typeof g.baseFishPerHour === "number" ? g.baseFishPerHour : g.fishPerHour ?? 0;
+      const full = typeof g.fishPerHour === "number" ? g.fishPerHour : base;
+      return { ...g, baseFishPerHour: base, fishPerHour: full, extraFishPerHour: full - base };
+    });
+    const totalBaseFishPerHour = extraPerFish.reduce((s, g) => s + (g.baseFishPerHour ?? 0), 0);
+    const totalFullFishPerHour = extraPerFish.reduce((s, g) => s + (g.fishPerHour ?? 0), 0);
+    const totalExtraFishPerHour = totalFullFishPerHour - totalBaseFishPerHour;
     const extraFishPct = totalBaseFishPerHour > 0 ? (totalExtraFishPerHour / totalBaseFishPerHour) * 100 : 0;
-    return { effectiveTickSec, extraPerFish, totalExtraFishPerHour, totalBaseFishPerHour, extraFishPct };
+    return {
+      effectiveTickSec,
+      extraPerFish,
+      totalExtraFishPerHour,
+      totalBaseFishPerHour,
+      totalFullFishPerHour,
+      extraFishPct,
+    };
   }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, anglerTicksPerHour]);
 
   /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. When buff active, use live calc from Lootbug gems+net10x so it updates on every Drone change; else value from Lootbug. */
