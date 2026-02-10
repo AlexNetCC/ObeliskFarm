@@ -228,20 +228,36 @@ export function Bombs() {
     const without10x = calculateGemBombGemsPerHour({ ...effectiveParams, bomb_recharge_10x_min_per_hour: 0 });
     return Math.max(0, gemBombGemsPerHour - without10x);
   }, [effectiveParams, gemBombGemsPerHour]);
+  /** When 100%: recharge params are in-game (already /2), so impact = current − gem EV with doubled recharge (simulating no Chaos). Otherwise 0 (Items supplies impact from uptime). */
   const chaosTotemImpact = useMemo(() => {
-    const withoutChaos = calculateGemBombGemsPerHour({ ...effectiveParams, chaos_totem_uptime: 0 });
-    return Math.max(0, gemBombGemsPerHour - withoutChaos);
-  }, [effectiveParams, gemBombGemsPerHour]);
+    if (!chaosTotem100Uptime) return 0;
+    const p = effectiveParams;
+    const withDoubledRecharge: GameParameters = {
+      ...p,
+      gem_bomb_recharge_seconds: (p.gem_bomb_recharge_seconds ?? 1) * 2,
+      cherry_bomb_recharge_seconds: (p.cherry_bomb_recharge_seconds ?? 1) * 2,
+      battery_bomb_recharge_seconds: (p.battery_bomb_recharge_seconds ?? 1) * 2,
+      d20_bomb_recharge_seconds: (p.d20_bomb_recharge_seconds ?? 1) * 2,
+    };
+    const withChaos = calculateGemBombGemsPerHour(p);
+    const withoutChaos = calculateGemBombGemsPerHour(withDoubledRecharge);
+    return Math.max(0, withChaos - withoutChaos);
+  }, [chaosTotem100Uptime, effectiveParams]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.gemBombGemsPerHourFromBombs = gemBombGemsPerHour;
     ext.gemBomb10xImpactFromBombs = gemBomb10xImpact;
-    ext.chaosTotemImpactFromBombs = chaosTotemImpact;
-    ext.gemBomb10xImpact = gemBomb10xImpact;
-    ext.chaosTotemImpact = chaosTotemImpact;
     ext.chaosTotem100FromBombs = chaosTotem100Uptime;
-    ext.chaosTotemUptimePct = chaosTotem100Uptime ? 100 : 0;
+    if (chaosTotem100Uptime) {
+      ext.chaosTotemImpactFromBombs = chaosTotemImpact;
+      ext.chaosTotemImpact = chaosTotemImpact;
+      ext.chaosTotemUptimePct = 100;
+    } else {
+      ext.chaosTotemImpactFromBombs = 0;
+      // Do not overwrite chaosTotemUptimePct or chaosTotemImpact so Items can supply them for the chart.
+    }
+    ext.gemBomb10xImpact = gemBomb10xImpact;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [gemBombGemsPerHour, gemBomb10xImpact, chaosTotemImpact, chaosTotem100Uptime]);
 

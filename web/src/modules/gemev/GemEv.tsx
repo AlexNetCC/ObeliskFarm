@@ -221,7 +221,7 @@ export function GemEv() {
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
     const lootbugNetGemsPerHour = typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0;
     const droneFuelGemsPerHour = typeof ext?.droneFuelGemsPerHour === "number" ? ext.droneFuelGemsPerHour : 0;
-    const chaosTotemUptimePct = typeof ext?.chaosTotemUptimePct === "number" ? ext.chaosTotemUptimePct : 0;
+    const chaosTotemUptimePct = typeof ext?.chaosTotemUptimePct === "number" ? ext.chaosTotemUptimePct : undefined;
     const chaosTotem100FromBombs = Boolean(ext?.chaosTotem100FromBombs);
     const chargeMagnetImpact = typeof ext?.chargeMagnetImpact === "number" ? ext.chargeMagnetImpact : 0;
     const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
@@ -307,12 +307,12 @@ export function GemEv() {
 
     p.bomb_recharge_10x_min_per_hour = external10x.total;
     // Chaos Totem: when 100% from Bombs, recharge params are in-game (already /2), so do not apply Chaos again (= 0).
-    // Otherwise use Items uptime % or Gem EV param.
+    // Otherwise use Items uptime %, or Gem EV param / fallback so the chart bar is visible when 100% is unchecked.
     p.chaos_totem_uptime = external.chaosTotem100FromBombs
       ? 0
       : typeof external.chaosTotemUptimePct === "number"
         ? Math.max(0, Math.min(1, external.chaosTotemUptimePct / 100))
-        : Math.max(0, Math.min(1, p.chaos_totem_uptime ?? 0));
+        : Math.max(0, Math.min(1, p.chaos_totem_uptime ?? 0.2));
 
     // Ensure positive time values
     p.freebie_timer_minutes = clamp(p.freebie_timer_minutes, 0.1, 10_000);
@@ -406,6 +406,9 @@ export function GemEv() {
     if (typeof external.gemBombGemsPerHourFromBombs !== "number") {
       ext.gemBomb10xImpact = gemBomb10xImpact;
       ext.chaosTotemImpact = chaosTotemImpact;
+    } else if (!external.chaosTotem100FromBombs) {
+      // When 100% is unchecked, persist our computed Chaos Totem impact so the chart bar is visible.
+      ext.chaosTotemImpact = chaosTotemImpact;
     }
     ext.total10xMinPerHour = (ext.lootbugBomb10xMinPerHour ?? 0) + (ext.droneBomb10xMinPerHour ?? 0);
     ext.freebiesPerHour = freebiesPerHour;
@@ -414,7 +417,7 @@ export function GemEv() {
     ext.founderSupplyDropItemChestsPerHour = founderSupplyDrop.itemChestsPerHour;
     ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, external.gemBombGemsPerHourFromBombs]);
+  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, external.gemBombGemsPerHourFromBombs, external.chaosTotem100FromBombs]);
 
   const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
   useEffect(() => {

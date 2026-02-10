@@ -597,17 +597,43 @@ export function ContribBarChart(props: {
                 />
               ) : null,
             )}
-            {isFounderRow && founderItemsTotal > 0 ? (
-              <rect
-                x={xOf(founderSpeedTotal + founderGemsTotal)}
-                y={y0}
-                width={wOf(founderItemsTotal)}
-                height={barH}
-                fill="url(#patChargeMagnet)"
-                stroke="rgba(15,23,42,0.45)"
-                strokeWidth={0.6}
-              />
-            ) : null}
+            {isFounderRow && founderItemsTotal > 0 ? (() => {
+              const segX = xOf(founderSpeedTotal + founderGemsTotal);
+              const segW = wOf(founderItemsTotal);
+              const barCenterX = segX + segW / 2;
+              const barCenterY = y0 + barH / 2;
+              const iconOnBar = segW >= SEGMENT_ICON_MIN_BAR;
+              const iconCenterX = iconOnBar ? barCenterX : barCenterX + SEGMENT_ICON_LINE_OFFSET;
+              const iconCenterY = iconOnBar ? barCenterY : barCenterY - SEGMENT_ICON_LINE_OFFSET;
+              const iconX = iconCenterX - SEGMENT_ICON_SIZE / 2;
+              const iconY = iconCenterY - SEGMENT_ICON_SIZE / 2;
+              return (
+                <>
+                  <rect
+                    x={segX}
+                    y={y0}
+                    width={segW}
+                    height={barH}
+                    fill="url(#patChargeMagnet)"
+                    stroke="rgba(15,23,42,0.45)"
+                    strokeWidth={0.6}
+                  />
+                  {iconOnBar ? null : (
+                    <line x1={barCenterX} y1={barCenterY} x2={iconCenterX} y2={iconCenterY} stroke="rgba(15,23,42,0.5)" strokeWidth={1} />
+                  )}
+                  <image
+                    href={CHARGE_MAGNET_ICON}
+                    x={iconX}
+                    y={iconY}
+                    width={SEGMENT_ICON_SIZE}
+                    height={SEGMENT_ICON_SIZE}
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ pointerEvents: "none" }}
+                    aria-hidden
+                  />
+                </>
+              );
+            })() : null}
 
             {isFounderRow && founderSpeedTotal > 0 && wOf(founderSpeedTotal) >= 40 ? (
               <text

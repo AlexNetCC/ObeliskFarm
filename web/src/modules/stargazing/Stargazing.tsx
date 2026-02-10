@@ -366,11 +366,6 @@ export function Stargazing() {
 
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
-  const starburstDroneOnFromExt = useMemo(() => {
-    const sg = loadJson<{ starburstDroneOn?: boolean }>(STARGAZING_EXTERNAL_KEY);
-    return typeof sg?.starburstDroneOn === "boolean" ? sg.starburstDroneOn : false;
-  }, [starburstToggleRefresh]);
-
   const stats = useMemo<PlayerStats>(() => {
     const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
@@ -534,32 +529,6 @@ export function Stargazing() {
       </div>
 
       <div className="sgLayoutGrid">
-        <div className="sgSection" style={{ marginBottom: 8, padding: "8px 10px", background: "rgba(255,255,255,0.7)", border: "1px solid rgba(15,23,42,0.12)", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, margin: 0, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={starburstDroneOnFromExt}
-              onChange={() => {
-                const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
-                ext.starburstDroneOn = !(ext.starburstDroneOn as boolean);
-                saveJson(STARGAZING_EXTERNAL_KEY, ext);
-                setStarburstToggleRefresh((r) => r + 1);
-              }}
-            />
-            <span>Starburst Drone: {starburstDroneOnFromExt ? "ON" : "OFF"}</span>
-          </label>
-          <Tooltip
-            content={{
-              title: "Starburst Drone",
-              lines: [
-                "Same setting as in the Drone module. Toggle here so you do not have to switch to Drone.",
-                "When OFF, Starburst contributions (Triple Star Chance, Star Spawn Rate, Auto-catch, fuel cost) are excluded from calculations.",
-                "If numbers do not change when you turn ON: open the Drone module once so it can write your Starburst suit/grade/fuel values to the shared data.",
-              ],
-            }}
-            label="?"
-          />
-        </div>
         <div className="panel panelResults">
             <div className="panelHeader">
               <h2 className="panelTitle">Results</h2>
