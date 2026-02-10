@@ -740,27 +740,22 @@ export function Drone() {
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
   }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction, elixir2xStarMinPerHour, state.starburstDroneOn, starburstTripleStarChancePct, starburstStarSpawnRateUptimeFraction, starburstStarSpawnRatePct, starburstAutoCatch100MinPerHour]);
 
-  /** +% star / SS gain from Starburst (offline): from Stargazing (with vs without drone). */
-  const starburstStarGainPct = (() => {
-    const ext = loadJson<{
-      stargazingStarsPerHourOnline?: number;
-      stargazingStarsPerHourOffline?: number;
-      stargazingStarsPerHourOnlineWithoutStarburst?: number;
-      stargazingStarsPerHourOfflineWithoutStarburst?: number;
-      stargazingSuperStarsPerHourOffline?: number;
-      stargazingSuperStarsPerHourOfflineWithoutStarburst?: number;
-    }>(STARGAZING_EXTERNAL_KEY);
-    const withOn = typeof ext?.stargazingStarsPerHourOnline === "number" ? ext.stargazingStarsPerHourOnline : NaN;
-    const withOff = typeof ext?.stargazingStarsPerHourOffline === "number" ? ext.stargazingStarsPerHourOffline : NaN;
-    const withoutOn = typeof ext?.stargazingStarsPerHourOnlineWithoutStarburst === "number" ? ext.stargazingStarsPerHourOnlineWithoutStarburst : NaN;
-    const withoutOff = typeof ext?.stargazingStarsPerHourOfflineWithoutStarburst === "number" ? ext.stargazingStarsPerHourOfflineWithoutStarburst : NaN;
-    const withSSOff = typeof ext?.stargazingSuperStarsPerHourOffline === "number" ? ext.stargazingSuperStarsPerHourOffline : NaN;
-    const withoutSSOff = typeof ext?.stargazingSuperStarsPerHourOfflineWithoutStarburst === "number" ? ext.stargazingSuperStarsPerHourOfflineWithoutStarburst : NaN;
-    const pctOn = Number.isFinite(withOn) && Number.isFinite(withoutOn) && withoutOn > 0 ? ((withOn - withoutOn) / withoutOn) * 100 : NaN;
-    const pctOff = Number.isFinite(withOff) && Number.isFinite(withoutOff) && withoutOff > 0 ? ((withOff - withoutOff) / withoutOff) * 100 : NaN;
-    const pctSSOff = Number.isFinite(withSSOff) && Number.isFinite(withoutSSOff) && withoutSSOff > 0 ? ((withSSOff - withoutSSOff) / withoutSSOff) * 100 : NaN;
-    return { pctOn, pctOff, pctSSOff };
-  })();
+  /** Starburst contribution to star/SS offline: computed from drone state so it updates when fuel/suit/grade change. Triple Star (suit) multiplies stars per spawn by 1+2×triple; Star Spawn Rate (when fueled) multiplies spawn rate. */
+  const starburstContribution = useMemo(() => {
+    if (!state.starburstDroneOn) {
+      return { multTriple: 1, multSpawn: 1, pctStarsOff: 0, pctSSOff: 0, pctFromTriple: 0, pctFromSpawn: 0 };
+    }
+    const tripleFrac = Math.max(0, Math.min(1, starburstTripleStarChancePct / 100));
+    const multTriple = 1 + 2 * tripleFrac; // stars per spawn: 1 → 1+2*T
+    const multSpawn = state.starburstFueled
+      ? 1 + starburstStarSpawnRateUptimeFraction * (starburstStarSpawnRatePct / 100)
+      : 1;
+    const pctFromTriple = (multTriple - 1) * 100;
+    const pctFromSpawn = (multSpawn - 1) * 100;
+    const pctStarsOff = (multTriple * multSpawn - 1) * 100; // stars: triple and spawn rate
+    const pctSSOff = (multSpawn - 1) * 100; // SS: only spawn rate (no triple from Starburst)
+    return { multTriple, multSpawn, pctStarsOff, pctSSOff, pctFromTriple, pctFromSpawn };
+  }, [state.starburstDroneOn, state.starburstFueled, starburstTripleStarChancePct, starburstStarSpawnRateUptimeFraction, starburstStarSpawnRatePct]);
 
   const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
   useEffect(() => {
@@ -2144,22 +2139,32 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneSectionTitle">Stargazing</div>
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            Triple Star Chance (suit), Star Spawn Rate and 100% Auto-catch (when fueled) are sent to the Stargazing module. Open Stargazing to see the combined effect.
+            Triple Star Chance (suit), Star Spawn Rate and 100% Auto-catch (when fueled) are sent to the Stargazing module.
           </p>
           {state.starburstFueled && state.starburstDroneOn ? (
-            <>
-              <div className="droneRow">
-                <span className="droneLabel">Star Spawn Rate (fuel buff)</span>
-                <span className="droneStepperValue">+{starburstStarSpawnRatePct}%</span>
-              </div>
-              <div className="droneRow">
-                <span className="droneLabel">100% Auto-catch</span>
-                <span className="droneStepperValue">60 min/h (full uptime when fueled)</span>
-              </div>
-            </>
+            <div className="droneRow">
+              <span className="droneLabel">100% Auto-catch</span>
+              <span className="droneStepperValue">60 min/h (full uptime when fueled)</span>
+            </div>
           ) : null}
-          {state.starburstDroneOn && (Number.isFinite(starburstStarGainPct.pctOff) || Number.isFinite(starburstStarGainPct.pctSSOff)) ? (
+          {state.starburstDroneOn ? (
             <>
+              <div className="droneRow" style={{ gap: 8 }}>
+                <span className="droneLabel small">
+                  Triple Star Chance (suit)
+                  <Tooltip content={{ title: "Triple Star (suit)", lines: ["Adds +% to star gain (stars per spawn 1→3 when it triggers)."] }} label="?" />
+                </span>
+                <span className="droneStepperValue mono">{starburstContribution.pctFromTriple >= 0.05 ? `+${starburstContribution.pctFromTriple.toFixed(1)}%` : "—"}</span>
+              </div>
+              {state.starburstFueled ? (
+                <div className="droneRow" style={{ gap: 8 }}>
+                  <span className="droneLabel small">
+                    Star Spawn Rate (fuel)
+                    <Tooltip content={{ title: "Star Spawn Rate (fuel)", lines: ["Separate multiplier on spawn rate. Applies to both stars and super stars."] }} label="?" />
+                  </span>
+                  <span className="droneStepperValue mono">×{starburstContribution.multSpawn.toFixed(2)}</span>
+                </div>
+              ) : null}
               <div className="droneRow droneFuelGemsRow droneBomb10xRow">
                 <span className="droneFuelGemsLabel">
                   <img src={`${ELIXIR_BUFF_ICONS}5/5b/2x_Spawn_Rate_Buff.png`} alt="" className="droneSkillIcon" aria-hidden />
@@ -2168,13 +2173,13 @@ export function Drone() {
                     <Tooltip
                       content={{
                         title: "Star offline",
-                        lines: ["+% gain to stars per hour (offline) from Starburst Drone. With vs without drone; from Stargazing. Open Stargazing to update."],
+                        lines: ["+% gain to stars/h (offline) from this drone: Triple Star (suit) plus Star Spawn Rate when fueled. Computed here so it updates when you change fuel, suit or grade."],
                       }}
                     />
                   </span>
                 </span>
-                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={Number.isFinite(starburstStarGainPct.pctOff) ? `+${starburstStarGainPct.pctOff.toFixed(1)}% star gain from drone` : "—"}>
-                  {Number.isFinite(starburstStarGainPct.pctOff) ? `+${starburstStarGainPct.pctOff.toFixed(1)}%` : "—"}
+                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`+${starburstContribution.pctStarsOff.toFixed(1)}% star gain from drone`}>
+                  +{starburstContribution.pctStarsOff.toFixed(1)}%
                 </span>
               </div>
               <div className="droneRow droneFuelGemsRow droneBomb10xRow">
@@ -2185,23 +2190,19 @@ export function Drone() {
                     <Tooltip
                       content={{
                         title: "SS offline",
-                        lines: ["+% gain to super stars per hour (offline) from Starburst Drone. With vs without drone; from Stargazing. Open Stargazing to update."],
+                        lines: ["+% gain to super stars/h (offline) from this drone: Star Spawn Rate when fueled only (no triple from Starburst). Computed here so it updates when you change fuel or grade."],
                       }}
                     />
                   </span>
                 </span>
-                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={Number.isFinite(starburstStarGainPct.pctSSOff) ? `+${starburstStarGainPct.pctSSOff.toFixed(1)}% super star gain from drone` : "—"}>
-                  {Number.isFinite(starburstStarGainPct.pctSSOff) ? `+${starburstStarGainPct.pctSSOff.toFixed(1)}%` : "—"}
+                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`+${starburstContribution.pctSSOff.toFixed(1)}% super star gain from drone`}>
+                  +{starburstContribution.pctSSOff.toFixed(1)}%
                 </span>
               </div>
             </>
-          ) : state.starburstDroneOn ? (
-            <p className="droneHint small" style={{ marginTop: 8, marginBottom: 0 }}>
-              Open Stargazing once to see +% star gain from drone.
-            </p>
           ) : (
             <p className="droneHint small" style={{ marginTop: 8, marginBottom: 0 }}>
-              Turn drone ON and open Stargazing to see +% star gain from drone.
+              Turn drone ON to see contribution to Stargazing (Triple Star + Star Spawn Rate when fueled).
             </p>
           )}
         </div>
