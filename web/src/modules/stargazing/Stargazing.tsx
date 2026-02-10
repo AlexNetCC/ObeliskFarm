@@ -55,6 +55,7 @@ type StarCardsState = {
 type SavedStateV1 = {
   stats: Partial<UiStats>;
   ctrl_f_stars_enabled: boolean;
+  spoon_strat?: boolean;
   star_cards?: Partial<StarCardsState>;
 };
 
@@ -82,6 +83,11 @@ function endsWithDecimalSeparator(raw: string): boolean {
 function fmt4(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return n.toFixed(4);
+}
+
+function fmt0(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return Math.round(n).toString();
 }
 
 function fmt1(n: number): string {
@@ -222,9 +228,8 @@ function Stepper(props: {
 }
 
 function defaultUiStats(): UiStats {
-  // Desktop defaults (`StargazingWindow.reset_to_defaults()`):
   return {
-    floor_clears_per_minute: 2.0, // 120/hour = 2/min
+    floor_clears_per_minute: 48, // 48/min fixed default; ~1.25 bombs/min
     star_spawn_rate_mult: 1.0,
     auto_catch_chance: 0.0,
     double_star_chance: 0.0,
@@ -289,16 +294,18 @@ export function Stargazing() {
     const saved = loadJson<SavedStateV1>(STORAGE_KEY);
     const merged: UiStats = { ...base, ...(saved?.stats ?? {}) };
     const ctrl_f_stars_enabled = saved?.ctrl_f_stars_enabled ?? false;
+    const spoon_strat = saved?.spoon_strat ?? false;
     const star_cards: StarCardsState = {
       ...defaultStarCards(),
       ...(saved?.star_cards ?? {}),
       selected_card_for_results: saved?.star_cards?.selected_card_for_results ?? "aries",
     };
-    return { stats: merged, ctrl_f_stars_enabled, star_cards };
+    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, star_cards };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
   const [ctrlF, setCtrlF] = useState<boolean>(initial.ctrl_f_stars_enabled);
+  const [spoonStrat, setSpoonStrat] = useState<boolean>(initial.spoon_strat);
   const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
   const [resetArmed, setResetArmed] = useState(false);
 
@@ -313,11 +320,11 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, star_cards: starCards };
+      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, star_cards: starCards };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF, starCards]);
+  }, [ui, ctrlF, spoonStrat, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -367,7 +374,8 @@ export function Stargazing() {
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
   const stats = useMemo<PlayerStats>(() => {
-    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 2 : 1);
+    const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
     const starburstStarMult = 1 + droneBuffs.starburstStarSpawnRateUptimeFraction * (droneBuffs.starburstStarSpawnRatePct / 100);
@@ -403,11 +411,18 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
+
+  /** Stats for Offline Gains only: no spoon strat (you can't spoon when the game is off). */
+  const statsOffline = useMemo<PlayerStats>(() => {
+    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
+    return { ...stats, floor_clears_per_hour };
+  }, [stats, ui.floor_clears_per_minute]);
 
   /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
   const statsWithoutStarburst = useMemo<PlayerStats>(() => {
-    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 2 : 1);
+    const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
     const star_spawn_rate_mult = baseStarMult * (1 + droneBuffs.total2xUptimeFraction);
@@ -441,35 +456,51 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderOnlyAutoCatch100MinPerHour, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderOnlyAutoCatch100MinPerHour, starburstToggleRefresh]);
+
+  /** Offline Gains use stats without spoon strat (spoon only works when game is open). */
+  const statsWithoutStarburstOffline = useMemo<PlayerStats>(() => {
+    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
+    return { ...statsWithoutStarburst, floor_clears_per_hour };
+  }, [statsWithoutStarburst, ui.floor_clears_per_minute]);
 
   const summary = useMemo(() => {
     const calc = new StargazingCalculator(stats);
     return calc.get_summary();
   }, [stats]);
 
+  const summaryOffline = useMemo(() => {
+    const calc = new StargazingCalculator(statsOffline);
+    return calc.get_summary();
+  }, [statsOffline]);
+
   const summaryWithoutStarburst = useMemo(() => {
     const calc = new StargazingCalculator(statsWithoutStarburst);
     return calc.get_summary();
   }, [statsWithoutStarburst]);
 
-  /** Write stars/h and super stars/h with and without Starburst to external so Drone can show +% gain. */
+  const summaryWithoutStarburstOffline = useMemo(() => {
+    const calc = new StargazingCalculator(statsWithoutStarburstOffline);
+    return calc.get_summary();
+  }, [statsWithoutStarburstOffline]);
+
+  /** Write stars/h and super stars/h (Offline Gains, no spoon) with and without Starburst to external so Drone can show +% gain. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
     ext.stargazingStarsPerHourOnline = summary.stars_per_hour_online;
-    ext.stargazingStarsPerHourOffline = summary.stars_per_hour_offline;
-    ext.stargazingSuperStarsPerHourOffline = summary.super_stars_per_hour_offline;
+    ext.stargazingStarsPerHourOffline = summaryOffline.stars_per_hour_offline_gains;
+    ext.stargazingSuperStarsPerHourOffline = summaryOffline.super_stars_per_hour_offline_gains;
     if (hasStarburst) {
       ext.stargazingStarsPerHourOnlineWithoutStarburst = summaryWithoutStarburst.stars_per_hour_online;
-      ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburst.stars_per_hour_offline;
-      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburst.super_stars_per_hour_offline;
+      ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburstOffline.stars_per_hour_offline_gains;
+      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburstOffline.super_stars_per_hour_offline_gains;
     } else {
       ext.stargazingStarsPerHourOnlineWithoutStarburst = summary.stars_per_hour_online;
-      ext.stargazingStarsPerHourOfflineWithoutStarburst = summary.stars_per_hour_offline;
-      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summary.super_stars_per_hour_offline;
+      ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryOffline.stars_per_hour_offline_gains;
+      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryOffline.super_stars_per_hour_offline_gains;
     }
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
-  }, [hasStarburst, summary.stars_per_hour_online, summary.stars_per_hour_offline, summary.super_stars_per_hour_offline, summaryWithoutStarburst.stars_per_hour_online, summaryWithoutStarburst.stars_per_hour_offline, summaryWithoutStarburst.super_stars_per_hour_offline]);
+  }, [hasStarburst, summary.stars_per_hour_online, summaryOffline.stars_per_hour_offline_gains, summaryOffline.super_stars_per_hour_offline_gains, summaryWithoutStarburst.stars_per_hour_online, summaryWithoutStarburstOffline.stars_per_hour_offline_gains, summaryWithoutStarburstOffline.super_stars_per_hour_offline_gains]);
 
   const spawnTree = useMemo(() => new StargazingCalculator(stats).get_spawn_tree(), [stats]);
 
@@ -482,10 +513,26 @@ export function Stargazing() {
 
   const onlineInfo = useMemo(
     () => ({
-      title: "Online Mode",
-      sections: [
-        { heading: "Meaning", lines: ["Online means you manually catch all stars and follow them through all floors."] },
-        { heading: "Auto-catch", lines: ["This corresponds to 100% catch rate (auto-catch is not applied)."] },
+      title: "Online",
+      lines: ["You manually catch all stars. Auto-catch is not applied."],
+    }),
+    [],
+  );
+
+  const onlineAfkInfo = useMemo(
+    () => ({
+      title: "Online AFK",
+      lines: ["Game open, phone aside. All stars caught by auto-catch. Offline factor 0.85 does not apply."],
+    }),
+    [],
+  );
+
+  const offlineGainsInfo = useMemo(
+    () => ({
+      title: "Offline Gains",
+      lines: [
+        "When the game gives offline gains: auto-catch × 0.85. The game applies this factor when you are offline.",
+        "Spoon strat is not applied (you cannot spoon when the device is off).",
       ],
     }),
     [],
@@ -562,74 +609,99 @@ export function Stargazing() {
 
             <div className="kv" style={{ background: "rgba(255,255,255,0.92)" }}>
               <kbd>
-                ⭐ Stars/hour (Online)
-                <Tooltip content={onlineInfo} />
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  ⭐ Stars/hour (Online)
+                  <Tooltip content={onlineInfo} label="?" />
+                </span>
               </kbd>
               <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_online * resultsCardMult)}</div>
-              <kbd>⭐ Stars/hour (Offline)</kbd>
-              <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_offline * resultsCardMult)}</div>
+              <kbd>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  ⭐ Stars/hour (Online AFK)
+                  <Tooltip content={onlineAfkInfo} label="?" />
+                </span>
+              </kbd>
+              <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_online_afk * resultsCardMult)}</div>
+              <kbd>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  ⭐ Stars/hour (Offline Gains)
+                  <Tooltip content={offlineGainsInfo} label="?" />
+                </span>
+              </kbd>
+              <div className="mono sgResultValueBlue">{fmt1(summaryOffline.stars_per_hour_offline_gains * resultsCardMult)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
-                  <span>Super Stars/hour (Online)</span>
+                  <span>SS/hour (Online)</span>
+                  <Tooltip content={onlineInfo} label="?" />
                 </span>
-                <Tooltip content={onlineInfo} />
               </kbd>
               <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_online)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
-                  <span>Super Stars/hour (Offline)</span>
+                  <span>SS/hour (Online AFK)</span>
+                  <Tooltip content={onlineAfkInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_offline)}</div>
+              <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_online_afk)}</div>
+              <kbd>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
+                  <span>SS/hour (Offline Gains)</span>
+                  <Tooltip content={offlineGainsInfo} label="?" />
+                </span>
+              </kbd>
+              <div className="mono sgResultValueOrange">{fmt1(summaryOffline.super_stars_per_hour_offline_gains)}</div>
             </div>
 
-            <div className="small" style={{ marginTop: 10 }}>
-              Spawn events/hour: <span className="mono">{fmt4(summary.star_spawn_rate_per_hour)}</span> • Super-star events/hour:{" "}
-              <span className="mono">{fmt4(summary.super_star_spawn_rate_per_hour)}</span>
-            </div>
-            <div className="sgSpawnTree small" style={{ marginTop: 8 }}>
-              <div className="sgSpawnTreeRoot">
-                Floor clear <span style={{ fontWeight: 400, opacity: 0.8, fontSize: 11 }}>(base 2% spawn per clear × spawn rate mult)</span>
+            <Collapsible id="stargazing-spawn-events" title="Floor clear / Spawn events" defaultExpanded={false} className="sgSpawnCollapse" headerRight={<span className="small mono" style={{ opacity: 0.9 }}>{fmt0(summary.star_spawn_rate_per_hour)} /h star · {fmt0(summary.super_star_spawn_rate_per_hour)} /h SS</span>}>
+              <div className="small" style={{ marginBottom: 6 }}>
+                Spawn events/hour: <span className="mono">{fmt0(summary.star_spawn_rate_per_hour)}</span> · Super-star events/hour:{" "}
+                <span className="mono">{fmt0(summary.super_star_spawn_rate_per_hour)}</span>
               </div>
-              {spawnTree.no_star_pct > 0.001 && (
-                <div className="sgSpawnTreeBranch">
-                  No star at all (<span className="mono">{spawnTree.no_star_pct.toFixed(1)}%</span>)
+              <div className="sgSpawnTree small">
+                <div className="sgSpawnTreeRoot">
+                  Floor clear <span style={{ fontWeight: 400, opacity: 0.8, fontSize: 11 }}>(base 2% spawn per clear × spawn rate mult)</span>
                 </div>
-              )}
-              {spawnTree.star_spawn_pct > 0.001 && (
-                <div className="sgSpawnTreeBranch">
-                  <div className="sgSpawnTreeLabel">Star spawn (<span className="mono">{spawnTree.star_spawn_pct.toFixed(1)}%</span>) — regular and SS roll independently, both can occur</div>
-                  <div className="sgSpawnTreeIndent">
-                    <div className="sgSpawnTreeHint">(% of spawn events)</div>
-                    <div className="sgSpawnTreeLabel">Regular stars (always when spawn)</div>
-                    {spawnTree.regular
-                      .filter(({ pct }) => pct > 0.001)
-                      .map(({ stars, pct }) => (
-                        <div key={stars} className="sgSpawnTreeLeaf">
-                          {stars} star{stars > 1 ? "s" : ""} (<span className="mono">{pct.toFixed(1)}%</span>)
-                        </div>
-                      ))}
-                    {spawnTree.super_star_pct > 0.001 && (
-                      <>
-                        <div className="sgSpawnTreeLabel" style={{ marginTop: 4 }}>Super Star</div>
-                        {spawnTree.super_star_outcomes
-                          .filter(({ pct }) => (spawnTree.super_star_pct * pct) / 100 > 0.001)
-                          .map(({ count, pct }) => {
-                            const absolutePct = (spawnTree.super_star_pct * pct) / 100;
-                            return (
-                              <div key={count} className="sgSpawnTreeLeaf">
-                                {count} SS (<span className="mono">{absolutePct.toFixed(2)}%</span>)
-                              </div>
-                            );
-                          })}
-                      </>
-                    )}
+                {spawnTree.no_star_pct > 0.001 && (
+                  <div className="sgSpawnTreeBranch">
+                    No star at all (<span className="mono">{spawnTree.no_star_pct.toFixed(1)}%</span>)
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+                {spawnTree.star_spawn_pct > 0.001 && (
+                  <div className="sgSpawnTreeBranch">
+                    <div className="sgSpawnTreeLabel">Star spawn (<span className="mono">{spawnTree.star_spawn_pct.toFixed(1)}%</span>) — regular and SS roll independently, both can occur</div>
+                    <div className="sgSpawnTreeIndent">
+                      <div className="sgSpawnTreeHint">(% of spawn events)</div>
+                      <div className="sgSpawnTreeLabel">Regular stars (always when spawn)</div>
+                      {spawnTree.regular
+                        .filter(({ pct }) => pct > 0.001)
+                        .map(({ stars, pct }) => (
+                          <div key={stars} className="sgSpawnTreeLeaf">
+                            {stars} star{stars > 1 ? "s" : ""} (<span className="mono">{pct.toFixed(1)}%</span>)
+                          </div>
+                        ))}
+                      {spawnTree.super_star_pct > 0.001 && (
+                        <>
+                          <div className="sgSpawnTreeLabel" style={{ marginTop: 4 }}>Super Star</div>
+                          {spawnTree.super_star_outcomes
+                            .filter(({ pct }) => (spawnTree.super_star_pct * pct) / 100 > 0.001)
+                            .map(({ count, pct }) => {
+                              const absolutePct = (spawnTree.super_star_pct * pct) / 100;
+                              return (
+                                <div key={count} className="sgSpawnTreeLeaf">
+                                  {count} SS (<span className="mono">{absolutePct.toFixed(2)}%</span>)
+                                </div>
+                              );
+                            })}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Collapsible>
             {(droneBuffs.total2xStarMinPerHour > 0 || droneBuffs.drone3xSuperUptimeFraction > 0 || droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 || droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0) && (
               <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -769,17 +841,37 @@ export function Stargazing() {
                 </div>
               </div>
               <div className="sgRows">
+                <div>
+                  <Stepper
+                    label={
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        Floor Clears / min
+                        <Tooltip content={{ title: "Floor Clears", lines: ["48/min default. ~1.25 bombs per min at this rate."] }} label="?" />
+                      </span>
+                    }
+                    value={ui.floor_clears_per_minute}
+                    onChange={(v) => setUi((s) => ({ ...s, floor_clears_per_minute: v }))}
+                    step={0.1}
+                    min={0}
+                    max={10_000}
+                    decimals={2}
+                  />
+                  <label className="sgCheckRow" style={{ marginTop: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={spoonStrat}
+                      onChange={(e) => setSpoonStrat(e.target.checked)}
+                    />
+                    <span>Spoon strat (2× floor clears, online only)</span>
+                  </label>
+                </div>
                 <Stepper
-                  label="Floor Clears / min"
-                  value={ui.floor_clears_per_minute}
-                  onChange={(v) => setUi((s) => ({ ...s, floor_clears_per_minute: v }))}
-                  step={0.1}
-                  min={0}
-                  max={10_000}
-                  decimals={2}
-                />
-                <Stepper
-                  label="Star Spawn Rate Multiplier (x)"
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Star Spawn Rate Multiplier (x)
+                      <Tooltip content={{ title: "Star Spawn Rate", lines: ["Enter value without the 2× Star Spawn Rate buff. Buffs from Drone, Lootbug, Founder are applied automatically."] }} label="?" />
+                    </span>
+                  }
                   spritePaths={["sprites/stargazing/Star_Spawn_Rate_Multiplier.png"]}
                   spriteAlt="Star Spawn Rate Multiplier"
                   spriteLabel="sprites/stargazing/Star_Spawn_Rate_Multiplier.png"
@@ -1064,6 +1156,7 @@ export function Stargazing() {
                   setResetArmed(false);
                   if (!confirmDanger("Reset all inputs to defaults?")) return;
                   setUi(defaultUiStats());
+                  setSpoonStrat(false);
                   setStarCards(defaultStarCards());
                 }}
                 title={resetArmed ? "Click again to confirm (then confirm dialog)." : "Click once to arm, click again to confirm."}

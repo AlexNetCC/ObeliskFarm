@@ -106,6 +106,14 @@ export function App() {
                     ❤
                   </span>
                 )}
+                {m.id === "overnight" && (
+                  <span className="navBetaBadge">
+                    <Tooltip
+                      content={{ title: "Beta", lines: ["This module is in beta. Numbers and behaviour may change."] }}
+                      label="Beta"
+                    />
+                  </span>
+                )}
               </span>
             </button>
           ))}

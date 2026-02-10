@@ -2138,71 +2138,27 @@ export function Drone() {
 
         <div className="droneSection">
           <div className="droneSectionTitle">Stargazing</div>
-          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            Triple Star Chance (suit), Star Spawn Rate and 100% Auto-catch (when fueled) are sent to the Stargazing module.
-          </p>
-          {state.starburstFueled && state.starburstDroneOn ? (
-            <div className="droneRow">
-              <span className="droneLabel">100% Auto-catch</span>
-              <span className="droneStepperValue">60 min/h (full uptime when fueled)</span>
-            </div>
-          ) : null}
           {state.starburstDroneOn ? (
-            <>
-              <div className="droneRow" style={{ gap: 8 }}>
-                <span className="droneLabel small">
-                  Triple Star Chance (suit)
-                  <Tooltip content={{ title: "Triple Star (suit)", lines: ["Adds +% to star gain (stars per spawn 1→3 when it triggers)."] }} label="?" />
-                </span>
-                <span className="droneStepperValue mono">{starburstContribution.pctFromTriple >= 0.05 ? `+${starburstContribution.pctFromTriple.toFixed(1)}%` : "—"}</span>
-              </div>
-              {state.starburstFueled ? (
-                <div className="droneRow" style={{ gap: 8 }}>
-                  <span className="droneLabel small">
-                    Star Spawn Rate (fuel)
-                    <Tooltip content={{ title: "Star Spawn Rate (fuel)", lines: ["Separate multiplier on spawn rate. Applies to both stars and super stars."] }} label="?" />
-                  </span>
-                  <span className="droneStepperValue mono">×{starburstContribution.multSpawn.toFixed(2)}</span>
-                </div>
-              ) : null}
-              <div className="droneRow droneFuelGemsRow droneBomb10xRow">
-                <span className="droneFuelGemsLabel">
-                  <img src={`${ELIXIR_BUFF_ICONS}5/5b/2x_Spawn_Rate_Buff.png`} alt="" className="droneSkillIcon" aria-hidden />
-                  <span className="droneLabel">
-                    Star offline
-                    <Tooltip
-                      content={{
-                        title: "Star offline",
-                        lines: ["+% gain to stars/h (offline) from this drone: Triple Star (suit) plus Star Spawn Rate when fueled. Computed here so it updates when you change fuel, suit or grade."],
-                      }}
-                    />
-                  </span>
-                </span>
-                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`+${starburstContribution.pctStarsOff.toFixed(1)}% star gain from drone`}>
-                  +{starburstContribution.pctStarsOff.toFixed(1)}%
-                </span>
-              </div>
-              <div className="droneRow droneFuelGemsRow droneBomb10xRow">
-                <span className="droneFuelGemsLabel">
-                  <img src={`${ELIXIR_BUFF_ICONS}7/72/Triple_Super_Star_Chance_Buff.png`} alt="" className="droneSkillIcon" aria-hidden />
-                  <span className="droneLabel">
-                    SS offline
-                    <Tooltip
-                      content={{
-                        title: "SS offline",
-                        lines: ["+% gain to super stars/h (offline) from this drone: Star Spawn Rate when fueled only (no triple from Starburst). Computed here so it updates when you change fuel or grade."],
-                      }}
-                    />
-                  </span>
-                </span>
-                <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`+${starburstContribution.pctSSOff.toFixed(1)}% super star gain from drone`}>
-                  +{starburstContribution.pctSSOff.toFixed(1)}%
-                </span>
-              </div>
-            </>
+            <div className="droneRow" style={{ gap: 8 }}>
+              <span className="droneLabel">
+                Starburst multi
+                <Tooltip
+                  content={{
+                    title: "Starburst multi",
+                    lines: [
+                      "Combined multiplier from this drone: Triple Star (suit) × Star Spawn Rate (when fueled). Applied to star gain in Stargazing.",
+                    ],
+                  }}
+                  label="?"
+                />
+              </span>
+              <span className="droneStepperValue mono">
+                ×{(starburstContribution.multTriple * starburstContribution.multSpawn).toFixed(2)}
+              </span>
+            </div>
           ) : (
-            <p className="droneHint small" style={{ marginTop: 8, marginBottom: 0 }}>
-              Turn drone ON to see contribution to Stargazing (Triple Star + Star Spawn Rate when fueled).
+            <p className="droneHint small" style={{ marginTop: 0, marginBottom: 0 }}>
+              Turn drone ON to see Starburst multi (Triple Star × Star Spawn Rate when fueled).
             </p>
           )}
         </div>

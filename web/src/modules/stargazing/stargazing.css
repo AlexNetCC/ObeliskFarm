@@ -44,6 +44,15 @@
   gap: 4px;
 }
 
+.sgCheckRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.85);
+}
+
 /* The global `.row2` is a 2-col grid at all widths.
    For Stargazing, that can get too tight and make inputs overflow/overlap.
    We override it locally to stack on small screens. */

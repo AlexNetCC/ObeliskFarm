@@ -60,9 +60,8 @@ export type PlayerStats = {
 };
  
 export function defaultPlayerStats(): PlayerStats {
-  // Matches defaults from desktop `StargazingWindow.reset_to_defaults()`.
   return {
-    floor_clears_per_hour: 120.0,
+    floor_clears_per_hour: 48.0 * 60, // 48/min default
     star_spawn_rate_mult: 1.0,
     auto_catch_chance: 0.0,
     double_star_chance: 0.0,
@@ -175,19 +174,27 @@ export class StargazingCalculator {
   }
  
   /**
-   * Calculate stars automatically caught per hour (offline/AFK).
-   *
-   * Offline gains formula:
-   * - Without CTRL+F Stars: auto_catch * spawn_rate * 0.2 (1 of 5 floors)
-   * - With CTRL+F Stars: auto_catch * spawn_rate * 1.0 (all 5 floors)
+   * Stars per hour when you are online but AFK: all stars caught by auto-catch (no manual catch).
+   * Floor factor: without CTRL+F 0.2 (1 of 5 floors), with CTRL+F 1.0 (all 5 floors).
+   */
+  calculate_stars_per_hour_online_afk(): number {
+    const total_stars = this.calculate_stars_per_hour_online();
+    const floor_mult = this.stats.ctrl_f_stars_enabled ? 1.0 : 0.2;
+    return total_stars * clamp01(this.stats.auto_catch_chance) * floor_mult;
+  }
+
+  /** Offline gains: same as Online AFK × 0.85 (game's offline factor). */
+  static readonly OFFLINE_GAINS_MALUS = 0.85;
+
+  calculate_stars_per_hour_offline_gains(): number {
+    return this.calculate_stars_per_hour_online_afk() * StargazingCalculator.OFFLINE_GAINS_MALUS;
+  }
+
+  /**
+   * @deprecated Use calculate_stars_per_hour_online_afk for "Online AFK" or calculate_stars_per_hour_offline_gains for "Offline Gains".
    */
   calculate_stars_per_hour_offline(): number {
-    const total_stars = this.calculate_stars_per_hour_online();
- 
-    // Offline gains multiplier: 0.2 without CTRL+F, 1.0 with CTRL+F
-    const offline_mult = this.stats.ctrl_f_stars_enabled ? 1.0 : 0.2;
- 
-    return total_stars * clamp01(this.stats.auto_catch_chance) * offline_mult;
+    return this.calculate_stars_per_hour_online_afk();
   }
  
   /**
@@ -247,20 +254,21 @@ export class StargazingCalculator {
     return spawns_per_hour * super_stars_per_spawn * mult_per_star;
   }
  
-  /**
-   * Calculate super stars automatically caught per hour (offline/AFK).
-   *
-   * Offline gains formula:
-   * - Without CTRL+F Stars: auto_catch * spawn_rate * 0.2 (1 of 5 floors)
-   * - With CTRL+F Stars: auto_catch * spawn_rate * 1.0 (all 5 floors)
-   */
-  calculate_super_stars_per_hour_offline(): number {
+  /** Super stars per hour when online but AFK (all caught by auto-catch). */
+  calculate_super_stars_per_hour_online_afk(): number {
     const total_super_stars = this.calculate_super_stars_per_hour_online();
- 
-    // Offline gains multiplier: 0.2 without CTRL+F, 1.0 with CTRL+F
-    const offline_mult = this.stats.ctrl_f_stars_enabled ? 1.0 : 0.2;
- 
-    return total_super_stars * clamp01(this.stats.auto_catch_chance) * offline_mult;
+    const floor_mult = this.stats.ctrl_f_stars_enabled ? 1.0 : 0.2;
+    return total_super_stars * clamp01(this.stats.auto_catch_chance) * floor_mult;
+  }
+
+  /** Offline gains: Online AFK with the game's 80% offline malus. */
+  calculate_super_stars_per_hour_offline_gains(): number {
+    return this.calculate_super_stars_per_hour_online_afk() * StargazingCalculator.OFFLINE_GAINS_MALUS;
+  }
+
+  /** @deprecated Use calculate_super_stars_per_hour_online_afk or calculate_super_stars_per_hour_offline_gains. */
+  calculate_super_stars_per_hour_offline(): number {
+    return this.calculate_super_stars_per_hour_online_afk();
   }
  
   /**
@@ -315,29 +323,28 @@ export class StargazingCalculator {
     star_spawn_rate_per_hour: number;
     stars_per_spawn: number;
     stars_per_hour_online: number;
-    stars_per_hour_offline: number;
+    stars_per_hour_online_afk: number;
+    stars_per_hour_offline_gains: number;
     super_star_spawn_rate_per_hour: number;
     super_stars_per_spawn: number;
     super_stars_per_hour_online: number;
-    super_stars_per_hour_offline: number;
+    super_stars_per_hour_online_afk: number;
+    super_stars_per_hour_offline_gains: number;
     floor_clears_per_hour: number;
     auto_catch_chance: number;
     ctrl_f_stars_enabled: boolean;
   } {
     return {
-      // Star calculations
       star_spawn_rate_per_hour: this.calculate_star_spawn_rate_per_hour(),
       stars_per_spawn: this.calculate_stars_per_spawn(),
       stars_per_hour_online: this.calculate_stars_per_hour_online(),
-      stars_per_hour_offline: this.calculate_stars_per_hour_offline(),
-
-      // Super star calculations
+      stars_per_hour_online_afk: this.calculate_stars_per_hour_online_afk(),
+      stars_per_hour_offline_gains: this.calculate_stars_per_hour_offline_gains(),
       super_star_spawn_rate_per_hour: this.calculate_super_star_spawn_rate_per_hour(),
       super_stars_per_spawn: this.calculate_super_stars_per_spawn(),
       super_stars_per_hour_online: this.calculate_super_stars_per_hour_online(),
-      super_stars_per_hour_offline: this.calculate_super_stars_per_hour_offline(),
-
-      // Key stats
+      super_stars_per_hour_online_afk: this.calculate_super_stars_per_hour_online_afk(),
+      super_stars_per_hour_offline_gains: this.calculate_super_stars_per_hour_offline_gains(),
       floor_clears_per_hour: this.stats.floor_clears_per_hour,
       auto_catch_chance: this.stats.auto_catch_chance,
       ctrl_f_stars_enabled: this.stats.ctrl_f_stars_enabled,
