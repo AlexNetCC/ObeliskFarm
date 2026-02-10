@@ -325,7 +325,8 @@ export function OvernightGains() {
     const p: GameParameters = { ...gemEvParams };
     p.game_speed_multiplier = external.gameSpeed;
     p.bomb_recharge_10x_min_per_hour = effectiveDrone10x;
-    p.chaos_totem_uptime = external.chaos100 ? 1 : 0;
+    // When 100% from Bombs, recharge params are in-game (already /2). Otherwise base; no Chaos applied here.
+    p.chaos_totem_uptime = 0;
     return p;
   }, [gemEvParams, external.gameSpeed, effectiveDrone10x, external.chaos100]);
 

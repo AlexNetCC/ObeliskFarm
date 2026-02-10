@@ -24,6 +24,10 @@ const BOMB_RECHARGE_10X_ICON = "https://static.wikitide.net/shminerwiki/b/ba/Bom
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const CHARGE_MAGNET_ICON = "https://static.wikitide.net/shminerwiki/f/fc/Charge_Magnet.png";
 const SEGMENT_ICON_SIZE = 12;
+/** Min bar width (px) to draw icon inside bar; below this we draw line from bar center to icon. */
+const SEGMENT_ICON_MIN_BAR = SEGMENT_ICON_SIZE + 4;
+/** When bar too small: line from bar center to icon goes up-right by this many px (x and y). */
+const SEGMENT_ICON_LINE_OFFSET = 20;
 
 
 function sumEntry(e: EvBreakdownEntry): number {
@@ -467,81 +471,117 @@ export function ContribBarChart(props: {
               ) : null,
             )}
 
-            {isGemBombRow && entry && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 ? (
-              <>
-                <rect
-                  x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0))}
-                  y={y0}
-                  width={wOf(gemBomb10xImpact)}
-                  height={barH}
-                  fill="url(#pat10xBomb)"
-                  stroke="rgba(15,23,42,0.45)"
-                  strokeWidth={0.6}
-                />
-                {wOf(gemBomb10xImpact) >= SEGMENT_ICON_SIZE + 4 ? (
+            {isGemBombRow && entry && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 ? (() => {
+              const segX = xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0));
+              const segW = wOf(gemBomb10xImpact);
+              const barCenterX = segX + segW / 2;
+              const barCenterY = y0 + barH / 2;
+              const iconOnBar = segW >= SEGMENT_ICON_MIN_BAR;
+              const iconCenterX = iconOnBar ? barCenterX : barCenterX + SEGMENT_ICON_LINE_OFFSET;
+              const iconCenterY = iconOnBar ? barCenterY : barCenterY - SEGMENT_ICON_LINE_OFFSET;
+              const iconX = iconCenterX - SEGMENT_ICON_SIZE / 2;
+              const iconY = iconCenterY - SEGMENT_ICON_SIZE / 2;
+              return (
+                <>
+                  <rect
+                    x={segX}
+                    y={y0}
+                    width={segW}
+                    height={barH}
+                    fill="url(#pat10xBomb)"
+                    stroke="rgba(15,23,42,0.45)"
+                    strokeWidth={0.6}
+                  />
+                  {iconOnBar ? null : (
+                    <line x1={barCenterX} y1={barCenterY} x2={iconCenterX} y2={iconCenterY} stroke="rgba(15,23,42,0.5)" strokeWidth={1} />
+                  )}
                   <image
                     href={BOMB_RECHARGE_10X_ICON}
-                    x={xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0)) + wOf(gemBomb10xImpact) / 2 - SEGMENT_ICON_SIZE / 2}
-                    y={y0 + barH / 2 - SEGMENT_ICON_SIZE / 2}
+                    x={iconX}
+                    y={iconY}
                     width={SEGMENT_ICON_SIZE}
                     height={SEGMENT_ICON_SIZE}
                     preserveAspectRatio="xMidYMid meet"
                     style={{ pointerEvents: "none" }}
                     aria-hidden
                   />
-                ) : null}
-              </>
-            ) : null}
-            {isGemBombRow && entry && typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 ? (
-              <>
-                <rect
-                  x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0))}
-                  y={y0}
-                  width={wOf(chaosTotemImpact)}
-                  height={barH}
-                  fill="url(#patChaosTotem)"
-                  stroke="rgba(15,23,42,0.45)"
-                  strokeWidth={0.6}
-                />
-                {wOf(chaosTotemImpact) >= SEGMENT_ICON_SIZE + 4 ? (
+                </>
+              );
+            })() : null}
+            {isGemBombRow && entry && typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 ? (() => {
+              const segX = xOf(sumEntry(entry) - (chaosTotemImpact ?? 0));
+              const segW = wOf(chaosTotemImpact);
+              const barCenterX = segX + segW / 2;
+              const barCenterY = y0 + barH / 2;
+              const iconOnBar = segW >= SEGMENT_ICON_MIN_BAR;
+              const iconCenterX = iconOnBar ? barCenterX : barCenterX + SEGMENT_ICON_LINE_OFFSET;
+              const iconCenterY = iconOnBar ? barCenterY : barCenterY - SEGMENT_ICON_LINE_OFFSET;
+              const iconX = iconCenterX - SEGMENT_ICON_SIZE / 2;
+              const iconY = iconCenterY - SEGMENT_ICON_SIZE / 2;
+              return (
+                <>
+                  <rect
+                    x={segX}
+                    y={y0}
+                    width={segW}
+                    height={barH}
+                    fill="url(#patChaosTotem)"
+                    stroke="rgba(15,23,42,0.45)"
+                    strokeWidth={0.6}
+                  />
+                  {iconOnBar ? null : (
+                    <line x1={barCenterX} y1={barCenterY} x2={iconCenterX} y2={iconCenterY} stroke="rgba(15,23,42,0.5)" strokeWidth={1} />
+                  )}
                   <image
                     href={CHAOS_TOTEM_ICON}
-                    x={xOf(sumEntry(entry) - (chaosTotemImpact ?? 0)) + wOf(chaosTotemImpact) / 2 - SEGMENT_ICON_SIZE / 2}
-                    y={y0 + barH / 2 - SEGMENT_ICON_SIZE / 2}
+                    x={iconX}
+                    y={iconY}
                     width={SEGMENT_ICON_SIZE}
                     height={SEGMENT_ICON_SIZE}
                     preserveAspectRatio="xMidYMid meet"
                     style={{ pointerEvents: "none" }}
                     aria-hidden
                   />
-                ) : null}
-              </>
-            ) : null}
-            {isGemBombRow && entry && typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0 ? (
-              <>
-                <rect
-                  x={xOf(sumEntry(entry))}
-                  y={y0}
-                  width={wOf(chargeMagnetImpact)}
-                  height={barH}
-                  fill="url(#patChargeMagnet)"
-                  stroke="rgba(15,23,42,0.45)"
-                  strokeWidth={0.6}
-                />
-                {wOf(chargeMagnetImpact) >= SEGMENT_ICON_SIZE + 4 ? (
+                </>
+              );
+            })() : null}
+            {isGemBombRow && entry && typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0 ? (() => {
+              const segX = xOf(sumEntry(entry));
+              const segW = wOf(chargeMagnetImpact);
+              const barCenterX = segX + segW / 2;
+              const barCenterY = y0 + barH / 2;
+              const iconOnBar = segW >= SEGMENT_ICON_MIN_BAR;
+              const iconCenterX = iconOnBar ? barCenterX : barCenterX + SEGMENT_ICON_LINE_OFFSET;
+              const iconCenterY = iconOnBar ? barCenterY : barCenterY - SEGMENT_ICON_LINE_OFFSET;
+              const iconX = iconCenterX - SEGMENT_ICON_SIZE / 2;
+              const iconY = iconCenterY - SEGMENT_ICON_SIZE / 2;
+              return (
+                <>
+                  <rect
+                    x={segX}
+                    y={y0}
+                    width={segW}
+                    height={barH}
+                    fill="url(#patChargeMagnet)"
+                    stroke="rgba(15,23,42,0.45)"
+                    strokeWidth={0.6}
+                  />
+                  {iconOnBar ? null : (
+                    <line x1={barCenterX} y1={barCenterY} x2={iconCenterX} y2={iconCenterY} stroke="rgba(15,23,42,0.5)" strokeWidth={1} />
+                  )}
                   <image
                     href={CHARGE_MAGNET_ICON}
-                    x={xOf(sumEntry(entry)) + wOf(chargeMagnetImpact) / 2 - SEGMENT_ICON_SIZE / 2}
-                    y={y0 + barH / 2 - SEGMENT_ICON_SIZE / 2}
+                    x={iconX}
+                    y={iconY}
                     width={SEGMENT_ICON_SIZE}
                     height={SEGMENT_ICON_SIZE}
                     preserveAspectRatio="xMidYMid meet"
                     style={{ pointerEvents: "none" }}
                     aria-hidden
                   />
-                ) : null}
-              </>
-            ) : null}
+                </>
+              );
+            })() : null}
 
             {segsGems.map((s) =>
               s.v > 0 ? (

@@ -217,8 +217,9 @@ export function Bombs() {
     if (typeof externalFromGemEv.game_speed_multiplier === "number") {
       p.game_speed_multiplier = externalFromGemEv.game_speed_multiplier;
     }
-    // When toggle on: 100%. When off: 0% so Gem EV and bomb contribution update immediately without opening Items.
-    p.chaos_totem_uptime = chaosTotem100Uptime ? 1 : 0;
+    // When 100%: recharge fields are in-game values (already /2 by Chaos Totem), so do not apply Chaos again (= 0).
+    // When off: recharge fields are base; no Chaos applied here (Items may set uptime for Gem EV).
+    p.chaos_totem_uptime = 0;
     return p;
   }, [params, externalFromGemEv.total, externalFromGemEv.game_speed_multiplier, chaosTotem100Uptime]);
 
@@ -310,8 +311,8 @@ export function Bombs() {
               content={{
                 title: "Chaos Totem 100% Uptime",
                 lines: [
-                  "When checked, bomb calculations use 100% Chaos Totem uptime (2× recharge always). Recharge fields then mean the in-game value with Chaos Totem active.",
-                  "When unchecked, Chaos Totem uptime comes from Items (chests × duration). Recharge fields are base values without Chaos Totem.",
+                  "When checked, enter the in-game recharge times (the values shown in game, already with Chaos Totem active). The formula does not apply Chaos again.",
+                  "When unchecked, enter base recharge (without Chaos Totem). Chaos Totem uptime can come from Items (chests × duration).",
                 ],
               }}
               label="?"

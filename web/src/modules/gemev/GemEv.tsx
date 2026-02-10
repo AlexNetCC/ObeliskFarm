@@ -26,6 +26,7 @@ type SavedStateV1 = {
   params: Partial<GameParameters>;
   stonks_enabled: boolean;
   skill_shards_enabled: boolean;
+  show_jackpot_refresh?: boolean;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -169,14 +170,15 @@ export function GemEv() {
     const merged: GameParameters = { ...base, ...(saved?.params ?? {}) };
     const stonks_enabled = saved?.stonks_enabled ?? true;
     const skill_shards_enabled = saved?.skill_shards_enabled ?? true;
-    return { params: merged, stonks_enabled, skill_shards_enabled };
+    const show_jackpot_refresh = saved?.show_jackpot_refresh ?? true;
+    return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh };
   }, []);
 
   const [params, setParams] = useState<GameParameters>(initial.params);
   const [stonksEnabled, setStonksEnabled] = useState<boolean>(initial.stonks_enabled);
   const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
-  const [showJackpotRefresh, setShowJackpotRefresh] = useState(true);
+  const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
   const [lootbugNetGemsPerHour, setLootbugNetGemsPerHour] = useState(0);
   useEffect(() => {
     const ext = loadJson<{ lootbugNetGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
@@ -185,11 +187,11 @@ export function GemEv() {
   // autosave
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled };
+      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled, show_jackpot_refresh: showJackpotRefresh };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [params, stonksEnabled, skillShardsEnabled]);
+  }, [params, stonksEnabled, skillShardsEnabled, showJackpotRefresh]);
 
   useEffect(() => {
     function onKeyDown(ev: KeyboardEvent) {
@@ -304,9 +306,10 @@ export function GemEv() {
     p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
 
     p.bomb_recharge_10x_min_per_hour = external10x.total;
-    // Chaos Totem: Bombs/Items override when set; otherwise use Gem EV params
+    // Chaos Totem: when 100% from Bombs, recharge params are in-game (already /2), so do not apply Chaos again (= 0).
+    // Otherwise use Items uptime % or Gem EV param.
     p.chaos_totem_uptime = external.chaosTotem100FromBombs
-      ? 1
+      ? 0
       : typeof external.chaosTotemUptimePct === "number"
         ? Math.max(0, Math.min(1, external.chaosTotemUptimePct / 100))
         : Math.max(0, Math.min(1, p.chaos_totem_uptime ?? 0));

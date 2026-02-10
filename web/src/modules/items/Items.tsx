@@ -142,7 +142,8 @@ export function Items() {
       ? ext.total10xMinPerHour
       : (ext?.lootbugBomb10xMinPerHour ?? 0) + (ext?.droneBomb10xMinPerHour ?? 0);
     merged.bomb_recharge_10x_min_per_hour = total10x;
-    merged.chaos_totem_uptime = chaosTotem100FromBombs ? 1 : expectedUptimeFraction;
+    // When 100% from Bombs, recharge params are in-game (already /2), so do not apply Chaos again (= 0).
+    merged.chaos_totem_uptime = chaosTotem100FromBombs ? 0 : expectedUptimeFraction;
     return merged;
   })();
   const chargeMagnetGemsPerHour = calculateChargeMagnetGemsPerHour(effectiveParamsForChargeMagnet, 20);
