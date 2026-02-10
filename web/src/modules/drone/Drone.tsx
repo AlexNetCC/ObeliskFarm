@@ -440,6 +440,8 @@ export function Drone() {
     s.starburstSuitLevel = clamp(s.starburstSuitLevel ?? DEFAULT.starburstSuitLevel, 0, 20);
     s.starburstGradeLevel = clamp(s.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, 45);
     s.starburstFueled = typeof migrated.starburstFueled === "boolean" ? migrated.starburstFueled : DEFAULT.starburstFueled;
+    const sgExt = loadJson<{ starburstDroneOn?: boolean }>("obeliskfarm:web:stargazing_external.json");
+    if (typeof sgExt?.starburstDroneOn === "boolean") s.starburstDroneOn = sgExt.starburstDroneOn;
     return s;
   });
 
@@ -730,12 +732,13 @@ export function Drone() {
     ext.drone2xStarUptimeFraction = drone2xStarUptimeFraction;
     ext.drone3xSuperUptimeFraction = drone3xSuperUptimeFraction;
     ext.elixir2xStarMinPerHour = elixir2xStarMinPerHour;
+    ext.starburstDroneOn = state.starburstDroneOn;
     ext.starburstTripleStarChancePct = starburstTripleStarChancePct;
     ext.starburstStarSpawnRateUptimeFraction = starburstStarSpawnRateUptimeFraction;
     ext.starburstStarSpawnRatePct = starburstStarSpawnRatePct;
     ext.starburstAutoCatch100MinPerHour = starburstAutoCatch100MinPerHour;
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
-  }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction, elixir2xStarMinPerHour, starburstTripleStarChancePct, starburstStarSpawnRateUptimeFraction, starburstStarSpawnRatePct, starburstAutoCatch100MinPerHour]);
+  }, [drone2xStarUptimeFraction, drone3xSuperUptimeFraction, elixir2xStarMinPerHour, state.starburstDroneOn, starburstTripleStarChancePct, starburstStarSpawnRateUptimeFraction, starburstStarSpawnRatePct, starburstAutoCatch100MinPerHour]);
 
   /** +% star / SS gain from Starburst (offline): from Stargazing (with vs without drone). */
   const starburstStarGainPct = (() => {

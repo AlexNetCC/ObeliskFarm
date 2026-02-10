@@ -505,7 +505,7 @@ export function OvernightGains() {
                 />
                 <span>Auto-Bomber (Gem Bomb active)</span>
               </label>
-              <Tooltip content={{ title: "Auto-Bomber", lines: ["When on, auto-bomber runs while you sleep and gem bomb drops are counted.", "When off, no gem bomb contribution for the night."] }} label="?" />
+              <Tooltip content={{ title: "Auto-Bomber", lines: ["When on, auto-bomber runs while you sleep and gem bomb drops are counted.", "Battery/Cherry/D20 cycle does not apply; only Gem Bomb recharge and drops.", "When off, no gem bomb contribution for the night."] }} label="?" />
             </div>
             <div className="overnightRow overnightRowSingle overnightRowBordered">
               <img src={CHAOS_TOTEM_ICON} alt="" className="iconSmall" style={{ width: 20, height: 20 }} aria-hidden />
