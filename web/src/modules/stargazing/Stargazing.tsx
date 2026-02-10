@@ -56,6 +56,7 @@ type SavedStateV1 = {
   stats: Partial<UiStats>;
   ctrl_f_stars_enabled: boolean;
   spoon_strat?: boolean;
+  catch_manually?: boolean;
   star_cards?: Partial<StarCardsState>;
 };
 
@@ -292,17 +293,19 @@ export function Stargazing() {
     const merged: UiStats = { ...base, ...(saved?.stats ?? {}) };
     const ctrl_f_stars_enabled = saved?.ctrl_f_stars_enabled ?? false;
     const spoon_strat = saved?.spoon_strat ?? false;
+    const catch_manually = saved?.catch_manually ?? false;
     const star_cards: StarCardsState = {
       ...defaultStarCards(),
       ...(saved?.star_cards ?? {}),
       selected_card_for_results: saved?.star_cards?.selected_card_for_results ?? "aries",
     };
-    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, star_cards };
+    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, star_cards };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
   const [ctrlF, setCtrlF] = useState<boolean>(initial.ctrl_f_stars_enabled);
   const [spoonStrat, setSpoonStrat] = useState<boolean>(initial.spoon_strat);
+  const [catchManually, setCatchManually] = useState<boolean>(initial.catch_manually ?? false);
   const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
   const [resetArmed, setResetArmed] = useState(false);
 
@@ -317,11 +320,11 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, star_cards: starCards };
+      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, star_cards: starCards };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF, spoonStrat, starCards]);
+  }, [ui, ctrlF, spoonStrat, catchManually, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -575,6 +578,13 @@ export function Stargazing() {
     return calc.get_summary();
   }, [stats]);
 
+  /** Stats with 100% catch (for "Do you catch manually?" = yes). Overrides auto_catch so Online row shows manual catch rate. */
+  const statsManualCatch = useMemo<PlayerStats>(() => ({ ...stats, auto_catch_chance: 1 }), [stats]);
+  const summaryManualCatch = useMemo(() => {
+    const calc = new StargazingCalculator(statsManualCatch);
+    return calc.get_summary();
+  }, [statsManualCatch]);
+
   const summaryOffline = useMemo(() => {
     const calc = new StargazingCalculator(statsOffline);
     return calc.get_summary();
@@ -621,7 +631,7 @@ export function Stargazing() {
     () => ({
       title: "Online",
       lines: [
-        "You manually catch all stars. Auto-catch is not applied.",
+        "Rate includes auto-catch. Toggle \"Do you catch manually?\" to use 100% catch instead.",
         "All buffs (Lootbug, Founder Supply Drop, Elixir Drone, Starburst) are collected.",
       ],
     }),
@@ -721,13 +731,21 @@ export function Stargazing() {
             </div>
 
             <div className="kv" style={{ background: "rgba(255,255,255,0.92)" }}>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2 }}>
+                <input
+                  type="checkbox"
+                  checked={catchManually}
+                  onChange={(e) => setCatchManually(e.target.checked)}
+                />
+                <span>Do you catch manually?</span>
+              </label>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   ⭐ Stars/hour (Online)
                   <Tooltip content={onlineInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_online * resultsCardMult)}</div>
+              <div className="mono sgResultValueBlue">{fmt1((catchManually ? summaryManualCatch.stars_per_hour_online_afk : summary.stars_per_hour_online_afk) * resultsCardMult)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   ⭐ Stars/hour (Online AFK)
@@ -749,7 +767,7 @@ export function Stargazing() {
                   <Tooltip content={onlineInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_online)}</div>
+              <div className="mono sgResultValueOrange">{fmt1(catchManually ? summaryManualCatch.super_stars_per_hour_online_afk : summary.super_stars_per_hour_online_afk)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
