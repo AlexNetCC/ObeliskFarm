@@ -192,14 +192,11 @@ function Stepper(props: {
 
   return (
     <div className="sgRow">
-      <div className="sgLabel">
-        <div className="sgLabelLeft">
-          {spritePaths?.length ? (
-            <Sprite paths={spritePaths} alt={spriteAlt ?? String(label)} className="iconSmall" label={spriteLabel ?? spriteAlt ?? ""} />
-          ) : null}
-          <span className="sgLabelName">{label}</span>
-        </div>
-        <span className="mono">{Number.isFinite(value) ? value.toFixed(decimals) : "—"}</span>
+      <div className="sgLabelLeft">
+        {spritePaths?.length ? (
+          <Sprite paths={spritePaths} alt={spriteAlt ?? String(label)} className="iconSmall" label={spriteLabel ?? spriteAlt ?? ""} />
+        ) : null}
+        <span className="sgLabelName">{label}</span>
       </div>
       <div className="sgInputWrap">
         <input
@@ -371,6 +368,48 @@ export function Stargazing() {
     };
   }, [starburstToggleRefresh]);
 
+  /** For Offline Gains: no external buffs (game is closed; Lootbug, Founder, Elixir, Starburst do not apply). */
+  const droneBuffsOffline = useMemo(() => ({
+    total2xStarMinPerHour: 0,
+    total2xUptimeFraction: 0,
+    drone3xSuperUptimeFraction: 0,
+    founderSupplyDropAutoCatch100MinPerHour: 0,
+    founderOnlyAutoCatch100MinPerHour: 0,
+    starburstTripleStarChancePct: 0,
+    starburstStarSpawnRateUptimeFraction: 0,
+    starburstStarSpawnRatePct: 0,
+    starburstAutoCatch100MinPerHour: 0,
+  }), []);
+
+  /** For Online AFK: only Elixir + Starburst (no Lootbug, no Founder). */
+  const droneBuffsOnlineAfk = useMemo(() => {
+    const sg = loadJson<{
+      elixir2xStarMinPerHour?: number;
+      drone3xSuperUptimeFraction?: number;
+      founderSupplyDropAutoCatch100MinPerHour?: number;
+      starburstDroneOn?: boolean;
+      starburstTripleStarChancePct?: number;
+      starburstStarSpawnRateUptimeFraction?: number;
+      starburstStarSpawnRatePct?: number;
+      starburstAutoCatch100MinPerHour?: number;
+    }>(STARGAZING_EXTERNAL_KEY);
+    const elixirMin = typeof sg?.elixir2xStarMinPerHour === "number" ? Math.max(0, sg.elixir2xStarMinPerHour) : 0;
+    const total2xUptimeFraction = Math.min(1, elixirMin / 60);
+    const starburstOn = typeof sg?.starburstDroneOn === "boolean" ? sg.starburstDroneOn : false;
+    const starburstAutoCatchMin = starburstOn && typeof sg?.starburstAutoCatch100MinPerHour === "number" ? Math.max(0, sg.starburstAutoCatch100MinPerHour) : 0;
+    return {
+      total2xStarMinPerHour: elixirMin,
+      total2xUptimeFraction,
+      drone3xSuperUptimeFraction: typeof sg?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.drone3xSuperUptimeFraction)) : 0,
+      founderSupplyDropAutoCatch100MinPerHour: Math.min(60, starburstAutoCatchMin),
+      founderOnlyAutoCatch100MinPerHour: 0,
+      starburstTripleStarChancePct: starburstOn && typeof sg?.starburstTripleStarChancePct === "number" ? Math.max(0, sg.starburstTripleStarChancePct) : 0,
+      starburstStarSpawnRateUptimeFraction: starburstOn && typeof sg?.starburstStarSpawnRateUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.starburstStarSpawnRateUptimeFraction)) : 0,
+      starburstStarSpawnRatePct: starburstOn && typeof sg?.starburstStarSpawnRatePct === "number" ? Math.max(0, sg.starburstStarSpawnRatePct) : 0,
+      starburstAutoCatch100MinPerHour: starburstAutoCatchMin,
+    };
+  }, [starburstToggleRefresh]);
+
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
   const stats = useMemo<PlayerStats>(() => {
@@ -413,11 +452,84 @@ export function Stargazing() {
     };
   }, [ui, ctrlF, spoonStrat, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
-  /** Stats for Offline Gains only: no spoon strat (you can't spoon when the game is off). */
+  /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst (no Lootbug, no Founder). */
+  const statsOnlineAfk = useMemo<PlayerStats>(() => {
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 2 : 1);
+    const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
+    const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
+    const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
+    const starburstStarMult = 1 + droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction * (droneBuffsOnlineAfk.starburstStarSpawnRatePct / 100);
+    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffsOnlineAfk.total2xUptimeFraction) * starburstStarMult;
+    const super_star_spawn_rate_mult = baseSuperMult * (1 + 2 * droneBuffsOnlineAfk.drone3xSuperUptimeFraction);
+    const autoCatchBase = clamp(ui.auto_catch_chance, 0, 100) / 100;
+    const founderAutoCatchMin = Math.min(60, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour);
+    const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderAutoCatchMin) + founderAutoCatchMin) / 60;
+    const triple_star_chance = Math.min(1, (clamp(ui.triple_star_chance, 0, 100) + droneBuffsOnlineAfk.starburstTripleStarChancePct) / 100);
+    return {
+      floor_clears_per_hour,
+      star_spawn_rate_mult,
+      auto_catch_chance,
+      double_star_chance: clamp(ui.double_star_chance, 0, 100) / 100,
+      triple_star_chance,
+      super_star_spawn_rate_mult,
+      triple_super_star_chance: clamp(ui.triple_super_star_chance, 0, 100) / 100,
+      super_star_10x_chance: clamp(ui.super_star_10x_chance, 0, 100) / 100,
+      star_supernova_chance: clamp(ui.star_supernova_chance, 0, 100) / 100,
+      star_supernova_mult: clamp(ui.star_supernova_mult, 0, 1_000_000),
+      star_supergiant_chance: clamp(ui.star_supergiant_chance, 0, 100) / 100,
+      star_supergiant_mult: clamp(ui.star_supergiant_mult, 0, 1_000_000),
+      star_radiant_chance: clamp(ui.star_radiant_chance, 0, 100) / 100,
+      star_radiant_mult: clamp(ui.star_radiant_mult, 0, 1_000_000),
+      super_star_supernova_chance: clamp(ui.super_star_supernova_chance, 0, 100) / 100,
+      super_star_supernova_mult: clamp(ui.super_star_supernova_mult, 0, 1_000_000),
+      super_star_supergiant_chance: clamp(ui.super_star_supergiant_chance, 0, 100) / 100,
+      super_star_supergiant_mult: clamp(ui.super_star_supergiant_mult, 0, 1_000_000),
+      super_star_radiant_chance: clamp(ui.super_star_radiant_chance, 0, 100) / 100,
+      super_star_radiant_mult: clamp(ui.super_star_radiant_mult, 0, 1_000_000),
+      all_star_mult: clamp(ui.all_star_mult, 0, 1_000_000),
+      novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
+      ctrl_f_stars_enabled: ctrlF,
+    };
+  }, [ui, ctrlF, spoonStrat, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
+
+  /** Stats for Offline Gains: no spoon strat, no external buffs (Lootbug, Founder, Elixir, Starburst off). */
   const statsOffline = useMemo<PlayerStats>(() => {
     const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
-    return { ...stats, floor_clears_per_hour };
-  }, [stats, ui.floor_clears_per_minute]);
+    const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
+    const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
+    const starburstStarMult = 1 + droneBuffsOffline.starburstStarSpawnRateUptimeFraction * (droneBuffsOffline.starburstStarSpawnRatePct / 100);
+    const star_spawn_rate_mult = baseStarMult * (1 + droneBuffsOffline.total2xUptimeFraction) * starburstStarMult;
+    const super_star_spawn_rate_mult = baseSuperMult * (1 + 2 * droneBuffsOffline.drone3xSuperUptimeFraction);
+    const autoCatchBase = clamp(ui.auto_catch_chance, 0, 100) / 100;
+    const founderAutoCatchMin = Math.min(60, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour);
+    const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderAutoCatchMin) + founderAutoCatchMin) / 60;
+    const triple_star_chance = Math.min(1, (clamp(ui.triple_star_chance, 0, 100) + droneBuffsOffline.starburstTripleStarChancePct) / 100);
+    return {
+      floor_clears_per_hour,
+      star_spawn_rate_mult,
+      auto_catch_chance,
+      double_star_chance: clamp(ui.double_star_chance, 0, 100) / 100,
+      triple_star_chance,
+      super_star_spawn_rate_mult,
+      triple_super_star_chance: clamp(ui.triple_super_star_chance, 0, 100) / 100,
+      super_star_10x_chance: clamp(ui.super_star_10x_chance, 0, 100) / 100,
+      star_supernova_chance: clamp(ui.star_supernova_chance, 0, 100) / 100,
+      star_supernova_mult: clamp(ui.star_supernova_mult, 0, 1_000_000),
+      star_supergiant_chance: clamp(ui.star_supergiant_chance, 0, 100) / 100,
+      star_supergiant_mult: clamp(ui.star_supergiant_mult, 0, 1_000_000),
+      star_radiant_chance: clamp(ui.star_radiant_chance, 0, 100) / 100,
+      star_radiant_mult: clamp(ui.star_radiant_mult, 0, 1_000_000),
+      super_star_supernova_chance: clamp(ui.super_star_supernova_chance, 0, 100) / 100,
+      super_star_supernova_mult: clamp(ui.super_star_supernova_mult, 0, 1_000_000),
+      super_star_supergiant_chance: clamp(ui.super_star_supergiant_chance, 0, 100) / 100,
+      super_star_supergiant_mult: clamp(ui.super_star_supergiant_mult, 0, 1_000_000),
+      super_star_radiant_chance: clamp(ui.super_star_radiant_chance, 0, 100) / 100,
+      super_star_radiant_mult: clamp(ui.super_star_radiant_mult, 0, 1_000_000),
+      all_star_mult: clamp(ui.all_star_mult, 0, 1_000_000),
+      novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
+      ctrl_f_stars_enabled: ctrlF,
+    };
+  }, [ui, ctrlF, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
 
   /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
   const statsWithoutStarburst = useMemo<PlayerStats>(() => {
@@ -458,12 +570,6 @@ export function Stargazing() {
     };
   }, [ui, ctrlF, spoonStrat, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderOnlyAutoCatch100MinPerHour, starburstToggleRefresh]);
 
-  /** Offline Gains use stats without spoon strat (spoon only works when game is open). */
-  const statsWithoutStarburstOffline = useMemo<PlayerStats>(() => {
-    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
-    return { ...statsWithoutStarburst, floor_clears_per_hour };
-  }, [statsWithoutStarburst, ui.floor_clears_per_minute]);
-
   const summary = useMemo(() => {
     const calc = new StargazingCalculator(stats);
     return calc.get_summary();
@@ -474,15 +580,15 @@ export function Stargazing() {
     return calc.get_summary();
   }, [statsOffline]);
 
+  const summaryOnlineAfk = useMemo(() => {
+    const calc = new StargazingCalculator(statsOnlineAfk);
+    return calc.get_summary();
+  }, [statsOnlineAfk]);
+
   const summaryWithoutStarburst = useMemo(() => {
     const calc = new StargazingCalculator(statsWithoutStarburst);
     return calc.get_summary();
   }, [statsWithoutStarburst]);
-
-  const summaryWithoutStarburstOffline = useMemo(() => {
-    const calc = new StargazingCalculator(statsWithoutStarburstOffline);
-    return calc.get_summary();
-  }, [statsWithoutStarburstOffline]);
 
   /** Write stars/h and super stars/h (Offline Gains, no spoon) with and without Starburst to external so Drone can show +% gain. */
   useEffect(() => {
@@ -492,15 +598,15 @@ export function Stargazing() {
     ext.stargazingSuperStarsPerHourOffline = summaryOffline.super_stars_per_hour_offline_gains;
     if (hasStarburst) {
       ext.stargazingStarsPerHourOnlineWithoutStarburst = summaryWithoutStarburst.stars_per_hour_online;
-      ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburstOffline.stars_per_hour_offline_gains;
-      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryWithoutStarburstOffline.super_stars_per_hour_offline_gains;
+      ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryOffline.stars_per_hour_offline_gains;
+      ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryOffline.super_stars_per_hour_offline_gains;
     } else {
       ext.stargazingStarsPerHourOnlineWithoutStarburst = summary.stars_per_hour_online;
       ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryOffline.stars_per_hour_offline_gains;
       ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryOffline.super_stars_per_hour_offline_gains;
     }
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
-  }, [hasStarburst, summary.stars_per_hour_online, summaryOffline.stars_per_hour_offline_gains, summaryOffline.super_stars_per_hour_offline_gains, summaryWithoutStarburst.stars_per_hour_online, summaryWithoutStarburstOffline.stars_per_hour_offline_gains, summaryWithoutStarburstOffline.super_stars_per_hour_offline_gains]);
+  }, [hasStarburst, summary.stars_per_hour_online, summaryOffline.stars_per_hour_offline_gains, summaryOffline.super_stars_per_hour_offline_gains, summaryWithoutStarburst.stars_per_hour_online]);
 
   const spawnTree = useMemo(() => new StargazingCalculator(stats).get_spawn_tree(), [stats]);
 
@@ -514,7 +620,10 @@ export function Stargazing() {
   const onlineInfo = useMemo(
     () => ({
       title: "Online",
-      lines: ["You manually catch all stars. Auto-catch is not applied."],
+      lines: [
+        "You manually catch all stars. Auto-catch is not applied.",
+        "All buffs (Lootbug, Founder Supply Drop, Elixir Drone, Starburst) are collected.",
+      ],
     }),
     [],
   );
@@ -522,7 +631,10 @@ export function Stargazing() {
   const onlineAfkInfo = useMemo(
     () => ({
       title: "Online AFK",
-      lines: ["Game open, phone aside. All stars caught by auto-catch. Offline factor 0.85 does not apply."],
+      lines: [
+        "— Game open, phone aside. All stars caught by auto-catch. Offline factor 0.85 does not apply.",
+        "— Lootbug and Founder buffs do not apply (only Elixir Drone and Starburst).",
+      ],
     }),
     [],
   );
@@ -531,8 +643,9 @@ export function Stargazing() {
     () => ({
       title: "Offline Gains",
       lines: [
-        "When the game gives offline gains: auto-catch × 0.85. The game applies this factor when you are offline.",
-        "Spoon strat is not applied (you cannot spoon when the device is off).",
+        "— When the game gives offline gains: auto-catch × 0.85. The game applies this factor when you are offline.",
+        "— Spoon strat is not applied (you cannot spoon when the device is off).",
+        "— No external buffs (Lootbug, Founder, Elixir Drone, Starburst do not apply when the game is closed).",
       ],
     }),
     [],
@@ -621,7 +734,7 @@ export function Stargazing() {
                   <Tooltip content={onlineAfkInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_online_afk * resultsCardMult)}</div>
+              <div className="mono sgResultValueBlue">{fmt1(summaryOnlineAfk.stars_per_hour_online_afk * resultsCardMult)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   ⭐ Stars/hour (Offline Gains)
@@ -644,7 +757,7 @@ export function Stargazing() {
                   <Tooltip content={onlineAfkInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_online_afk)}</div>
+              <div className="mono sgResultValueOrange">{fmt1(summaryOnlineAfk.super_stars_per_hour_online_afk)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
