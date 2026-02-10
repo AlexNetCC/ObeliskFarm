@@ -334,8 +334,8 @@ export function OvernightGains() {
     if (!state.gemBombActive) return 0;
     const drone10xUptime = effectiveDrone10x / 60.0;
     const bomb10xFactor = 1.0 + 9.0 * drone10xUptime;
-    const chaosUptime = external.chaos100 ? 1.0 : 0.0;
-    const chaosFactor = 1.0 + chaosUptime;
+    // Recharge params: when 100% from Bombs they are in-game (already /2); when not 100% they are base. Never apply Chaos again here (= 1).
+    const chaosFactor = 1.0;
     const gameSpeedBonus = getGameSpeedBonus(effectiveParams);
     const effGemSec = Math.max(0.01, gemEvParams.gem_bomb_recharge_seconds) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
     const freeBombMult = 1.0 / (1.0 - Math.max(0, Math.min(0.99, gemEvParams.free_bomb_chance)));
