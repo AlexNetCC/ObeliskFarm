@@ -75,9 +75,9 @@ export function computeFishingStatsFromLevels(
   const t2_boat_level = u("upgrade_t2_boat");
 
   // Fishing Rod: base 10, ×1.16 per level. Rod Multiplier +0.04x (upgrade), +0.05x (enhance). Skill: Motley School +10% per level.
-  // Not rounded here: Fishing Rod card in the UI is a separate multiplier; rounding happens only once at the end (after card).
+  // Game rounds rodBase before applying multipliers (matches in-game display). Fishing Rod card is separate; applied in UI.
   const ROD_POWER_BASE = 10;
-  const rodBase = ROD_POWER_BASE * Math.pow(1.16, u("fishing_rod"));
+  const rodBase = Math.round(ROD_POWER_BASE * Math.pow(1.16, u("fishing_rod")));
   const rodMultiUpgrade = 1 + 0.04 * u("rod_multiplier");
   const rodMultiEnhance = 1 + 0.05 * e("enhance_rod_multiplier");
   const rodMultiSkill = 1 + 0.1 * skill("motley_school");

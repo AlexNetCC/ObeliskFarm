@@ -145,3 +145,82 @@ Jedes Modul lädt das JSON, merged seine Werte rein, speichert. Kein zentraler O
 ```
 
 **Fazit:** Die Haupt-Verzweigung geht von Gem EV aus (params, game speed). Bombs, Drone, Lootbug und Items schreiben ihre Ergebnisse in gemev_external. Gem EV aggregiert und Stargazing liest Drone + Lootbug-Buffs. Die Struktur ist noch überschaubar; kritisch sind die Merge-Semantik in gemev_external und die klare Ownership pro Feld.
+
+---
+
+## Ownership-Tabelle (Phase 1: Aufräumen)
+
+**Regel:** Jedes Modul schreibt nur seine eigenen Felder. Andere dürfen lesen. Bei Konflikten (z.B. Chaos Totem) gilt die unten dokumentierte Priorität.
+
+### gemev_external.json
+
+| Feld | Owner | Bedingung | Leser |
+|------|-------|-----------|-------|
+| game_speed_multiplier | GemEv | – | Bombs, Items, Lootbug (via params) |
+| freebiesPerHour | GemEv | – | – |
+| freebieChestsPerHour | GemEv | – | Items |
+| stonksChestsPerHour | GemEv | – | Items |
+| founderSupplyDropItemChestsPerHour | GemEv | – | Items |
+| total10xMinPerHour | GemEv | – | Lootbug, Drone, Items |
+| lootbugBomb10xMinPerHour | Lootbug | – | GemEv, Bombs, Drone |
+| lootbugItemChestsPerHour | Lootbug | – | GemEv, Items |
+| lootbugGemsPerHour | Lootbug | – | – |
+| lootbugNet10xGemEvPerHour | Lootbug | – | – |
+| lootbugNetGemsPerHour | Lootbug | – | GemEv |
+| lootbug2xStarMinPerHour | Lootbug | – | Stargazing |
+| lootbugEvPerClaim | Lootbug | – | Overnight |
+| bombBearLootbugGemsEvPerHour | Lootbug | – | – |
+| droneBomb10xMinPerHour | Drone | – | GemEv, Bombs, Lootbug |
+| droneFuelGemsPerHour | Drone | – | GemEv |
+| elixirFuelGemsPerHour | Drone | – | – |
+| bombBearLootbugSpawnRateMult | Drone | – | Lootbug |
+| chaosTotemUptimePct | Items / Bombs | Items wenn Bombs.chaosTotem100=false; Bombs schreibt 100 wenn Toggle an | GemEv, Bombs, Items |
+| chaosTotemImpact | Items / Bombs / GemEv | Items/Bombs je nach Toggle; GemEv für Chart wenn nicht 100% | GemEv, Items |
+| chaosTotem100FromBombs | Bombs | – | GemEv, Items |
+| chaosTotemImpactFromBombs | Bombs | – | GemEv |
+| chargeMagnetImpact | Items | – | GemEv |
+| valueOfOneChestForLootbug | Items | – | Lootbug |
+| gemBomb10xImpact | Bombs / GemEv | Bombs schreibt immer; GemEv nur wenn Bombs noch nicht (kein gemBombGemsPerHourFromBombs) | Lootbug, Drone |
+| gemBombGemsPerHourFromBombs | Bombs | – | GemEv |
+| gemBomb10xImpactFromBombs | Bombs | – | GemEv |
+
+### stargazing_external.json
+
+| Feld | Owner | Leser |
+|------|-------|-------|
+| drone2xStarUptimeFraction | Drone | Stargazing |
+| drone3xSuperUptimeFraction | Drone | Stargazing |
+| elixir2xStarMinPerHour | Drone | Stargazing |
+| starburstDroneOn | Drone | Stargazing |
+| starburstTripleStarChancePct | Drone | Stargazing |
+| starburstStarSpawnRateUptimeFraction | Drone | Stargazing |
+| starburstStarSpawnRatePct | Drone | Stargazing |
+| starburstAutoCatch100MinPerHour | Drone | Stargazing |
+| founderSupplyDrop2xStarMinPerHour | GemEv | Stargazing |
+| founderSupplyDropAutoCatch100MinPerHour | GemEv | Stargazing |
+| stargazingStarsPerHourOnline | Stargazing | Overnight |
+| stargazingStarsPerHourOffline | Stargazing | Overnight |
+| stargazingSuperStarsPerHourOffline | Stargazing | Overnight |
+| stargazing*WithoutStarburst | Stargazing | Overnight |
+
+### fishing_external.json
+
+| Feld | Owner | Leser |
+|------|-------|-------|
+| elixir3xFishingTickSpeedMinPerHour | Drone | Fishing |
+| elixir3xFishingTickSpeedUptimeFraction | Drone | Fishing |
+| anglerTicksPerHour | Drone | Fishing |
+| lootbugFishing12TicksProcsPerHour | Lootbug | Fishing |
+| effectiveTickSec | Fishing | Drone |
+| fishGains | Fishing | Drone |
+
+---
+
+## Merge-Disziplin
+
+1. **Nur eigene Felder schreiben** – kein `ext.xyz = …` wenn `xyz` einem anderen Modul gehört.
+2. **Load–Merge–Save atomar** – innerhalb eines `useEffect`: load → nur eigene Felder setzen → save. Keine anderen Felder löschen oder überschreiben.
+3. **Conditional ownership** – Bei Chaos Totem: Bombs hat Priorität wenn Toggle an. Items schreibt nur wenn `chaosTotem100FromBombs !== true`.
+4. **Neue Felder** – Vor dem Hinzufügen: Ownership in dieser Tabelle eintragen.
+
+5. **Ein Effect pro Key pro Modul** – Jedes Modul hat maximal einen `useEffect` pro Storage-Key. Mehrere Felder → ein Effect mit allen Dependencies.

@@ -1312,7 +1312,14 @@ export function Fishing() {
       <div className="fishingLayoutGrid">
         <Collapsible
           id="fishing-gains"
-          title="Fishing gains (by fish)"
+          title={
+            <>
+              Fishing gains (by fish)
+              <span className="mono fishingTotalRainbow" style={{ fontSize: "0.95em", marginLeft: 8 }}>
+                {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
+              </span>
+            </>
+          }
           defaultExpanded={false}
           headerRight={
             <Tooltip
@@ -1336,9 +1343,6 @@ export function Fishing() {
               <div className="fishingSectionTitle">
                 <span className="mono">Fish per hour</span>
               </div>
-              <span className="mono fishingTotalRainbow" style={{ fontSize: "0.95em" }}>
-                {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
-              </span>
             </div>
             <div className="fishingGainsToggleWrap">
               <label className="fishingGainsToggleLabel">
@@ -1786,12 +1790,30 @@ export function Fishing() {
               </div>
               <div className="fishingStatsTwoColWrap">
                 <div className="fishingStatsCol">
-                  <StatRow
-                    label="Fishing rod power"
-                    iconUrl={upgradeIconUrl("Fishing_Rod_Power.png")}
-                    value={effectiveRodPower}
-                    decimals={0}
-                  />
+                  <div className="fishingRow fishingRowInline">
+                    <div className="fishingLabelLeft">
+                      <img src={upgradeIconUrl("Fishing_Rod_Power.png")} alt="" className="iconSmall" style={{ width: 18, height: 18, objectFit: "contain" }} />
+                      <span className="fishingLabelName">Fishing rod power</span>
+                      <Tooltip
+                        content={{
+                          title: "Fishing rod power",
+                          sections: [
+                            {
+                              heading: "Formula",
+                              lines: [
+                                "10 × 1.16^Fishing Rod level (rounded) × Rod Multiplier (upgrade + enhance) × Motley School.",
+                                "Rod Multiplier: +4% per upgrade level, +5% per enhance level. Motley School: +10% per skill level.",
+                              ],
+                            },
+                            { heading: "Card", lines: ["Fishing Rod card multiplies this value (1.02× / 1.05× / 1.10×)."] },
+                          ],
+                        }}
+                      />
+                    </div>
+                    <span className="mono fishingRowValue">
+                      {(stats.fishing_rod_power * FISHING_ROD_CARD_MULT[state.fishingRodCardTier]).toFixed(2)}
+                    </span>
+                  </div>
                   <StatRow
                     label="Fishing drone cap"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Capacity.png")}
