@@ -83,7 +83,9 @@ export function computeFishingStatsFromLevels(
   const rodMultiSkill = 1 + 0.1 * skill("motley_school");
   const fishing_rod_power = rodBase * rodMultiUpgrade * rodMultiEnhance * rodMultiSkill;
 
-  // Fish Income Multiplier: +0.03x (upgrade), +0.05x (enhance). Additive on base 1. Skill: Fishing With Friends +3% per level; With This Fish I Summon +1% per fish card per level.
+  // Fish Income Multiplier: upgrade and enhance are multiplicative; skills additive. +0.03x (upgrade), +0.05x (enhance).
+  // Skill: Fishing With Friends +3% per level; With This Fish I Summon +1% per fish card per level.
+  // Game: (1 + 0.03*upgrade) × (1 + 0.05*enhance) + skill bonuses (matches in-game display).
   const effectiveFishCardCount =
     (options?.fishCardTier &&
       Object.values(options.fishCardTier).reduce<number>(
@@ -92,7 +94,7 @@ export function computeFishingStatsFromLevels(
       )) ??
     0;
   const fish_income_multi_base =
-    1 + 0.03 * u("fish_multiplier") + 0.05 * e("enhance_fish_multiplier");
+    (1 + 0.03 * u("fish_multiplier")) * (1 + 0.05 * e("enhance_fish_multiplier"));
   const fish_income_multi =
     fish_income_multi_base +
     0.03 * skill("fishing_with_friends") +
