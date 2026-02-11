@@ -807,7 +807,7 @@ export function Drone() {
     };
   }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, anglerTicksPerHour]);
 
-  /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. When buff active, use live calc from Lootbug gems+net10x so it updates on every Drone change; else value from Lootbug. */
+  /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. Prefer value from Lootbug (includes Gems, 10×, Item Chests). Fallback: live calc from gems+net10x when Lootbug has not run yet. */
   const bombBearLootbugGemsEvPerHour = (() => {
     if (bombBearLootbugSpawnRateMult <= 1) return 0;
     const ext = loadJson<{
@@ -815,14 +815,12 @@ export function Drone() {
       lootbugGemsPerHour?: number;
       lootbugNet10xGemEvPerHour?: number;
     }>(GEMEV_EXTERNAL_KEY);
-    const fromLootbug = typeof ext?.bombBearLootbugGemsEvPerHour === "number" && ext.bombBearLootbugGemsEvPerHour >= 0 ? ext.bombBearLootbugGemsEvPerHour : 0;
+    const fromLootbug = typeof ext?.bombBearLootbugGemsEvPerHour === "number" && ext.bombBearLootbugGemsEvPerHour >= 0 ? ext.bombBearLootbugGemsEvPerHour : null;
+    if (fromLootbug !== null) return fromLootbug;
     const gems = typeof ext?.lootbugGemsPerHour === "number" && ext.lootbugGemsPerHour >= 0 ? ext.lootbugGemsPerHour : 0;
     const net10x = typeof ext?.lootbugNet10xGemEvPerHour === "number" ? ext.lootbugNet10xGemEvPerHour : 0;
-    if (gems > 0 || net10x !== 0) {
-      const totalGains = gems + net10x;
-      return ((bombBearLootbugSpawnRateMult - 1) / bombBearLootbugSpawnRateMult) * totalGains;
-    }
-    return fromLootbug;
+    const totalGains = gems + net10x;
+    return ((bombBearLootbugSpawnRateMult - 1) / bombBearLootbugSpawnRateMult) * totalGains;
   })();
 
   return (
