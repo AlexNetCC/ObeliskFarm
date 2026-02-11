@@ -376,6 +376,13 @@ export function Lootbug() {
     return (lootbugsPerHour * getWeight(buff)) / totalFreeWeight;
   }, [lootbugsPerHour, totalFreeWeight]);
 
+  /** Gem EV/h from Lootbug "+1 Item Chest": value per chest from Items. When Chaos Totem 100% uptime, only Charge Magnet; else Charge Magnet + Chaos Totem. */
+  const lootbugChestGemEvPerHour = useMemo(() => {
+    const ext = loadJson<{ valueOfOneChestForLootbug?: number }>(GEMEV_EXTERNAL_KEY);
+    const valuePerChest = typeof ext?.valueOfOneChestForLootbug === "number" ? ext.valueOfOneChestForLootbug : 0;
+    return lootbugItemChestsPerHour * valuePerChest;
+  }, [lootbugItemChestsPerHour]);
+
   const goldenPct = clamp(state.goldenChancePct, 0, 100) / 100;
 
   /** 2× Star Spawn Rate from Lootbug: free (2 min) + gem (10 min). Gem part: full if "2x Star Spawn Rate" is bought, else only golden occurrence. Written to external for Drone overlap incl. Lootbug. */
@@ -473,7 +480,7 @@ export function Lootbug() {
         ? (lootbugsPerHourBase * getWeight(buff10x)) / totalGemWeightAll * 2 / gameSpeed
         : 0;
 
-    const ext = loadJson<{ gemBomb10xImpact?: number; total10xMinPerHour?: number; droneBomb10xMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    const ext = loadJson<{ gemBomb10xImpact?: number; total10xMinPerHour?: number; droneBomb10xMinPerHour?: number; valueOfOneChestForLootbug?: number }>(GEMEV_EXTERNAL_KEY);
     const impact = typeof ext?.gemBomb10xImpact === "number" ? ext.gemBomb10xImpact : 0;
     const total10x = typeof ext?.total10xMinPerHour === "number" ? ext.total10xMinPerHour : 0;
     const total10xBase = total10x - bombRecharge10xMinPerHour + bombRecharge10xMinPerHourBase;
@@ -487,7 +494,12 @@ export function Lootbug() {
         : 0;
     const net10xGemEvPerHourBase = lootbug10xGemEvPerHourBase - costPerHour10xBase;
 
-    return (gemsPerHour - gemsPerHourBase) + (net10xGemEvPerHour - net10xGemEvPerHourBase);
+    const valuePerChest = typeof ext?.valueOfOneChestForLootbug === "number" ? ext.valueOfOneChestForLootbug : 0;
+    const lootbugChestGemEvPerHourBase =
+      lootbugsPerHour > 0 ? lootbugChestGemEvPerHour * (lootbugsPerHourBase / lootbugsPerHour) : 0;
+    const chestDelta = lootbugChestGemEvPerHour - lootbugChestGemEvPerHourBase;
+
+    return (gemsPerHour - gemsPerHourBase) + (net10xGemEvPerHour - net10xGemEvPerHourBase) + chestDelta;
   }, [
     bombBearLootbugSpawnRateMult,
     spawnRateMult,
@@ -502,6 +514,8 @@ export function Lootbug() {
     gemsPerHour,
     net10xGemEvPerHour,
     bombRecharge10xMinPerHour,
+    lootbugChestGemEvPerHour,
+    lootbugsPerHour,
   ]);
 
   /** EV per single lootbug claim (gem value): only +2 Gems, +10 Cherry Charges, and 10× Bomb Recharge (when that gem buff exists on a banked lootbug roll). Used by Overnight Gains. */
@@ -542,6 +556,7 @@ export function Lootbug() {
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
   const BOMB_RECHARGE_ICON =
     "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
+  const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
 
   return (
     <div className="container">
@@ -700,7 +715,8 @@ export function Lootbug() {
 
       <Collapsible id="lootbug-gains" title="Lootbug gains" defaultExpanded={false}>
         <div className="lootbugSection">
-          <div className="lootbugGemsBlock">
+          <div className="lootbugGainsBlock">
+            <span className="lootbugSectionTitle">Free buffs</span>
             <div className="lootbugRow">
               <span className="lootbugStatLabel">
                 <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
@@ -723,8 +739,47 @@ export function Lootbug() {
                 {gemsPerHour > 0 ? `+${gemsPerHour.toFixed(1)}` : "—"}
               </span>
             </div>
+            <div className="lootbugRow">
+              <span className="lootbugStatLabel">
+                <img src={CHEST_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                <span className="lootbugLabel">
+                  Item Chests Gem EV/h
+                  <Tooltip
+                    content={{
+                      title: "Item Chests Gem EV/h",
+                      sections: [
+                        {
+                          heading: "Source",
+                          lines: [
+                            "Gem value per hour from the +1 Item Chest free buff. Uses value per chest from the Items module.",
+                          ],
+                        },
+                        {
+                          heading: "Chaos Totem 100% uptime",
+                          lines: [
+                            "When Bombs has Chaos Totem 100% checked, only Charge Magnet value counts (extra chests do not improve Chaos).",
+                          ],
+                        },
+                        {
+                          heading: "Otherwise",
+                          lines: [
+                            "Charge Magnet and Chaos Totem contribution from chest drops are both included.",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span
+                className={`lootbugValue ${lootbugChestGemEvPerHour > 0 ? "lootbugNetGemEvPositive" : ""}`}
+              >
+                {lootbugChestGemEvPerHour > 0 ? `+${lootbugChestGemEvPerHour.toFixed(1)}` : "—"}
+              </span>
+            </div>
           </div>
-          <div className="lootbugBuffsBlock">
+          <div className="lootbugGainsBlock">
+            <span className="lootbugSectionTitle">Gem buffs</span>
             {buyGemBuffsSet.has("2x Game Speed") && (
               <div className="lootbugRow">
                 <span className="lootbugStatLabel">
@@ -768,6 +823,11 @@ export function Lootbug() {
                   {net10xGemEvPerHour > 0 ? `+${net10xGemEvPerHour.toFixed(1)}` : net10xGemEvPerHour < 0 ? net10xGemEvPerHour.toFixed(1) : "—"}
                 </span>
               </div>
+            )}
+            {!buyGemBuffsSet.has("2x Game Speed") && !buyGemBuffsSet.has("10x Bomb Recharge") && (
+              <p className="lootbugHint" style={{ marginTop: 4, marginBottom: 0 }}>
+                Enable and buy gem buffs above to see gains here.
+              </p>
             )}
           </div>
         </div>

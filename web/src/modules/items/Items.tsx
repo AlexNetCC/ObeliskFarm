@@ -186,6 +186,11 @@ export function Items() {
     state.itemsPerChest * (CHARGE_MAGNET_OBTAIN_CHANCE_PCT / 100) * chargeMagnetGemsPerHour +
     (chaosTotem100FromBombs ? chaosValuePerChestWhen100 : chestsPerHour > 0 ? chaosTotemImpactLive / chestsPerHour : 0);
 
+  /** Value of 1 chest for Lootbug gains: when Chaos Totem 100% uptime, only Charge Magnet (extra chests don't help Chaos); else full chest value. */
+  const chargeMagnetPartOfChest =
+    state.itemsPerChest * (CHARGE_MAGNET_OBTAIN_CHANCE_PCT / 100) * chargeMagnetGemsPerHour;
+  const valueOfOneChestForLootbug = chaosTotem100FromBombs ? chargeMagnetPartOfChest : valueOfOneChestGemPerHour;
+
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     if (!ext.chaosTotem100FromBombs) {
@@ -198,8 +203,9 @@ export function Items() {
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.chargeMagnetImpact = chargeMagnetGemEvPerHour;
+    ext.valueOfOneChestForLootbug = valueOfOneChestForLootbug;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [chargeMagnetGemEvPerHour]);
+  }, [chargeMagnetGemEvPerHour, valueOfOneChestForLootbug]);
 
   return (
     <div className="itemsGrid">

@@ -329,21 +329,27 @@
   color: var(--muted);
 }
 
-/* Gems (raw) + Net gems / h block, then buffs (2× Game Speed, 10× Bomb Recharge) */
-.lootbugGemsBlock {
-  margin-bottom: 14px;
-  padding-bottom: 14px;
+/* Lootbug gains: Free buffs and Gem buffs blocks */
+.lootbugGainsBlock {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.lootbugGainsBlock:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.lootbugGainsBlock .lootbugSectionTitle {
+  margin-bottom: 6px;
 }
 
 .lootbugNetGemsRow {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px dashed rgba(15, 23, 42, 0.15);
-}
-
-.lootbugBuffsBlock {
-  margin-bottom: 0;
 }
 
 /* Tooltips: compact and subtle in Lootbug module */
