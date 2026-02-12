@@ -675,7 +675,6 @@
   text-align: right;
   font-weight: 700;
   color: #0d6b0d;
-  text-shadow: 0 0 8px rgba(13, 107, 13, 0.5);
 }
 .fishingUpgradeTable td.fishingUpgradeTdCostEffic {
   text-align: right;
@@ -683,7 +682,6 @@
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: #0d6b0d;
-  text-shadow: 0 0 6px rgba(13, 107, 13, 0.4);
 }
 
 .fishingUpgradeTable tbody tr.fishingUpgradeRow {
@@ -908,7 +906,7 @@
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 8px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   font-size: 12px;
   line-height: 1.4;
   color: rgba(15, 23, 42, 0.88);
@@ -1155,4 +1153,10 @@
 .fishingSushiPerFishAxisLow,
 .fishingSushiPerFishAxisHigh {
   flex: 0 0 auto;
+}
+
+/* Tooltips: no glow, compact, text fits */
+.fishingModule .tooltipPop {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-width: min(340px, calc(100vw - 32px));
 }

@@ -1352,7 +1352,7 @@ export function Fishing() {
     elixir3xFishingExternal,
   ]);
 
-  /** Fish card gild (Card → Gilded): marginal % and cost efficiency. Fish cards: "With This Fish I Summon Two More Fish". Fishing Rod: Card → Poly, cost 1500 cards. */
+  /** Fish card gild (Card → Gilded): marginal % and cost efficiency. Fish cards: "With This Fish I Summon Two More Fish". Fishing Rod: Card → Poly, cost 1500 gems. */
   const { fishCardGildMarginalPct, fishCardGildCostEffic, fishingRodCardGildMarginalPct, fishingRodCardGildCostEffic, costEfficHeatMinFishCard, costEfficHeatMaxFishCard } = useMemo(() => {
     const total = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).reduce((s, r) => s + r.fishPerHour, 0);
     const marginalMap = new Map<string, number>();
@@ -1393,7 +1393,7 @@ export function Fishing() {
   }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, totalFishPerHourWithRodPoly]);
 
   return (
-    <div className="container">
+    <div className="container fishingModule">
       <div className="header">
         <div>
           <h1 className="title">
@@ -2138,14 +2138,9 @@ export function Fishing() {
                         <Tooltip
                           content={{
                             title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by hours to get the cost for the next level.",
-                                  "Higher = more gain per hour of farming invested.",
-                                ],
-                              },
+                            lines: [
+                              "Cost Effic. = Marginal % ÷ time to next (hours).",
+                              "Higher = more gain per hour farming.",
                             ],
                           }}
                         />
@@ -2316,14 +2311,9 @@ export function Fishing() {
                         <Tooltip
                           content={{
                             title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by hours to get the cost for the next level.",
-                                  "Higher = more gain per hour of farming invested.",
-                                ],
-                              },
+                            lines: [
+                              "Cost Effic. = Marginal % ÷ time to next (hours).",
+                              "Higher = more gain per hour farming.",
                             ],
                           }}
                         />
@@ -2501,14 +2491,9 @@ export function Fishing() {
                         <Tooltip
                           content={{
                             title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by gem cost for the next level.",
-                                  "Higher = more gain per gem invested.",
-                                ],
-                              },
+                            lines: [
+                              "Cost Effic. = Marginal % ÷ gem cost × 100.",
+                              "Higher = more gain per gem.",
                             ],
                           }}
                         />
@@ -2639,14 +2624,9 @@ export function Fishing() {
                         <Tooltip
                           content={{
                             title: "Cost efficiency",
-                            sections: [
-                              {
-                                heading: "How it works",
-                                lines: [
-                                  "Marginal % gain divided by gem cost for the next level.",
-                                  "Higher = more gain per gem invested.",
-                                ],
-                              },
+                            lines: [
+                              "Cost Effic. = Marginal % ÷ gem cost × 100.",
+                              "Higher = more gain per gem.",
                             ],
                           }}
                         />
@@ -2779,9 +2759,9 @@ export function Fishing() {
               Polychrome Potency Bundle (fish poly ×1.15)
             </label>
           </div>
-          <Collapsible id="fishing-fish-card-gild-effic" title="How much do fish gains improve when I gild my cards?" defaultExpanded={false} className="fishingFishCardGildEffic">
+          <Collapsible id="fishing-fish-card-gild-effic" title="How much do fish gains improve when I gild my cards?" defaultExpanded={true} className="fishingFishCardGildEffic">
             <div className="small" style={{ marginBottom: 8 }}>
-              Cost efficiency = marginal % gain per cost. Fish cards: Card → Gilded (gems). Fishing Rod Power: Card → Poly, 1500 cards. Same scale as enhancements and skill tree.
+              Cost efficiency = marginal % gain per cost. Fish cards: Card → Gilded (gems). Fishing Rod Power: Card → Poly, 1500 gems. Same scale as enhancements and skill tree.
             </div>
             <div className="fishingUpgradesList">
               <table className="fishingUpgradeTable">
@@ -2794,8 +2774,9 @@ export function Fishing() {
                         content={{
                           title: "Cost efficiency",
                           lines: [
-                            "Marginal % gain divided by cost. Fish cards: gem cost for Card → Gilded. Fishing Rod: 1500 cards for Card → Poly.",
-                            "Higher = more gain per cost spent.",
+                            "Cost Effic. = (Marginal % ÷ Cost) × 100.",
+                            "Cost: gems (Fish cards) or 1500 gems (Rod).",
+                            "Higher = more gain per cost.",
                           ],
                         }}
                       />
@@ -2967,14 +2948,9 @@ export function Fishing() {
                     <Tooltip
                       content={{
                         title: "Cost efficiency",
-                        sections: [
-                          {
-                            heading: "Gems (1 skill point = 125)",
-                            lines: [
-                              "Marginal % gain divided by gem cost for the next level.",
-                              "Higher value means more gain per gem spent.",
-                            ],
-                          },
+                        lines: [
+                          "Cost Effic. = Marginal % ÷ gem cost × 100.",
+                          "1 skill point = 125 gems. Higher = more gain per gem.",
                         ],
                       }}
                     />
