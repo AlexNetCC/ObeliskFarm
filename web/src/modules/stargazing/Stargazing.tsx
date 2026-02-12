@@ -416,7 +416,7 @@ export function Stargazing() {
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
   const stats = useMemo<PlayerStats>(() => {
-    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 2 : 1);
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1);
     const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
@@ -457,7 +457,7 @@ export function Stargazing() {
 
   /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst (no Lootbug, no Founder). */
   const statsOnlineAfk = useMemo<PlayerStats>(() => {
-    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 2 : 1);
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1);
     const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
@@ -536,7 +536,7 @@ export function Stargazing() {
 
   /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
   const statsWithoutStarburst = useMemo<PlayerStats>(() => {
-    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 2 : 1);
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1);
     const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
@@ -993,7 +993,7 @@ export function Stargazing() {
                       checked={spoonStrat}
                       onChange={(e) => setSpoonStrat(e.target.checked)}
                     />
-                    <span>Spoon strat (2× floor clears, online only)</span>
+                    <span>Spoon Strat / Holding finger (+20% floor clears, online only)</span>
                   </label>
                 </div>
                 <Stepper
