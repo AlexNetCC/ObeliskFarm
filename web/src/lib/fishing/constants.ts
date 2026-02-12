@@ -180,6 +180,13 @@ export function getFishForDock(dockId: DockDef["id"]): FishDef[] {
 /** All fish flattened (for lookup by id). */
 export const ALL_FISH: FishDef[] = AQUARIUM.flatMap((s) => s.fish);
 
+/** Gem cost to gild a fish card (Card → Gilded). Order matches ALL_FISH: Guppy 1000, Bass 1250, … */
+export function getFishCardGildGemCost(fishId: string): number {
+  const idx = ALL_FISH.findIndex((f) => f.id === fishId);
+  if (idx < 0) return 0;
+  return 1000 + idx * 250;
+}
+
 export function getFishById(id: string): FishDef | undefined {
   return ALL_FISH.find((f) => f.id === id);
 }
