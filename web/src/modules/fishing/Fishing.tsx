@@ -101,6 +101,8 @@ const GEM_ICON_URL = fishIconUrl("Gem.png");
 
 /** Skill point icon for Skill Tree costs (24px from wiki). */
 const SKILL_POINT_ICON_URL = "https://static.wikitide.net/shminerwiki/thumb/5/51/Skill_Point.png/24px-Skill_Point.png";
+/** 1 skill point = 125 gems (for cost efficiency: marginal % per gem). */
+const GEMS_PER_SKILL_POINT = 125;
 
 
 function parseNumber(raw: string): number | null {
@@ -1272,8 +1274,9 @@ export function Fishing() {
       }
 
       const costForNext = def.costs[lvl] ?? 0;
-      if (marginalPct != null && costForNext > 0) {
-        efficVals.push(marginalPct / costForNext);
+      const gemsForNext = costForNext * GEMS_PER_SKILL_POINT;
+      if (marginalPct != null && gemsForNext > 0) {
+        efficVals.push((marginalPct / gemsForNext) * 100);
       }
     }
     return {
@@ -1312,13 +1315,16 @@ export function Fishing() {
       <div className="fishingLayoutGrid">
         <Collapsible
           id="fishing-gains"
+          className="fishingGainsCollapsible"
           title={
-            <>
+            <span style={{ display: "flex", flex: 1, alignItems: "center", gap: 8, minWidth: 0 }}>
               Fishing gains (by fish)
-              <span className="mono fishingTotalRainbow" style={{ fontSize: "0.95em", marginLeft: 8 }}>
-                {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
+              <span style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                <span className="mono fishingTotalRainbow" style={{ fontSize: "1.45em" }}>
+                  {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
+                </span>
               </span>
-            </>
+            </span>
           }
           defaultExpanded={false}
           headerRight={
@@ -2724,7 +2730,7 @@ export function Fishing() {
 
         <Collapsible id="fishing-skill-tree" title="Skill Tree" defaultExpanded={false}>
           <div className="small" style={{ marginBottom: 8 }}>
-            Skills cost skill points (from Obelisk level). Cost efficiency = marginal % gain per skill point for the next level.
+            Skills cost skill points (from Obelisk level). 1 skill point = 125 gems. Cost efficiency = marginal % gain per gem for the next level.
           </div>
           <div style={{ marginBottom: 12 }}>
             <div className="label" style={{ alignItems: "center", gap: 8 }}>
@@ -2751,10 +2757,10 @@ export function Fishing() {
                         title: "Cost efficiency",
                         sections: [
                           {
-                            heading: "Skill points",
+                            heading: "Gems (1 skill point = 125)",
                             lines: [
-                              "Marginal % gain divided by skill points for the next level.",
-                              "Higher value means more gain per skill point spent.",
+                              "Marginal % gain divided by gem cost for the next level.",
+                              "Higher value means more gain per gem spent.",
                             ],
                           },
                         ],
@@ -2772,12 +2778,12 @@ export function Fishing() {
                   const nextCost = lvl < maxLvl ? (def.costs[lvl] ?? 0) : null;
                   const isMaxed = lvl >= maxLvl;
                   const marginalPct = skillMarginalPct.get(def.id) ?? null;
+                  const gemsForNext = nextCost != null ? nextCost * GEMS_PER_SKILL_POINT : 0;
                   const costEffic =
                     !isMaxed &&
                     marginalPct != null &&
-                    nextCost != null &&
-                    nextCost > 0
-                      ? marginalPct / nextCost
+                    gemsForNext > 0
+                      ? (marginalPct / gemsForNext) * 100
                       : null;
                   const heatT =
                     costEffic != null && costEfficHeatMaxSkill > costEfficHeatMinSkill
@@ -2848,7 +2854,7 @@ export function Fishing() {
                                     borderRadius: 4,
                                   }}
                                 >
-                                  {costEffic.toFixed(3)}
+                                  {costEffic.toFixed(2)}
                                 </span>
                               </span>
                             );
@@ -2861,9 +2867,15 @@ export function Fishing() {
                         {isMaxed ? (
                           <span className="fishingUpgradeMaxed">Maxed</span>
                         ) : nextCost != null ? (
-                          <span className="fishingUpgradeCostBox">
-                            <img src={SKILL_POINT_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                            <span className="mono">{nextCost.toLocaleString()}</span>
+                          <span className="fishingUpgradeCostBox" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              <img src={SKILL_POINT_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                              <span className="mono">{nextCost.toLocaleString()}</span>
+                            </span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted, #64748b)" }}>
+                              = <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                              <span className="mono">{(nextCost * GEMS_PER_SKILL_POINT).toLocaleString()}</span> gems
+                            </span>
                           </span>
                         ) : (
                           "—"
