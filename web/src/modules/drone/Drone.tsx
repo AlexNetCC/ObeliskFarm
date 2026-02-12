@@ -29,6 +29,34 @@ const FROGGER_SUIT_SEC_PER_LEVEL = 1.5;
 const FROGGER_FUEL_BOMBS_BASE = 5;
 const FROGGER_FUEL_BOMBS_PER_GRADE = 1;
 
+/** Frogger Lootfrog chance: 0% at grade 0, +0.003% per grade, max 0.135% (with Polychrome card). */
+const FROGGER_LOOTFROG_CHANCE_PCT_PER_GRADE = 0.003;
+const FROGGER_LOOTFROG_CHANCE_PCT_MAX = 0.135;
+
+const LOOTFROG_TOTAL_WEIGHT = 196;
+const LOOTFROG_WIKI_IMG = "https://shminer.miraheze.org/wiki/Special:FilePath";
+
+function lootfrogIconUrl(file: string): string {
+  return `${LOOTFROG_WIKI_IMG}/${encodeURIComponent(file)}`;
+}
+
+/** Lootfrog rewards: label, weight (chance), gem EV (null = not calculable), icon (wiki filename). 1 skill point = 125 gems. */
+const LOOTFROG_REWARDS: Array<{ label: string; weight: number; gemEv: number | null; iconFile: string | null }> = [
+  { label: "50–100 Gems", weight: 70, gemEv: 75, iconFile: "Gem.png" },
+  { label: "15–30 Fuel", weight: 40, gemEv: 112.5, iconFile: "Fuel.png" }, // 22.5 fuel × 5
+  { label: "10–20 Relic Chests", weight: 50, gemEv: null, iconFile: "Relic_Chest.png" },
+  { label: "1 Lootbug Lantern", weight: 1, gemEv: null, iconFile: "Lootbug_Lantern.png" },
+  { label: "4–8 Tier 2 Items", weight: 8, gemEv: null, iconFile: "Items_Button.png" },
+  { label: "1–3 Skill Points", weight: 2, gemEv: 250, iconFile: "Skill_Point.png" }, // 2 sp × 125
+  { label: "3–5 Sushi", weight: 8, gemEv: null, iconFile: "Sushi.png" },
+  { label: "4–10 Blue Cow", weight: 6, gemEv: null, iconFile: "Blue_Cow.png" },
+  { label: "1 Frogspawn", weight: 1, gemEv: null, iconFile: "Frogspawn.png" },
+  { label: "150–300 Gems", weight: 4, gemEv: 225, iconFile: "Gem.png" },
+  { label: "100–150 Relic Chests", weight: 2, gemEv: null, iconFile: "Relic_Chest.png" },
+  { label: "1000–3000 Gems", weight: 2, gemEv: 2000, iconFile: "Gem.png" },
+  { label: "15–30 Sushi", weight: 2, gemEv: null, iconFile: "Sushi.png" },
+];
+
 /** Bomb Bear Drone: +30% Lootbug Spawn Rate / 4:00 at grade 0, +3% / +0:12 per grade. Max +90% / 8:00 (Polychrome). */
 const BOMB_BEAR_LOOTBUG_SPAWN_PCT_BASE = 30;
 const BOMB_BEAR_LOOTBUG_SPAWN_PCT_PER_GRADE = 3;
@@ -119,6 +147,23 @@ type ElixirState = {
   froggerSuitLevel: number;
   froggerGradeLevel: number;
   froggerFueled: boolean;
+  lootfrogsUnlocked: boolean;
+  /** Lootfrog Loot Multiplier; affects all rewards. */
+  lootfrogLootMultiplier: number;
+  /** Triple Lootfrog Chance (%); 3 instead of 1, does not block capacity. */
+  tripleLootfrogChancePct: number;
+  /** 10× Lootfrog Chance (%); 10 instead of 1, does not block capacity. */
+  lootfrog10xChancePct: number;
+  /** Lootfrog capacity; default 5. */
+  lootfrogCapacity: number;
+  /** Golden Lootfrog Chance (%); rewards × Golden Lootfrog Multiplier. */
+  goldenLootfrogChancePct: number;
+  /** Golden Lootfrog Multiplier; base 2×. */
+  goldenLootfrogMultiplier: number;
+  /** Big Lootfrog Chance (%); rewards × Big Lootfrog Multiplier. */
+  bigLootfrogChancePct: number;
+  /** Big Lootfrog Multiplier; base 5×. */
+  bigLootfrogMultiplier: number;
   /** Bomb Bear Drone: when fueled, +X% Lootbug Spawn Rate (multiplicative with Lootbug stats). */
   bombBearDroneOn: boolean;
   bombBearGradeLevel: number;
@@ -135,7 +180,9 @@ type ElixirState = {
   starburstFueled: boolean;
 };
 
-const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v5";
+const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v7";
+const STORAGE_KEY_V6 = "obeliskfarm:web:drone_elixir_save.json:v6";
+const STORAGE_KEY_V5 = "obeliskfarm:web:drone_elixir_save.json:v5";
 const STORAGE_KEY_V4 = "obeliskfarm:web:drone_elixir_save.json:v4";
 const STORAGE_KEY_V3 = "obeliskfarm:web:drone_elixir_save.json:v3";
 const STORAGE_KEY_V2 = "obeliskfarm:web:drone_elixir_save.json:v2";
@@ -173,6 +220,15 @@ const DEFAULT: ElixirState = {
   froggerSuitLevel: 8,
   froggerGradeLevel: 0,
   froggerFueled: false,
+  lootfrogsUnlocked: false,
+  lootfrogLootMultiplier: 1,
+  tripleLootfrogChancePct: 0,
+  lootfrog10xChancePct: 0,
+  lootfrogCapacity: 5,
+  goldenLootfrogChancePct: 0,
+  goldenLootfrogMultiplier: 2,
+  bigLootfrogChancePct: 0,
+  bigLootfrogMultiplier: 5,
   bombBearDroneOn: false,
   bombBearGradeLevel: 0,
   bombBearFueled: false,
@@ -403,14 +459,43 @@ function migrateFromV4(migrated: Partial<ElixirState>): Partial<ElixirState> {
   };
 }
 
+function migrateFromV5(migrated: Partial<ElixirState>): Partial<ElixirState> {
+  return {
+    ...migrated,
+    lootfrogsUnlocked: typeof migrated.lootfrogsUnlocked === "boolean" ? migrated.lootfrogsUnlocked : DEFAULT.lootfrogsUnlocked,
+  };
+}
+
+function migrateFromV6(migrated: Partial<ElixirState>): Partial<ElixirState> {
+  return {
+    ...migrated,
+    lootfrogLootMultiplier: clamp(migrated.lootfrogLootMultiplier ?? DEFAULT.lootfrogLootMultiplier, 0.1, 20),
+    tripleLootfrogChancePct: clamp(migrated.tripleLootfrogChancePct ?? DEFAULT.tripleLootfrogChancePct, 0, 100),
+    lootfrog10xChancePct: clamp(migrated.lootfrog10xChancePct ?? DEFAULT.lootfrog10xChancePct, 0, 100),
+    lootfrogCapacity: clampInt(migrated.lootfrogCapacity ?? DEFAULT.lootfrogCapacity, 1, 999),
+    goldenLootfrogChancePct: clamp(migrated.goldenLootfrogChancePct ?? DEFAULT.goldenLootfrogChancePct, 0, 100),
+    goldenLootfrogMultiplier: clamp(migrated.goldenLootfrogMultiplier ?? DEFAULT.goldenLootfrogMultiplier, 1, 20),
+    bigLootfrogChancePct: clamp(migrated.bigLootfrogChancePct ?? DEFAULT.bigLootfrogChancePct, 0, 100),
+    bigLootfrogMultiplier: clamp(migrated.bigLootfrogMultiplier ?? DEFAULT.bigLootfrogMultiplier, 1, 20),
+  };
+}
+
 export function Drone() {
   const [state, setState] = useState<ElixirState>(() => {
     const saved = loadJson<Record<string, unknown>>(STORAGE_KEY)
+      ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V6)
+      ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V5)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V4)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V3)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V2)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V1);
-    const migrated = saved ? migrateFromV4(migrateFromV3(migrateFromV2(migrateFromV1(saved)))) : {};
+    const migrated = saved
+      ? migrateFromV6(
+          migrateFromV5(
+            migrateFromV4(migrateFromV3(migrateFromV2(migrateFromV1(saved))))
+          )
+        )
+      : {};
     const s = { ...DEFAULT, ...migrated } as ElixirState;
     s.gameSpeedMultiplier = clamp(s.gameSpeedMultiplier, 1, 10);
     s.fuelDurationUpgradeLevel = clamp(s.fuelDurationUpgradeLevel, 0, COAL_UPGRADE_MAX);
@@ -429,6 +514,7 @@ export function Drone() {
     s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, 45);
     s.froggerDroneOn = typeof migrated.froggerDroneOn === "boolean" ? migrated.froggerDroneOn : DEFAULT.froggerDroneOn;
     s.froggerFueled = typeof migrated.froggerFueled === "boolean" ? migrated.froggerFueled : DEFAULT.froggerFueled;
+    s.lootfrogsUnlocked = typeof migrated.lootfrogsUnlocked === "boolean" ? migrated.lootfrogsUnlocked : DEFAULT.lootfrogsUnlocked;
     s.bombBearDroneOn = typeof migrated.bombBearDroneOn === "boolean" ? migrated.bombBearDroneOn : DEFAULT.bombBearDroneOn;
     s.bombBearGradeLevel = clamp(s.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, 45);
     s.bombBearFueled = typeof migrated.bombBearFueled === "boolean" ? migrated.bombBearFueled : DEFAULT.bombBearFueled;
@@ -671,6 +757,49 @@ export function Drone() {
     const froggerGemEvPerHour = bombsPerHour * (1 / totalBombTypes) * bombsPerPick * sumDeltas;
     return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes };
   }, [froggerBombIntervalSecReal, froggerBombsPerAutofire, droneBomb10xMinPerHour]);
+
+  /** Lootfrog gains: spawns/h per reward, gems/h for calculable rewards. Only when lootfrogsUnlocked. */
+  const { lootfrogGainsRows, lootfrogsPerHour } = useMemo(() => {
+    if (!state.lootfrogsUnlocked) return { lootfrogGainsRows: [], lootfrogsPerHour: 0 };
+    const autofiresPerHour = 3600 / Math.max(0.1, froggerBombIntervalSecReal);
+    const spawnChancePct = Math.min(
+      state.froggerGradeLevel * FROGGER_LOOTFROG_CHANCE_PCT_PER_GRADE,
+      FROGGER_LOOTFROG_CHANCE_PCT_MAX
+    );
+    const triggersPerHour = autofiresPerHour * (spawnChancePct / 100);
+    const triplePct = state.tripleLootfrogChancePct / 100;
+    const tenXPct = state.lootfrog10xChancePct / 100;
+    const expectedPerTrigger = 1 + 2 * triplePct + 9 * tenXPct;
+    const lootfrogsPerHour = triggersPerHour * expectedPerTrigger;
+    const lootMult = state.lootfrogLootMultiplier;
+    const goldenPct = state.goldenLootfrogChancePct / 100;
+    const goldenMult = (1 - goldenPct) + goldenPct * state.goldenLootfrogMultiplier;
+    const bigPct = state.bigLootfrogChancePct / 100;
+    const bigMult = (1 - bigPct) + bigPct * state.bigLootfrogMultiplier;
+    const rewardMult = lootMult * goldenMult * bigMult;
+    const rows = LOOTFROG_REWARDS.map((r) => {
+      const spawnsPerHour = lootfrogsPerHour * (r.weight / LOOTFROG_TOTAL_WEIGHT);
+      const gemsPerHour = r.gemEv != null ? spawnsPerHour * r.gemEv * rewardMult : null;
+      return { ...r, spawnsPerHour, gemsPerHour };
+    });
+    return { lootfrogGainsRows: rows, lootfrogsPerHour };
+  }, [
+    state.lootfrogsUnlocked,
+    froggerBombIntervalSecReal,
+    state.froggerGradeLevel,
+    state.lootfrogLootMultiplier,
+    state.tripleLootfrogChancePct,
+    state.lootfrog10xChancePct,
+    state.goldenLootfrogChancePct,
+    state.goldenLootfrogMultiplier,
+    state.bigLootfrogChancePct,
+    state.bigLootfrogMultiplier,
+  ]);
+
+  const lootfrogTotalGemsPerHour = useMemo(
+    () => lootfrogGainsRows.reduce((s, r) => s + (r.gemsPerHour ?? 0), 0),
+    [lootfrogGainsRows],
+  );
 
   /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. Save chance = Coal and Upgrade Fuel Save combined multiplicatively. */
   const fuelGemsPerHour = useMemo(() => {
@@ -1528,6 +1657,25 @@ export function Drone() {
             </label>
           </div>
 
+          <div className="droneCheckboxRow">
+            <img
+              src="https://static.wikitide.net/shminerwiki/9/93/Lootfrog.png"
+              alt=""
+              className="droneSkillIcon"
+              aria-hidden
+            />
+            <input
+              id="frogger-lootfrogs-unlocked"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.lootfrogsUnlocked}
+              onChange={(e) => update({ lootfrogsUnlocked: e.target.checked })}
+            />
+            <label htmlFor="frogger-lootfrogs-unlocked" className="droneLabel">
+              Lootfrogs unlocked?
+            </label>
+          </div>
+
           {state.froggerFueled ? (
             <div className="droneSubSection">
               <div className="droneSubTitle">When fueled</div>
@@ -1597,6 +1745,196 @@ export function Drone() {
                 −{froggerFuelGemsPerHour.toFixed(1)}
               </span>
             </div>
+          </div>
+        ) : null}
+
+        {state.lootfrogsUnlocked ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <img src="https://static.wikitide.net/shminerwiki/9/93/Lootfrog.png" alt="" className="droneSkillIcon" aria-hidden />
+              Lootfrog
+            </div>
+            <div className="droneLootfrogParams">
+            <div className="droneRow">
+              <span className="droneLabel">
+                Chance to spawn a frog (grade {state.froggerGradeLevel})
+                <Tooltip
+                  content={{
+                    title: "Lootfrog chance",
+                    lines: [
+                      "0% at grade 0, +0.003% per grade, max 0.135% (with Polychrome card).",
+                    ],
+                  }}
+                />
+              </span>
+              <span className="droneStepperValue">
+                {Math.min(
+                  state.froggerGradeLevel * FROGGER_LOOTFROG_CHANCE_PCT_PER_GRADE,
+                  FROGGER_LOOTFROG_CHANCE_PCT_MAX
+                ).toFixed(3)}%
+              </span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Lootfrogs/h</span>
+              <span className="droneStepperValue mono">{lootfrogsPerHour.toFixed(2)}</span>
+            </div>
+
+            <NumInput
+              label="Lootfrog Loot Multiplier"
+              value={state.lootfrogLootMultiplier}
+              onChange={(n) => update({ lootfrogLootMultiplier: clamp(n, 0.1, 20) })}
+              min={0.1}
+              max={20}
+              decimals={2}
+              suffix="×"
+              tooltip={{
+                title: "Lootfrog Loot Multiplier",
+                lines: ["All Lootfrog rewards are affected by the Lootfrog Loot Multiplier."],
+              }}
+            />
+            <NumInput
+              label="Triple Lootfrog Chance (%)"
+              value={state.tripleLootfrogChancePct}
+              onChange={(n) => update({ tripleLootfrogChancePct: clamp(n, 0, 100) })}
+              min={0}
+              max={100}
+              decimals={2}
+              suffix="%"
+              tooltip={{
+                title: "Triple Lootfrog Chance",
+                lines: ["Chance for 3 Lootfrogs instead of 1. Does not block Lootfrog capacity."],
+              }}
+            />
+            <NumInput
+              label="10× Lootfrog Chance (%)"
+              value={state.lootfrog10xChancePct}
+              onChange={(n) => update({ lootfrog10xChancePct: clamp(n, 0, 100) })}
+              min={0}
+              max={100}
+              decimals={2}
+              suffix="%"
+              tooltip={{
+                title: "10× Lootfrog Chance",
+                lines: ["Chance for 10 Lootfrogs instead of 1. Does not block Lootfrog capacity."],
+              }}
+            />
+            <Stepper
+              label="Lootfrog Capacity"
+              value={state.lootfrogCapacity}
+              onChange={(n) => update({ lootfrogCapacity: clampInt(n, 1, 999) })}
+              min={1}
+              max={999}
+              tooltip={{
+                title: "Lootfrog Capacity",
+                lines: ["Default 5. Maximum Lootfrogs that can be held."],
+              }}
+            />
+            <NumInput
+              label="Golden Lootfrog Chance (%)"
+              value={state.goldenLootfrogChancePct}
+              onChange={(n) => update({ goldenLootfrogChancePct: clamp(n, 0, 100) })}
+              min={0}
+              max={100}
+              decimals={2}
+              suffix="%"
+              tooltip={{
+                title: "Golden Lootfrog Chance",
+                lines: ["Golden Lootfrog rewards are multiplied by the Golden Lootfrog Multiplier."],
+              }}
+            />
+            <NumInput
+              label="Golden Lootfrog Multiplier"
+              value={state.goldenLootfrogMultiplier}
+              onChange={(n) => update({ goldenLootfrogMultiplier: clamp(n, 1, 20) })}
+              min={1}
+              max={20}
+              decimals={2}
+              suffix="×"
+              tooltip={{
+                title: "Golden Lootfrog Multiplier",
+                lines: ["Base 2×. Applied to Golden Lootfrog rewards (incl. chance)."],
+              }}
+            />
+            <NumInput
+              label="Big Lootfrog Chance (%)"
+              value={state.bigLootfrogChancePct}
+              onChange={(n) => update({ bigLootfrogChancePct: clamp(n, 0, 100) })}
+              min={0}
+              max={100}
+              decimals={2}
+              suffix="%"
+              tooltip={{
+                title: "Big Lootfrog Chance",
+                lines: ["Big Lootfrog rewards are multiplied by the Big Lootfrog Multiplier."],
+              }}
+            />
+            <NumInput
+              label="Big Lootfrog Multiplier"
+              value={state.bigLootfrogMultiplier}
+              onChange={(n) => update({ bigLootfrogMultiplier: clamp(n, 1, 20) })}
+              min={1}
+              max={20}
+              decimals={2}
+              suffix="×"
+              tooltip={{
+                title: "Big Lootfrog Multiplier",
+                lines: ["Base 5×. Applied to Big Lootfrog rewards (incl. chance)."],
+              }}
+            />
+            </div>
+
+            <div className="droneRow droneFuelGemsRow droneBomb10xRow" style={{ marginTop: 6 }}>
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">Lootfrog Gems/h (calculable)</span>
+              </span>
+              <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`${lootfrogTotalGemsPerHour.toFixed(1)} gems per hour from Lootfrog`}>
+                +{lootfrogTotalGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+
+            <Collapsible id="drone-lootfrog-gains" title="Lootfrog gains" defaultExpanded={false}>
+              <div className="droneLootfrogTableWrap">
+                <table className="droneLootfrogTable">
+                  <thead>
+                    <tr>
+                      <th className="droneLootfrogThName">Reward</th>
+                      <th className="droneLootfrogThSpawn">Reward/h</th>
+                      <th className="droneLootfrogThGems">
+                        <img src={GEM_ICON} alt="" className="droneLootfrogGemsIcon" aria-hidden />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lootfrogGainsRows.map((r) => (
+                      <tr key={r.label} className="droneLootfrogRow">
+                        <td className="droneLootfrogTdName">
+                          <span className="droneLootfrogRewardCell">
+                            {r.iconFile ? (
+                              <img src={lootfrogIconUrl(r.iconFile)} alt="" className="droneLootfrogIcon" aria-hidden />
+                            ) : null}
+                            <span>{r.label}</span>
+                          </span>
+                        </td>
+                        <td className="droneLootfrogTdSpawn">
+                          <span className="mono">{r.spawnsPerHour.toFixed(3)}</span>
+                        </td>
+                        <td className="droneLootfrogTdGems">
+                          {r.gemsPerHour != null ? (
+                            <span className="droneLootfrogGemsCell">
+                              <img src={GEM_ICON} alt="" className="droneLootfrogGemsIcon" aria-hidden />
+                              <span className="mono droneBomb10xGemEvValue">+{r.gemsPerHour.toFixed(1)}</span>
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Collapsible>
           </div>
         ) : null}
 

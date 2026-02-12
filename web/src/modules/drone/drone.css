@@ -98,6 +98,100 @@
   margin-bottom: 0;
 }
 
+/** Tight row spacing for Lootfrog params. */
+.droneLootfrogParams .droneRow {
+  margin-bottom: 3px;
+}
+
+.droneLootfrogTableWrap {
+  display: block;
+  overflow-x: auto;
+}
+
+.droneLootfrogTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.droneLootfrogTable thead tr {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.droneLootfrogTable th {
+  padding: 4px 6px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+}
+
+.droneLootfrogTable th.droneLootfrogThName {
+  min-width: 140px;
+}
+
+.droneLootfrogTable th.droneLootfrogThSpawn,
+.droneLootfrogTable th.droneLootfrogThGems {
+  min-width: 4.5em;
+  text-align: right;
+}
+
+.droneLootfrogTable tbody tr.droneLootfrogRow {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.droneLootfrogTable tbody tr.droneLootfrogRow:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.droneLootfrogTable td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.droneLootfrogRewardCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.droneLootfrogIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.droneLootfrogGemsCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.droneLootfrogGemsIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.droneLootfrogTdSpawn,
+.droneLootfrogTdGems {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.droneLootfrogTdGems .droneLootfrogGemsCell {
+  justify-content: flex-end;
+}
+
 .droneFuelGemsRow {
   align-items: center;
 }
@@ -325,7 +419,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.droneBomb10xRow .droneBomb10xGemEvValue {
+.droneBomb10xRow .droneBomb10xGemEvValue,
+.droneLootfrogTdGems .droneBomb10xGemEvValue {
   font-size: 1.35em;
   font-weight: 900;
   color: #1b5e20;
