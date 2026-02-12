@@ -929,7 +929,7 @@ export function Stargazing() {
                       checked={starCards.polychrome_bundle}
                       onChange={(e) => setStarCards((s) => ({ ...s, polychrome_bundle: e.target.checked }))}
                     />
-                    Value Pack active
+                    Polychrome Potency Bundle active
                   </label>
                 </div>
                 <Stepper

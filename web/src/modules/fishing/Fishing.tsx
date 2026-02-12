@@ -24,6 +24,7 @@ import {
   FISHING_UPGRADES_T2,
   getFishById,
   getFishCardGildGemCost,
+  FISHING_ROD_GILD_CARD_COST,
   upgradeIconUrl,
   enhanceIconUrl,
   UPGRADE_COSTS,
@@ -571,7 +572,7 @@ export function Fishing() {
     stats.super_shiny_multiplier,
   ]);
 
-  /** Card gain multiplier for a fish: tier 0 → 1×, Card → 1.5×, Gilded → 2×, Poly → 4×; when tier > 0 also × poly_card_gain_multi and Value Pack 1.15 if active. */
+  /** Card gain multiplier for a fish: tier 0 → 1×, Card → 1.5×, Gilded → 2×, Poly → 4×; when tier > 0 also × poly_card_gain_multi and Polychrome Potency Bundle 1.15 if active. */
   const getCardMulti = useMemo(() => {
     const poly = stats.poly_card_gain_multi * (state.valuePackPotencyPoly ? 1.15 : 1);
     return (fishId: string): number => {
@@ -762,6 +763,52 @@ export function Fishing() {
     stats.triple_tick_chance_pct,
     state.dronesPerDock,
     state.activeDockId,
+    getCardMulti,
+  ]);
+
+  /** Total fish/h with Fishing Rod at Poly (1.10×). Used for Card → Poly marginal when rod at Card. */
+  const totalFishPerHourWithRodPoly = useMemo(() => {
+    if (state.fishingRodCardTier !== 1) return 0;
+    const dockIds = new Set(availableDocks.map((d) => d.id));
+    const rodPoly = Math.round(stats.fishing_rod_power * 1.1);
+    const dronePower = stats.drone_base_power;
+    const sets = AQUARIUM.filter((set) => dockIds.has(set.dockId));
+    let total = 0;
+    for (const set of sets) {
+      const dock = DOCKS.find((d) => d.id === set.dockId)!;
+      const rodHere = state.activeDockId === set.dockId ? rodPoly : 0;
+      const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
+      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      if (powerOnThisDock <= 0) continue;
+      const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const fillsPerHour = dockFillsPerHour + extraFillsPerDockPerHour;
+      const doublePct = stats.double_tick_chance_pct / 100;
+      const triplePct = stats.triple_tick_chance_pct / 100;
+      const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+      for (const f of set.fish) {
+        const catchMulti =
+          expectedRollsPerFill *
+          expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
+          stats.fish_income_multi *
+          expectedShinyMulti;
+        const cardMulti = getCardMulti(f.id);
+        total += fillsPerHour * catchMulti * cardMulti;
+      }
+    }
+    return total;
+  }, [
+    availableDocks,
+    effectiveTickSec,
+    extraFillsPerDockPerHour,
+    expectedShinyMulti,
+    stats.fishing_rod_power,
+    stats.drone_base_power,
+    stats.fish_income_multi,
+    stats.double_tick_chance_pct,
+    stats.triple_tick_chance_pct,
+    state.dronesPerDock,
+    state.activeDockId,
+    state.fishingRodCardTier,
     getCardMulti,
   ]);
 
@@ -1305,14 +1352,16 @@ export function Fishing() {
     elixir3xFishingExternal,
   ]);
 
-  /** Fish card gild (Card → Gilded): marginal % and cost efficiency per gem. Only cards at tier 1. */
-  const { fishCardGildMarginalPct, fishCardGildCostEffic, costEfficHeatMinFishCard, costEfficHeatMaxFishCard } = useMemo(() => {
+  /** Fish card gild (Card → Gilded): marginal % and cost efficiency. Fish cards: "With This Fish I Summon Two More Fish". Fishing Rod: Card → Poly, cost 1500 cards. */
+  const { fishCardGildMarginalPct, fishCardGildCostEffic, fishingRodCardGildMarginalPct, fishingRodCardGildCostEffic, costEfficHeatMinFishCard, costEfficHeatMaxFishCard } = useMemo(() => {
     const total = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).reduce((s, r) => s + r.fishPerHour, 0);
     const marginalMap = new Map<string, number>();
     const efficMap = new Map<string, number>();
     const efficVals: number[] = [];
+    let rodMarginalPct: number | null = null;
+    let rodCostEffic: number | null = null;
     if (total <= 0) {
-      return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1 };
+      return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1 };
     }
     const cardToGildedDelta = 2 / 1.5 - 1; // Card 1.5× → Gilded 2×
     for (const row of visibleGainsRows) {
@@ -1328,13 +1377,20 @@ export function Fishing() {
         efficVals.push(effic);
       }
     }
+    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0) {
+      rodMarginalPct = ((totalFishPerHourWithRodPoly - total) / total) * 100;
+      rodCostEffic = (rodMarginalPct / FISHING_ROD_GILD_CARD_COST) * 100;
+      efficVals.push(rodCostEffic);
+    }
     return {
       fishCardGildMarginalPct: marginalMap,
       fishCardGildCostEffic: efficMap,
+      fishingRodCardGildMarginalPct: rodMarginalPct,
+      fishingRodCardGildCostEffic: rodCostEffic,
       costEfficHeatMinFishCard: efficVals.length ? Math.min(...efficVals) : 0,
       costEfficHeatMaxFishCard: efficVals.length ? Math.max(...efficVals) : 1,
     };
-  }, [visibleGainsRows, state.fishCardTier]);
+  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, totalFishPerHourWithRodPoly]);
 
   return (
     <div className="container">
@@ -2720,12 +2776,12 @@ export function Fishing() {
                 checked={state.valuePackPotencyPoly}
                 onChange={(e) => setState((prev) => ({ ...prev, valuePackPotencyPoly: e.target.checked }))}
               />
-              Value Pack (potency poly ×1.15)
+              Polychrome Potency Bundle (fish poly ×1.15)
             </label>
           </div>
           <Collapsible id="fishing-fish-card-gild-effic" title="How much do fish gains improve when I gild my cards?" defaultExpanded={false} className="fishingFishCardGildEffic">
             <div className="small" style={{ marginBottom: 8 }}>
-              Cost efficiency = marginal % gain per gem for Card → Gilded. Same scale as enhancements and skill tree.
+              Cost efficiency = marginal % gain per cost. Fish cards: Card → Gilded (gems). Fishing Rod Power: Card → Poly, 1500 cards. Same scale as enhancements and skill tree.
             </div>
             <div className="fishingUpgradesList">
               <table className="fishingUpgradeTable">
@@ -2737,60 +2793,97 @@ export function Fishing() {
                       <Tooltip
                         content={{
                           title: "Cost efficiency",
-                          sections: [
-                            {
-                              heading: "Gems",
-                              lines: [
-                                "Marginal % gain divided by gem cost for Card → Gilded.",
-                                "Higher = more gain per gem spent.",
-                              ],
-                            },
+                          lines: [
+                            "Marginal % gain divided by cost. Fish cards: gem cost for Card → Gilded. Fishing Rod: 1500 cards for Card → Poly.",
+                            "Higher = more gain per cost spent.",
                           ],
                         }}
                       />
                     </th>
-                    <th className="fishingUpgradeThCost">Cost (gems)</th>
+                    <th className="fishingUpgradeThCost"><img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" /></th>
                     <th className="fishingUpgradeThSpeed">+% gains</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleGainsRows
-                    .filter((r) => r.hasPower && r.fishPerHour > 0 && (state.fishCardTier[r.fish.id] ?? 0) === 1)
-                    .sort((a, b) => (fishCardGildCostEffic.get(b.fish.id) ?? 0) - (fishCardGildCostEffic.get(a.fish.id) ?? 0))
-                    .map((row) => {
-                      const marginalPct = fishCardGildMarginalPct.get(row.fish.id) ?? 0;
-                      const costEffic = fishCardGildCostEffic.get(row.fish.id) ?? null;
-                      const gems = getFishCardGildGemCost(row.fish.id);
+                  {[
+                    ...visibleGainsRows
+                      .filter((r) => r.hasPower && r.fishPerHour > 0 && (state.fishCardTier[r.fish.id] ?? 0) === 1)
+                      .map((row) => ({ type: "fish" as const, id: row.fish.id, effic: fishCardGildCostEffic.get(row.fish.id) ?? 0, row })),
+                    ...(fishingRodCardGildCostEffic != null
+                      ? [{ type: "rod" as const, id: "fishing_rod_power", effic: fishingRodCardGildCostEffic }]
+                      : []),
+                  ]
+                    .sort((a, b) => b.effic - a.effic)
+                    .map((entry) => {
+                      if (entry.type === "fish") {
+                        const row = entry.row!;
+                        const marginalPct = fishCardGildMarginalPct.get(row.fish.id) ?? 0;
+                        const costEffic = fishCardGildCostEffic.get(row.fish.id) ?? null;
+                        const gems = getFishCardGildGemCost(row.fish.id);
+                        const heatT =
+                          costEffic != null && costEfficHeatMaxFishCard > costEfficHeatMinFishCard
+                            ? (costEffic - costEfficHeatMinFishCard) / (costEfficHeatMaxFishCard - costEfficHeatMinFishCard)
+                            : 0.5;
+                        return (
+                          <tr key={row.fish.id} className="fishingUpgradeRow">
+                            <td className="fishingUpgradeTdName">
+                              <img src={fishIconUrl(row.fish.iconFile)} alt="" className="fishingUpgradeIcon" />
+                              <span className="fishingUpgradeName">{row.fish.name}</span>
+                            </td>
+                            <td className="fishingUpgradeTdCostEffic">
+                              {costEffic != null ? (
+                                <span
+                                  style={{
+                                    backgroundColor: heatmapColor(heatT),
+                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                  }}
+                                >
+                                  {costEffic.toFixed(2)}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="fishingUpgradeTdCost">
+                              <span className="fishingUpgradeCostBox">
+                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                                <span className="mono">{gems.toLocaleString()}</span>
+                              </span>
+                            </td>
+                            <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
+                          </tr>
+                        );
+                      }
+                      const costEffic = fishingRodCardGildCostEffic!;
+                      const marginalPct = fishingRodCardGildMarginalPct ?? 0;
                       const heatT =
-                        costEffic != null && costEfficHeatMaxFishCard > costEfficHeatMinFishCard
+                        costEfficHeatMaxFishCard > costEfficHeatMinFishCard
                           ? (costEffic - costEfficHeatMinFishCard) / (costEfficHeatMaxFishCard - costEfficHeatMinFishCard)
                           : 0.5;
                       return (
-                        <tr key={row.fish.id} className="fishingUpgradeRow">
+                        <tr key="fishing_rod_power" className="fishingUpgradeRow">
                           <td className="fishingUpgradeTdName">
-                            <img src={fishIconUrl(row.fish.iconFile)} alt="" className="fishingUpgradeIcon" />
-                            <span className="fishingUpgradeName">{row.fish.name}</span>
+                            <img src={upgradeIconUrl("Fishing_Rod_Power.png")} alt="" className="fishingUpgradeIcon" />
+                            <span className="fishingUpgradeName">Fishing Rod Power</span>
                           </td>
                           <td className="fishingUpgradeTdCostEffic">
-                            {costEffic != null ? (
-                              <span
-                                style={{
-                                  backgroundColor: heatmapColor(heatT),
-                                  color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                  padding: "2px 6px",
-                                  borderRadius: 4,
-                                }}
-                              >
-                                {costEffic.toFixed(2)}
-                              </span>
-                            ) : (
-                              "—"
-                            )}
+                            <span
+                              style={{
+                                backgroundColor: heatmapColor(heatT),
+                                color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                              }}
+                            >
+                              {costEffic.toFixed(2)}
+                            </span>
                           </td>
                           <td className="fishingUpgradeTdCost">
                             <span className="fishingUpgradeCostBox">
                               <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                              <span className="mono">{gems.toLocaleString()}</span>
+                              <span className="mono">{FISHING_ROD_GILD_CARD_COST.toLocaleString()}</span>
                             </span>
                           </td>
                           <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
@@ -2800,8 +2893,8 @@ export function Fishing() {
                 </tbody>
               </table>
             </div>
-            {visibleGainsRows.filter((r) => r.hasPower && (state.fishCardTier[r.fish.id] ?? 0) === 1).length === 0 ? (
-              <div className="small" style={{ padding: 8, opacity: 0.85 }}>No fish cards at Card level. Gild cards to see cost efficiency.</div>
+            {visibleGainsRows.filter((r) => r.hasPower && (state.fishCardTier[r.fish.id] ?? 0) === 1).length === 0 && fishingRodCardGildCostEffic == null ? (
+              <div className="small" style={{ padding: 8, opacity: 0.85 }}>You currently have no un-gilded Fish cards and no Fishing Rod Power at Card.</div>
             ) : null}
           </Collapsible>
           <div className="fishingFishCardsPanel">
@@ -2842,7 +2935,7 @@ export function Fishing() {
               })}
             </div>
             <div className="small" style={{ marginTop: 6, opacity: 0.85 }}>
-              Card: 50% second fish (1.5×). Gilded: 100% second fish (2×). Poly: 4× base. Poly multi from upgrades and Value Pack applies on top.
+              Card: 50% second fish (1.5×). Gilded: 100% second fish (2×). Poly: 4× base. Poly multi from upgrades and Polychrome Potency Bundle applies on top.
             </div>
           </div>
         </Collapsible>

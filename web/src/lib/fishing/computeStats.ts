@@ -34,7 +34,7 @@ export interface ComputedFishingStats {
   tier2_dock_power_mult: number;
   shiny_multiplier: number;
   super_shiny_multiplier: number;
-  /** Multiplier on fish card gains from upgrades (poly_card_multi, enhance_poly_card_multi). Value Pack (potency poly) applied in UI. */
+  /** Multiplier on fish card gains from upgrades (poly_card_multi, enhance_poly_card_multi). Polychrome Potency Bundle (fish poly ×1.15) applied in UI. */
   poly_card_gain_multi: number;
 }
 
@@ -172,7 +172,7 @@ export function computeFishingStatsFromLevels(
     0.08 * u("poly_card_multi") +
     0.15 * e("enhance_super_shiny_multi");
 
-  // Poly card gain multi: applies to fish card gains (Card 1.5×, Gilded 2×). Value Pack potency poly ×1.15 in UI.
+  // Poly card gain multi: applies to fish card gains (Card 1.5×, Gilded 2×). Polychrome Potency Bundle fish poly ×1.15 in UI.
   const poly_card_gain_multi =
     1 +
     0.08 * u("poly_card_multi") +

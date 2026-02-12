@@ -47,6 +47,7 @@ export {
   getFishById,
   getFishForDock,
   getFishCardGildGemCost,
+  FISHING_ROD_GILD_CARD_COST,
 } from "./constants";
 
 export { UPGRADE_COSTS, ENHANCE_COSTS_T1, ENHANCE_COSTS_T2 } from "./upgradeCosts";

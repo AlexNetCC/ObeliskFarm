@@ -187,6 +187,9 @@ export function getFishCardGildGemCost(fishId: string): number {
   return 1000 + idx * 250;
 }
 
+/** Card cost to gild Fishing Rod Power misc (Card → Poly). Gild leads to Poly since Poly can be forced quickly. */
+export const FISHING_ROD_GILD_CARD_COST = 1500;
+
 export function getFishById(id: string): FishDef | undefined {
   return ALL_FISH.find((f) => f.id === id);
 }
