@@ -2894,7 +2894,7 @@ export function Fishing() {
               </table>
             </div>
             {visibleGainsRows.filter((r) => r.hasPower && (state.fishCardTier[r.fish.id] ?? 0) === 1).length === 0 && fishingRodCardGildCostEffic == null ? (
-              <div className="small" style={{ padding: 8, opacity: 0.85 }}>You currently have no un-gilded Fish cards and no Fishing Rod Power at Card.</div>
+              <div className="small" style={{ padding: 8, opacity: 0.85 }}>You currently have no un-gilded Fish cards and no un-gilded Fishing Rod Power Card.</div>
             ) : null}
           </Collapsible>
           <div className="fishingFishCardsPanel">

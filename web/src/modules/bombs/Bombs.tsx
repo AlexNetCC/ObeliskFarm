@@ -448,7 +448,7 @@ export function Bombs() {
               <CardToggles value={params.gem_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, gem_bomb_recharge_card_level: lvl }))} />
             </div>
             <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds{chaosTotem100Uptime ? ")" : ", without Chaos Totem)"}{chaosTotem100Uptime ? null : <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />}</span>} value={params.gem_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
-            <Stepper label="Gem Chance per Charge (%)" value={params.gem_bomb_gem_chance * 100} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_gem_chance: v / 100 }))} step={0.5} min={0} max={100} decimals={1} />
+            <Stepper label="Gem Chance per Charge (%)" value={params.gem_bomb_gem_chance * 100} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_gem_chance: v / 100 }))} step={0.1} min={0} max={100} decimals={1} />
           </div>
 
           <div className="gemEvDivider" />
@@ -463,7 +463,7 @@ export function Bombs() {
               <CardToggles value={params.cherry_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, cherry_bomb_recharge_card_level: lvl }))} />
             </div>
             <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds{chaosTotem100Uptime ? ")" : ", without Chaos Totem)"}{chaosTotem100Uptime ? null : <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />}</span>} value={params.cherry_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
-            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>3× Charges Chance (%) <Tooltip content={{ title: "3× charges chance", sections: [{ heading: "Where to find it", lines: [<span key="w" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><img src={WORKSHOP_BUTTON_ICON} alt="Workshop" style={{ width: 18, height: 18, objectFit: "contain" }} /> Look up your value in the Workshop (Bombs section).</span>] }] }} /></span>} value={params.cherry_bomb_triple_charge_chance * 100} onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_triple_charge_chance: v / 100 }))} step={1} min={0} max={100} decimals={1} />
+            <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>3× Charges Chance (%) <Tooltip content={{ title: "3× charges chance", sections: [{ heading: "Where to find it", lines: [<span key="w" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><img src={WORKSHOP_BUTTON_ICON} alt="Workshop" style={{ width: 18, height: 18, objectFit: "contain" }} /> Look up your value in the Workshop (Bombs section).</span>] }] }} /></span>} value={params.cherry_bomb_triple_charge_chance * 100} onChange={(v) => setParams((s) => ({ ...s, cherry_bomb_triple_charge_chance: v / 100 }))} step={0.5} min={0} max={100} decimals={1} />
           </div>
 
           <div className="gemEvDivider" />
