@@ -60,6 +60,8 @@ export class MonteCarloArchaeologySimulator {
   ULTRA_CRIT_DMG_MULT_DEFAULT = 3.0;
   FLURRY_COOLDOWN = 120;
   FLURRY_STAMINA_BONUS = 5;
+  /** Fixed buff duration in seconds (no upgrades increase this). */
+  FLURRY_DURATION_SECONDS = 5;
   QUAKE_CHARGES = 5;
   QUAKE_COOLDOWN = 180;
   QUAKE_DAMAGE_MULTIPLIER = 0.2;
@@ -156,7 +158,7 @@ export class MonteCarloArchaeologySimulator {
     return Math.max(1, Math.round(base_damage * crit_damage_mult));
   }
 
-  /** speedModRemaining + flurryBuffRemaining: mutable refs. Speed mod = 2x (0.5s/hit), Flurry buff = 2x, both = 4x (0.25s/hit). Cooldowns tick in seconds. */
+  /** speedModRemaining (hits) + flurryBuffSecondsRemaining (seconds): mutable refs. Speed mod = 2x (0.5s/hit), Flurry buff = 2x, both = 4x (0.25s/hit). Cooldowns tick in seconds. */
   private simulateBlockKill(
     stats: any,
     block_hp: number,
@@ -167,7 +169,7 @@ export class MonteCarloArchaeologySimulator {
     enrage_state: EnrageState | null,
     effective_enrage_cooldown: number,
     speedModRemaining: { value: number },
-    flurryBuffRemaining: { value: number },
+    flurryBuffSecondsRemaining: { value: number },
   ): { hits: number; enrage_state: EnrageState | null; seconds_elapsed: number; speed_consumed: number } {
     let state = enrage_state;
     const enrage_was_enabled = state !== null;
@@ -182,13 +184,15 @@ export class MonteCarloArchaeologySimulator {
     let speed_consumed = 0;
     while (damage_dealt < block_hp) {
       const speed_active = speedModRemaining.value > 0;
-      const flurry_active = flurryBuffRemaining.value > 0;
+      const flurry_active = flurryBuffSecondsRemaining.value > 0;
       const seconds_this_hit = (speed_active ? 0.5 : 1.0) * (flurry_active ? 0.5 : 1.0);
       if (speed_active) {
         speedModRemaining.value -= 1;
         speed_consumed += 1;
       }
-      if (flurry_active) flurryBuffRemaining.value -= 1;
+      if (flurry_active) {
+        flurryBuffSecondsRemaining.value = Math.max(0, flurryBuffSecondsRemaining.value - seconds_this_hit);
+      }
 
       let is_enrage = false;
       if (state.charges_remaining > 0) {
@@ -287,10 +291,12 @@ export class MonteCarloArchaeologySimulator {
     const quake_charges = Number(stats.quake_charges ?? this.QUAKE_CHARGES);
 
     let flurry_stamina_bonus = 0;
+    let flurry_duration_seconds = 0;
     let flurry_cooldown: number | null = null;
-    let flurry_buff_hits_remaining = 0;
+    let flurry_buff_seconds_remaining = 0;
     if (flurry_enabled) {
       flurry_stamina_bonus = this.FLURRY_STAMINA_BONUS + Number(stats.flurry_stamina_bonus ?? 0);
+      flurry_duration_seconds = this.FLURRY_DURATION_SECONDS; // Fixed 5s; Flurry Buff only affects stamina on cast
       flurry_cooldown = this.persistent_flurry_cooldown ?? effective_flurry_cooldown;
     }
 
@@ -331,12 +337,12 @@ export class MonteCarloArchaeologySimulator {
         if (b.hp <= 0) continue;
 
         const speedModRef = { value: speed_mod_hits_remaining };
-        const flurryBuffRef = { value: flurry_buff_hits_remaining };
+        const flurryBuffRef = { value: flurry_buff_seconds_remaining };
         const kill = this.simulateBlockKill(stats, b.hp, b.armor, b.block_type, b.tier, use_crit, enrage_state, effective_enrage_cooldown, speedModRef, flurryBuffRef);
         const hits = kill.hits;
         enrage_state = kill.enrage_state;
         speed_mod_hits_remaining = speedModRef.value;
-        flurry_buff_hits_remaining = flurryBuffRef.value;
+        flurry_buff_seconds_remaining = flurryBuffRef.value;
         const seconds_elapsed_block = kill.seconds_elapsed;
         const speed_consumed_this_block = kill.speed_consumed;
         speed_mod_hits_consumed += speed_consumed_this_block;
@@ -355,16 +361,16 @@ export class MonteCarloArchaeologySimulator {
           }
         }
 
-        // Flurry cooldown and stamina bonus (cooldown in seconds). When it triggers, add flurry_stamina_bonus hits of 2x speed (stacking with speed mod = 4x).
+        // Flurry: cooldown in seconds. When it triggers, add stamina on cast + flurry_duration_seconds of 2x speed buff (stacking with speed mod = 4x).
         if (flurry_enabled && flurry_cooldown !== null) {
           flurry_cooldown -= seconds_elapsed_block;
           if (flurry_cooldown <= 0) {
             stamina_remaining = Math.min(max_stamina, stamina_remaining + flurry_stamina_bonus);
-            flurry_buff_hits_remaining += flurry_stamina_bonus;
+            flurry_buff_seconds_remaining += flurry_duration_seconds;
             flurry_cooldown = effective_flurry_cooldown;
             if (ability_instacharge > 0 && this.rng() < ability_instacharge) {
               stamina_remaining = Math.min(max_stamina, stamina_remaining + flurry_stamina_bonus);
-              flurry_buff_hits_remaining += flurry_stamina_bonus;
+              flurry_buff_seconds_remaining += flurry_duration_seconds;
               flurry_cooldown = effective_flurry_cooldown;
             }
           }

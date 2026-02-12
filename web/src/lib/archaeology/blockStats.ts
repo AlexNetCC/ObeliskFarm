@@ -72,3 +72,10 @@ export function getBlockMixForFloor(floor: number): Record<BlockType, BlockData>
   return out as Record<BlockType, BlockData>;
 }
 
+/** Gem cost for upgrading a block card from Normal (Card) to Gilded. Gold 25m, PP 500m (not used here). */
+export function getCardGemCost(blockType: BlockType, tier: 1 | 2 | 3): number {
+  const BT_INDEX = BLOCK_TYPES.indexOf(blockType);
+  const idx = BT_INDEX * 3 + (tier - 1);
+  return 1000 + idx * 125;
+}
+

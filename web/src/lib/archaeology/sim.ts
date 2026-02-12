@@ -4,6 +4,7 @@ import {
   ENRAGE_CRIT_DAMAGE_BONUS,
   ENRAGE_DAMAGE_BONUS,
   FLURRY_COOLDOWN,
+  FLURRY_DURATION_SECONDS,
   FLURRY_STAMINA_BONUS,
   FRAGMENT_UPGRADES,
   GEM_UPGRADE_BONUSES,
@@ -446,10 +447,9 @@ export function calculateRunDurationSeconds(build: ArchBuild, stats: ArchStats, 
     const avada = getAvadaKedaBonus(build.avadaKedaEnabled);
     const baseFlurryCooldown = FLURRY_COOLDOWN + (frag.flurry_cooldown ?? 0) + (frag.ability_cooldown ?? 0) + avada.cooldown_reduction;
     const flurryCooldown = Math.round(baseFlurryCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
-    const flurryStamina = FLURRY_STAMINA_BONUS + (frag.flurry_stamina ?? 0) + avada.duration_bonus;
     const baseDuration = totalHits;
     const activations = flurryCooldown > 0 ? baseDuration / flurryCooldown : 0;
-    totalHits += activations * flurryStamina;
+    totalHits += activations * FLURRY_DURATION_SECONDS * 2; // Hits during buff (2/sec)
   }
 
   const baseDurationSeconds = totalHits;
@@ -464,8 +464,8 @@ export function calculateRunDurationSeconds(build: ArchBuild, stats: ArchStats, 
     const baseFlurryCooldown = FLURRY_COOLDOWN + (frag.flurry_cooldown ?? 0) + (frag.ability_cooldown ?? 0) + avada.cooldown_reduction;
     const flurryCooldown = Math.round(baseFlurryCooldown * getAbilityCooldownMultiplier(build.miscCardLevel ?? 0));
     flurryActivations = flurryCooldown > 0 ? baseDurationSeconds / flurryCooldown : 0;
-    const flurryHitsPerActivation = FLURRY_STAMINA_BONUS + (frag.flurry_stamina ?? 0) + avada.duration_bonus;
-    flurryHitsTotal = flurryActivations * flurryHitsPerActivation;
+    // Fixed 5s duration; hits during flurry = 2 hits/sec
+    flurryHitsTotal = flurryActivations * FLURRY_DURATION_SECONDS * 2;
   }
 
   // Estimate overlap: Speed Mod hits uniformly distributed; fraction under Flurry

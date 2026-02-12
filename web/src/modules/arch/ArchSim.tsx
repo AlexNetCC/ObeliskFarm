@@ -6,7 +6,7 @@ import { formatInt } from "../../lib/format";
 import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES } from "../../lib/archaeology/constants";
-import { BLOCK_TYPES, getBlockData } from "../../lib/archaeology/blockStats";
+import { BLOCK_TYPES, getBlockData, getCardGemCost } from "../../lib/archaeology/blockStats";
 import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
 import { getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
 import type { ArchBuild, ArchGemUpgradeKey, BlockTier, BlockType, CardLevel, Skill } from "../../lib/archaeology/types";
@@ -265,6 +265,18 @@ export function ArchSim() {
     significant: boolean;
   }> | null>(null);
   const upgradeNextCancelRef = useRef(false);
+  const [cardNextRunning, setCardNextRunning] = useState(false);
+  const [cardNextProgress, setCardNextProgress] = useState<string | null>(null);
+  const [cardNextResults, setCardNextResults] = useState<Array<{
+    key: string;
+    displayName: string;
+    meanFloors: number;
+    growthPct: number;
+    cost: number;
+    perCost: number;
+    significant: boolean;
+  }> | null>(null);
+  const cardNextCancelRef = useRef(false);
   const [mcSettings, setMcSettings] = useState<McSettings>(() => {
     const raw = (loadJson<any>(MC_SETTINGS_KEY) ?? null) as any;
     const base = defaultMcSettings();
@@ -1684,7 +1696,7 @@ export function ArchSim() {
     type UpgradeResult = { key: string; displayName: string; costType: string; meanFloors: number; growthPct: number; cost: number | null; perCost: number | null; significant: boolean };
     const results: UpgradeResult[] = [];
     try {
-      setUpgradeNextProgress("Which Upgrade next to maximize Stage Push: Baseline (no upgrade)…");
+      setUpgradeNextProgress("Which Fragment Upgrade next to maximize Stage Push: Baseline (no upgrade)…");
       const baseStats = getTotalStats(baseBuild);
       const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
@@ -1700,7 +1712,7 @@ export function ArchSim() {
       for (let i = 0; i < unlockedUpgrades.length; i += 1) {
         if (upgradeNextCancelRef.current) break;
         const [key, info] = unlockedUpgrades[i]!;
-        setUpgradeNextProgress(`Which Upgrade next to maximize Stage Push: ${i + 1}/${unlockedUpgrades.length} — ${(info as any).display_name ?? key}`);
+        setUpgradeNextProgress(`Which Fragment Upgrade next to maximize Stage Push: ${i + 1}/${unlockedUpgrades.length} — ${(info as any).display_name ?? key}`);
         const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, 999);
         const cost = getUpgradeCost(key, curLvl);
         const variantBuild: ArchBuild = {
@@ -1744,6 +1756,108 @@ export function ArchSim() {
     } finally {
       pool.terminate();
       setUpgradeNextRunning(false);
+    }
+  }
+
+  async function runCardUpgradeNext() {
+    const refEntry = upgradeNextRefId ? stageLogEntries.find((e) => e.id === upgradeNextRefId) ?? null : stageLogEntries[0] ?? null;
+    if (!refEntry) {
+      setCardNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
+      return;
+    }
+    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const baseBuild: ArchBuild = {
+      ...refEntry.build,
+      skillPoints: {
+        strength: winnerDist.strength ?? 0,
+        agility: winnerDist.agility ?? 0,
+        perception: winnerDist.perception ?? 0,
+        intellect: winnerDist.intellect ?? 0,
+        luck: winnerDist.luck ?? 0,
+      },
+    };
+    const eligibleCards: Array<{ key: string; blockType: BlockType; tier: BlockTier }> = [];
+    for (const bt of BLOCK_TYPES) {
+      for (const t of [1, 2, 3] as const) {
+        if (!getBlockData(t, bt)) continue;
+        const key = `${bt},${t}`;
+        const cur = (baseBuild.blockCards[key] ?? 0) as CardLevel;
+        if (cur === 1) eligibleCards.push({ key, blockType: bt, tier: t });
+      }
+    }
+    if (eligibleCards.length === 0) {
+      setCardNextProgress("No card upgrades to evaluate (only cards at Card level; Gilded/Poly or none are skipped).");
+      return;
+    }
+    setCardNextRunning(true);
+    setCardNextProgress(null);
+    setCardNextResults(null);
+    cardNextCancelRef.current = false;
+    const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
+    const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
+    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
+    const N_SIMS = 3000;
+    type CardResult = { key: string; displayName: string; meanFloors: number; growthPct: number; cost: number; perCost: number; significant: boolean };
+    const results: CardResult[] = [];
+    try {
+      setCardNextProgress("Which Card Upgrade next (Card → Gilded) to maximize Stage Push: Baseline…");
+      const baseStats = getTotalStats(baseBuild);
+      const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+      const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
+      const baseOut = await pool.run({
+        type: "stageLite",
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+      });
+      const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+      const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
+      const baseMeanFloors = baseStatsRes.mean;
+      const baseStd = baseStatsRes.std;
+
+      for (let i = 0; i < eligibleCards.length; i += 1) {
+        if (cardNextCancelRef.current) break;
+        const { key, blockType, tier } = eligibleCards[i]!;
+        setCardNextProgress(`Which Card Upgrade next (Card → Gilded) to maximize Stage Push: ${i + 1}/${eligibleCards.length} — ${blockType} T${tier}`);
+        const cost = getCardGemCost(blockType, tier);
+        const variantBuild: ArchBuild = {
+          ...baseBuild,
+          blockCards: { ...baseBuild.blockCards, [key]: 2 },
+        };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 10000 + i, targetFrag: null },
+        });
+        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanFloors = varStats.mean;
+        const growthPct = baseMeanFloors > 0 ? ((meanFloors - baseMeanFloors) / baseMeanFloors) * 100 : 0;
+        const perCost = cost > 0 ? growthPct / cost : 0;
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        results.push({
+          key,
+          displayName: `${blockType} T${tier}`,
+          meanFloors,
+          growthPct,
+          cost,
+          perCost,
+          significant,
+        });
+      }
+      results.sort((a, b) => b.growthPct - a.growthPct);
+      setCardNextResults(results);
+      setCardNextProgress(cardNextCancelRef.current ? "Cancelled." : "Done.");
+    } catch (e) {
+      setCardNextProgress(e instanceof Error ? e.message : String(e));
+    } finally {
+      pool.terminate();
+      setCardNextRunning(false);
     }
   }
 
@@ -2420,7 +2534,7 @@ export function ArchSim() {
               Mod chances are <span className="mono">per block hit</span>.
             </div>
             <div className="small" style={{ marginBottom: 6 }}>
-              Speed Mod: when multiple blocks trigger it, <strong>duration</strong> adds (more hits at 2× speed); speed stays 2×. Speed Mod and Flurry <strong>stack multiplicatively</strong> (2× × 2× = 4× speed when both active).
+              Speed Mod: when multiple blocks trigger it, <strong>duration</strong> adds (more hits at 2× speed); speed stays 2×. Flurry: 2× speed for 5 <strong>seconds</strong> (fixed). Speed Mod and Flurry <strong>stack multiplicatively</strong> (2× × 2× = 4× when both active).
             </div>
             <div className="kv" style={{ background: "var(--tier1)" }}>
               <kbd>Exp mod chance</kbd>
@@ -2457,7 +2571,7 @@ export function ArchSim() {
             <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
               <Collapsible
                 id="arch-which-upgrade-next"
-                title="Which Upgrade next to maximize Stage Push?"
+                title="Which Fragment Upgrade next to maximize Stage Push?"
                 defaultExpanded={false}
                 className="archWhichUpgradeNext"
                 headerRight={
@@ -2638,6 +2752,163 @@ export function ArchSim() {
                                         );
                                       })}
                                     </Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })() : null}
+                    </>
+                  )}
+                </div>
+              </Collapsible>
+
+              <Collapsible
+                id="arch-card-next"
+                title="Which Card Upgrade next (Card → Gilded) to maximize Stage Push?"
+                defaultExpanded={false}
+                headerRight={
+                  <Tooltip
+                    content={{
+                      title: "Card upgrade MC",
+                      sections: [
+                        {
+                          heading: "What",
+                          lines: [
+                            "Evaluates which block card upgrade (Card → Gilded) gives the most Floors/run gain per gem cost.",
+                            "Only cards at Card level are evaluated. Gilded/Poly or not owned are skipped.",
+                          ],
+                        },
+                        {
+                          heading: "Significance",
+                          lines: [
+                            "Uses same Stage MC (N=3000) and 95% confidence test as fragment upgrade next.",
+                            "* = not statistically significant.",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                }
+              >
+                <div className="small" style={{ marginBottom: 8 }}>
+                  {stageLogEntries.length === 0 ? (
+                    <div className="pillLocked" style={{ padding: 8 }}>
+                      Run a Stage Push MC first. No Stage result in the log.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                        <span className="small">Uses same reference as fragment upgrade next.</span>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => runCardUpgradeNext()}
+                          disabled={cardNextRunning || mcRunning || stageLogEntries.length === 0}
+                        >
+                          {cardNextRunning ? "Running…" : "Run (N=3000)"}
+                        </button>
+                        {cardNextRunning ? (
+                          <button className="btn btnSecondary" type="button" onClick={() => { cardNextCancelRef.current = true; }} disabled={!cardNextRunning}>
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                      {cardNextProgress ? (
+                        <div className="small mono" style={{ marginBottom: 8 }}>
+                          {cardNextProgress}
+                        </div>
+                      ) : null}
+                      {cardNextResults && cardNextResults.length > 0 ? (() => {
+                        const rs = cardNextResults;
+                        // Independent heat scale (gems have different value than fragments)
+                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
+                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
+                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
+                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
+                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
+                        const minPerCost = perCostVals.length > 0 ? Math.min(...perCostVals) : 0;
+                        const maxPerCost = perCostVals.length > 0 ? Math.max(...perCostVals) : 0;
+                        const heatPct = (v: number, lo: number, hi: number) =>
+                          hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        let rowNum = 0;
+                        return (
+                          <div className="small">
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next card upgrade (by Floors/run +%, gem cost):</div>
+                            <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                              <span
+                                style={{
+                                  color: "hsl(120, 75%, 35%)",
+                                  textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9), 0 0 14px hsla(120, 75%, 50%, 0.5)",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                GREEN = GOOD
+                              </span>
+                              <span style={{ color: "#666" }}>Heat scale: within this table only (gems ≠ fragments)</span>
+                              <span title="95% confidence; two-sample comparison (baseline vs variant, N=3000 each)">
+                                * = not statistically significant
+                              </span>
+                            </div>
+                            <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Card</th>
+                                  <th className="num">Floors/run</th>
+                                  <th className="num">Floors/run (+%)</th>
+                                  <th className="num">Gems</th>
+                                  <th className="num" title="Floors/run (+%) per gem">(+%)/gem</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rs.map((r) => {
+                                  rowNum += 1;
+                                  return (
+                                    <tr key={r.key}>
+                                      <td style={{ paddingRight: 12 }}>{rowNum}</td>
+                                      <td style={{ paddingRight: 12 }}>{r.displayName}</td>
+                                      <td className="num">
+                                        <span
+                                          style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                          title={!r.significant ? "Not statistically significant (95% CI includes 0)" : undefined}
+                                        >
+                                          {!r.significant ? "*" : r.meanFloors.toFixed(3)}
+                                        </span>
+                                      </td>
+                                      <td className="num">
+                                        <span
+                                          style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                          title={
+                                            !r.significant
+                                              ? "Not statistically significant (95% CI includes 0)"
+                                              : r.growthPct < 0
+                                                ? "(too much variance / rather negative)"
+                                                : undefined
+                                          }
+                                        >
+                                          {!r.significant
+                                            ? "*"
+                                            : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
+                                        </span>
+                                      </td>
+                                      <td className="num">{r.cost}</td>
+                                      <td className="num">
+                                        <span
+                                          style={{ ...heatStyleRedGreen(heatPct(r.perCost, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                          title={
+                                            !r.significant
+                                              ? "Not statistically significant (95% CI includes 0)"
+                                              : r.perCost < 0
+                                                ? "(too much variance / rather negative)"
+                                                : undefined
+                                          }
+                                        >
+                                          {!r.significant || r.perCost < 0 ? "*" : r.perCost.toFixed(6)}
+                                        </span>
+                                      </td>
+                                    </tr>
                                   );
                                 })}
                               </tbody>
