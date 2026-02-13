@@ -567,13 +567,6 @@ export function Stargazing() {
     return calc.get_summary();
   }, [stats]);
 
-  /** Stats with 100% catch (for "Do you catch manually?" = yes). Overrides auto_catch so Online row shows manual catch rate. */
-  const statsManualCatch = useMemo<PlayerStats>(() => ({ ...stats, auto_catch_chance: 1 }), [stats]);
-  const summaryManualCatch = useMemo(() => {
-    const calc = new StargazingCalculator(statsManualCatch);
-    return calc.get_summary();
-  }, [statsManualCatch]);
-
   const summaryOffline = useMemo(() => {
     const calc = new StargazingCalculator(statsOffline);
     return calc.get_summary();
@@ -620,7 +613,8 @@ export function Stargazing() {
     () => ({
       title: "Online",
       lines: [
-        "Rate includes auto-catch. Toggle \"Do you catch manually?\" to use 100% catch instead.",
+        "Manual catch: full rate (inherent ×5, you switch stages). CTRL+F has no effect.",
+        "Auto-catch: toggle \"Do you catch manually?\" off — then CTRL+F applies (0.2 vs 1.0).",
         "All buffs (Lootbug, Founder Supply Drop, Elixir Drone) are collected. Starburst: enter manually in Your stats.",
       ],
     }),
@@ -654,13 +648,13 @@ export function Stargazing() {
     () => ({
       title: "CTRL+F Stars Skill",
       sections: [
-        { heading: "Effect", lines: ["Multiplies offline gains by 5x for both Stars and Super Stars."] },
+        { heading: "Effect", lines: ["Affects Online AFK and Offline gains only. Online (manual catch) always has full ×5; you switch stages manually."] },
         {
           heading: "Mechanics",
           lines: [
             "Each star type spawns on 5 different floors.",
-            "Without CTRL+F: you catch the star on 1 floor → offline = auto_catch × online × 0.2",
-            "With CTRL+F: you follow the star through all 5 floors → offline = auto_catch × online × 1.0",
+            "Online (manual): inherent ×5 — you switch stages, so CTRL+F has no effect.",
+            "Online AFK / Offline: without CTRL+F catch on 1 floor (0.2); with CTRL+F follow through all 5 (1.0).",
           ],
         },
       ],
@@ -734,7 +728,7 @@ export function Stargazing() {
                   <Tooltip content={onlineInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueBlue">{fmt1((catchManually ? summaryManualCatch.stars_per_hour_online_afk : summary.stars_per_hour_online_afk) * resultsCardMult)}</div>
+              <div className="mono sgResultValueBlue">{fmt1((catchManually ? summary.stars_per_hour_online : summary.stars_per_hour_online_afk) * resultsCardMult)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   ⭐ Stars/hour (Online AFK)
@@ -756,7 +750,7 @@ export function Stargazing() {
                   <Tooltip content={onlineInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueOrange">{fmt1(catchManually ? summaryManualCatch.super_stars_per_hour_online_afk : summary.super_stars_per_hour_online_afk)}</div>
+              <div className="mono sgResultValueOrange">{fmt1(catchManually ? summary.super_stars_per_hour_online : summary.super_stars_per_hour_online_afk)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />

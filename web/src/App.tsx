@@ -12,6 +12,7 @@ import { Lootbug } from "./modules/lootbug/Lootbug";
 import { Items } from "./modules/items/Items";
 import { Bombs } from "./modules/bombs/Bombs";
 import { OvernightGains } from "./modules/overnight/OvernightGains";
+import "./modules/overnight/overnight.css";
 type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
@@ -60,7 +61,7 @@ export function App() {
   );
 
   return (
-    <div className="appShell">
+    <div className={`appShell ${active === "overnight" ? "overnightActive" : ""}`}>
       <div className={`topNav ${navExpanded ? "navExpanded" : ""} ${headerMinimized ? "headerMinimized" : ""}`}>
         <div className="topNavBrand">
           <Sprite path="sprites/common/gem.png" alt="ObeliskFarm" className="icon" />

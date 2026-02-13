@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "../gemev/gemev.css";
-import "./overnight.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { loadJson, saveJson } from "../../lib/storage";
@@ -18,6 +17,7 @@ import { assetUrl } from "../../lib/assets";
 const STORAGE_KEY = "obeliskfarm:web:overnight_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+const BOMBS_STORAGE_KEY = "obeliskfarm:web:bombs_save.json:v1";
 const AUTO_BOMBER_INTERVAL_GAME_SEC = 1.25;
 
 const GEM_ICON = "sprites/common/gem.png";
@@ -294,7 +294,7 @@ export function OvernightGains() {
     return { ...base, ...(saved?.params ?? {}) } as GameParameters;
   }, []);
 
-  /** Re-read external every render so we always have the latest from Bombs, Drone, Lootbug (e.g. lootbugEvPerClaim). */
+  /** Re-read external and bomb params every render so we always have the latest from Bombs, Drone, Lootbug. */
   const external = (() => {
     const ext = loadJson<{
       game_speed_multiplier?: number;
@@ -302,6 +302,7 @@ export function OvernightGains() {
       droneFuelGemsPerHour?: number;
       elixirFuelGemsPerHour?: number;
       lootbugEvPerClaim?: number;
+      lootbugEvPerSpawn?: number;
       chaosTotem100FromBombs?: boolean;
     }>(GEMEV_EXTERNAL_KEY);
     const gameSpeed = typeof ext?.game_speed_multiplier === "number" && ext.game_speed_multiplier >= 1
@@ -310,12 +311,16 @@ export function OvernightGains() {
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? Math.max(0, ext.droneBomb10xMinPerHour) : 0;
     const droneFuel = typeof ext?.droneFuelGemsPerHour === "number" ? Math.max(0, ext.droneFuelGemsPerHour) : 0;
     const elixirFuel = typeof ext?.elixirFuelGemsPerHour === "number" ? Math.max(0, ext.elixirFuelGemsPerHour) : 0;
-    const lootbugEv = typeof ext?.lootbugEvPerClaim === "number"
-      ? ext.lootbugEvPerClaim
-      : null;
+    const lootbugEv = typeof ext?.lootbugEvPerSpawn === "number"
+      ? ext.lootbugEvPerSpawn
+      : (typeof ext?.lootbugEvPerClaim === "number" ? ext.lootbugEvPerClaim : null);
     const chaos100 = typeof ext?.chaosTotem100FromBombs === "boolean" ? ext.chaosTotem100FromBombs : false;
-    return { gameSpeed, drone10x, droneFuel, elixirFuel, lootbugEv, chaos100 };
+    const bombsSaved = loadJson<{ params?: Partial<GameParameters> }>(BOMBS_STORAGE_KEY);
+    const bombsParams = { ...defaultGameParameters(), ...(bombsSaved?.params ?? {}) } as GameParameters;
+    return { gameSpeed, drone10x, droneFuel, elixirFuel, lootbugEv, chaos100, bombsParams };
   })();
+
+  const bombsParams = external.bombsParams;
 
   /** When offline (screen off): no Elixir Drone buff (10× = 0) and no Elixir fuel cost. */
   const effectiveDrone10x = state.offlineNoElixirBuff ? 0 : external.drone10x;
@@ -330,23 +335,24 @@ export function OvernightGains() {
     return p;
   }, [gemEvParams, external.gameSpeed, effectiveDrone10x, external.chaos100]);
 
+  /** Auto-Bomber Gem EV/h: same logic as Bombs module (raw Gem Bombs only, no Cherry/D20/Battery). Uses bomb params from Bombs module. */
   const autoBomberGemEvPerHour = useMemo(() => {
     if (!state.gemBombActive) return 0;
     const drone10xUptime = effectiveDrone10x / 60.0;
     const bomb10xFactor = 1.0 + 9.0 * drone10xUptime;
-    // Recharge params: when 100% from Bombs they are in-game (already /2); when not 100% they are base. Never apply Chaos again here (= 1).
-    const chaosFactor = 1.0;
-    const gameSpeedBonus = getGameSpeedBonus(effectiveParams);
-    const effGemSec = Math.max(0.01, gemEvParams.gem_bomb_recharge_seconds) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
-    const freeBombMult = 1.0 / (1.0 - Math.max(0, Math.min(0.99, gemEvParams.free_bomb_chance)));
-    const gemMult = rechargeChargeMultiplier(gemEvParams.gem_bomb_recharge_card_level);
+    const chaosUptime = external.chaos100 ? 1.0 : 0.0;
+    const chaosFactor = 1.0 + chaosUptime;
+    const gameSpeedBonus = getGameSpeedBonus({ ...effectiveParams, game_speed_multiplier: external.gameSpeed });
+    const effGemSec = Math.max(0.01, bombsParams.gem_bomb_recharge_seconds ?? 46) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
+    const freeBombMult = 1.0 / (1.0 - Math.max(0, Math.min(0.99, bombsParams.free_bomb_chance ?? 0)));
+    const gemMult = rechargeChargeMultiplier(bombsParams.gem_bomb_recharge_card_level ?? 0);
     const gemBombsRechargedPerHour = (3600 / effGemSec) * gemMult * freeBombMult;
     const intervalRealSec = AUTO_BOMBER_INTERVAL_GAME_SEC / external.gameSpeed;
     const gemBombsDroppedPerHour = intervalRealSec > 0 ? 3600 / intervalRealSec : 0;
     const effectiveGemBombsPerHour = Math.min(gemBombsDroppedPerHour, gemBombsRechargedPerHour);
-    const gemChance = Math.max(0, Math.min(1, gemEvParams.gem_bomb_gem_chance)) + getGemBombGemChanceT12Bonus(effectiveParams);
+    const gemChance = Math.max(0, Math.min(1, bombsParams.gem_bomb_gem_chance ?? 0)) + getGemBombGemChanceT12Bonus(effectiveParams);
     return effectiveGemBombsPerHour * gemChance;
-  }, [state.gemBombActive, external.chaos100, effectiveParams, gemEvParams, effectiveDrone10x, external.gameSpeed]);
+  }, [state.gemBombActive, effectiveParams, bombsParams, effectiveDrone10x, external.gameSpeed, external.chaos100]);
 
   const freebieEvPerClaim = useMemo(() => getFreebieEvPerClaim(effectiveParams), [effectiveParams]);
   const founderGemsPerEvent = useMemo(() => getFounderGemsPerSingleEvent(effectiveParams), [effectiveParams]);
@@ -382,8 +388,8 @@ export function OvernightGains() {
       {
         heading: "Auto-Bomber",
         lines: [
-          "When Gem Bomb is active, auto-bomber runs offline. Cherry/Battery/D20 are irrelevant for gem EV when Gem Bomb is on.",
-          "10× Bomb Recharge: only Drone is used (drones run offline). Lootbug 10× does not accumulate while you sleep.",
+          "Uses bomb params from Bombs module (recharge times, Free Bomb Chance, Gem chance, Card level). Same gains as Bombs Raw Gem Bombs.",
+          "No Cherry/Battery/D20 effect. 10× Bomb Recharge: only Drone (drones run offline). Lootbug 10× does not accumulate while you sleep.",
         ],
       },
       {
@@ -404,7 +410,7 @@ export function OvernightGains() {
         heading: "Lootbugs",
         lines: [
           "Banked lootbugs are paid out at end of night. One triple spawn counts as one banked lootbug.",
-          "If cap is 3, you get at most 3 rolls (gold/triple etc.). EV per claim is taken from Lootbug module.",
+          "EV per spawn (includes triple chance: 1 or 3 claims per spawn) is taken from Lootbug module.",
         ],
       },
     ],
@@ -538,16 +544,23 @@ export function OvernightGains() {
               <img src={LOOTBUG_ICON} alt="" className="iconSmall" style={{ width: 18, height: 18 }} aria-hidden />
               <Stepper label="Banked lootbugs" value={state.bankedLootbugs} onChange={(v) => setState((s) => ({ ...s, bankedLootbugs: Math.max(0, v) }))} step={1} min={0} max={999} decimals={0} />
             </div>
-            <div className="overnightRow overnightRowSingle">
-              <span className="label">Lootbug EV per claim</span>
-              <span className="mono">{external.lootbugEv != null ? external.lootbugEv.toFixed(1) : "—"}</span>
-              <Tooltip content={{ title: "Lootbug EV per claim", lines: ["Taken from Lootbug module. Open Lootbug to update the value.", "Used for banked lootbugs: count × EV per claim.", "Triple spawn chance is already included in the per-claim EV (Lootbug uses expected lootbugs per spawn)."] }} label="?" />
+            <div className="overnightRow overnightRowDouble">
+              <div className="gemEvRow overnightEvDisplay">
+                <span className="label">Freebie EV per claim</span>
+                <span className="mono">{Number.isFinite(freebieEvPerClaim) ? freebieEvPerClaim.toFixed(1) : "—"}</span>
+                <Tooltip content={{ title: "Freebie EV per claim", lines: ["Expected Gem EV from one freebie claim (one pop).", "Includes: base gems, Stonks, Skill Shards, Statue of Soprano gifts (when built).", "From Gem EV params. Used for banked freebies: count × EV per claim."] }} label="?" />
+              </div>
+              <div className="gemEvRow overnightEvDisplay">
+                <span className="label">Lootbug EV per spawn</span>
+                <span className="mono">{external.lootbugEv != null ? external.lootbugEv.toFixed(1) : "—"}</span>
+                <Tooltip content={{ title: "Lootbug EV per spawn", lines: ["Taken from Lootbug module. Open Lootbug to update the value.", "Used for banked lootbugs: count × EV per spawn (each spawn can be triple = 3 claims).", "Triple spawn chance is included: EV per spawn = EV per claim × expected lootbugs per spawn."] }} label="?" />
+              </div>
             </div>
           </div>
         </Collapsible>
 
         <div className="overnightReadOnlyNote">
-          <span className="small">Game speed and bomb params from Gem EV Calculator. Drone 10× and fuel from Drone module. Lootbug EV per claim from Lootbug module.</span>
+          <span className="small">Auto-Bomber: bomb params from Bombs module. Game speed from Gem EV. Drone 10× and fuel from Drone. Freebie EV from Gem EV. Lootbug EV from Lootbug.</span>
         </div>
       </div>
     </div>

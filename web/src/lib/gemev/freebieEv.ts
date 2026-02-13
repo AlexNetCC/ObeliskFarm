@@ -949,14 +949,15 @@ export function calculateTotalEvPerHour(params: GameParameters): TotalEv {
   return { gems_base: gems_base + gift_statue, stonks_ev, skill_shards_ev, founder_speed_boost, founder_gems, gem_bomb_gems, founder_bomb_boost, total };
 }
 
-/** Expected gem EV per single freebie claim (one pop). Used for overnight banked freebies. */
+/** Expected gem EV per single freebie claim (one pop). Used for overnight banked freebies. Includes Statue of Soprano gifts when built. */
 export function getFreebieEvPerClaim(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   if (freebiesPerHour <= 0) return 0;
   const gemsBase = calculateGemsBasePerHour(params);
   const stonks = calculateStonksEvPerHour(params);
   const skillShards = calculateSkillShardsEvPerHour(params);
-  return (gemsBase + stonks + skillShards) / freebiesPerHour;
+  const statueGifts = calculateStatueSopranoGiftEvPerHour(params);
+  return (gemsBase + stonks + skillShards + statueGifts) / freebiesPerHour;
 }
 
 /** Expected founder supply gems from a single drop event (one roll at start of night: 1, 2, or 3 drops). Overnight: only this one event. */

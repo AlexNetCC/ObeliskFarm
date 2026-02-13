@@ -472,6 +472,9 @@ export function Lootbug() {
     ? (gemsPerHour + cherryChargesGemsPerHourFromLootbug + net10xGemEvPerHour) / lootbugsPerHour
     : 0;
 
+  /** EV per lootbug spawn event (1 banked = 1 spawn, can be triple = 3 claims). Used by Overnight for banked lootbugs. */
+  const lootbugEvPerSpawn = lootbugEvPerClaim * expectedLootbugsPerSpawn;
+
   useEffect(() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
@@ -483,6 +486,7 @@ export function Lootbug() {
       lootbugNetGemsPerHour?: number;
       lootbug2xStarMinPerHour?: number;
       lootbugEvPerClaim?: number;
+      lootbugEvPerSpawn?: number;
       lootbugGainsGross?: number;
       lootbug10xGemEvPerHour?: number;
       lootbugChestGemEvPerHour?: number;
@@ -496,12 +500,13 @@ export function Lootbug() {
     ext.lootbugNetGemsPerHour = netGemsPerHour;
     ext.lootbug2xStarMinPerHour = lootbug2xStarMinPerHour;
     ext.lootbugEvPerClaim = lootbugEvPerClaim;
+    ext.lootbugEvPerSpawn = lootbugEvPerSpawn;
     ext.lootbugGainsGross = gemsPerHour + lootbug10xGemEvPerHour + lootbugChestGemEvPerHour;
     ext.lootbug10xGemEvPerHour = lootbug10xGemEvPerHour;
     ext.lootbugChestGemEvPerHour = lootbugChestGemEvPerHour;
     ext.lootbugTotalGemCostPerHour = totalGemCostPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};

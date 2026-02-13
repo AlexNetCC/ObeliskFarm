@@ -168,7 +168,8 @@ Jedes Modul lädt das JSON, merged seine Werte rein, speichert. Kein zentraler O
 | lootbugNet10xGemEvPerHour | Lootbug | – | – |
 | lootbugNetGemsPerHour | Lootbug | – | GemEv |
 | lootbug2xStarMinPerHour | Lootbug | – | Stargazing |
-| lootbugEvPerClaim | Lootbug | – | Overnight |
+| lootbugEvPerClaim | Lootbug | – | – |
+| lootbugEvPerSpawn | Lootbug | – | Overnight |
 | bombBearLootbugGemsEvPerHour | Lootbug | – | – |
 | droneBomb10xMinPerHour | Drone | – | GemEv, Bombs, Lootbug |
 | droneFuelGemsPerHour | Drone | – | GemEv |
