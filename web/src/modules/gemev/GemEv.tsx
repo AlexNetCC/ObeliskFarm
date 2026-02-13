@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./gemev.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
@@ -12,6 +13,7 @@ import {
   calculateGemBombGemsPerHour,
   calculateGiftEvBreakdown,
   calculateGiftEvPerGift,
+  calculateGiftSushiPerHour,
   calculateStonksChestsPerHour,
   calculateTotalEvPerHour,
   defaultGameParameters,
@@ -21,6 +23,7 @@ import {
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
 import { ContribBarChart, ContribLegend } from "./ContribBarChart";
+import { GiftEvChart } from "./GiftEvChart";
 
 type SavedStateV1 = {
   params: Partial<GameParameters>;
@@ -32,6 +35,7 @@ type SavedStateV1 = {
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Math.trunc(n)));
@@ -180,6 +184,7 @@ export function GemEv() {
   const [stonksEnabled, setStonksEnabled] = useState<boolean>(initial.stonks_enabled);
   const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
+  const [giftChartOpen, setGiftChartOpen] = useState(false);
   const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
   const [statueSopranoLevel, setStatueSopranoLevel] = useState<number>(initial.statue_soprano_level);
   const [lootbugNetGemsPerHour, setLootbugNetGemsPerHour] = useState(0);
@@ -223,6 +228,11 @@ export function GemEv() {
       gemBombGemsPerHourFromBombs?: number;
       gemBomb10xImpactFromBombs?: number;
       chaosTotemImpactFromBombs?: number;
+      valueOfOneChestForLootbug?: number;
+      chaosTotemValuePerTotemForGift?: number;
+      fishingUnlocked?: boolean;
+      giftFishingTickValue?: number;
+      fishPerSushiEvForGift?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
@@ -241,7 +251,14 @@ export function GemEv() {
     const gemBomb10xImpactFromBombs = typeof ext?.gemBomb10xImpactFromBombs === "number" ? ext.gemBomb10xImpactFromBombs : undefined;
     const chaosTotemImpactFromItems = typeof ext?.chaosTotemImpact === "number" ? ext.chaosTotemImpact : undefined;
     const chaosTotemImpactFromBombs = typeof ext?.chaosTotemImpactFromBombs === "number" ? ext.chaosTotemImpactFromBombs : undefined;
-    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
+    const valueOfOneChestForLootbug = typeof ext?.valueOfOneChestForLootbug === "number" ? ext.valueOfOneChestForLootbug : undefined;
+    const chaosTotemValuePerTotemForGift = typeof ext?.chaosTotemValuePerTotemForGift === "number" ? ext.chaosTotemValuePerTotemForGift : undefined;
+    const fishingUnlocked = Boolean(ext?.fishingUnlocked);
+    const giftFishingTickValue = typeof ext?.giftFishingTickValue === "number" ? ext.giftFishingTickValue : undefined;
+    const fishPerSushiEvForGift = typeof ext?.fishPerSushiEvForGift === "number" ? ext.fishPerSushiEvForGift : undefined;
+    return {
+      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, fishPerSushiEvForGift,
+    };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
@@ -338,8 +355,20 @@ export function GemEv() {
     p.founder_bomb_speed_multiplier = clamp(p.founder_bomb_speed_multiplier, 0.1, 100);
     p.founder_bomb_speed_duration_seconds = clamp(p.founder_bomb_speed_duration_seconds, 0, 10_000);
 
+    // Gift EV overrides (from Items, Drone, Bombs)
+    p.gift_item_chest_value = external.valueOfOneChestForLootbug;
+    p.gift_chaos_totem_100_from_bombs = external.chaosTotem100FromBombs;
+    p.gift_chaos_totem_value_per_totem = external.chaosTotemValuePerTotemForGift;
+    p.gift_fishing_unlocked = external.fishingUnlocked;
+    p.gift_fishing_tick_value = external.giftFishingTickValue;
+    p.gift_charge_magnet_value_per_magnet = !external.fishingUnlocked
+      ? calculateChargeMagnetGemsPerHour(p, 20)
+      : undefined;
+    p.gift_drone_fuel_gems_per_fuel = 5;
+    p.gift_sushi_fish_per_sushi = external.fishPerSushiEvForGift;
+
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs]);
+  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.fishPerSushiEvForGift]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);
@@ -441,6 +470,13 @@ export function GemEv() {
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
   }, [founderSupplyDrop.starSpawn2xMinPerHour, founderSupplyDrop.starAutoCatch100MinPerHour]);
 
+  useEffect(() => {
+    const giftSushiPerHour = calculateGiftSushiPerHour(effectiveParams);
+    const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
+    ext.giftSushiPerHour = giftSushiPerHour;
+    saveJson(FISHING_EXTERNAL_KEY, ext);
+  }, [effectiveParams]);
+
   const lootbugNetContribution = typeof external.lootbugGainsGross === "number"
     ? external.lootbugGainsGross - (external.lootbugTotalGemCostPerHour ?? 0)
     : (external.lootbugNetGemsPerHour ?? 0);
@@ -465,24 +501,33 @@ export function GemEv() {
 
   const giftTooltip = useMemo(() => {
     const total = giftBreakdown.total || 0;
-    const entries: Array<{ label: string; key: keyof typeof giftBreakdown }> = [
-      { label: "Gems (20-40)", key: "gems_20_40" },
-      { label: "Gems (30-65)", key: "gems_30_65" },
-      { label: "Skill Shards", key: "skill_shards" },
-      { label: "Blue Cow", key: "blue_cow" },
-      { label: "2× Speed Boost", key: "speed_boost" },
-      { label: "Rare Roll Gems", key: "rare_gems" },
-      { label: "Recursive Gifts", key: "recursive_gifts" },
+    const entries: Array<{ label: string; key: keyof typeof giftBreakdown; unit: "gems" | "fish" }> = [
+      { label: "Gems (20-40)", key: "gems_20_40", unit: "gems" },
+      { label: "Gems (30-65)", key: "gems_30_65", unit: "gems" },
+      { label: "Skill Shards", key: "skill_shards", unit: "gems" },
+      { label: "Item Chests", key: "item_chests", unit: "gems" },
+      { label: "Chaos Totem", key: "chaos_totem", unit: "gems" },
+      { label: "Charge Magnet", key: "charge_magnet", unit: "gems" },
+      { label: "5× Fishing Tick Chance", key: "fishing_tick", unit: "gems" },
+      { label: "Rare Roll Gems", key: "rare_gems", unit: "gems" },
+      { label: "Drone Fuel", key: "drone_fuel", unit: "gems" },
+      { label: "Skin (80-130 Gems)", key: "skin", unit: "gems" },
+      { label: "Sushi (fish)", key: "sushi_fish", unit: "fish" },
+      { label: "Recursive Gifts", key: "recursive_gifts", unit: "gems" },
     ];
     return {
       title: "Gift-EV (per 1 opened gift)",
       sections: [
         {
           heading: "Breakdown (value + share)",
-          lines: entries.map(({ label, key }) => {
-            const v = Number(giftBreakdown[key] ?? 0);
-            return `• ${label}: ${fmt1(v)} Gems (${fmtPct(v, total)})`;
-          }),
+          lines: entries
+            .filter(({ key }) => (giftBreakdown[key] ?? 0) > 0)
+            .map(({ label, key, unit }) => {
+              const v = Number(giftBreakdown[key] ?? 0);
+              return unit === "fish"
+                ? `• ${label}: ${fmt1(v)} fish`
+                : `• ${label}: ${fmt1(v)} Gems (${fmtPct(v, total)})`;
+            }),
         },
         {
           heading: "Total",
@@ -524,7 +569,6 @@ export function GemEv() {
           ],
         },
         { heading: "Rewards (assumptions)", lines: ["Founder Gems: fixed 10 Gems/drop", "Founder Speed: 2× for 5 minutes (time saved → more freebies)", "1/1234 chance: 10 gifts per supply drop"] },
-        { heading: "Obelisk", lines: ["Obelisk Level affects bonus gems and Gift-EV multipliers."] },
       ],
     }),
     [],
@@ -551,18 +595,30 @@ export function GemEv() {
               <div className="mono" style={{ fontWeight: 900 }}>
                 {fmt1(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
               </div>
-              <kbd>Gift-EV</kbd>
-              <div className="mono" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
+                Gift-EV
+                <button
+                  type="button"
+                  className="giftEvChartIconBtn"
+                  onClick={() => setGiftChartOpen(true)}
+                  title="Gift EV breakdown chart"
+                  aria-label="Open Gift EV breakdown chart"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="3" y="14" width="4" height="6" rx="1" />
+                    <rect x="10" y="10" width="4" height="10" rx="1" />
+                    <rect x="17" y="6" width="4" height="14" rx="1" />
+                  </svg>
+                </button>
+              </kbd>
+              <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 <span style={{ fontWeight: 900 }}>{fmt1(giftEv)} Gems per Gift</span>
-                <Tooltip content={giftTooltip} />
+                <Tooltip content={giftTooltip} label="?" />
               </div>
             </div>
 
-            <div className="small" style={{ marginTop: 10 }}>
-              Founder supply split: Speed <span className="mono">{fmt1(ev.founder_speed_boost)}</span> • Gems{" "}
-              <span className="mono">{fmt1(ev.founder_gems)}</span>
-            </div>
-            {!params.founder_enabled ? <div className="small" style={{ marginTop: 6 }}>FOUNDER is disabled: all founder-related contributions are set to 0.</div> : null}
+            {!params.founder_enabled ? <div className="small" style={{ marginTop: 10 }}>FOUNDER is disabled: all founder-related contributions are set to 0.</div> : null}
 
             <div className="btnRow" style={{ marginTop: 12, alignItems: "center" }}>
               <button className="btn" type="button" onClick={() => setChartOpen(true)}>
@@ -578,7 +634,7 @@ export function GemEv() {
             </div>
           </div>
 
-        <div id="gemev-game-speed" className="gemEvSection tierHeader1">
+        <div id="gemev-game-speed" className="gemEvSection gemEvGameObeliskSection">
             <div className="gemEvSectionHeader">
               <span className="gemEvSectionTitle">Game speed</span>
               <Tooltip
@@ -615,6 +671,25 @@ export function GemEv() {
                     max={10}
                     decimals={2}
                     showButtons={false}
+                  />
+                </div>
+                <div style={{ flex: "1", minWidth: "200px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Stepper
+                    label="Obelisk Level"
+                    value={params.obelisk_level}
+                    onChange={(v) => setParams((s) => ({ ...s, obelisk_level: clampInt(v, 0, 999) }))}
+                    step={1}
+                    min={0}
+                    max={999}
+                    inputMode="numeric"
+                    decimals={0}
+                  />
+                  <Tooltip
+                    content={{
+                      title: "Obelisk Level",
+                      lines: ["Affects bonus gems and Gift-EV multipliers (1 + Level × 0.08)."],
+                    }}
+                    label="?"
                   />
                 </div>
               </div>
@@ -688,6 +763,36 @@ export function GemEv() {
                   label="?"
                 />
               </div>
+
+              <div className="gemEvDivider" />
+
+              <div className="gemEvInlineHead">
+                <span className="mono">Jackpot (Freebie)</span>
+              </div>
+              <Stepper
+                label="Jackpot Chance (%)"
+                value={params.jackpot_chance * 100}
+                onChange={(v) => setParams((s) => ({ ...s, jackpot_chance: v / 100 }))}
+                step={1}
+                min={0}
+                max={100}
+                decimals={1}
+              />
+
+              <div className="gemEvDivider" />
+
+              <div className="gemEvInlineHead">
+                <span className="mono">Refresh (Freebie)</span>
+              </div>
+              <Stepper
+                label="Instant Refresh Chance (%)"
+                value={params.instant_refresh_chance * 100}
+                onChange={(v) => setParams((s) => ({ ...s, instant_refresh_chance: v / 100 }))}
+                step={1}
+                min={0}
+                max={99}
+                decimals={1}
+              />
 
               <div className="gemEvDivider" />
 
@@ -928,36 +1033,6 @@ export function GemEv() {
                   </div>
                 </div>
               </Collapsible>
-
-              <div className="gemEvDivider" />
-
-              <div className="gemEvInlineHead">
-                <span className="mono">Jackpot (Freebie)</span>
-              </div>
-              <Stepper
-                label="Jackpot Chance (%)"
-                value={params.jackpot_chance * 100}
-                onChange={(v) => setParams((s) => ({ ...s, jackpot_chance: v / 100 }))}
-                step={1}
-                min={0}
-                max={100}
-                decimals={1}
-              />
-
-              <div className="gemEvDivider" />
-
-              <div className="gemEvInlineHead">
-                <span className="mono">Refresh (Freebie)</span>
-              </div>
-              <Stepper
-                label="Instant Refresh Chance (%)"
-                value={params.instant_refresh_chance * 100}
-                onChange={(v) => setParams((s) => ({ ...s, instant_refresh_chance: v / 100 }))}
-                step={1}
-                min={0}
-                max={99}
-                decimals={1}
-              />
             </div>
           </Collapsible>
 
@@ -989,17 +1064,6 @@ export function GemEv() {
                 step={1}
                 min={1}
                 max={12}
-                inputMode="numeric"
-                decimals={0}
-                disabled={!params.founder_enabled}
-              />
-              <Stepper
-                label="Obelisk Level"
-                value={params.obelisk_level}
-                onChange={(v) => setParams((s) => ({ ...s, obelisk_level: clampInt(v, 0, 999) }))}
-                step={1}
-                min={0}
-                max={999}
                 inputMode="numeric"
                 decimals={0}
                 disabled={!params.founder_enabled}
@@ -1054,6 +1118,32 @@ export function GemEv() {
             </div>
           </div>
         ) : null}
+
+        {giftChartOpen
+          ? createPortal(
+              <div className="modalOverlay" onMouseDown={() => setGiftChartOpen(false)} role="dialog" aria-modal="true" aria-labelledby="gift-ev-modal-title">
+                <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
+                  <div className="modalHeader">
+                    <div>
+                      <div id="gift-ev-modal-title" className="mono" style={{ fontWeight: 900 }}>
+                        Gift EV breakdown — {fmt1(giftEv)} Gems per Gift
+                      </div>
+                      <div className="small">Bars sorted by Gem EV (descending). All values include Obelisk × Lucky multipliers.</div>
+                    </div>
+                    <button className="btn btnSecondary" type="button" onClick={() => setGiftChartOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+                  <div className="modalBody">
+                    <div className="gemEvChartBlock">
+                      <GiftEvChart breakdown={giftBreakdown} />
+                    </div>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+          : null}
       </div>
     </div>
   );

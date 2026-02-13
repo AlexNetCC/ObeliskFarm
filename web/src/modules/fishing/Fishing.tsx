@@ -84,6 +84,7 @@ type FishingState = {
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
 const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
+const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 
 /** Sushi: base 90 ticks. Sushi Misc card: Card +5, Gilded +10, Poly +20. */
 const SUSHI_BASE_TICKS = 90;
@@ -692,6 +693,7 @@ export function Fishing() {
       elixir3xFishingTickSpeedUptimeFraction?: number;
       anglerTicksPerHour?: number;
       lootbugFishing12TicksProcsPerHour?: number;
+      giftSushiPerHour?: number;
     }>(FISHING_EXTERNAL_KEY);
     const minPerHour = typeof ext?.elixir3xFishingTickSpeedMinPerHour === "number" ? ext.elixir3xFishingTickSpeedMinPerHour : 0;
     const uptimeFraction =
@@ -700,11 +702,13 @@ export function Fishing() {
         : 0;
     const anglerTicksPerHour = typeof ext?.anglerTicksPerHour === "number" ? Math.max(0, ext.anglerTicksPerHour) : 0;
     const lootbugFishing12TicksProcsPerHour = typeof ext?.lootbugFishing12TicksProcsPerHour === "number" ? Math.max(0, ext.lootbugFishing12TicksProcsPerHour) : 0;
-    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, lootbugFishing12TicksProcsPerHour };
+    const giftSushiPerHour = typeof ext?.giftSushiPerHour === "number" ? Math.max(0, ext.giftSushiPerHour) : 0;
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, lootbugFishing12TicksProcsPerHour, giftSushiPerHour };
   })();
   const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
   const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
   const lootbugFishing12TicksProcsPerHour = fishingExternalData.lootbugFishing12TicksProcsPerHour;
+  const giftSushiPerHour = fishingExternalData.giftSushiPerHour;
 
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
   /** Fish/h multiplier from Elixir 3× buff (1 = no buff, 3 = 100% uptime). */
@@ -712,7 +716,8 @@ export function Fishing() {
     effectiveTickSec > 0 ? Math.min(3, tickDurationSec / effectiveTickSec) : 1;
 
   /** When a tick from Angler, Lootbug, or Sushi happens, it ticks on every dock (not distributed). So each dock gets the same +fills. */
-  const extraFillsPerDockPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour;
+  const giftSushiTicksPerHour = giftSushiPerHour * (SUSHI_BASE_TICKS + SUSHI_CARD_TICKS[state.sushiCardTier]);
+  const extraFillsPerDockPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour;
 
   /** Catch attempts per hour (fills × rolls per fill), total and per dock (only docks with power). */
   const catchAttemptsPerHour = useMemo(() => {
@@ -956,6 +961,13 @@ export function Fishing() {
     }));
     return { totalFishPerHour, fishPerSushiEv, fishPerSushiEvPerFish };
   }, [visibleGainsRows, effectiveTickSec, ticksPerSushi]);
+
+  /** Export for Gem EV: fish EV per 1 Sushi (for Gift Sushi rare roll value). */
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.fishPerSushiEvForGift = sushiEvAndTotal.fishPerSushiEv;
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [sushiEvAndTotal.fishPerSushiEv]);
 
   function runSushiMc() {
     const { fishPerSushiEv, fishPerSushiEvPerFish } = sushiEvAndTotal;

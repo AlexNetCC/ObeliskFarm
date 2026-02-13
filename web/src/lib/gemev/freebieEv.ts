@@ -94,6 +94,18 @@ export type GameParameters = {
 
   /** Statue of Soprano (Praed): 0 = none, 1 = Normal, 2 = Gilded, 3 = Platinized. Adds Freebie Gift Chance and 100× chance on freebie claims. */
   statue_soprano_level?: number;
+
+  /** Gift EV overrides (from external modules). Time boosts are no longer converted to Gems. */
+  gift_item_chest_value?: number; // Value per 1 Item Chest (Gems/h), from Items
+  gift_chaos_totem_100_from_bombs?: boolean; // When true, Chaos Totem from gift = 0
+  gift_chaos_totem_value_per_totem?: number; // When chaos not 100%, value per totem (Gems/h)
+  gift_fishing_unlocked?: boolean; // When true, use fishing tick value instead of Charge Magnet for 12–20 Charge Magnets outcome
+  gift_charge_magnet_value_per_magnet?: number; // When fishing not unlocked, value per 1 Charge Magnet (Gems/h)
+  gift_fishing_tick_value?: number; // When fishing unlocked, value of 10–15 min 5× Fishing Tick Chance +25% (Gems)
+  /** Drone Fuel: value per 1 Fuel in Gems. Default 5. */
+  gift_drone_fuel_gems_per_fuel?: number;
+  /** Sushi: fish EV per 1 Sushi (from Fishing module). Sushi only affects fish gain, not Gem EV total. */
+  gift_sushi_fish_per_sushi?: number;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -407,54 +419,100 @@ export function convertTimeBoostToGemEquivalent(params: GameParameters, minutes2
   return additionalFreebies * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
 }
 
+/** Rare roll chain: order matters, later replaces earlier. P(roll i wins) = p_i * ∏_{j>i}(1-p_j). */
+function computeRareRollWinProbs(obelisk: number): {
+  gifts3: number;
+  gems80_130: number;
+  droneFuel: number;
+  sushi15_24: number;
+  sushi50_60: number;
+  skin: number;
+  gildedSkin: number;
+} {
+  const p = [
+    obelisk >= 23 ? 1 / 20 : 0, // Star Spawn
+    1 / 40, // 3 Gifts
+    1 / 45, // 80-130 Gems
+    1 / 100, // Mythic Chest
+    obelisk >= 37 ? 1 / 37 : 0, // Tier 2 Items
+    obelisk >= 18 ? 1 / 30 : 0, // Drone Fuel
+    obelisk >= 30 ? 1 / 33 : 0, // Idol Tokens
+    obelisk >= 37 ? 1 / 45 : 0, // 15-24 Sushi
+    obelisk >= 37 ? 1 / 175 : 0, // 50-60 Sushi
+    1 / 200, // Skin
+    1 / 2000, // Gilded Skin
+    1 / 2500, // Divine Chest
+  ];
+  const noReplace = p.map((_, i) => p.slice(i + 1).reduce((acc, pj) => acc * (1 - pj), 1));
+  return {
+    gifts3: p[1] * noReplace[1],
+    gems80_130: p[2] * noReplace[2],
+    droneFuel: p[5] * noReplace[5],
+    sushi15_24: p[7] * noReplace[7],
+    sushi50_60: p[8] * noReplace[8],
+    skin: p[9] * noReplace[9],
+    gildedSkin: p[10] * noReplace[10],
+  };
+}
+
 export function calculateGiftEvPerGift(params: GameParameters): number {
   const obeliskMult = calculateObeliskMultiplier(params);
   const luckyMult = calculateLuckyMultiplier();
   const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
+  const chancePerItem = 1.0 / 12.0;
+  const obelisk = clampPositive(params.obelisk_level, 0);
 
-  // 1) Base roll EV (pre multipliers)
+  // 1) Base roll EV – time boosts no longer converted to Gems
   const gems20_40 = 30.0;
   const gems30_65 = 47.5;
   const skillShardsBase = 3.5;
-  const blueCowsBase = 3.0;
-  const minutesPerBlueCow = 16.0;
-  const speedMinutesBase = 32.5;
-  const chancePerItem = 1.0 / 12.0;
-
   const baseRollGems = chancePerItem * (gems20_40 + gems30_65);
   const baseRollShards = chancePerItem * skillShardsBase * skillShardValue;
-  const baseRollBlueCowMinutes = chancePerItem * blueCowsBase * minutesPerBlueCow;
-  const baseRollSpeedMinutes = chancePerItem * speedMinutesBase;
-  void 0; // keep alignment with python structure
 
-  const baseRollTimeBoostGems =
-    convertTimeBoostToGemEquivalent(params, baseRollBlueCowMinutes) + convertTimeBoostToGemEquivalent(params, baseRollSpeedMinutes);
-  const baseRollEv = baseRollGems + baseRollShards + baseRollTimeBoostGems;
-  void baseRollEv;
+  const itemChestsAvg = 32.5;
+  const itemChestsEv = chancePerItem * itemChestsAvg * (params.gift_item_chest_value ?? 0);
 
-  // 2) Rare rolls (subset used by desktop):
-  // 1/40: 3 gifts (recursive)
-  const rareGifts3Chance = 1 / 40;
-  // 1/45: 80-130 gems (avg 105), only if 3 gifts didn't trigger: (39/40)*(1/45)
-  const rareGemsChance = (39 / 40) * (1 / 45);
-  const rareGemsAvg = 105.0;
-  const rareRollGemsEv = rareGemsChance * rareGemsAvg;
+  const chaosTotemAvg = 12.5;
+  const chaosTotemEv = params.gift_chaos_totem_100_from_bombs
+    ? 0
+    : chancePerItem * chaosTotemAvg * (params.gift_chaos_totem_value_per_totem ?? 0);
 
-  // 3) Apply multipliers (Base -> Obelisk -> Lucky)
+  const chargeMagnetAvg = 16.0;
+  const fishingTickEv = params.gift_fishing_unlocked ? chancePerItem * (params.gift_fishing_tick_value ?? 0) : 0;
+  const chargeMagnetEv = !params.gift_fishing_unlocked
+    ? chancePerItem * chargeMagnetAvg * (params.gift_charge_magnet_value_per_magnet ?? 0)
+    : 0;
+
+  // 2) Rare rolls – full replacement chain
+  const rare = computeRareRollWinProbs(obelisk);
+  const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
+  const droneFuelAvgQty = obelisk * 1.5 + 10;
+  const rareGemsEv = rare.gems80_130 * 105.0 * obeliskMult * luckyMult;
+  const droneFuelEv = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
+  const skinEv = rare.skin * 105.0 * obeliskMult; // Skins: no Lucky mult
+
+  // 3) Apply multipliers to base
   const baseGemsWithMult = baseRollGems * obeliskMult * luckyMult;
   const baseShardsWithMult = baseRollShards * obeliskMult * luckyMult;
+  const itemChestsWithMult = itemChestsEv * obeliskMult * luckyMult;
+  const chaosTotemWithMult = chaosTotemEv * obeliskMult * luckyMult;
+  const chargeMagnetWithMult = chargeMagnetEv * obeliskMult * luckyMult;
+  const fishingTickWithMult = fishingTickEv * obeliskMult * luckyMult;
 
-  const baseBlueCowMinutesMult = baseRollBlueCowMinutes * obeliskMult * luckyMult;
-  const baseSpeedMinutesMult = baseRollSpeedMinutes * obeliskMult * luckyMult;
-  const baseTimeBoostGemsMult =
-    convertTimeBoostToGemEquivalent(params, baseBlueCowMinutesMult) + convertTimeBoostToGemEquivalent(params, baseSpeedMinutesMult);
-
-  const rareGemsWithMult = rareRollGemsEv * obeliskMult * luckyMult;
-
-  // 4) Solve recursion: GiftEV = A + B * GiftEV
-  const A = baseGemsWithMult + baseShardsWithMult + baseTimeBoostGemsMult + rareGemsWithMult;
-  const recursiveCoeff = rareGifts3Chance * 3.0 * obeliskMult * luckyMult;
-  if (recursiveCoeff >= 1.0) return A * 10.0; // matches desktop fallback
+  // 4) Recursion: GiftEV = A + B * GiftEV (3 Gifts and 25 Gifts from Gilded Skin)
+  const recursiveCoeff =
+    rare.gifts3 * 3.0 * obeliskMult * luckyMult + rare.gildedSkin * 25.0 * obeliskMult * luckyMult;
+  const A =
+    baseGemsWithMult +
+    baseShardsWithMult +
+    itemChestsWithMult +
+    chaosTotemWithMult +
+    chargeMagnetWithMult +
+    fishingTickWithMult +
+    rareGemsEv +
+    droneFuelEv +
+    skinEv;
+  if (recursiveCoeff >= 1.0) return A * 10.0;
   return A / (1.0 - recursiveCoeff);
 }
 
@@ -463,53 +521,132 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const luckyMult = calculateLuckyMultiplier();
   const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
   const chancePerItem = 1.0 / 12.0;
-
   const gems20_40 = 30.0;
   const gems30_65 = 47.5;
   const skillShardsBase = 3.5;
-  const blueCowsBase = 3.0;
-  const minutesPerBlueCow = 16.0;
-  const speedMinutesBase = 32.5;
+  const itemChestsAvg = 32.5;
+  const chaosTotemAvg = 12.5;
+  const chargeMagnetAvg = 16.0;
+  const obelisk = clampPositive(params.obelisk_level, 0);
 
-  const gems20_40_base = chancePerItem * gems20_40;
-  const gems30_65_base = chancePerItem * gems30_65;
-  const skillShardsBaseEv = chancePerItem * skillShardsBase * skillShardValue;
-  const blueCowMinutesBase = chancePerItem * blueCowsBase * minutesPerBlueCow;
-  const speedMinutesBaseEv = chancePerItem * speedMinutesBase;
+  const gems20_40_final = chancePerItem * gems20_40 * obeliskMult * luckyMult;
+  const gems30_65_final = chancePerItem * gems30_65 * obeliskMult * luckyMult;
+  const skillShards_final = chancePerItem * skillShardsBase * skillShardValue * obeliskMult * luckyMult;
+  const item_chests_final =
+    chancePerItem * itemChestsAvg * (params.gift_item_chest_value ?? 0) * obeliskMult * luckyMult;
+  const chaos_totem_final = params.gift_chaos_totem_100_from_bombs
+    ? 0
+    : chancePerItem * chaosTotemAvg * (params.gift_chaos_totem_value_per_totem ?? 0) * obeliskMult * luckyMult;
+  const charge_magnet_final = !params.gift_fishing_unlocked
+    ? chancePerItem * chargeMagnetAvg * (params.gift_charge_magnet_value_per_magnet ?? 0) * obeliskMult * luckyMult
+    : 0;
+  const fishing_tick_final = params.gift_fishing_unlocked
+    ? chancePerItem * (params.gift_fishing_tick_value ?? 0) * obeliskMult * luckyMult
+    : 0;
 
-  const gems20_40_final = gems20_40_base * obeliskMult * luckyMult;
-  const gems30_65_final = gems30_65_base * obeliskMult * luckyMult;
-  const skillShards_final = skillShardsBaseEv * obeliskMult * luckyMult;
+  const rare = computeRareRollWinProbs(obelisk);
+  const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
+  const droneFuelAvgQty = obelisk * 1.5 + 10;
+  const rare_gems_final = rare.gems80_130 * 105.0 * obeliskMult * luckyMult;
+  const drone_fuel_final = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
+  const skin_final = rare.skin * 105.0 * obeliskMult;
 
-  const blueCowMinutes_final = blueCowMinutesBase * obeliskMult * luckyMult;
-  const speedMinutes_final = speedMinutesBaseEv * obeliskMult * luckyMult;
-  const blueCowGems_final = convertTimeBoostToGemEquivalent(params, blueCowMinutes_final);
-  const speedGems_final = convertTimeBoostToGemEquivalent(params, speedMinutes_final);
-
-  const rareGemsChance = (39 / 40) * (1 / 45);
-  const rareGemsAvg = 105.0;
-  const rareGems_final = rareGemsChance * rareGemsAvg * obeliskMult * luckyMult;
+  const fishPerSushi = params.gift_sushi_fish_per_sushi ?? 0;
+  const sushi_fish_final =
+    (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult * fishPerSushi;
 
   const giftEvTotal = calculateGiftEvPerGift(params);
   const A =
     gems20_40_final +
     gems30_65_final +
     skillShards_final +
-    blueCowGems_final +
-    speedGems_final +
-    rareGems_final;
+    item_chests_final +
+    chaos_totem_final +
+    charge_magnet_final +
+    fishing_tick_final +
+    rare_gems_final +
+    drone_fuel_final +
+    skin_final;
   const recursiveGiftsContribution = giftEvTotal - A;
+
+  /** Expected quantity per gift (for chart labels): gems, shards, chests, totems, magnets, fuel, sushi, etc. */
+  const gems20_40_qty = chancePerItem * gems20_40 * obeliskMult * luckyMult;
+  const gems30_65_qty = chancePerItem * gems30_65 * obeliskMult * luckyMult;
+  const skillShards_qty = chancePerItem * skillShardsBase * obeliskMult * luckyMult;
+  const itemChests_qty = chancePerItem * itemChestsAvg * obeliskMult * luckyMult;
+  const chaosTotem_qty = params.gift_chaos_totem_100_from_bombs ? 0 : chancePerItem * chaosTotemAvg * obeliskMult * luckyMult;
+  const chargeMagnet_qty = !params.gift_fishing_unlocked ? chancePerItem * chargeMagnetAvg * obeliskMult * luckyMult : 0;
+  const fishingTick_min = params.gift_fishing_unlocked ? chancePerItem * 12.5 * obeliskMult * luckyMult : 0;
+  const rareGems_qty = rare.gems80_130 * 105 * obeliskMult * luckyMult;
+  const droneFuel_qty = rare.droneFuel * droneFuelAvgQty * obeliskMult * luckyMult;
+  const skin_qty = rare.skin * 105 * obeliskMult;
+  const sushi_qty = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
+  const recursiveGifts_qty = rare.gifts3 * 3 * obeliskMult * luckyMult + rare.gildedSkin * 25 * obeliskMult * luckyMult;
 
   return {
     gems_20_40: gems20_40_final,
     gems_30_65: gems30_65_final,
     skill_shards: skillShards_final,
-    blue_cow: blueCowGems_final,
-    speed_boost: speedGems_final,
-    rare_gems: rareGems_final,
+    item_chests: item_chests_final,
+    chaos_totem: chaos_totem_final,
+    charge_magnet: charge_magnet_final,
+    fishing_tick: fishing_tick_final,
+    rare_gems: rare_gems_final,
+    drone_fuel: drone_fuel_final,
+    skin: skin_final,
+    sushi_fish: sushi_fish_final,
     recursive_gifts: recursiveGiftsContribution,
     total: giftEvTotal,
+    _qty: {
+      gems_20_40: gems20_40_qty,
+      gems_30_65: gems30_65_qty,
+      skill_shards: skillShards_qty,
+      item_chests: itemChests_qty,
+      chaos_totem: chaosTotem_qty,
+      charge_magnet: chargeMagnet_qty,
+      fishing_tick: fishingTick_min,
+      rare_gems: rareGems_qty,
+      drone_fuel: droneFuel_qty,
+      skin: skin_qty,
+      sushi_fish: sushi_qty,
+      recursive_gifts: recursiveGifts_qty,
+    } as Record<string, number>,
   };
+}
+
+/** Expected Sushi per hour from gifts (Founder supply drop + Statue of Soprano freebie gifts). */
+export function calculateGiftSushiPerHour(params: GameParameters): number {
+  const luckyMult = calculateLuckyMultiplier();
+  const obelisk = clampPositive(params.obelisk_level, 0);
+  const rare = computeRareRollWinProbs(obelisk);
+  const sushiPerGift = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
+
+  let giftsPerHour = 0;
+
+  // Statue of Soprano (freebie gift chance)
+  const level = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
+  const cfg = STATUE_SOPRANO_CONFIG[level];
+  if (cfg && (cfg.freebieGiftChance > 0 || cfg.freebie100xChance > 0)) {
+    const freebiesPerHour = calculateFreebiesPerHour(params);
+    const refreshMult = calculateRefreshMultiplier(params);
+    const expectedRolls = calculateExpectedRollsPerClaim(params);
+    const freebieEventsPerHour = freebiesPerHour * refreshMult * expectedRolls;
+    const expectedGiftsPerEvent = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
+    giftsPerHour += freebieEventsPerHour * expectedGiftsPerEvent;
+  }
+
+  // Founder supply drop
+  if (params.founder_enabled) {
+    const founderDropInterval = getFounderDropIntervalMinutes(params);
+    const founderDropsPerHour = 60.0 / founderDropInterval;
+    const doubleChance = clamp01(getDoubleDropChance(params));
+    const tripleChance = clamp01(getTripleDropChance(params));
+    const singleChance = 1.0 - doubleChance - tripleChance;
+    const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
+    giftsPerHour += founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10;
+  }
+
+  return giftsPerHour * sushiPerGift;
 }
 
 export function calculateFounderGemsPerHour(params: GameParameters): number {
