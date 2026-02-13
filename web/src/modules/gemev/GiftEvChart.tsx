@@ -147,8 +147,9 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown }) {
       <div
         style={{
           position: "absolute",
-          bottom: 8,
+          top: "50%",
           right: 8,
+          transform: "translateY(-50%)",
           width: 200,
           padding: "8px 10px",
           background: "rgba(255,255,255,0.98)",
