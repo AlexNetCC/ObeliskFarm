@@ -191,6 +191,10 @@ export function Items() {
     state.itemsPerChest * (CHARGE_MAGNET_OBTAIN_CHANCE_PCT / 100) * chargeMagnetGemsPerHour;
   const valueOfOneChestForLootbug = chaosTotem100FromBombs ? chargeMagnetPartOfChest : valueOfOneChestGemPerHour;
 
+  /** Value per Chaos Totem for Gift EV: 0 when 100% from Bombs; else chaosImpact / totemsPerHour. */
+  const chaosTotemValuePerTotemForGift =
+    chaosTotem100FromBombs || chaosTotemsPerHour <= 0 ? 0 : chaosTotemImpactLive / chaosTotemsPerHour;
+
   /** Single write to gemev_external: Items-owned fields only. See module-dependencies.md ownership table. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
@@ -200,8 +204,9 @@ export function Items() {
     }
     ext.chargeMagnetImpact = chargeMagnetGemEvPerHour;
     ext.valueOfOneChestForLootbug = valueOfOneChestForLootbug;
+    ext.chaosTotemValuePerTotemForGift = chaosTotemValuePerTotemForGift;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [expectedUptimeFraction, chaosTotemImpactLive, chargeMagnetGemEvPerHour, valueOfOneChestForLootbug]);
+  }, [expectedUptimeFraction, chaosTotemImpactLive, chargeMagnetGemEvPerHour, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift]);
 
   return (
     <div className="itemsGrid">

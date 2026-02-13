@@ -170,7 +170,8 @@ export function getTotalStats(build: ArchBuild): ArchStats {
   const ultra_crit_chance = frag.ultra_crit_chance ?? 0;
 
   const super_crit_dmg_mult = SUPER_CRIT_DMG_MULT_DEFAULT * (1 + super_crit_damage);
-  const ultra_crit_dmg_mult = ULTRA_CRIT_DMG_MULT_DEFAULT * (1 + super_crit_damage);
+  /** Ultra crit mult is fixed 3× in-game; Super Crit Damage only affects super crits. */
+  const ultra_crit_dmg_mult = ULTRA_CRIT_DMG_MULT_DEFAULT;
 
   let xp_mult_base = base_xp_mult + gem_xp * (GEM_UPGRADE_BONUSES.xp.xp_bonus ?? 0);
   if ((frag.xp_bonus_mult ?? 0) > 0) xp_mult_base *= frag.xp_bonus_mult ?? 1.0;
@@ -257,7 +258,7 @@ export function calculateHitsToKill(build: ArchBuild, stats: ArchStats, blockHpB
     const uc = clamp01(ultraCritChance);
     const cd = Math.max(0, superCritDamage);
     const superMult = SUPER_CRIT_DMG_MULT_DEFAULT * (1 + cd);
-    const ultraMult = ULTRA_CRIT_DMG_MULT_DEFAULT * (1 + cd);
+    const ultraMult = ULTRA_CRIT_DMG_MULT_DEFAULT;
     const critMultExpected = (1 - sc) * critDmgMult + sc * ((1 - uc) * critDmgMult * superMult + uc * critDmgMult * ultraMult);
     return baseDmg * ((1 - critChance) + critChance * critMultExpected);
   }

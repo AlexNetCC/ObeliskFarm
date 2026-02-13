@@ -149,7 +149,7 @@ export class MonteCarloArchaeologySimulator {
     const ultra_crit_chance = Math.max(0, Math.min(1, Number(stats.ultra_crit_chance ?? 0)));
     const super_crit_damage_bonus = Math.max(0, Number(stats.super_crit_damage ?? 0));
     const super_mult = this.SUPER_CRIT_DMG_MULT_DEFAULT * (1 + super_crit_damage_bonus);
-    const ultra_mult = this.ULTRA_CRIT_DMG_MULT_DEFAULT * (1 + super_crit_damage_bonus);
+    const ultra_mult = this.ULTRA_CRIT_DMG_MULT_DEFAULT;
 
     if (this.rng() < super_crit_chance) {
       if (this.rng() < ultra_crit_chance) return Math.max(1, Math.round(base_damage * crit_damage_mult * ultra_mult));
