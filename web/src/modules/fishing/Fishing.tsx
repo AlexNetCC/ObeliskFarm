@@ -714,6 +714,43 @@ export function Fishing() {
   /** When a tick from Angler, Lootbug, or Sushi happens, it ticks on every dock (not distributed). So each dock gets the same +fills. */
   const extraFillsPerDockPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour;
 
+  /** Catch attempts per hour (fills × rolls per fill), total and per dock (only docks with power). */
+  const catchAttemptsPerHour = useMemo(() => {
+    const dockIds = new Set(availableDocks.map((d) => d.id));
+    const rod = effectiveRodPower;
+    const dronePower = stats.drone_base_power;
+    const doublePct = stats.double_tick_chance_pct / 100;
+    const triplePct = stats.triple_tick_chance_pct / 100;
+    const fivePct = stats.five_tick_chance_pct / 100;
+    const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
+    const byDock: Array<{ dockName: string; catchAttemptsPerHour: number }> = [];
+    let total = 0;
+    for (const set of AQUARIUM) {
+      if (!dockIds.has(set.dockId)) continue;
+      const rodHere = state.activeDockId === set.dockId ? rod : 0;
+      const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
+      const power = rodHere + dronesHere * dronePower;
+      if (power <= 0) continue;
+      const dock = DOCKS.find((d) => d.id === set.dockId)!;
+      const fillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec) + extraFillsPerDockPerHour;
+      const attempts = fillsPerHour * expectedRollsPerFill;
+      byDock.push({ dockName: dock.name, catchAttemptsPerHour: attempts });
+      total += attempts;
+    }
+    return { total, byDock };
+  }, [
+    availableDocks,
+    effectiveTickSec,
+    extraFillsPerDockPerHour,
+    stats.double_tick_chance_pct,
+    stats.triple_tick_chance_pct,
+    stats.five_tick_chance_pct,
+    state.activeDockId,
+    state.dronesPerDock,
+    effectiveRodPower,
+    stats.drone_base_power,
+  ]);
+
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rod = effectiveRodPower;
@@ -1889,6 +1926,31 @@ export function Fishing() {
                   label="?"
                 />
               </div>
+              <div className="fishingTickRow">
+                How many catch attempts per hour = <span className="mono">{catchAttemptsPerHour.total.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                <Tooltip
+                  content={{
+                    title: "Catch attempts per hour",
+                    lines: [
+                      "Fills per hour × expected rolls per fill (from double/triple/5× tick chances).",
+                      "Each roll is one catch attempt per fish type on that dock.",
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
+              {catchAttemptsPerHour.byDock.length > 1 ? (
+                <div className="fishingTickRow" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+                  <span>Dock breakdown:</span>
+                  <div className="small" style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px" }}>
+                    {catchAttemptsPerHour.byDock.map((d) => (
+                      <span key={d.dockName}>
+                        <span className="mono">{d.dockName}</span>: <span className="mono">{d.catchAttemptsPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="fishingBoatLevelRow">
