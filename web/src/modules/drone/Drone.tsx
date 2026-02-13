@@ -139,6 +139,8 @@ type ElixirState = {
   fuelDurationRelicLevel: number;
   /** Axolotl Skin: +10% fuel duration (multiplicative). */
   axolotlSkin: boolean;
+  /** Platinum Statue of Appetite (Pet): +15% fuel duration (multiplicative). */
+  platinumStatueOfAppetite: boolean;
   /** World 3 upgrade: Fuel Duration +0.15% per level (multiplicative). */
   fuelDurationWorld3Level: number;
   /** Frogger Drone */
@@ -215,6 +217,7 @@ const DEFAULT: ElixirState = {
   miscFuelCardTier: 0,
   fuelDurationRelicLevel: 0,
   axolotlSkin: false,
+  platinumStatueOfAppetite: false,
   fuelDurationWorld3Level: 0,
   froggerDroneOn: false,
   froggerSuitLevel: 8,
@@ -509,6 +512,7 @@ export function Drone() {
     s.fueled = typeof migrated.fueled === "boolean" ? migrated.fueled : DEFAULT.fueled;
     s.gasolineGuzzler = typeof migrated.gasolineGuzzler === "boolean" ? migrated.gasolineGuzzler : DEFAULT.gasolineGuzzler;
     s.axolotlSkin = typeof migrated.axolotlSkin === "boolean" ? migrated.axolotlSkin : DEFAULT.axolotlSkin;
+    s.platinumStatueOfAppetite = typeof migrated.platinumStatueOfAppetite === "boolean" ? migrated.platinumStatueOfAppetite : DEFAULT.platinumStatueOfAppetite;
     s.fuelDurationWorld3Level = Math.max(0, Math.trunc(Number(s.fuelDurationWorld3Level ?? 0)));
     s.froggerSuitLevel = clamp(s.froggerSuitLevel ?? DEFAULT.froggerSuitLevel, 0, 20);
     s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, 45);
@@ -558,13 +562,15 @@ export function Drone() {
   const fuelDurationFromGradeSec = ELIXIR_FUEL_DURATION_BASE_SEC + state.elixirGradeLevel * ELIXIR_FUEL_DURATION_SEC_PER_GRADE;
   const fuelDurationWorld3Mult = 1 + state.fuelDurationWorld3Level * 0.15 / 100;
   const fuelDurationRelicMult = 1 + state.fuelDurationRelicLevel * 0.01 / 100;
-  // Coal, World 3, Gasoline, Axolotl, Cards, Relics: multiplicative. Round once at the end.
+  const platinumStatueMult = state.platinumStatueOfAppetite ? 1.15 : 1;
+  // Coal, World 3, Gasoline, Axolotl, Platinum Statue, Cards, Relics: multiplicative. Round once at the end.
   const fuelDurationGameSec = Math.round(
     fuelDurationFromGradeSec *
     (1 + state.fuelDurationUpgradeLevel / 100) *
     fuelDurationWorld3Mult *
     (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
     (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult,
   );
@@ -574,6 +580,7 @@ export function Drone() {
     fuelDurationWorld3Mult *
     (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
     (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult;
 
@@ -586,6 +593,7 @@ export function Drone() {
     fuelDurationWorld3Mult *
     (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
     (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult,
   );
@@ -600,6 +608,7 @@ export function Drone() {
     fuelDurationWorld3Mult *
     (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
     (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult,
   );
@@ -618,6 +627,7 @@ export function Drone() {
     fuelDurationWorld3Mult *
     (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
     (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult,
   );
@@ -672,6 +682,7 @@ export function Drone() {
     fuelDurationWorld3Mult *
     (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
     (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
     MISC_FUEL_MULT[state.miscFuelCardTier] *
     fuelDurationRelicMult,
   );
@@ -1009,7 +1020,31 @@ export function Drone() {
 
           <div className="droneUpgradesBlock" style={{ marginTop: 10 }}>
             <div className="droneBlockHeader">
-              <span className="droneBlockHeaderTitle">Skill</span>
+              <span className="droneBlockHeaderTitle">Construct</span>
+            </div>
+            <div className="droneCheckboxRow">
+              <img
+                src="https://static.wikitide.net/shminerwiki/4/4d/4_Statue_Appetite_Platinized.png"
+                alt=""
+                className="droneSkillIcon"
+                aria-hidden
+              />
+              <input
+                id="elixir-platinum-statue-appetite"
+                type="checkbox"
+                className="droneCheckbox"
+                checked={state.platinumStatueOfAppetite}
+                onChange={(e) => update({ platinumStatueOfAppetite: e.target.checked })}
+              />
+              <label htmlFor="elixir-platinum-statue-appetite" className="droneLabel">
+                Platinum Statue of Appetite (+15% fuel duration)
+              </label>
+            </div>
+          </div>
+
+          <div className="droneUpgradesBlock" style={{ marginTop: 10 }}>
+            <div className="droneBlockHeader">
+              <span className="droneBlockHeaderTitle">Skill Tree</span>
             </div>
             <div className="droneCheckboxRow">
               <img

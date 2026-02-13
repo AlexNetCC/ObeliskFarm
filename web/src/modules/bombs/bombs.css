@@ -1,0 +1,43 @@
+/* Bombs module: compact line spacing */
+.bombsModule .gemEvSectionBody {
+  gap: 2px;
+}
+.bombsModule .gemEvRow {
+  gap: 2px;
+}
+.bombsModule .gemEvDivider {
+  margin: 2px 0;
+}
+.bombsModule .gemEvSubSection {
+  padding: 6px 8px;
+}
+.bombsModule .gemEvSubHeader {
+  margin-bottom: 4px;
+}
+.bombsModule .gemEvBombBlock {
+  padding: 6px 8px;
+}
+.bombsModule .gemEvBombHeader {
+  margin-bottom: 4px;
+}
+.bombsModule .collapseWrap.gemEvSection .collapseBody {
+  padding-top: 4px;
+}
+.bombsModule .bombsGameSpeedToggle {
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+.bombsModule .bombsGameSpeedReadOnly {
+  gap: 4px;
+}
+.bombsModule .gemEvBomb10xGlow {
+  margin-bottom: 2px;
+  padding: 3px 6px;
+}
+.bombsModule .gemEvInput {
+  padding: 4px 6px;
+}
+.bombsModule .gemEvStepBtn {
+  padding: 3px 6px;
+  min-width: 28px;
+}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "../gemev/gemev.css";
+import "./bombs.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
@@ -291,7 +292,7 @@ export function Bombs() {
         </div>
       </div>
 
-      <div className="panel" style={{ maxWidth: 720, margin: "0 auto" }}>
+      <div className="panel bombsModule" style={{ maxWidth: 720, margin: "0 auto" }}>
         <div className={`bombsGameSpeedToggle ${gameSpeedMult > 1 ? "bombsGameSpeedToggleOn" : ""}`}>
           <div className="bombsGameSpeedReadOnly">
             <span className="bombsGameSpeedLabel">
