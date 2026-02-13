@@ -290,7 +290,8 @@ function computeTotalFishPerHour(
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
   const doublePct = stats.double_tick_chance_pct / 100;
   const triplePct = stats.triple_tick_chance_pct / 100;
-  const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+  const fivePct = stats.five_tick_chance_pct / 100;
+  const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
   const rodMult = (skillOptions?.fishingRodCardTier != null) ? FISHING_ROD_CARD_MULT[skillOptions.fishingRodCardTier] : 1;
   const baseRod = Math.round(stats.fishing_rod_power * rodMult); // round only once, after card mult
   let total = 0;
@@ -330,7 +331,8 @@ function computeTotalFishPerHourFromStats(
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
   const doublePct = stats.double_tick_chance_pct / 100;
   const triplePct = stats.triple_tick_chance_pct / 100;
-  const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+  const fivePct = stats.five_tick_chance_pct / 100;
+  const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
   const rodForActive = effectiveRodPowerOverride ?? stats.fishing_rod_power;
   let total = 0;
   for (const set of AQUARIUM) {
@@ -726,7 +728,8 @@ export function Fishing() {
       const fillsPerHour = dockFillsPerHour + extraFillsPerDockPerHour;
       const doublePct = stats.double_tick_chance_pct / 100;
       const triplePct = stats.triple_tick_chance_pct / 100;
-      const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+      const fivePct = stats.five_tick_chance_pct / 100;
+      const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
       return set.fish.map((f) => {
         const catchPct = catchChancePercent(powerOnThisDock, f.powerRating);
         const catchMulti =
@@ -761,6 +764,7 @@ export function Fishing() {
     stats.fish_income_multi,
     stats.double_tick_chance_pct,
     stats.triple_tick_chance_pct,
+    stats.five_tick_chance_pct,
     state.dronesPerDock,
     state.activeDockId,
     getCardMulti,
@@ -784,7 +788,8 @@ export function Fishing() {
       const fillsPerHour = dockFillsPerHour + extraFillsPerDockPerHour;
       const doublePct = stats.double_tick_chance_pct / 100;
       const triplePct = stats.triple_tick_chance_pct / 100;
-      const expectedRollsPerFill = 1 + doublePct + 2 * triplePct;
+      const fivePct = stats.five_tick_chance_pct / 100;
+      const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
       for (const f of set.fish) {
         const catchMulti =
           expectedRollsPerFill *
@@ -806,6 +811,7 @@ export function Fishing() {
     stats.fish_income_multi,
     stats.double_tick_chance_pct,
     stats.triple_tick_chance_pct,
+    stats.five_tick_chance_pct,
     state.dronesPerDock,
     state.activeDockId,
     state.fishingRodCardTier,
@@ -839,6 +845,7 @@ export function Fishing() {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const doublePct = stats.double_tick_chance_pct / 100;
     const triplePct = stats.triple_tick_chance_pct / 100;
+    const fivePct = stats.five_tick_chance_pct / 100;
     type FishEntry = { fish: { id: string; name: string; powerRating: number }; ECR: number; totalMulti: number };
     type DockEntry = { dockId: string; dockName: string; fillsPerHour: number; fish: FishEntry[] };
     const docksWithPower: DockEntry[] = [];
@@ -871,7 +878,10 @@ export function Fishing() {
         for (const { fillsPerHour, fish: fishList } of docksWithPower) {
           const numFills = Math.floor(hours * fillsPerHour);
           for (let f = 0; f < numFills; f++) {
-            const rolls = 1 + (rng() < doublePct ? 1 : 0) + (rng() < triplePct ? 2 : 0);
+            const multDouble = rng() < doublePct ? 2 : 1;
+            const multTriple = rng() < triplePct ? 3 : 1;
+            const mult5x = rng() < fivePct ? 5 : 1;
+            const rolls = multDouble * multTriple * mult5x;
             for (let r = 0; r < rolls; r++) {
               for (const { fish: fDef, ECR, totalMulti } of fishList) {
                 const g = Math.floor(ECR);
@@ -1246,7 +1256,8 @@ export function Fishing() {
         const pctFromDrones = ((newTotal - totalSameDrones) / currentTotal) * 100;
         if (def.id === "fishing_with_friends") {
           breakdownMap.set(def.id, [
-            { label: "Drone power +10%, Fish mult +3%", pct: pctFromStats },
+            { label: "Drone power +10%", pct: pctFromStats / 2 },
+            { label: "Fish mult +3%", pct: pctFromStats / 2 },
             { label: "Fishing Drones +5", pct: pctFromDrones },
           ]);
         } else if (def.id === "motley_school") {
@@ -1263,22 +1274,20 @@ export function Fishing() {
           ...newStats,
           double_tick_chance_pct: currentStats.double_tick_chance_pct,
           triple_tick_chance_pct: currentStats.triple_tick_chance_pct,
+          five_tick_chance_pct: currentStats.five_tick_chance_pct,
         };
         const statsDoubleOnly: ComputedFishingStats = {
           ...newStats,
           triple_tick_chance_pct: currentStats.triple_tick_chance_pct,
-        };
-        const statsChancesOnly: ComputedFishingStats = {
-          ...newStats,
-          fishing_tick_reduction: currentStats.fishing_tick_reduction,
+          five_tick_chance_pct: currentStats.five_tick_chance_pct,
         };
         const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
         const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
-        const totalChancesOnly = computeTotalFishPerHourFromStats(statsChancesOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalAllNew = computeTotalFishPerHourFromStats(newStats, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
         breakdownMap.set(def.id, [
           { label: "Tick -2s", pct: ((totalTickOnly - currentTotal) / currentTotal) * 100 },
           { label: "Double +2%", pct: ((totalDoubleOnly - totalTickOnly) / currentTotal) * 100 },
-          { label: "Triple +1%", pct: ((totalChancesOnly - totalDoubleOnly) / currentTotal) * 100 },
+          { label: "Triple +1%", pct: ((totalAllNew - totalDoubleOnly) / currentTotal) * 100 },
         ]);
       }
 

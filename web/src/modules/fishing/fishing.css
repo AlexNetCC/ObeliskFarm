@@ -899,9 +899,9 @@
 .fishingCostEfficPop {
   position: absolute;
   left: 50%;
-  bottom: 100%;
+  top: 100%;
   transform: translateX(-50%);
-  margin-bottom: 6px;
+  margin-top: 6px;
   padding: 8px 10px;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.2);
@@ -910,10 +910,11 @@
   font-size: 12px;
   line-height: 1.4;
   color: rgba(15, 23, 42, 0.88);
-  white-space: nowrap;
+  white-space: normal;
   z-index: 100;
   pointer-events: none;
   visibility: hidden;
+  min-width: max-content;
 }
 .fishingCostEfficWrap:hover .fishingCostEfficPop {
   visibility: visible;
