@@ -616,7 +616,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
       luckyMult,
       obeliskLevel: obelisk,
     },
-  };
+  } as unknown as Record<string, number>;
 }
 
 /** Expected Sushi per hour from gifts (Founder supply drop + Statue of Soprano freebie gifts). */
