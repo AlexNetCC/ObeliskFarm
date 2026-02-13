@@ -277,6 +277,31 @@ export function ArchSim() {
     significant: boolean;
   }> | null>(null);
   const cardNextCancelRef = useRef(false);
+  const [gemNextRunning, setGemNextRunning] = useState(false);
+  const [gemNextProgress, setGemNextProgress] = useState<string | null>(null);
+  const [gemNextResults, setGemNextResults] = useState<Array<{
+    key: ArchGemUpgradeKey;
+    displayName: string;
+    meanFloors: number;
+    growthPct: number;
+    cost: number;
+    perCost: number;
+    significant: boolean;
+  }> | null>(null);
+  const gemNextCancelRef = useRef(false);
+  const [skillTreeNextRunning, setSkillTreeNextRunning] = useState(false);
+  const [skillTreeNextProgress, setSkillTreeNextProgress] = useState<string | null>(null);
+  const [skillTreeNextResults, setSkillTreeNextResults] = useState<Array<{
+    key: "avadaKeda" | "blockBonker";
+    displayName: string;
+    meanFloors: number;
+    growthPct: number;
+    significant: boolean;
+  }> | null>(null);
+  const skillTreeNextCancelRef = useRef(false);
+  const [cardNextRefId, setCardNextRefId] = useState<string | null>(null);
+  const [gemNextRefId, setGemNextRefId] = useState<string | null>(null);
+  const [skillTreeNextRefId, setSkillTreeNextRefId] = useState<string | null>(null);
   const [mcSettings, setMcSettings] = useState<McSettings>(() => {
     const raw = (loadJson<any>(MC_SETTINGS_KEY) ?? null) as any;
     const base = defaultMcSettings();
@@ -1760,7 +1785,7 @@ export function ArchSim() {
   }
 
   async function runCardUpgradeNext() {
-    const refEntry = upgradeNextRefId ? stageLogEntries.find((e) => e.id === upgradeNextRefId) ?? null : stageLogEntries[0] ?? null;
+    const refEntry = cardNextRefId ? stageLogEntries.find((e) => e.id === cardNextRefId) ?? null : stageLogEntries[0] ?? null;
     if (!refEntry) {
       setCardNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
       return;
@@ -1858,6 +1883,191 @@ export function ArchSim() {
     } finally {
       pool.terminate();
       setCardNextRunning(false);
+    }
+  }
+
+  async function runGemUpgradeNext() {
+    const refEntry = gemNextRefId ? stageLogEntries.find((e) => e.id === gemNextRefId) ?? null : stageLogEntries[0] ?? null;
+    if (!refEntry) {
+      setGemNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
+      return;
+    }
+    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const baseBuild: ArchBuild = {
+      ...refEntry.build,
+      skillPoints: {
+        strength: winnerDist.strength ?? 0,
+        agility: winnerDist.agility ?? 0,
+        perception: winnerDist.perception ?? 0,
+        intellect: winnerDist.intellect ?? 0,
+        luck: winnerDist.luck ?? 0,
+      },
+    };
+    const GEM_KEYS: ArchGemUpgradeKey[] = ["stamina", "xp", "fragment"];
+    const GEM_LABELS: Record<ArchGemUpgradeKey, string> = {
+      stamina: "Max Stamina / Stam mod chance",
+      xp: "Archaeology Exp / Exp mod chance",
+      fragment: "Fragment Gain / Loot mod chance",
+    };
+    const eligibleGems: Array<{ key: ArchGemUpgradeKey; displayName: string }> = [];
+    for (const key of GEM_KEYS) {
+      const maxLvl = GEM_UPGRADE_BONUSES[key].max_level ?? 0;
+      const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, maxLvl);
+      if (curLvl < maxLvl) eligibleGems.push({ key, displayName: GEM_LABELS[key] });
+    }
+    if (eligibleGems.length === 0) {
+      setGemNextProgress("No gem upgrades to evaluate (all maxed).");
+      return;
+    }
+    setGemNextRunning(true);
+    setGemNextProgress(null);
+    setGemNextResults(null);
+    gemNextCancelRef.current = false;
+    const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
+    const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
+    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
+    const N_SIMS = 3000;
+    type GemResult = { key: ArchGemUpgradeKey; displayName: string; meanFloors: number; growthPct: number; cost: number; perCost: number; significant: boolean };
+    const results: GemResult[] = [];
+    try {
+      setGemNextProgress("Which Gem Upgrade next to maximize Stage Push: Baseline (no upgrade)…");
+      const baseStats = getTotalStats(baseBuild);
+      const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+      const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
+      const baseOut = await pool.run({
+        type: "stageLite",
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+      });
+      const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+      const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
+      const baseMeanFloors = baseStatsRes.mean;
+      const baseStd = baseStatsRes.std;
+
+      for (let i = 0; i < eligibleGems.length; i += 1) {
+        if (gemNextCancelRef.current) break;
+        const { key, displayName } = eligibleGems[i]!;
+        setGemNextProgress(`Which Gem Upgrade next to maximize Stage Push: ${i + 1}/${eligibleGems.length} — ${displayName}`);
+        const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, 999);
+        const cost = GEM_COSTS[key]?.[curLvl] ?? 0;
+        const variantBuild: ArchBuild = {
+          ...baseBuild,
+          gemUpgrades: { ...baseBuild.gemUpgrades, [key]: curLvl + 1 },
+        };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 20000 + i, targetFrag: null },
+        });
+        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanFloors = varStats.mean;
+        const growthPct = baseMeanFloors > 0 ? ((meanFloors - baseMeanFloors) / baseMeanFloors) * 100 : 0;
+        const perCost = cost > 0 ? growthPct / cost : 0;
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        results.push({ key, displayName, meanFloors, growthPct, cost, perCost, significant });
+      }
+      results.sort((a, b) => b.growthPct - a.growthPct);
+      setGemNextResults(results);
+      setGemNextProgress(gemNextCancelRef.current ? "Cancelled." : "Done.");
+    } catch (e) {
+      setGemNextProgress(e instanceof Error ? e.message : String(e));
+    } finally {
+      pool.terminate();
+      setGemNextRunning(false);
+    }
+  }
+
+  async function runSkillTreeNext() {
+    const refEntry = skillTreeNextRefId ? stageLogEntries.find((e) => e.id === skillTreeNextRefId) ?? null : stageLogEntries[0] ?? null;
+    if (!refEntry) {
+      setSkillTreeNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
+      return;
+    }
+    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const baseBuild: ArchBuild = {
+      ...refEntry.build,
+      skillPoints: {
+        strength: winnerDist.strength ?? 0,
+        agility: winnerDist.agility ?? 0,
+        perception: winnerDist.perception ?? 0,
+        intellect: winnerDist.intellect ?? 0,
+        luck: winnerDist.luck ?? 0,
+      },
+    };
+    const eligibleSkills: Array<{ key: "avadaKeda" | "blockBonker"; displayName: string }> = [];
+    if (!baseBuild.avadaKedaEnabled) eligibleSkills.push({ key: "avadaKeda", displayName: "Avada Keda" });
+    if (!baseBuild.blockBonkerEnabled) eligibleSkills.push({ key: "blockBonker", displayName: "Block Bonker" });
+    if (eligibleSkills.length === 0) {
+      setSkillTreeNextProgress("No skill tree skills to evaluate (Avada Keda and Block Bonker already ON).");
+      return;
+    }
+    setSkillTreeNextRunning(true);
+    setSkillTreeNextProgress(null);
+    setSkillTreeNextResults(null);
+    skillTreeNextCancelRef.current = false;
+    const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
+    const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
+    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
+    const N_SIMS = 3000;
+    type SkillResult = { key: "avadaKeda" | "blockBonker"; displayName: string; meanFloors: number; growthPct: number; significant: boolean };
+    const results: SkillResult[] = [];
+    try {
+      setSkillTreeNextProgress("Which Skill Tree Skill next to maximize Stage Push: Baseline…");
+      const baseStats = getTotalStats(baseBuild);
+      const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+      const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
+      const baseOut = await pool.run({
+        type: "stageLite",
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+      });
+      const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+      const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
+      const baseMeanFloors = baseStatsRes.mean;
+      const baseStd = baseStatsRes.std;
+
+      for (let i = 0; i < eligibleSkills.length; i += 1) {
+        if (skillTreeNextCancelRef.current) break;
+        const { key, displayName } = eligibleSkills[i]!;
+        setSkillTreeNextProgress(`Which Skill Tree Skill next to maximize Stage Push: ${i + 1}/${eligibleSkills.length} — ${displayName}`);
+        const variantBuild: ArchBuild = {
+          ...baseBuild,
+          avadaKedaEnabled: key === "avadaKeda" ? true : baseBuild.avadaKedaEnabled,
+          blockBonkerEnabled: key === "blockBonker" ? true : baseBuild.blockBonkerEnabled,
+        };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 30000 + i, targetFrag: null },
+        });
+        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanFloors = varStats.mean;
+        const growthPct = baseMeanFloors > 0 ? ((meanFloors - baseMeanFloors) / baseMeanFloors) * 100 : 0;
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        results.push({ key, displayName, meanFloors, growthPct, significant });
+      }
+      results.sort((a, b) => b.growthPct - a.growthPct);
+      setSkillTreeNextResults(results);
+      setSkillTreeNextProgress(skillTreeNextCancelRef.current ? "Cancelled." : "Done.");
+    } catch (e) {
+      setSkillTreeNextProgress(e instanceof Error ? e.message : String(e));
+    } finally {
+      pool.terminate();
+      setSkillTreeNextRunning(false);
     }
   }
 
@@ -2573,7 +2783,7 @@ export function ArchSim() {
                 id="arch-which-upgrade-next"
                 title="Which Fragment Upgrade next to maximize Stage Push?"
                 defaultExpanded={false}
-                className="archWhichUpgradeNext"
+                className="archWhichNextGold"
                 headerRight={
                   <Tooltip
                     content={{
@@ -2768,6 +2978,7 @@ export function ArchSim() {
                 id="arch-card-next"
                 title="Which Card Upgrade next (Card → Gilded) to maximize Stage Push?"
                 defaultExpanded={false}
+                className="archWhichNextGold"
                 headerRight={
                   <Tooltip
                     content={{
@@ -2800,7 +3011,22 @@ export function ArchSim() {
                   ) : (
                     <>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                        <span className="small">Uses same reference as fragment upgrade next.</span>
+                        <label className="small">
+                          Reference:
+                          <select
+                            className="mono"
+                            style={{ marginLeft: 6 }}
+                            value={cardNextRefId ?? stageLogEntries[0]?.id ?? ""}
+                            onChange={(e) => setCardNextRefId(e.target.value || null)}
+                            disabled={cardNextRunning || mcRunning}
+                          >
+                            {stageLogEntries.map((e) => (
+                              <option key={e.id} value={e.id}>
+                                {e.label} — {e.metrics.floorsPerRun.toFixed(2)} floors/run ({new Date(e.createdAt).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                         <button
                           className="btn"
                           type="button"
@@ -2921,9 +3147,266 @@ export function ArchSim() {
                 </div>
               </Collapsible>
 
-              <div className="small" style={{ marginBottom: 10 }}>
-                Unlock gating uses <span className="mono">unlockedStage</span>.
-              </div>
+              <Collapsible
+                id="arch-gem-next"
+                title="Which Gem Upgrade next to maximize Stage Push?"
+                defaultExpanded={false}
+                className="archWhichNextGold"
+                headerRight={
+                  <Tooltip
+                    content={{
+                      title: "Gem upgrade MC",
+                      sections: [
+                        {
+                          heading: "What",
+                          lines: [
+                            "Evaluates which gem upgrade (+1 level: Stamina, XP, or Fragment) gives the most Floors/run gain per gem cost.",
+                            "Only non-maxed gem upgrades are evaluated.",
+                          ],
+                        },
+                        {
+                          heading: "Significance",
+                          lines: [
+                            "Uses same Stage MC (N=3000) and 95% confidence test as fragment upgrade next.",
+                            "* = not statistically significant.",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                }
+              >
+                <div className="small" style={{ marginBottom: 8 }}>
+                  {stageLogEntries.length === 0 ? (
+                    <div className="pillLocked" style={{ padding: 8 }}>
+                      Run a Stage Push MC first. No Stage result in the log.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                        <label className="small">
+                          Reference:
+                          <select
+                            className="mono"
+                            style={{ marginLeft: 6 }}
+                            value={gemNextRefId ?? stageLogEntries[0]?.id ?? ""}
+                            onChange={(e) => setGemNextRefId(e.target.value || null)}
+                            disabled={gemNextRunning || mcRunning}
+                          >
+                            {stageLogEntries.map((e) => (
+                              <option key={e.id} value={e.id}>
+                                {e.label} — {e.metrics.floorsPerRun.toFixed(2)} floors/run ({new Date(e.createdAt).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => runGemUpgradeNext()}
+                          disabled={gemNextRunning || mcRunning || stageLogEntries.length === 0}
+                        >
+                          {gemNextRunning ? "Running…" : "Run (N=3000)"}
+                        </button>
+                        {gemNextRunning ? (
+                          <button className="btn btnSecondary" type="button" onClick={() => { gemNextCancelRef.current = true; }} disabled={!gemNextRunning}>
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                      {gemNextProgress ? (
+                        <div className="small mono" style={{ marginBottom: 8 }}>
+                          {gemNextProgress}
+                        </div>
+                      ) : null}
+                      {gemNextResults && gemNextResults.length > 0 ? (() => {
+                        const rs = gemNextResults;
+                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
+                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
+                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
+                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
+                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
+                        const minPerCost = perCostVals.length > 0 ? Math.min(...perCostVals) : 0;
+                        const maxPerCost = perCostVals.length > 0 ? Math.max(...perCostVals) : 0;
+                        const heatPct = (v: number, lo: number, hi: number) =>
+                          hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        let rowNum = 0;
+                        return (
+                          <div className="small">
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next gem upgrade (by Floors/run +%, gem cost):</div>
+                            <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                              <span style={{ color: "hsl(120, 75%, 35%)", textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9)", fontWeight: 600 }}>GREEN = GOOD</span>
+                              <span title="95% confidence">* = not statistically significant</span>
+                            </div>
+                            <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gem Upgrade</th>
+                                  <th className="num">Floors/run</th>
+                                  <th className="num">Floors/run (+%)</th>
+                                  <th className="num">Gems</th>
+                                  <th className="num" title="Floors/run (+%) per gem">(+%)/gem</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rs.map((r) => {
+                                  rowNum += 1;
+                                  return (
+                                    <tr key={r.key}>
+                                      <td style={{ paddingRight: 12 }}>{rowNum}</td>
+                                      <td style={{ paddingRight: 12 }}>{r.displayName}</td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
+                                          {!r.significant ? "*" : r.meanFloors.toFixed(3)}
+                                        </span>
+                                      </td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
+                                          {!r.significant ? "*" : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
+                                        </span>
+                                      </td>
+                                      <td className="num">{r.cost}</td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.perCost, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4 }}>{!r.significant || r.perCost < 0 ? "*" : r.perCost.toFixed(6)}</span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })() : null}
+                    </>
+                  )}
+                </div>
+              </Collapsible>
+
+              <Collapsible
+                id="arch-skill-tree-next"
+                title="Which Skill Tree Skill next to maximize Stage Push?"
+                defaultExpanded={false}
+                className="archWhichNextGold"
+                headerRight={
+                  <Tooltip
+                    content={{
+                      title: "Skill tree MC",
+                      sections: [
+                        {
+                          heading: "What",
+                          lines: [
+                            "Evaluates which skill tree skill (Avada Keda or Block Bonker) gives the most Floors/run gain.",
+                            "Only skills you do not yet have are tested. If Block Bonker is ON, only Avada Keda is evaluated, and vice versa.",
+                          ],
+                        },
+                        {
+                          heading: "Significance",
+                          lines: ["Uses same Stage MC (N=3000) and 95% confidence test. * = not statistically significant."],
+                        },
+                      ],
+                    }}
+                  />
+                }
+              >
+                <div className="small" style={{ marginBottom: 8 }}>
+                  {stageLogEntries.length === 0 ? (
+                    <div className="pillLocked" style={{ padding: 8 }}>
+                      Run a Stage Push MC first. No Stage result in the log.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                        <label className="small">
+                          Reference:
+                          <select
+                            className="mono"
+                            style={{ marginLeft: 6 }}
+                            value={skillTreeNextRefId ?? stageLogEntries[0]?.id ?? ""}
+                            onChange={(e) => setSkillTreeNextRefId(e.target.value || null)}
+                            disabled={skillTreeNextRunning || mcRunning}
+                          >
+                            {stageLogEntries.map((e) => (
+                              <option key={e.id} value={e.id}>
+                                {e.label} — {e.metrics.floorsPerRun.toFixed(2)} floors/run ({new Date(e.createdAt).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => runSkillTreeNext()}
+                          disabled={skillTreeNextRunning || mcRunning || stageLogEntries.length === 0}
+                        >
+                          {skillTreeNextRunning ? "Running…" : "Run (N=3000)"}
+                        </button>
+                        {skillTreeNextRunning ? (
+                          <button className="btn btnSecondary" type="button" onClick={() => { skillTreeNextCancelRef.current = true; }} disabled={!skillTreeNextRunning}>
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                      {skillTreeNextProgress ? (
+                        <div className="small mono" style={{ marginBottom: 8 }}>
+                          {skillTreeNextProgress}
+                        </div>
+                      ) : null}
+                      {skillTreeNextResults && skillTreeNextResults.length > 0 ? (() => {
+                        const rs = skillTreeNextResults;
+                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
+                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
+                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
+                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
+                        const heatPct = (v: number, lo: number, hi: number) =>
+                          hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        let rowNum = 0;
+                        return (
+                          <div className="small">
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next skill tree skill (by Floors/run +%):</div>
+                            <div className="small" style={{ marginBottom: 8 }}>
+                              <span style={{ color: "hsl(120, 75%, 35%)", fontWeight: 600 }}>GREEN = GOOD</span>
+                              {" "}
+                              <span title="95% confidence">* = not statistically significant</span>
+                            </div>
+                            <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Skill</th>
+                                  <th className="num">Floors/run</th>
+                                  <th className="num">Floors/run (+%)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rs.map((r) => {
+                                  rowNum += 1;
+                                  return (
+                                    <tr key={r.key}>
+                                      <td style={{ paddingRight: 12 }}>{rowNum}</td>
+                                      <td style={{ paddingRight: 12 }}>{r.displayName}</td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4 }} title={!r.significant ? "Not statistically significant" : undefined}>
+                                          {!r.significant ? "*" : r.meanFloors.toFixed(3)}
+                                        </span>
+                                      </td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4 }}>
+                                          {!r.significant ? "*" : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })() : null}
+                    </>
+                  )}
+                </div>
+              </Collapsible>
 
               {(["common", "rare", "epic", "legendary", "mythic"] as const).map((ct) => {
               const entries = fragmentGroups[ct] ?? [];
@@ -2952,7 +3435,7 @@ export function ArchSim() {
                       return (
                         <div
                           key={key}
-                          className="fragmentUpgradeRow"
+                          className={`fragmentUpgradeRow ${locked ? "fragmentUpgradeRowLocked" : ""}`}
                           style={{
                             ...(locked ? undefined : heatStyle(lvl, maxLvl)),
                             ...(isMaxed ? { color: "#888" } : undefined),
