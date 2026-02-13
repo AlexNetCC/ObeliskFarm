@@ -1913,6 +1913,7 @@ export function Fishing() {
                   </span>
                 ) : null}
               </div>
+              <div className="fishingTickFlowArrow">↓</div>
               <div className="fishingTickRow">
                 <strong>Effective</strong> Fishing Ticks per hour = <span className="mono">{effectiveTickSec > 0 ? (3600 / effectiveTickSec).toFixed(2) : "—"}</span>
                 <Tooltip
@@ -1926,6 +1927,7 @@ export function Fishing() {
                   label="?"
                 />
               </div>
+              <div className="fishingTickFlowArrow">↓</div>
               <div className="fishingTickRow">
                 How many catch attempts per hour = <span className="mono">{catchAttemptsPerHour.total.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
                 <Tooltip
