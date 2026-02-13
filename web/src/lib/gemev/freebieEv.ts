@@ -611,6 +611,11 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
       sushi_fish: sushi_qty,
       recursive_gifts: recursiveGifts_qty,
     } as Record<string, number>,
+    _multipliers: {
+      obeliskMult,
+      luckyMult,
+      obeliskLevel: obelisk,
+    },
   };
 }
 

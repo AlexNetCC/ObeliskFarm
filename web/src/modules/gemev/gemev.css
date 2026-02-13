@@ -330,3 +330,30 @@
   background: rgba(92, 107, 192, 0.12);
   border-color: rgba(92, 107, 192, 0.35);
 }
+
+/* Gift Reward Multipliers: combined value rainbow (like fish gains) */
+.giftMultiplierRainbow {
+  background: linear-gradient(
+    90deg,
+    #e53935,
+    #fb8c00,
+    #43a047,
+    #1e88e5,
+    #8e24aa,
+    #e53935
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: giftMultiplierRainbowShimmer 3s ease-in-out infinite;
+}
+@keyframes giftMultiplierRainbowShimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
