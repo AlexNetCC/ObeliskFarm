@@ -91,6 +91,9 @@ export type GameParameters = {
 
   /** Optional: Chaos Totem uptime fraction 0..1 (Bomb Recharge Rate 2× when active). Multiplicative with other bomb recharge effects. */
   chaos_totem_uptime?: number;
+
+  /** Statue of Soprano (Praed): 0 = none, 1 = Normal, 2 = Gilded, 3 = Platinized. Adds Freebie Gift Chance and 100× chance on freebie claims. */
+  statue_soprano_level?: number;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -145,9 +148,33 @@ export function defaultGameParameters(): GameParameters {
     founder_bomb_interval_seconds: 87.0,
     founder_bomb_charges_per_drop: 2.0,
     founder_bomb_speed_chance: 0.10,
-    founder_bomb_speed_multiplier: 2.0,
-    founder_bomb_speed_duration_seconds: 10.0,
+  founder_bomb_speed_multiplier: 2.0,
+  founder_bomb_speed_duration_seconds: 10.0,
+  statue_soprano_level: 0,
   };
+}
+
+/** Statue of Soprano (Praed) config: Freebie Gift Chance (0..1) and 100× chance (0..1) per level. */
+const STATUE_SOPRANO_CONFIG: Record<number, { freebieGiftChance: number; freebie100xChance: number }> = {
+  0: { freebieGiftChance: 0, freebie100xChance: 0 },
+  1: { freebieGiftChance: 0.005, freebie100xChance: 1 / 50000 },
+  2: { freebieGiftChance: 0.0075, freebie100xChance: 1 / 35000 },
+  3: { freebieGiftChance: 0.01, freebie100xChance: 1 / 25000 },
+};
+
+/** Gem EV per hour from Statue of Soprano (Freebie Gift Chance + 100× on freebie claims). Returns 0 when level 0. */
+export function calculateStatueSopranoGiftEvPerHour(params: GameParameters): number {
+  const level = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
+  const cfg = STATUE_SOPRANO_CONFIG[level];
+  if (!cfg || (cfg.freebieGiftChance === 0 && cfg.freebie100xChance === 0)) return 0;
+  const freebiesPerHour = calculateFreebiesPerHour(params);
+  const refreshMult = calculateRefreshMultiplier(params);
+  const expectedRolls = calculateExpectedRollsPerClaim(params);
+  const freebieEventsPerHour = freebiesPerHour * refreshMult * expectedRolls;
+  const expectedGiftsPerEvent = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
+  const giftsPerHour = freebieEventsPerHour * expectedGiftsPerEvent;
+  const giftEvPerGift = calculateGiftEvPerGift(params);
+  return giftsPerHour * giftEvPerGift;
 }
 
 function clamp01(x: number): number {
@@ -679,7 +706,7 @@ export function calculateFounderBombBoostPerHour(_params: GameParameters): numbe
   return 0;
 }
 
-export type EvBreakdownEntry = { base: number; jackpot: number; refresh_base: number; refresh_jackpot: number };
+export type EvBreakdownEntry = { base: number; jackpot: number; refresh_base: number; refresh_jackpot: number; gift?: number };
 export type EvBreakdown = Record<
   | "gems_base"
   | "stonks_ev"
@@ -743,8 +770,9 @@ export function calculateEvBreakdown(params: GameParameters): EvBreakdown {
   const founderBombBase = refreshMult > 0 ? founderBombTotal / refreshMult : 0;
   const founderBombRefresh = founderBombTotal - founderBombBase;
 
+  const giftStatue = calculateStatueSopranoGiftEvPerHour(params);
   return {
-    gems_base: { base: baseGems, jackpot: jackpotGems, refresh_base: refreshGemsBase, refresh_jackpot: refreshGemsJackpot },
+    gems_base: { base: baseGems, jackpot: jackpotGems, refresh_base: refreshGemsBase, refresh_jackpot: refreshGemsJackpot, gift: giftStatue },
     stonks_ev: { base: baseStonks, jackpot: 0.0, refresh_base: refreshStonks, refresh_jackpot: 0.0 },
     skill_shards_ev: { base: baseShards, jackpot: jackpotShards, refresh_base: refreshShardsBase, refresh_jackpot: refreshShardsJackpot },
     founder_speed_boost: { base: founderSpeedBase, jackpot: 0.0, refresh_base: founderSpeedRefresh, refresh_jackpot: 0.0 },
@@ -767,6 +795,7 @@ export type TotalEv = {
 
 export function calculateTotalEvPerHour(params: GameParameters): TotalEv {
   const gems_base = calculateGemsBasePerHour(params);
+  const gift_statue = calculateStatueSopranoGiftEvPerHour(params);
   const stonks_ev = calculateStonksEvPerHour(params);
   const skill_shards_ev = calculateSkillShardsEvPerHour(params);
   const founder_speed_boost = calculateFounderSpeedBoostPerHour(params);
@@ -774,8 +803,8 @@ export function calculateTotalEvPerHour(params: GameParameters): TotalEv {
   const gem_bomb_gems = calculateGemBombGemsPerHour(params);
   const founder_bomb_boost = calculateFounderBombBoostPerHour(params);
 
-  const total = gems_base + stonks_ev + skill_shards_ev + founder_speed_boost + founder_gems + gem_bomb_gems + founder_bomb_boost;
-  return { gems_base, stonks_ev, skill_shards_ev, founder_speed_boost, founder_gems, gem_bomb_gems, founder_bomb_boost, total };
+  const total = gems_base + gift_statue + stonks_ev + skill_shards_ev + founder_speed_boost + founder_gems + gem_bomb_gems + founder_bomb_boost;
+  return { gems_base: gems_base + gift_statue, stonks_ev, skill_shards_ev, founder_speed_boost, founder_gems, gem_bomb_gems, founder_bomb_boost, total };
 }
 
 /** Expected gem EV per single freebie claim (one pop). Used for overnight banked freebies. */

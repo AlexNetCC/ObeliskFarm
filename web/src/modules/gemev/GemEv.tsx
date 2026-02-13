@@ -27,6 +27,7 @@ type SavedStateV1 = {
   stonks_enabled: boolean;
   skill_shards_enabled: boolean;
   show_jackpot_refresh?: boolean;
+  statue_soprano_level?: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -171,7 +172,8 @@ export function GemEv() {
     const stonks_enabled = saved?.stonks_enabled ?? true;
     const skill_shards_enabled = saved?.skill_shards_enabled ?? true;
     const show_jackpot_refresh = saved?.show_jackpot_refresh ?? true;
-    return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh };
+    const statue_soprano_level = Math.max(0, Math.min(3, saved?.statue_soprano_level ?? 0));
+    return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh, statue_soprano_level };
   }, []);
 
   const [params, setParams] = useState<GameParameters>(initial.params);
@@ -179,6 +181,7 @@ export function GemEv() {
   const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
   const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
+  const [statueSopranoLevel, setStatueSopranoLevel] = useState<number>(initial.statue_soprano_level);
   const [lootbugNetGemsPerHour, setLootbugNetGemsPerHour] = useState(0);
   useEffect(() => {
     const ext = loadJson<{ lootbugNetGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
@@ -187,11 +190,11 @@ export function GemEv() {
   // autosave
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled, show_jackpot_refresh: showJackpotRefresh };
+      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled, show_jackpot_refresh: showJackpotRefresh, statue_soprano_level: statueSopranoLevel };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [params, stonksEnabled, skillShardsEnabled, showJackpotRefresh]);
+  }, [params, stonksEnabled, skillShardsEnabled, showJackpotRefresh, statueSopranoLevel]);
 
   useEffect(() => {
     function onKeyDown(ev: KeyboardEvent) {
@@ -261,6 +264,9 @@ export function GemEv() {
 
     // Skill shards: include in EV only when toggle on
     if (!skillShardsEnabled) p.skill_shard_chance = 0;
+
+    // Statue of Soprano
+    p.statue_soprano_level = Math.max(0, Math.min(3, statueSopranoLevel));
 
     // Fixed desktop constants
     p.founder_gems_base = 10.0;
@@ -333,7 +339,7 @@ export function GemEv() {
     p.founder_bomb_speed_duration_seconds = clamp(p.founder_bomb_speed_duration_seconds, 0, 10_000);
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs]);
+  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);
@@ -871,6 +877,55 @@ export function GemEv() {
                     max={999}
                     decimals={1}
                   />
+                </div>
+              </Collapsible>
+
+              <div className="gemEvDivider" />
+
+              <Collapsible
+                id="gemev-construct"
+                title="Construct (World 3 Statues)"
+                defaultExpanded={false}
+                headerRight={
+                  <Tooltip
+                    content={{
+                      title: "Statue of Soprano",
+                      sections: [
+                        { heading: "Normal", lines: ["Freebie Gift Chance +0.5%.", "100× Freebie Gifts Chance 1/50k."] },
+                        { heading: "Gilded", lines: ["Freebie Gift Chance +0.75%.", "100× Freebie Gifts Chance 1/35k."] },
+                        { heading: "Platinized", lines: ["Freebie Gift Chance +1%.", "100× Freebie Gifts Chance 1/25k."] },
+                      ],
+                    }}
+                    label="?"
+                  />
+                }
+              >
+                <div className="gemEvSectionBody" style={{ paddingTop: 4 }}>
+                  <div className="gemEvInlineHead" style={{ marginBottom: 4 }}>
+                    <span>Statue of Soprano (Praed)</span>
+                  </div>
+                  <div className="gemEvCardRow" style={{ marginTop: 4 }}>
+                    {[
+                      { level: 1, label: "Normal", src: "https://static.wikitide.net/shminerwiki/0/00/18_Statue_Soprano_Normal.png", stats: "+0.5%, 1/50k" },
+                      { level: 2, label: "Gilded", src: "https://static.wikitide.net/shminerwiki/3/3d/18_Statue_Soprano_Gilded.png", stats: "+0.75%, 1/35k" },
+                      { level: 3, label: "Platinized", src: "https://static.wikitide.net/shminerwiki/5/5f/18_Statue_Soprano_Platinized.png", stats: "+1%, 1/25k" },
+                    ].map((opt) => {
+                      const cur = statueSopranoLevel === opt.level;
+                      return (
+                        <button
+                          key={opt.level}
+                          type="button"
+                          className={`btn btnSecondary gemEvCardBtn ${cur ? "cardBtnActive" : ""}`}
+                          onClick={() => setStatueSopranoLevel(cur ? 0 : opt.level)}
+                          aria-label={`Statue of Soprano: ${opt.label}`}
+                        >
+                          <img src={opt.src} alt="" width={20} height={20} style={{ objectFit: "contain", verticalAlign: "middle" }} />
+                          <span style={{ marginLeft: 4 }}>{opt.label}</span>
+                          {cur ? " ✓" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </Collapsible>
 

@@ -1,13 +1,14 @@
 import type { EvBreakdown, EvBreakdownEntry, TotalEv } from "../../lib/gemev/freebieEv";
 import { assetUrl } from "../../lib/assets";
 
-type SegmentKey = "base" | "jackpot" | "refresh_base" | "refresh_jackpot";
+type SegmentKey = "base" | "jackpot" | "refresh_base" | "refresh_jackpot" | "gift";
 
 const COLORS: Record<SegmentKey, string> = {
   base: "#2E86AB",
   jackpot: "#A23B72",
   refresh_base: "#F18F01",
   refresh_jackpot: "#C73E1D",
+  gift: "rgba(232,168,56,0.45)",
 };
 
 /** Gem Bomb bar: light gray hatched segment for 10× Bomb Recharge impact (limited uptime). */
@@ -23,6 +24,7 @@ const CHARGE_MAGNET_HATCH = "rgba(0,0,0,0.09)";
 const BOMB_RECHARGE_10X_ICON = "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const CHARGE_MAGNET_ICON = "https://static.wikitide.net/shminerwiki/f/fc/Charge_Magnet.png";
+const GIFT_ICON = "https://static.wikitide.net/shminerwiki/2/24/Gift.png";
 const SEGMENT_ICON_SIZE = 12;
 /** Min bar width (px) to draw icon inside bar; below this we draw line from bar center to icon. */
 const SEGMENT_ICON_MIN_BAR = SEGMENT_ICON_SIZE + 4;
@@ -31,7 +33,7 @@ const SEGMENT_ICON_LINE_OFFSET = 20;
 
 
 function sumEntry(e: EvBreakdownEntry): number {
-  return e.base + e.jackpot + e.refresh_base + e.refresh_jackpot;
+  return e.base + e.jackpot + e.refresh_base + e.refresh_jackpot + (e.gift ?? 0);
 }
 
 function pct(part: number, total: number): number {
@@ -161,7 +163,6 @@ export function ContribBarChart(props: {
   const hasLootbugCosts = typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0;
   const hasLootbug = hasLootbugGains || hasLootbugCosts;
   const hasDroneFuel = typeof droneFuelGemsPerHour === "number";
-
   const categoriesBase: Array<{ label: string; kind: RowKind }> = [
     { label: "Freebie Gems", kind: "gems_base" },
     { label: "Stonks EV", kind: "stonks_ev" },
@@ -290,7 +291,8 @@ export function ContribBarChart(props: {
     if (seg === "base") return COLORS.base;
     if (seg === "jackpot") return "url(#patJackpot)";
     if (seg === "refresh_base") return "url(#patRefreshBase)";
-    return "url(#patRefreshJackpot)";
+    if (seg === "refresh_jackpot") return "url(#patRefreshJackpot)";
+    return COLORS.gift;
   }
 
   const gemIconUrl = assetUrl("sprites/common/gem.png");
@@ -390,11 +392,19 @@ export function ContribBarChart(props: {
             segs.push({ key: "base", v: showGemBombSegments ? basePart : totalBomb, x: xOf(0), w: wOf(showGemBombSegments ? basePart : totalBomb), left: 0 });
             // 10× and Chaos drawn below only when split is valid; else full bar as blue
           } else if (isSegmentRow(i) && !showJackpotRefresh) {
-            const total = sumEntry(entry);
-            segs.push({ key: "base", v: total, x: xOf(0), w: wOf(total), left: 0 });
+            const giftVal = entry.gift ?? 0;
+            const baseVal = entry.base + entry.jackpot + entry.refresh_base + entry.refresh_jackpot;
+            segs.push({ key: "base", v: baseVal, x: xOf(0), w: wOf(baseVal), left: 0 });
+            left = baseVal;
+            if (giftVal > 0) {
+              segs.push({ key: "gift", v: giftVal, x: xOf(left), w: wOf(giftVal), left });
+              left += giftVal;
+            }
           } else {
-            (["base", "jackpot", "refresh_base", "refresh_jackpot"] as const).forEach((k) => {
-              const v = entry[k];
+            const segmentKeys: Array<SegmentKey> = ["base", "jackpot", "refresh_base", "refresh_jackpot"];
+            if ((entry.gift ?? 0) > 0) segmentKeys.push("gift");
+            segmentKeys.forEach((k) => {
+              const v = k === "gift" ? (entry.gift ?? 0) : entry[k];
               const w = wOf(v);
               const x = xOf(left);
               segs.push({ key: k, v, x, w, left });
@@ -428,12 +438,12 @@ export function ContribBarChart(props: {
             : isDroneFuelRow
               ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
               : isFounderRow
-                ? founderSpeedTotal + founderGemsTotal + founderItemsTotal
-                : isGemBombRow && entry != null
-                  ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
-                  : entry != null
-                    ? sumEntry(entry)
-                    : 0;
+                  ? founderSpeedTotal + founderGemsTotal + founderItemsTotal
+                  : isGemBombRow && entry != null
+                    ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
+                    : entry != null
+                      ? sumEntry(entry)
+                      : 0;
         const barStartX = isLootbugGainsRow
           ? 0
           : isLootbugCostsRow
@@ -548,7 +558,6 @@ export function ContribBarChart(props: {
                 strokeWidth={0.6}
               />
             ) : null}
-
             {segs.map((s) =>
               s.v > 0 ? (
                 <rect
@@ -562,6 +571,36 @@ export function ContribBarChart(props: {
                   strokeWidth={0.6}
                 />
               ) : null,
+            )}
+            {segs.map((s) =>
+              s.key === "gift" && s.v > 0
+                ? (() => {
+                    const barCenterX = s.x + s.w / 2;
+                    const barCenterY = y0 + barH / 2;
+                    const iconOnBar = s.w >= SEGMENT_ICON_MIN_BAR;
+                    const iconCenterX = iconOnBar ? barCenterX : barCenterX + SEGMENT_ICON_LINE_OFFSET;
+                    const iconCenterY = iconOnBar ? barCenterY : barCenterY - SEGMENT_ICON_LINE_OFFSET;
+                    const iconX = iconCenterX - SEGMENT_ICON_SIZE / 2;
+                    const iconY = iconCenterY - SEGMENT_ICON_SIZE / 2;
+                    return (
+                      <g key="gift-icon">
+                        {iconOnBar ? null : (
+                          <line x1={barCenterX} y1={barCenterY} x2={iconCenterX} y2={iconCenterY} stroke="rgba(15,23,42,0.5)" strokeWidth={1} />
+                        )}
+                        <image
+                          href={GIFT_ICON}
+                          x={iconX}
+                          y={iconY}
+                          width={SEGMENT_ICON_SIZE}
+                          height={SEGMENT_ICON_SIZE}
+                          preserveAspectRatio="xMidYMid meet"
+                          style={{ pointerEvents: "none" }}
+                          aria-hidden
+                        />
+                      </g>
+                    );
+                  })()
+                : null,
             )}
 
             {isGemBombRow && entry && showGemBombSegments && gemBomb10xForChart > 0 ? (() => {
