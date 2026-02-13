@@ -483,6 +483,10 @@ export function Lootbug() {
       lootbugNetGemsPerHour?: number;
       lootbug2xStarMinPerHour?: number;
       lootbugEvPerClaim?: number;
+      lootbugGainsGross?: number;
+      lootbug10xGemEvPerHour?: number;
+      lootbugChestGemEvPerHour?: number;
+      lootbugTotalGemCostPerHour?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
     ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
