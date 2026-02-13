@@ -1876,6 +1876,19 @@ export function Fishing() {
                   </span>
                 ) : null}
               </div>
+              <div className="fishingTickRow">
+                <strong>Effective</strong> Fishing Ticks per hour = <span className="mono">{effectiveTickSec > 0 ? (3600 / effectiveTickSec).toFixed(2) : "—"}</span>
+                <Tooltip
+                  content={{
+                    title: "Effective fishing ticks per hour",
+                    lines: [
+                      "Base fishing ticks per hour (3600 ÷ effective tick seconds). Includes Elixir Drone 3× Fishing Tick Speed.",
+                      "Angler Suit and Lootbug add extra fill progress on top of this.",
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
             </div>
           </div>
           <div className="fishingBoatLevelRow">
