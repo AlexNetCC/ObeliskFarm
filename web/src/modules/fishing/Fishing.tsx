@@ -2784,6 +2784,7 @@ export function Fishing() {
           <Collapsible id="fishing-fish-card-gild-effic" title="How much do fish gains improve when I gild my cards?" defaultExpanded={true} className="fishingFishCardGildEffic">
             <div className="small" style={{ marginBottom: 8 }}>
               Cost efficiency = marginal % gain per cost. Fish cards: Card → Gilded (gems). Fishing Rod Power: Card → Poly, 1500 gems. Same scale as enhancements and skill tree.
+              <div style={{ marginTop: 6 }}>Fishing Rod: upgrading from Gilded to Poly is trivial, so the jump is calculated directly to Poly.</div>
             </div>
             <div className="fishingUpgradesList">
               <table className="fishingUpgradeTable">

@@ -3082,10 +3082,10 @@ export function ArchSim() {
                                 <tr>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Card</th>
-                                  <th className="num">Floors/run</th>
-                                  <th className="num">Floors/run (+%)</th>
-                                  <th className="num">Gems</th>
-                                  <th className="num" title="Floors/run (+%) per gem">(+%)/gem</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run (+%)</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gems</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="Floors/run (+%) per gem">(+%)/gem</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3243,10 +3243,10 @@ export function ArchSim() {
                                 <tr>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Gem Upgrade</th>
-                                  <th className="num">Floors/run</th>
-                                  <th className="num">Floors/run (+%)</th>
-                                  <th className="num">Gems</th>
-                                  <th className="num" title="Floors/run (+%) per gem">(+%)/gem</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run (+%)</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gems</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="Floors/run (+%) per gem">(+%)/gem</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3374,8 +3374,8 @@ export function ArchSim() {
                                 <tr>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Skill</th>
-                                  <th className="num">Floors/run</th>
-                                  <th className="num">Floors/run (+%)</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run (+%)</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3762,7 +3762,16 @@ export function ArchSim() {
                               <Tooltip
                                 content={{
                                   title: "Defaults",
-                                  lines: ["Screening N default: 100", "Refinement N default: 200", "Combinations default: ×1"],
+                                  sections: [
+                                    {
+                                      heading: "Defaults",
+                                      lines: ["Screening N default: 100", "Refinement N default: 200", "Combinations default: ×1"],
+                                    },
+                                    {
+                                      heading: "Recommendation",
+                                      lines: ["If your CPU is fast enough, try 500 / 350 / ×4 for better results."],
+                                    },
+                                  ],
                                 }}
                               />
                             </span>
