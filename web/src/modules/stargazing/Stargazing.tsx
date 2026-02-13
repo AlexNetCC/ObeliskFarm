@@ -335,7 +335,7 @@ export function Stargazing() {
   /** Force re-render and invalidate memos after Starburst toggle so results update. */
   const [starburstToggleRefresh, setStarburstToggleRefresh] = useState(0);
 
-  /** 2× Star Spawn Rate: Elixir (Drone) + Lootbug (incl. Golden) + Founder Supply Drop. Same buff; durations add (e.g. 3+5+2 = 10 min/h → 1/6 uptime). 3× Super Star from Drone Elixir only. Starburst Drone: Triple Star (suit), Star Spawn Rate + Auto-catch (when fueled). */
+  /** 2× Star Spawn Rate: Elixir (Drone) + Lootbug (incl. Golden) + Founder Supply Drop. Same buff; durations add (e.g. 3+5+2 = 10 min/h → 1/6 uptime). 3× Super Star from Drone Elixir only. Starburst Drone not included: enter its effects manually in Your stats to avoid double-counting. */
   const droneBuffs = useMemo(() => {
     const sg = loadJson<{
       elixir2xStarMinPerHour?: number;
@@ -355,19 +355,16 @@ export function Stargazing() {
     const total2xStarMinPerHour = elixirMin + lootbugMin + founder2xMin;
     const total2xUptimeFraction = Math.min(1, total2xStarMinPerHour / 60);
     const founderAutoCatchMin = typeof sg?.founderSupplyDropAutoCatch100MinPerHour === "number" ? Math.max(0, sg.founderSupplyDropAutoCatch100MinPerHour) : 0;
-    const starburstOn = typeof sg?.starburstDroneOn === "boolean" ? sg.starburstDroneOn : false;
-    const starburstAutoCatchMin = starburstOn && typeof sg?.starburstAutoCatch100MinPerHour === "number" ? Math.max(0, sg.starburstAutoCatch100MinPerHour) : 0;
-    const totalAutoCatch100MinPerHour = Math.min(60, founderAutoCatchMin + starburstAutoCatchMin);
     return {
       total2xStarMinPerHour,
       total2xUptimeFraction,
       drone3xSuperUptimeFraction: typeof sg?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.drone3xSuperUptimeFraction)) : 0,
-      founderSupplyDropAutoCatch100MinPerHour: totalAutoCatch100MinPerHour,
+      founderSupplyDropAutoCatch100MinPerHour: Math.min(60, founderAutoCatchMin),
       founderOnlyAutoCatch100MinPerHour: founderAutoCatchMin,
-      starburstTripleStarChancePct: starburstOn && typeof sg?.starburstTripleStarChancePct === "number" ? Math.max(0, sg.starburstTripleStarChancePct) : 0,
-      starburstStarSpawnRateUptimeFraction: starburstOn && typeof sg?.starburstStarSpawnRateUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.starburstStarSpawnRateUptimeFraction)) : 0,
-      starburstStarSpawnRatePct: starburstOn && typeof sg?.starburstStarSpawnRatePct === "number" ? Math.max(0, sg.starburstStarSpawnRatePct) : 0,
-      starburstAutoCatch100MinPerHour: starburstAutoCatchMin,
+      starburstTripleStarChancePct: 0,
+      starburstStarSpawnRateUptimeFraction: 0,
+      starburstStarSpawnRatePct: 0,
+      starburstAutoCatch100MinPerHour: 0,
     };
   }, [starburstToggleRefresh]);
 
@@ -384,32 +381,24 @@ export function Stargazing() {
     starburstAutoCatch100MinPerHour: 0,
   }), []);
 
-  /** For Online AFK: only Elixir + Starburst (no Lootbug, no Founder). */
+  /** For Online AFK: only Elixir (no Lootbug, no Founder, no Starburst). */
   const droneBuffsOnlineAfk = useMemo(() => {
     const sg = loadJson<{
       elixir2xStarMinPerHour?: number;
       drone3xSuperUptimeFraction?: number;
-      founderSupplyDropAutoCatch100MinPerHour?: number;
-      starburstDroneOn?: boolean;
-      starburstTripleStarChancePct?: number;
-      starburstStarSpawnRateUptimeFraction?: number;
-      starburstStarSpawnRatePct?: number;
-      starburstAutoCatch100MinPerHour?: number;
     }>(STARGAZING_EXTERNAL_KEY);
     const elixirMin = typeof sg?.elixir2xStarMinPerHour === "number" ? Math.max(0, sg.elixir2xStarMinPerHour) : 0;
     const total2xUptimeFraction = Math.min(1, elixirMin / 60);
-    const starburstOn = typeof sg?.starburstDroneOn === "boolean" ? sg.starburstDroneOn : false;
-    const starburstAutoCatchMin = starburstOn && typeof sg?.starburstAutoCatch100MinPerHour === "number" ? Math.max(0, sg.starburstAutoCatch100MinPerHour) : 0;
     return {
       total2xStarMinPerHour: elixirMin,
       total2xUptimeFraction,
       drone3xSuperUptimeFraction: typeof sg?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.drone3xSuperUptimeFraction)) : 0,
-      founderSupplyDropAutoCatch100MinPerHour: Math.min(60, starburstAutoCatchMin),
+      founderSupplyDropAutoCatch100MinPerHour: 0,
       founderOnlyAutoCatch100MinPerHour: 0,
-      starburstTripleStarChancePct: starburstOn && typeof sg?.starburstTripleStarChancePct === "number" ? Math.max(0, sg.starburstTripleStarChancePct) : 0,
-      starburstStarSpawnRateUptimeFraction: starburstOn && typeof sg?.starburstStarSpawnRateUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.starburstStarSpawnRateUptimeFraction)) : 0,
-      starburstStarSpawnRatePct: starburstOn && typeof sg?.starburstStarSpawnRatePct === "number" ? Math.max(0, sg.starburstStarSpawnRatePct) : 0,
-      starburstAutoCatch100MinPerHour: starburstAutoCatchMin,
+      starburstTripleStarChancePct: 0,
+      starburstStarSpawnRateUptimeFraction: 0,
+      starburstStarSpawnRatePct: 0,
+      starburstAutoCatch100MinPerHour: 0,
     };
   }, [starburstToggleRefresh]);
 
@@ -632,7 +621,7 @@ export function Stargazing() {
       title: "Online",
       lines: [
         "Rate includes auto-catch. Toggle \"Do you catch manually?\" to use 100% catch instead.",
-        "All buffs (Lootbug, Founder Supply Drop, Elixir Drone, Starburst) are collected.",
+        "All buffs (Lootbug, Founder Supply Drop, Elixir Drone) are collected. Starburst: enter manually in Your stats.",
       ],
     }),
     [],
@@ -643,7 +632,7 @@ export function Stargazing() {
       title: "Online AFK",
       lines: [
         "— Game open, phone aside. All stars caught by auto-catch. Offline factor 0.85 does not apply.",
-        "— Lootbug and Founder buffs do not apply (only Elixir Drone and Starburst).",
+        "— Lootbug and Founder buffs do not apply (only Elixir Drone).",
       ],
     }),
     [],
@@ -833,13 +822,12 @@ export function Stargazing() {
                 )}
               </div>
             </Collapsible>
-            {(droneBuffs.total2xStarMinPerHour > 0 || droneBuffs.drone3xSuperUptimeFraction > 0 || droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 || droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0) && (
+            {(droneBuffs.total2xStarMinPerHour > 0 || droneBuffs.drone3xSuperUptimeFraction > 0 || droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0) && (
               <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   Includes 2× Star (Elixir + Lootbug incl. Golden + Founder Supply; minutes add)
                   {droneBuffs.drone3xSuperUptimeFraction > 0 && ", 3× Super Star (Elixir)"}
-                  {droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 && ", 100% Auto-catch (Founder Supply + Starburst when fueled)"}
-                  {(droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0) && ", Starburst Drone (Triple Star suit, Star Spawn when fueled)"}
+                  {droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 && ", 100% Auto-catch (Founder Supply)"}
                   <Tooltip
                     content={{
                       title: "External buffs",
@@ -859,13 +847,7 @@ export function Stargazing() {
                         {
                           heading: "100% Auto-catch",
                           lines: [
-                            "Founder Supply Drop gives 8 min (÷ game speed) of 100% Star Auto-catch per drop. Starburst Drone when fueled adds up to 60 min/h. Blended with your base auto-catch over the hour.",
-                          ],
-                        },
-                        {
-                          heading: "Starburst Drone",
-                          lines: [
-                            "From Drone module. Suit: Triple Star Chance (6% base + 1% per level) added to your stat. When fueled: +Star Spawn Rate (15% at grade 0, +1% per grade) and 100% Auto-catch for the full hour.",
+                            "Founder Supply Drop gives 8 min (÷ game speed) of 100% Star Auto-catch per drop. Blended with your base auto-catch over the hour. Starburst Drone effects: enter manually in Your stats to avoid double-counting.",
                           ],
                         },
                       ],
