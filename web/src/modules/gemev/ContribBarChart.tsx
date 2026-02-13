@@ -114,12 +114,17 @@ export function ContribLegend() {
   );
 }
 
-type RowKind = "gems_base" | "stonks_ev" | "skill_shards_ev" | "founder" | "gem_bomb" | "lootbug" | "drone";
+type RowKind = "gems_base" | "stonks_ev" | "skill_shards_ev" | "founder" | "gem_bomb" | "lootbug_gains" | "lootbug_costs" | "drone";
 
 export function ContribBarChart(props: {
   ev: TotalEv;
   breakdown: EvBreakdown;
-  lootbugNetGemsPerHour?: number;
+  /** Lootbug gains (gross): Gems raw + 10× Bomb Recharge Gem EV + Item Chests. */
+  lootbugGainsGross?: number;
+  /** Lootbug Gem buff costs (positive; shown as negative bar). */
+  lootbugTotalGemCostPerHour?: number;
+  /** Lootbug share of 10× Gem EV (for excluding from Gem Bomb bar). */
+  lootbug10xGemEvPerHour?: number;
   droneFuelGemsPerHour?: number;
   gemBomb10xImpact?: number;
   chaosTotemImpact?: number;
@@ -134,7 +139,9 @@ export function ContribBarChart(props: {
   const {
     ev,
     breakdown,
-    lootbugNetGemsPerHour,
+    lootbugGainsGross,
+    lootbugTotalGemCostPerHour,
+    lootbug10xGemEvPerHour = 0,
     droneFuelGemsPerHour,
     gemBomb10xImpact,
     chaosTotemImpact,
@@ -147,8 +154,12 @@ export function ContribBarChart(props: {
   const founderSpeed = breakdown.founder_speed_boost;
   const founderGems = breakdown.founder_gems;
   const gemBomb = breakdown.gem_bomb_gems;
+  /** Gem Bomb bar: exclude Lootbug share of 10×; show only bomb cycle + Drone 10× + Chaos + Charge Magnet. */
+  const gemBomb10xForChart = Math.max(0, (gemBomb10xImpact ?? 0) - lootbug10xGemEvPerHour);
 
-  const hasLootbug = typeof lootbugNetGemsPerHour === "number";
+  const hasLootbugGains = typeof lootbugGainsGross === "number";
+  const hasLootbugCosts = typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0;
+  const hasLootbug = hasLootbugGains || hasLootbugCosts;
   const hasDroneFuel = typeof droneFuelGemsPerHour === "number";
 
   const categoriesBase: Array<{ label: string; kind: RowKind }> = [
@@ -160,18 +171,21 @@ export function ContribBarChart(props: {
   ];
   const categories = [
     ...categoriesBase.map((c) => c.label),
-    ...(hasLootbug ? ["Lootbug Gems (raw)"] : []),
+    ...(hasLootbugGains ? ["Lootbug gains"] : []),
+    ...(hasLootbugCosts ? ["Lootbug Gem buff costs"] : []),
     ...(hasDroneFuel ? ["Drone Fuel"] : []),
   ] as const;
   const rowKinds: RowKind[] = [
     ...categoriesBase.map((c) => c.kind),
-    ...(hasLootbug ? (["lootbug"] as const) : []),
+    ...(hasLootbugGains ? (["lootbug_gains"] as const) : []),
+    ...(hasLootbugCosts ? (["lootbug_costs"] as const) : []),
     ...(hasDroneFuel ? (["drone"] as const) : []),
   ];
 
+  const lootbugNetContribution = (lootbugGainsGross ?? 0) - (lootbugTotalGemCostPerHour ?? 0);
   const totalForPct =
     ev.total +
-    (hasLootbug && typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0) +
+    (hasLootbug ? lootbugNetContribution : 0) +
     (hasDroneFuel && typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0) +
     (chargeMagnetImpact ?? 0) +
     founderSupplyDropItemsGemValue;
@@ -187,7 +201,8 @@ export function ContribBarChart(props: {
   ];
   const valuesTop = [
     ...valuesTopBase,
-    ...(hasLootbug ? [lootbugNetGemsPerHour!] : []),
+    ...(hasLootbugGains ? [lootbugGainsGross!] : []),
+    ...(hasLootbugCosts ? [-lootbugTotalGemCostPerHour!] : []),
     ...(hasDroneFuel ? [droneFuelGemsPerHour!] : []),
   ];
   const pctsBase: number[] = [
@@ -199,7 +214,8 @@ export function ContribBarChart(props: {
   ];
   const pcts = [
     ...pctsBase,
-    ...(hasLootbug ? [totalForPct !== 0 ? pct(lootbugNetGemsPerHour!, totalForPct) : 0] : []),
+    ...(hasLootbugGains ? [totalForPct !== 0 ? pct(lootbugGainsGross!, totalForPct) : 0] : []),
+    ...(hasLootbugCosts ? [totalForPct !== 0 ? pct(-lootbugTotalGemCostPerHour!, totalForPct) : 0] : []),
     ...(hasDroneFuel ? [totalForPct !== 0 ? pct(droneFuelGemsPerHour!, totalForPct) : 0] : []),
   ];
 
@@ -224,10 +240,20 @@ export function ContribBarChart(props: {
     sumEntry(founderSpeed) + sumEntry(founderGems) + founderSupplyDropItemsGemValue,
     sumEntry(gemBomb),
   );
-  const extraMin = [hasLootbug ? lootbugNetGemsPerHour : null, hasDroneFuel ? droneFuelGemsPerHour : null].filter(
-    (v): v is number => typeof v === "number",
-  );
-  const minVal = extraMin.length > 0 ? Math.min(0, ...extraMin) : 0;
+  const extraMin = [
+    hasLootbugGains ? lootbugGainsGross : null,
+    hasLootbugCosts ? -lootbugTotalGemCostPerHour! : null,
+    hasDroneFuel ? droneFuelGemsPerHour : null,
+  ].filter((v): v is number => typeof v === "number");
+  const gemBombLeftOverflow = (() => {
+    const base = sumEntry(gemBomb);
+    const x10 = gemBomb10xForChart;
+    const chaos = chaosTotemImpact ?? 0;
+    const overflow = base - x10 - chaos;
+    return overflow < 0 ? overflow : 0;
+  })();
+  const allMins = [...extraMin, ...(gemBombLeftOverflow < 0 ? [gemBombLeftOverflow] : [])];
+  const minVal = allMins.length > 0 ? Math.min(0, ...allMins) : 0;
   const maxVal =
     extraMin.length > 0 ? Math.max(maxValPos, ...valuesTop.filter((v) => v > 0), -minVal) : maxValPos;
   const range = maxVal - minVal;
@@ -235,7 +261,7 @@ export function ContribBarChart(props: {
   // Horizontal bar chart: categories on Y, values on X (bars left to right; origin at 0 when minVal < 0)
   // W / padR chosen so right-side value labels (barEndX + 8 + text) stay inside viewBox and are not clipped
   const W = 800;
-  const nExtra = (hasLootbug ? 1 : 0) + (hasDroneFuel ? 1 : 0);
+  const nExtra = (hasLootbugGains ? 1 : 0) + (hasLootbugCosts ? 1 : 0) + (hasDroneFuel ? 1 : 0);
   const H = 320 + nExtra * 40;
   const padL = 140;
   const padR = 152;
@@ -270,7 +296,8 @@ export function ContribBarChart(props: {
   const gemIconUrl = assetUrl("sprites/common/gem.png");
 
   const isGemBombRowByKind = (kind: RowKind) => kind === "gem_bomb";
-  const isLootbugRowByKind = (kind: RowKind) => kind === "lootbug";
+  const isLootbugGainsRowByKind = (kind: RowKind) => kind === "lootbug_gains";
+  const isLootbugCostsRowByKind = (kind: RowKind) => kind === "lootbug_costs";
   const isDroneFuelRowByKind = (kind: RowKind) => kind === "drone";
   const isFounderRowByKind = (kind: RowKind) => kind === "founder";
 
@@ -344,19 +371,24 @@ export function ContribBarChart(props: {
       {categories.map((label, i) => {
         const kind = rowKinds[i]!;
         const y0 = padT + i * rowH + barPad;
-        const isLootbugRow = isLootbugRowByKind(kind);
+        const isLootbugGainsRow = isLootbugGainsRowByKind(kind);
+        const isLootbugCostsRow = isLootbugCostsRowByKind(kind);
         const isDroneFuelRow = isDroneFuelRowByKind(kind);
         const isGemBombRow = isGemBombRowByKind(kind);
         const isFounderRow = isFounderRowByKind(kind);
-        const { speed, gems, entry } = isLootbugRow || isDroneFuelRow ? { speed: null, gems: null, entry: null } : stackForIndex(i);
+        const isLootbugOrDroneRow = isLootbugGainsRow || isLootbugCostsRow || isDroneFuelRow;
+        const { speed, gems, entry } = isLootbugOrDroneRow ? { speed: null, gems: null, entry: null } : stackForIndex(i);
 
         const segs: Array<{ key: SegmentKey; v: number; x: number; w: number; left: number }> = [];
         let left = 0;
-        if (!isLootbugRow && !isDroneFuelRow && entry) {
-          if (isGemBombRow && (typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 || typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 || typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0)) {
-            const basePart = Math.max(0, sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0));
-            segs.push({ key: "base", v: basePart, x: xOf(0), w: wOf(basePart), left: 0 });
-            // 10× and Chaos Totem parts drawn separately below
+        let showGemBombSegments = false;
+        if (!isLootbugOrDroneRow && entry) {
+          if (isGemBombRow && (gemBomb10xForChart > 0 || typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 || typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0)) {
+            const totalBomb = sumEntry(entry);
+            const basePart = Math.max(0, totalBomb - gemBomb10xForChart - (chaosTotemImpact ?? 0));
+            showGemBombSegments = basePart > 0;
+            segs.push({ key: "base", v: showGemBombSegments ? basePart : totalBomb, x: xOf(0), w: wOf(showGemBombSegments ? basePart : totalBomb), left: 0 });
+            // 10× and Chaos drawn below only when split is valid; else full bar as blue
           } else if (isSegmentRow(i) && !showJackpotRefresh) {
             const total = sumEntry(entry);
             segs.push({ key: "base", v: total, x: xOf(0), w: wOf(total), left: 0 });
@@ -389,41 +421,49 @@ export function ContribBarChart(props: {
         }
         const founderItemsTotal = isFounderRow ? founderSupplyDropItemsGemValue : 0;
 
-        const totalBarLen = isLootbugRow
-          ? (typeof lootbugNetGemsPerHour === "number" ? lootbugNetGemsPerHour : 0)
-          : isDroneFuelRow
-            ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
-            : isFounderRow
-              ? founderSpeedTotal + founderGemsTotal + founderItemsTotal
-              : isGemBombRow && entry != null
-                ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
-                : entry != null
-                  ? sumEntry(entry)
-                  : 0;
-        const barStartX = isLootbugRow
-          ? (typeof lootbugNetGemsPerHour === "number" ? Math.min(0, lootbugNetGemsPerHour) : 0)
-          : isDroneFuelRow
-            ? (typeof droneFuelGemsPerHour === "number" ? Math.min(0, droneFuelGemsPerHour) : 0)
-            : 0;
+        const totalBarLen = isLootbugGainsRow
+          ? (typeof lootbugGainsGross === "number" ? lootbugGainsGross : 0)
+          : isLootbugCostsRow
+            ? (typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0 ? -lootbugTotalGemCostPerHour : 0)
+            : isDroneFuelRow
+              ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
+              : isFounderRow
+                ? founderSpeedTotal + founderGemsTotal + founderItemsTotal
+                : isGemBombRow && entry != null
+                  ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
+                  : entry != null
+                    ? sumEntry(entry)
+                    : 0;
+        const barStartX = isLootbugGainsRow
+          ? 0
+          : isLootbugCostsRow
+            ? (typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0 ? -lootbugTotalGemCostPerHour : 0)
+            : isDroneFuelRow
+              ? (typeof droneFuelGemsPerHour === "number" ? Math.min(0, droneFuelGemsPerHour) : 0)
+              : 0;
         const barLen =
-          isLootbugRow && typeof lootbugNetGemsPerHour === "number"
-            ? Math.abs(lootbugNetGemsPerHour)
-            : isDroneFuelRow && typeof droneFuelGemsPerHour === "number"
-              ? Math.abs(droneFuelGemsPerHour)
-              : totalBarLen;
+          isLootbugGainsRow && typeof lootbugGainsGross === "number"
+            ? lootbugGainsGross
+            : isLootbugCostsRow && typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0
+              ? lootbugTotalGemCostPerHour
+              : isDroneFuelRow && typeof droneFuelGemsPerHour === "number"
+                ? Math.abs(droneFuelGemsPerHour)
+                : totalBarLen;
         const barEndX = xOf(
-          isLootbugRow && typeof lootbugNetGemsPerHour === "number"
-            ? Math.max(0, lootbugNetGemsPerHour)
-            : isDroneFuelRow && typeof droneFuelGemsPerHour === "number"
-              ? Math.max(0, droneFuelGemsPerHour)
-              : totalBarLen,
+          isLootbugGainsRow && typeof lootbugGainsGross === "number"
+            ? lootbugGainsGross
+            : isLootbugCostsRow && typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0
+              ? -lootbugTotalGemCostPerHour
+              : isDroneFuelRow && typeof droneFuelGemsPerHour === "number"
+                ? Math.max(0, droneFuelGemsPerHour)
+                : totalBarLen,
         );
         const labelY = y0 + barH / 2 + 4;
 
         return (
           <g key={i}>
             <rect
-              x={isLootbugRow || isDroneFuelRow ? xOf(barStartX) : xOf(0)}
+              x={isLootbugOrDroneRow ? xOf(barStartX) : xOf(0)}
               y={y0}
               width={wOf(barLen)}
               height={barH}
@@ -433,11 +473,64 @@ export function ContribBarChart(props: {
               rx={2}
             />
 
-            {isLootbugRow && typeof lootbugNetGemsPerHour === "number" && lootbugNetGemsPerHour !== 0 ? (
+            {isLootbugGainsRow && typeof lootbugGainsGross === "number" && lootbugGainsGross > 0 ? (() => {
+              const basePart = Math.max(0, lootbugGainsGross - (lootbug10xGemEvPerHour ?? 0));
+              return (
+                <>
+                  <rect
+                    x={xOf(0)}
+                    y={y0}
+                    width={wOf(basePart)}
+                    height={barH}
+                    fill={COLORS.base}
+                    stroke="rgba(15,23,42,0.45)"
+                    strokeWidth={0.6}
+                  />
+                  {typeof lootbug10xGemEvPerHour === "number" && lootbug10xGemEvPerHour > 0 ? (() => {
+                    const segX = xOf(basePart);
+                    const segW = wOf(lootbug10xGemEvPerHour);
+                    const barCenterX = segX + segW / 2;
+                    const barCenterY = y0 + barH / 2;
+                    const iconOnBar = segW >= SEGMENT_ICON_MIN_BAR;
+                    const iconCenterX = iconOnBar ? barCenterX : barCenterX + SEGMENT_ICON_LINE_OFFSET;
+                    const iconCenterY = iconOnBar ? barCenterY : barCenterY - SEGMENT_ICON_LINE_OFFSET;
+                    const iconX = iconCenterX - SEGMENT_ICON_SIZE / 2;
+                    const iconY = iconCenterY - SEGMENT_ICON_SIZE / 2;
+                    return (
+                      <>
+                        <rect
+                          x={segX}
+                          y={y0}
+                          width={segW}
+                          height={barH}
+                          fill="url(#pat10xBomb)"
+                          stroke="rgba(15,23,42,0.45)"
+                          strokeWidth={0.6}
+                        />
+                        {iconOnBar ? null : (
+                          <line x1={barCenterX} y1={barCenterY} x2={iconCenterX} y2={iconCenterY} stroke="rgba(15,23,42,0.5)" strokeWidth={1} />
+                        )}
+                        <image
+                          href={BOMB_RECHARGE_10X_ICON}
+                          x={iconX}
+                          y={iconY}
+                          width={SEGMENT_ICON_SIZE}
+                          height={SEGMENT_ICON_SIZE}
+                          preserveAspectRatio="xMidYMid meet"
+                          style={{ pointerEvents: "none" }}
+                          aria-hidden
+                        />
+                      </>
+                    );
+                  })() : null}
+                </>
+              );
+            })() : null}
+            {isLootbugCostsRow && typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0 ? (
               <rect
-                x={xOf(Math.min(0, lootbugNetGemsPerHour))}
+                x={xOf(-lootbugTotalGemCostPerHour)}
                 y={y0}
-                width={wOf(Math.abs(lootbugNetGemsPerHour))}
+                width={wOf(lootbugTotalGemCostPerHour)}
                 height={barH}
                 fill={COLORS.base}
                 stroke="rgba(15,23,42,0.45)"
@@ -471,9 +564,9 @@ export function ContribBarChart(props: {
               ) : null,
             )}
 
-            {isGemBombRow && entry && typeof gemBomb10xImpact === "number" && gemBomb10xImpact > 0 ? (() => {
-              const segX = xOf(sumEntry(entry) - (gemBomb10xImpact ?? 0) - (chaosTotemImpact ?? 0));
-              const segW = wOf(gemBomb10xImpact);
+            {isGemBombRow && entry && showGemBombSegments && gemBomb10xForChart > 0 ? (() => {
+              const segX = xOf(sumEntry(entry) - gemBomb10xForChart - (chaosTotemImpact ?? 0));
+              const segW = wOf(gemBomb10xForChart);
               const barCenterX = segX + segW / 2;
               const barCenterY = y0 + barH / 2;
               const iconOnBar = segW >= SEGMENT_ICON_MIN_BAR;
@@ -508,7 +601,7 @@ export function ContribBarChart(props: {
                 </>
               );
             })() : null}
-            {isGemBombRow && entry && typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 ? (() => {
+            {isGemBombRow && entry && showGemBombSegments && typeof chaosTotemImpact === "number" && chaosTotemImpact > 0 ? (() => {
               const segX = xOf(sumEntry(entry) - (chaosTotemImpact ?? 0));
               const segW = wOf(chaosTotemImpact);
               const barCenterX = segX + segW / 2;
@@ -545,7 +638,7 @@ export function ContribBarChart(props: {
                 </>
               );
             })() : null}
-            {isGemBombRow && entry && typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0 ? (() => {
+            {isGemBombRow && entry && showGemBombSegments && typeof chargeMagnetImpact === "number" && chargeMagnetImpact > 0 ? (() => {
               const segX = xOf(sumEntry(entry));
               const segW = wOf(chargeMagnetImpact);
               const barCenterX = segX + segW / 2;

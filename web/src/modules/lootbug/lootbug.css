@@ -92,6 +92,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Costs for Lootbug Gem buffs: red glow */
+.lootbugCostsValueNegative {
+  color: #c62828;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(198, 40, 40, 0.6);
+}
+
 .lootbugLabel {
   font-size: 13px;
   color: var(--text);

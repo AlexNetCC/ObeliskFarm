@@ -310,7 +310,7 @@ export function Lootbug() {
 
   const gameSpeed = useMemo(() => getGameSpeedMultiplier(gameSpeedParams), [gameSpeedParams]);
 
-  /** Bomb Bear Drone: when fueled in Drone module, multiplies Lootbug spawn rate (written to external by Drone). */
+  /** Bomb Bear Drone: when fueled in Drone module, multiplies Lootbug spawn rate. Only used for Drone's "Gem EV/h from Bomb Bear" delta; not applied to Lootbug gains (user enters spawn rate manually). */
   const bombBearLootbugSpawnRateMult = (() => {
     const ext = loadJson<{ bombBearLootbugSpawnRateMult?: number }>(GEMEV_EXTERNAL_KEY);
     const v = ext?.bombBearLootbugSpawnRateMult;
@@ -318,7 +318,7 @@ export function Lootbug() {
   })();
 
   const spawnRateMult = clamp(state.spawnRateMultiplier, 0.1, 20);
-  const effectiveSpawnRateMult = spawnRateMult * bombBearLootbugSpawnRateMult;
+  const effectiveSpawnRateMult = spawnRateMult;
   const triplePct = clamp(state.tripleChancePct, 0, 100) / 100;
   const effectiveSpawnMinGame = effectiveSpawnRateMult > 0 ? LOOTBUG_BASE_SPAWN_MIN / effectiveSpawnRateMult : 0;
   const effectiveSpawnMinReal =
@@ -459,64 +459,13 @@ export function Lootbug() {
     return calculateCherryChargesGemsPerHour(gameSpeedParams, chargesPerHourFromBuff);
   }, [lootbugsPerHour, totalFreeWeight, gameSpeedParams]);
 
-  /** Lootbug gains without Bomb Bear (base spawn rate only). Used to compute Gem EV/h delta from Bomb Bear for Drone module. */
+  /** Extra Gem EV/h from Bomb Bear: user enters spawn rate WITH Bomb Bear. Base = entered / mult; extra = gains(entered) − gains(base) = gains × (mult − 1) / mult. Uses net (gross gains − costs). */
   const bombBearLootbugGemsEvPerHour = useMemo(() => {
     if (bombBearLootbugSpawnRateMult <= 1) return 0;
-    const effectiveSpawnRateMultBase = spawnRateMult;
-    const effectiveSpawnMinGameBase = effectiveSpawnRateMultBase > 0 ? LOOTBUG_BASE_SPAWN_MIN / effectiveSpawnRateMultBase : 0;
-    const effectiveSpawnMinRealBase = gameSpeed > 0 && effectiveSpawnMinGameBase > 0 ? effectiveSpawnMinGameBase / gameSpeed : 0;
-    const spawnsPerHourBase = effectiveSpawnMinRealBase > 0 ? 60 / effectiveSpawnMinRealBase : 0;
-    const lootbugsPerHourBase = spawnsPerHourBase * expectedLootbugsPerSpawn;
-
-    const plus2Gems = FREE_BUFFS.find((b) => b.name === "+2 Gems");
-    const gemsPerHourBase =
-      plus2Gems && totalFreeWeight > 0
-        ? (lootbugsPerHourBase * getWeight(plus2Gems)) / totalFreeWeight * 2 * lootMultiplier
-        : 0;
-
-    const buff10x = GEM_BUFFS.find((b) => b.name === "10x Bomb Recharge");
-    const bombRecharge10xMinPerHourBase =
-      gameSpeed > 0 && buff10x && totalGemWeightAll > 0
-        ? (lootbugsPerHourBase * getWeight(buff10x)) / totalGemWeightAll * 2 / gameSpeed
-        : 0;
-
-    const ext = loadJson<{ gemBomb10xImpact?: number; total10xMinPerHour?: number; droneBomb10xMinPerHour?: number; valueOfOneChestForLootbug?: number }>(GEMEV_EXTERNAL_KEY);
-    const impact = typeof ext?.gemBomb10xImpact === "number" ? ext.gemBomb10xImpact : 0;
-    const total10x = typeof ext?.total10xMinPerHour === "number" ? ext.total10xMinPerHour : 0;
-    const total10xBase = total10x - bombRecharge10xMinPerHour + bombRecharge10xMinPerHourBase;
-    const lootbug10xGemEvPerHourBase =
-      total10xBase > 0 && impact > 0 ? impact * (bombRecharge10xMinPerHourBase / total10xBase) : 0;
-
-    const costPerHour10xBase =
-      buyGemBuffsSet.has("10x Bomb Recharge") && buff10x && totalGemWeightAll > 0
-        ? (lootbugsPerHourBase * getWeight(buff10x)) / totalGemWeightAll *
-          Math.max(0, buff10x.cost - state.gemCostReduction) * (1 - goldenPct)
-        : 0;
-    const net10xGemEvPerHourBase = lootbug10xGemEvPerHourBase - costPerHour10xBase;
-
-    const valuePerChest = typeof ext?.valueOfOneChestForLootbug === "number" ? ext.valueOfOneChestForLootbug : 0;
-    const lootbugChestGemEvPerHourBase =
-      lootbugsPerHour > 0 ? lootbugChestGemEvPerHour * (lootbugsPerHourBase / lootbugsPerHour) : 0;
-    const chestDelta = lootbugChestGemEvPerHour - lootbugChestGemEvPerHourBase;
-
-    return (gemsPerHour - gemsPerHourBase) + (net10xGemEvPerHour - net10xGemEvPerHourBase) + chestDelta;
-  }, [
-    bombBearLootbugSpawnRateMult,
-    spawnRateMult,
-    gameSpeed,
-    expectedLootbugsPerSpawn,
-    totalFreeWeight,
-    lootMultiplier,
-    totalGemWeightAll,
-    state.gemCostReduction,
-    goldenPct,
-    buyGemBuffsSet,
-    gemsPerHour,
-    net10xGemEvPerHour,
-    bombRecharge10xMinPerHour,
-    lootbugChestGemEvPerHour,
-    lootbugsPerHour,
-  ]);
+    const grossGains = gemsPerHour + lootbug10xGemEvPerHour + lootbugChestGemEvPerHour;
+    const netGains = grossGains - totalGemCostPerHour;
+    return netGains * (bombBearLootbugSpawnRateMult - 1) / bombBearLootbugSpawnRateMult;
+  }, [bombBearLootbugSpawnRateMult, gemsPerHour, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   /** EV per single lootbug claim (gem value): only +2 Gems, +10 Cherry Charges, and 10× Bomb Recharge (when that gem buff exists on a banked lootbug roll). Used by Overnight Gains. */
   const lootbugEvPerClaim = lootbugsPerHour > 0
@@ -543,8 +492,12 @@ export function Lootbug() {
     ext.lootbugNetGemsPerHour = netGemsPerHour;
     ext.lootbug2xStarMinPerHour = lootbug2xStarMinPerHour;
     ext.lootbugEvPerClaim = lootbugEvPerClaim;
+    ext.lootbugGainsGross = gemsPerHour + lootbug10xGemEvPerHour + lootbugChestGemEvPerHour;
+    ext.lootbug10xGemEvPerHour = lootbug10xGemEvPerHour;
+    ext.lootbugChestGemEvPerHour = lootbugChestGemEvPerHour;
+    ext.lootbugTotalGemCostPerHour = totalGemCostPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim]);
+  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
@@ -655,12 +608,19 @@ export function Lootbug() {
                               lines: stat.description.split(/(?<=\.)\s+/).map((s) => s.trim()).filter(Boolean),
                             },
                             { heading: "Sources", lines: stat.sources },
-                            ...(stat.id === "spawnRateMultiplier"
+                                ...(stat.id === "spawnRateMultiplier"
                               ? [
                                   {
-                                    heading: "Bomb Bear",
+                                    heading: "Enter value",
                                     lines: [
-                                      "Enter your base spawn rate (without Bomb Bear). If you measured spawn rate while Bomb Bear was active in-game, leave Bomb Bear Drone OFF in the Drone module to avoid double-counting.",
+                                      "Enter your spawn rate as measured in-game. If you measure with Bomb Bear ON, use that value and keep Bomb Bear ON in the Drone module.",
+                                    ],
+                                  },
+                                  {
+                                    heading: "Bomb Bear flow",
+                                    lines: [
+                                      "Lootbug gains below use this value directly (your actual gains).",
+                                      "Drone module computes extra from Bomb Bear: gains × (Bomb Bear mult − 1) ÷ mult. That shows how much gain comes from the Drone alone.",
                                     ],
                                   },
                                 ]
@@ -713,7 +673,34 @@ export function Lootbug() {
         </div>
       </Collapsible>
 
-      <Collapsible id="lootbug-gains" title="Lootbug gains" defaultExpanded={false}>
+      <Collapsible
+        id="lootbug-gains"
+        title={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            Lootbug gains
+            <Tooltip
+              content={{
+                title: "Lootbug gains",
+                sections: [
+                  {
+                    heading: "Source",
+                    lines: [
+                      "All values use your entered spawn rate. Gem buff gains shown gross; costs listed separately for clarity.",
+                    ],
+                  },
+                  {
+                    heading: "Bomb Bear",
+                    lines: [
+                      "If you measured spawn rate with Bomb Bear ON, these gains already include that. The Drone module shows the extra gain from Bomb Bear alone.",
+                    ],
+                  },
+                ],
+              }}
+            />
+          </span>
+        }
+        defaultExpanded={false}
+      >
         <div className="lootbugSection">
           <div className="lootbugGainsBlock">
             <span className="lootbugSectionTitle">Free buffs</span>
@@ -810,17 +797,42 @@ export function Lootbug() {
                       content={{
                         title: "10× Bomb Recharge Gem EV/h",
                         lines: [
-                          "Share of Gem EV per hour from the 10× Bomb Recharge buff (from Lootbug) minus the hourly cost when you Buy this buff.",
-                          "Same value as in the Gem buffs table (Gem EV minus Gem/h cost for this buff).",
+                          "Share of Gem EV per hour from the 10× Bomb Recharge buff (from Lootbug). Gross value before cost.",
+                          "Cost is shown in Costs for Lootbug Gem buffs below.",
                         ],
                       }}
                     />
                   </span>
                 </span>
                 <span
-                  className={`lootbugValue ${net10xGemEvPerHour > 0 ? "lootbugNetGemEvPositive" : net10xGemEvPerHour < 0 ? "lootbugNetGemEvNegative" : ""}`}
+                  className={`lootbugValue ${lootbug10xGemEvPerHour > 0 ? "lootbugNetGemEvPositive" : ""}`}
                 >
-                  {net10xGemEvPerHour > 0 ? `+${net10xGemEvPerHour.toFixed(1)}` : net10xGemEvPerHour < 0 ? net10xGemEvPerHour.toFixed(1) : "—"}
+                  {lootbug10xGemEvPerHour > 0 ? `+${lootbug10xGemEvPerHour.toFixed(1)}` : "—"}
+                </span>
+              </div>
+            )}
+            {buyGemBuffsSet.size > 0 && (
+              <div className="lootbugRow">
+                <span className="lootbugStatLabel">
+                  <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                  <span className="lootbugLabel">
+                    Costs for Lootbug Gem buffs
+                    <Tooltip
+                      content={{
+                        title: "Costs for Lootbug Gem buffs",
+                        lines: [
+                          "Hourly gem cost when you Buy the checked gem buffs (10× Bomb Recharge, 2× Game Speed, Fishing +12 Ticks, etc.).",
+                          "Per hour × actual cost × (1 − Golden Lootbug %). Golden = free.",
+                        ],
+                      }}
+                    />
+                  </span>
+                </span>
+                <span
+                  className={`lootbugValue lootbugCostsValue ${totalGemCostPerHour > 0 ? "lootbugCostsValueNegative" : ""}`}
+                  aria-label={totalGemCostPerHour > 0 ? `−${totalGemCostPerHour.toFixed(1)} gems per hour cost` : "0"}
+                >
+                  {totalGemCostPerHour > 0 ? `−${totalGemCostPerHour.toFixed(1)}` : "0"}
                 </span>
               </div>
             )}

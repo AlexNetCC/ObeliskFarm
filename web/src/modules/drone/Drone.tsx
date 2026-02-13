@@ -960,7 +960,7 @@ export function Drone() {
     const gems = typeof ext?.lootbugGemsPerHour === "number" && ext.lootbugGemsPerHour >= 0 ? ext.lootbugGemsPerHour : 0;
     const net10x = typeof ext?.lootbugNet10xGemEvPerHour === "number" ? ext.lootbugNet10xGemEvPerHour : 0;
     const totalGains = gems + net10x;
-    return ((bombBearLootbugSpawnRateMult - 1) / bombBearLootbugSpawnRateMult) * totalGains;
+    return totalGains * (bombBearLootbugSpawnRateMult - 1) / bombBearLootbugSpawnRateMult;
   })();
 
   return (
@@ -1412,7 +1412,7 @@ export function Drone() {
               const goldenPct = clamp(lootbugSave.goldenChancePct ?? 0, 0, 100) / 100;
               const activeGemBuffs = Array.isArray(lootbugSave.activeGemBuffs) ? lootbugSave.activeGemBuffs : DEFAULT_ACTIVE_GEM_BUFFS;
               const buyGemBuffsSet = new Set(activeGemBuffs);
-              const effectiveSpawnRateMult = spawnRateMult * bombBearLootbugSpawnRateMult;
+              const effectiveSpawnRateMult = spawnRateMult;
               const effectiveSpawnMinGame = effectiveSpawnRateMult > 0 ? LOOTBUG_BASE_SPAWN_MIN / effectiveSpawnRateMult : 0;
               const effectiveSpawnMinReal = gameSpeed > 0 && effectiveSpawnMinGame > 0 ? effectiveSpawnMinGame / gameSpeed : 0;
               const spawnsPerHour = effectiveSpawnMinReal > 0 ? 60 / effectiveSpawnMinReal : 0;
@@ -2061,13 +2061,14 @@ export function Drone() {
                   {
                     heading: "Effect",
                     lines: [
-                      "When ON and fueled, Lootbug spawn rate in the Lootbug module is multiplied by (1 + buff %). Buff: +30% at grade 0, +3% per grade, max +90% (Polychrome).",
+                      "When fueled: +30% Lootbug spawn rate at grade 0, +3% per grade, max +90% (Polychrome). Multiplicative in-game.",
                     ],
                   },
                   {
-                    heading: "Avoid double-counting",
+                    heading: "Setup",
                     lines: [
-                      "Enter your base Lootbug spawn rate in Lootbug (without Bomb Bear). If you measured spawn rate while Bomb Bear was already active in-game, leave Bomb Bear OFF here so the bonus is not applied twice.",
+                      "Enter your spawn rate in Lootbug as measured in-game (with Bomb Bear ON). Keep Bomb Bear ON here.",
+                      "Lootbug gains = from your entered rate. This section shows the extra Gem EV from Bomb Bear alone.",
                     ],
                   },
                 ],
@@ -2078,7 +2079,7 @@ export function Drone() {
       >
         <div className="droneSection">
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            When fueled, Bomb Bear increases Lootbug spawn rate (multiplicative with Lootbug stats). Do not enable Bomb Bear here if the Lootbug spawn rate you entered in Lootbug was already measured with Bomb Bear buff active in-game, or the bonus would be counted twice.
+            When fueled, Bomb Bear increases Lootbug spawn rate (multiplicative with Lootbug stats). Enter your spawn rate in Lootbug as measured with Bomb Bear ON; keep Bomb Bear ON here to see the extra gain from the Drone.
           </p>
           <div className="droneSectionTitle">Settings</div>
           <div className="droneCheckboxRow">
@@ -2173,7 +2174,29 @@ export function Drone() {
 
         <div className="droneSection">
           <div className="droneRow">
-            <span className="droneLabel">Lootbug Spawn Rate Mult</span>
+            <span className="droneLabel">
+              Lootbug Spawn Rate Mult
+              <Tooltip
+                content={{
+                  title: "Lootbug Spawn Rate Mult",
+                  sections: [
+                    {
+                      heading: "Meaning",
+                      lines: [
+                        "Bomb Bear's multiplier when fueled: 1 + buff % (e.g. 1.69× = +69%).",
+                      ],
+                    },
+                    {
+                      heading: "Use",
+                      lines: [
+                        "Used with Lootbug gains to compute Gem EV/h from Bomb Bear: extra = gains × (mult − 1) ÷ mult.",
+                        "Your entered spawn rate = base × this mult. So base = entered ÷ mult.",
+                      ],
+                    },
+                  ],
+                }}
+              />
+            </span>
             <span className="droneStepperValue">{bombBearLootbugSpawnRateMult.toFixed(2)}×</span>
           </div>
           <div className="droneRow droneFuelGemsRow droneBomb10xRow">
@@ -2188,8 +2211,14 @@ export function Drone() {
                       {
                         heading: "Meaning",
                         lines: [
-                          "Extra Gem EV per hour from the increased Lootbug spawn rate when Bomb Bear is fueled: more raw gems (free buffs) and more gem buffs (e.g. 10× Bomb Recharge).",
-                          "Computed in Lootbug from the improvement in Lootbug gains (Gems raw + 10× Bomb Recharge Gem EV/h). Open Lootbug once to sync.",
+                          "Extra Gem EV per hour from Bomb Bear alone: Lootbug gains (with Bomb Bear) minus gains without Bomb Bear.",
+                        ],
+                      },
+                      {
+                        heading: "Formula",
+                        lines: [
+                          "extra = Lootbug gains × (Bomb Bear mult − 1) ÷ Bomb Bear mult.",
+                          "Computed in Lootbug from Gems + 10× + Item Chests. Open Lootbug once to sync.",
                         ],
                       },
                     ],

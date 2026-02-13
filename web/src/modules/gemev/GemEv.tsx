@@ -206,6 +206,10 @@ export function GemEv() {
       lootbugBomb10xMinPerHour?: number;
       droneBomb10xMinPerHour?: number;
       lootbugNetGemsPerHour?: number;
+      lootbugGainsGross?: number;
+      lootbug10xGemEvPerHour?: number;
+      lootbugChestGemEvPerHour?: number;
+      lootbugTotalGemCostPerHour?: number;
       droneFuelGemsPerHour?: number;
       chaosTotemUptimePct?: number;
       chaosTotem100FromBombs?: boolean;
@@ -220,6 +224,10 @@ export function GemEv() {
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
     const lootbugNetGemsPerHour = typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0;
+    const lootbugGainsGross = typeof ext?.lootbugGainsGross === "number" ? ext.lootbugGainsGross : undefined;
+    const lootbug10xGemEvPerHour = typeof ext?.lootbug10xGemEvPerHour === "number" ? ext.lootbug10xGemEvPerHour : 0;
+    const lootbugChestGemEvPerHour = typeof ext?.lootbugChestGemEvPerHour === "number" ? ext.lootbugChestGemEvPerHour : 0;
+    const lootbugTotalGemCostPerHour = typeof ext?.lootbugTotalGemCostPerHour === "number" ? ext.lootbugTotalGemCostPerHour : undefined;
     const droneFuelGemsPerHour = typeof ext?.droneFuelGemsPerHour === "number" ? ext.droneFuelGemsPerHour : 0;
     const chaosTotemUptimePct = typeof ext?.chaosTotemUptimePct === "number" ? ext.chaosTotemUptimePct : undefined;
     const chaosTotem100FromBombs = Boolean(ext?.chaosTotem100FromBombs);
@@ -230,7 +238,7 @@ export function GemEv() {
     const gemBomb10xImpactFromBombs = typeof ext?.gemBomb10xImpactFromBombs === "number" ? ext.gemBomb10xImpactFromBombs : undefined;
     const chaosTotemImpactFromItems = typeof ext?.chaosTotemImpact === "number" ? ext.chaosTotemImpact : undefined;
     const chaosTotemImpactFromBombs = typeof ext?.chaosTotemImpactFromBombs === "number" ? ext.chaosTotemImpactFromBombs : undefined;
-    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
+    return { lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
 
@@ -427,7 +435,10 @@ export function GemEv() {
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
   }, [founderSupplyDrop.starSpawn2xMinPerHour, founderSupplyDrop.starAutoCatch100MinPerHour]);
 
-  const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + external.lootbugNetGemsPerHour - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
+  const lootbugNetContribution = typeof external.lootbugGainsGross === "number"
+    ? external.lootbugGainsGross - (external.lootbugTotalGemCostPerHour ?? 0)
+    : (external.lootbugNetGemsPerHour ?? 0);
+  const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + lootbugNetContribution - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
 
   const evForChart = useMemo(() => ({
     ...ev,
@@ -972,7 +983,9 @@ export function GemEv() {
                   <ContribBarChart
                     ev={evForChart}
                     breakdown={breakdownForChart}
-                    lootbugNetGemsPerHour={external.lootbugNetGemsPerHour}
+                    lootbugGainsGross={external.lootbugGainsGross}
+                    lootbugTotalGemCostPerHour={external.lootbugTotalGemCostPerHour}
+                    lootbug10xGemEvPerHour={external.lootbug10xGemEvPerHour}
                     droneFuelGemsPerHour={external.droneFuelGemsPerHour > 0 ? -external.droneFuelGemsPerHour : undefined}
                     gemBomb10xImpact={gemBomb10xImpactForChart}
                     chaosTotemImpact={chaosTotemForChart}
