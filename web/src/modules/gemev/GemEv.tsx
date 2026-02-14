@@ -14,6 +14,7 @@ import {
   calculateGiftEvBreakdown,
   calculateGiftEvPerGift,
   calculateGiftSushiPerHour,
+  calculateStatueSopranoGiftsPerHour,
   calculateStonksChestsPerHour,
   calculateTotalEvPerHour,
   defaultGameParameters,
@@ -376,6 +377,7 @@ export function GemEv() {
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
   const giftEv = useMemo(() => calculateGiftEvPerGift(effectiveParams), [effectiveParams]);
   const giftBreakdown = useMemo(() => calculateGiftEvBreakdown(effectiveParams), [effectiveParams]);
+  const statueSopranoGiftsPerHour = useMemo(() => calculateStatueSopranoGiftsPerHour(effectiveParams), [effectiveParams]);
 
   const gemBomb10xImpact = useMemo(() => {
     const without10x = calculateGemBombGemsPerHour({ ...effectiveParams, bomb_recharge_10x_min_per_hour: 0 });
@@ -505,44 +507,6 @@ export function GemEv() {
     return ev2.total - ev.total;
   }, [effectiveParams, ev.total]);
 
-  const giftTooltip = useMemo(() => {
-    const total = giftBreakdown.total || 0;
-    const entries: Array<{ label: string; key: keyof typeof giftBreakdown; unit: "gems" | "fish" }> = [
-      { label: "Gems (20-40)", key: "gems_20_40", unit: "gems" },
-      { label: "Gems (30-65)", key: "gems_30_65", unit: "gems" },
-      { label: "Skill Shards", key: "skill_shards", unit: "gems" },
-      { label: "Item Chests", key: "item_chests", unit: "gems" },
-      { label: "Chaos Totem", key: "chaos_totem", unit: "gems" },
-      { label: "Charge Magnet", key: "charge_magnet", unit: "gems" },
-      { label: "5× Fishing Tick Chance", key: "fishing_tick", unit: "gems" },
-      { label: "Rare Roll Gems", key: "rare_gems", unit: "gems" },
-      { label: "Drone Fuel", key: "drone_fuel", unit: "gems" },
-      { label: "Skin (80-130 Gems)", key: "skin", unit: "gems" },
-      { label: "Sushi (fish)", key: "sushi_fish", unit: "fish" },
-      { label: "Recursive Gifts", key: "recursive_gifts", unit: "gems" },
-    ];
-    return {
-      title: "Gift-EV (per 1 opened gift)",
-      sections: [
-        {
-          heading: "Breakdown (value + share)",
-          lines: entries
-            .filter(({ key }) => (giftBreakdown[key] ?? 0) > 0)
-            .map(({ label, key, unit }) => {
-              const v = Number(giftBreakdown[key] ?? 0);
-              return unit === "fish"
-                ? `• ${label}: ${fmt1(v)} fish`
-                : `• ${label}: ${fmt1(v)} Gems (${fmtPct(v, total)})`;
-            }),
-        },
-        {
-          heading: "Total",
-          lines: [`• ${fmt1(total)} Gems per Gift`],
-        },
-      ],
-    };
-  }, [giftBreakdown]);
-
   const freebieInfo = useMemo(
     () => ({
       title: "FREEBIE Parameters",
@@ -587,20 +551,32 @@ export function GemEv() {
           <div>
             <h1 className="title">Gem EV Calculator</h1>
           </div>
-          <div className="badge">Freebies • Founder</div>
         </div>
 
         <div className="panel panelResults">
             <div className="panelHeader">
               <h2 className="panelTitle">Results</h2>
-              <p className="panelHint">Updates instantly.</p>
             </div>
 
-            <div className="kv" style={{ background: "rgba(227,242,253,0.65)" }}>
-              <kbd>TOTAL</kbd>
+            <div className="kv" style={{ background: "rgba(227,247,237,0.65)" }}>
+              <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Sprite path="sprites/common/gem.png" alt="" className="iconSmall" />
+                TOTAL
+              </kbd>
               <div className="mono" style={{ fontWeight: 900 }}>
                 {fmt1(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
               </div>
+              {statueSopranoLevel >= 1 ? (
+                <>
+                  <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
+                    Gifts/h
+                  </kbd>
+                  <div className="mono" style={{ fontWeight: 700 }}>
+                    {fmt1(statueSopranoGiftsPerHour)}
+                  </div>
+                </>
+              ) : null}
               <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
                 Gift-EV
@@ -620,14 +596,14 @@ export function GemEv() {
               </kbd>
               <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 <span style={{ fontWeight: 900 }}>{fmt1(giftEv)} Gems per Gift</span>
-                <Tooltip content={giftTooltip} label="?" />
               </div>
             </div>
 
             {!params.founder_enabled ? <div className="small" style={{ marginTop: 10 }}>FOUNDER is disabled: all founder-related contributions are set to 0.</div> : null}
 
             <div className="btnRow" style={{ marginTop: 12, alignItems: "center" }}>
-              <button className="btn" type="button" onClick={() => setChartOpen(true)}>
+              <span className="gemEvChartArrow" aria-hidden>→</span>
+              <button className="btn gemEvOverviewChartBtn" type="button" onClick={() => setChartOpen(true)}>
                 Overview chart
               </button>
               <Tooltip

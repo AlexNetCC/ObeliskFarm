@@ -278,10 +278,31 @@
   margin-bottom: 8px;
 }
 
-/* Blinking arrow pointing at Overview Chart button (left → right) */
+/* Arrow + pulse effect to guide users to Overview Chart button */
 .gemEvChartArrow {
   font-size: 1.75em;
   line-height: 1;
+  color: rgba(56, 161, 105, 0.9);
+  animation: gemEvChartArrowPulse 1.5s ease-in-out infinite;
+}
+
+.gemEvOverviewChartBtn {
+  position: relative;
+  animation: gemEvOverviewChartGlow 2s ease-in-out infinite;
+}
+
+.gemEvOverviewChartBtn:hover {
+  animation: none;
+}
+
+@keyframes gemEvChartArrowPulse {
+  0%, 100% { opacity: 0.5; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(4px); }
+}
+
+@keyframes gemEvOverviewChartGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 161, 105, 0.3); }
+  50% { box-shadow: 0 0 12px 4px rgba(56, 161, 105, 0.25); }
 }
 
 /* Stonks tiers: progressively darker green */

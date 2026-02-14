@@ -174,8 +174,8 @@ const STATUE_SOPRANO_CONFIG: Record<number, { freebieGiftChance: number; freebie
   3: { freebieGiftChance: 0.01, freebie100xChance: 1 / 25000 },
 };
 
-/** Gem EV per hour from Statue of Soprano (Freebie Gift Chance + 100× on freebie claims). Returns 0 when level 0. */
-export function calculateStatueSopranoGiftEvPerHour(params: GameParameters): number {
+/** Gifts per hour from Statue of Soprano (Freebie Gift Chance + 100× on freebie claims). Returns 0 when level 0. */
+export function calculateStatueSopranoGiftsPerHour(params: GameParameters): number {
   const level = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
   const cfg = STATUE_SOPRANO_CONFIG[level];
   if (!cfg || (cfg.freebieGiftChance === 0 && cfg.freebie100xChance === 0)) return 0;
@@ -184,7 +184,13 @@ export function calculateStatueSopranoGiftEvPerHour(params: GameParameters): num
   const expectedRolls = calculateExpectedRollsPerClaim(params);
   const freebieEventsPerHour = freebiesPerHour * refreshMult * expectedRolls;
   const expectedGiftsPerEvent = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
-  const giftsPerHour = freebieEventsPerHour * expectedGiftsPerEvent;
+  return freebieEventsPerHour * expectedGiftsPerEvent;
+}
+
+/** Gem EV per hour from Statue of Soprano (Freebie Gift Chance + 100× on freebie claims). Returns 0 when level 0. */
+export function calculateStatueSopranoGiftEvPerHour(params: GameParameters): number {
+  const giftsPerHour = calculateStatueSopranoGiftsPerHour(params);
+  if (giftsPerHour <= 0) return 0;
   const giftEvPerGift = calculateGiftEvPerGift(params);
   return giftsPerHour * giftEvPerGift;
 }
