@@ -236,7 +236,7 @@ const STATS: Array<{
     id: "lootMultiplier",
     label: "Lootbug Loot Multi (x)",
     description:
-      "The multiplier on Lootbug rewards. Non-integer results randomly round to adjacent integers.",
+      "The multiplier on Lootbug rewards. Also extends buff duration for free and gem buffs. Non-integer results randomly round to adjacent integers.",
     sources: [
       "Skill-Tree: Anyone Up Lootin' They Bugs",
       "Store: Lootbug Bonanza Bundle",
@@ -356,18 +356,21 @@ export function Lootbug() {
       totalFreeWeight > 0 ? (lootbugsPerHour * getWeight(free2x)) / totalFreeWeight : 0;
     const gemPerHour =
       totalGemWeightAll > 0 ? (lootbugsPerHour * getWeight(gem2x)) / totalGemWeightAll : 0;
-    const freeMinPerHour = (freePerHour * 2) / gameSpeed;
-    const gemMinPerHour = (gemPerHour * 10) / gameSpeed;
+    const freeMin = getDurationMinutes(free2x.duration) ?? 0;
+    const gemMin = getDurationMinutes(gem2x.duration) ?? 0;
+    const freeMinPerHour = (freePerHour * freeMin * lootMultiplier) / gameSpeed;
+    const gemMinPerHour = (gemPerHour * gemMin * lootMultiplier) / gameSpeed;
     return freeMinPerHour + gemMinPerHour;
-  }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed]);
+  }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed, lootMultiplier]);
 
   const bombRecharge10xMinPerHour = useMemo(() => {
     if (gameSpeed <= 0) return 0;
     const buff = GEM_BUFFS.find((b) => b.name === "10x Bomb Recharge");
     if (!buff || totalGemWeightAll <= 0) return 0;
     const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
-    return (perHour * 2) / gameSpeed;
-  }, [lootbugsPerHour, totalGemWeightAll, gameSpeed]);
+    const durMin = getDurationMinutes(buff.duration) ?? 0;
+    return (perHour * durMin * lootMultiplier) / gameSpeed;
+  }, [lootbugsPerHour, totalGemWeightAll, gameSpeed, lootMultiplier]);
 
   /** Free buff "+1 Item Chest" per hour; written to external for Items / Chests module. */
   const lootbugItemChestsPerHour = useMemo(() => {
@@ -385,7 +388,7 @@ export function Lootbug() {
 
   const goldenPct = clamp(state.goldenChancePct, 0, 100) / 100;
 
-  /** 2× Star Spawn Rate from Lootbug: free (2 min) + gem (10 min). Gem part: full if "2x Star Spawn Rate" is bought, else only golden occurrence. Written to external for Drone overlap incl. Lootbug. */
+  /** 2× Star Spawn Rate from Lootbug: free (2 min) + gem (10 min). Gem part: full if "2x Star Spawn Rate" is bought, else only golden occurrence. Written to external for Drone overlap incl. Lootbug. Loot multiplier extends buff duration. */
   const lootbug2xStarMinPerHour = useMemo(() => {
     if (gameSpeed <= 0) return 0;
     const freeBuff = FREE_BUFFS.find((b) => b.name === "2x Star Spawn Rate");
@@ -395,16 +398,16 @@ export function Lootbug() {
     let freeMinPerHour = 0;
     if (freeBuff && totalFreeWeight > 0) {
       const perHour = (lootbugsPerHour * getWeight(freeBuff)) / totalFreeWeight;
-      freeMinPerHour = (perHour * freeMin) / gameSpeed;
+      freeMinPerHour = (perHour * freeMin * lootMultiplier) / gameSpeed;
     }
     let gemMinPerHour = 0;
     if (gemBuff && totalGemWeightAll > 0) {
       const perHour = (lootbugsPerHour * getWeight(gemBuff)) / totalGemWeightAll;
       const effectiveRate = buyGemBuffsSet.has("2x Star Spawn Rate") ? 1 : goldenPct;
-      gemMinPerHour = (perHour * effectiveRate * gemMin) / gameSpeed;
+      gemMinPerHour = (perHour * effectiveRate * gemMin * lootMultiplier) / gameSpeed;
     }
     return freeMinPerHour + gemMinPerHour;
-  }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct]);
+  }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct, lootMultiplier]);
 
   /** Fishing +12 Ticks (gem buff): procs per hour. Bought = every gem roll; else Golden Lootbug chance only. Written to Fishing module. */
   const lootbugFishing12TicksProcsPerHour = useMemo(() => {
@@ -882,7 +885,7 @@ export function Lootbug() {
                             heading: "Real time",
                             lines: [
                               "Average minutes per hour this buff is active (real time).",
-                              "Formula: per hour × duration (game min) ÷ game speed. Applied once; not double-counted with the duration shown in parentheses.",
+                              "Formula: per hour × duration (game min) × loot multiplier ÷ game speed. Loot multiplier extends buff duration.",
                             ],
                           },
                         ],
@@ -896,9 +899,10 @@ export function Lootbug() {
                   const weight = getWeight(buff);
                   const perHour = totalFreeWeight > 0 ? (lootbugsPerHour * weight) / totalFreeWeight : 0;
                   const durMin = getDurationMinutes(buff.duration);
+                  const effectiveDurMin = durMin != null ? durMin * lootMultiplier : null;
                   const minPerHour =
-                    durMin != null && gameSpeed > 0 ? (perHour * durMin) / gameSpeed : null;
-                  const realDurMin = durMin != null && gameSpeed > 0 ? durMin / gameSpeed : null;
+                    effectiveDurMin != null && gameSpeed > 0 ? (perHour * effectiveDurMin) / gameSpeed : null;
+                  const realDurMin = effectiveDurMin != null && gameSpeed > 0 ? effectiveDurMin / gameSpeed : null;
                   const cherryValue = getCherryChargesValueGemEv(gameSpeedParams, buff.name);
                   return (
                     <tr key={buff.name}>
@@ -1003,7 +1007,7 @@ export function Lootbug() {
                             heading: "Real time",
                             lines: [
                               "Average minutes per hour this buff is active (real time). From full pool.",
-                              "Formula: per hour × duration (game min) ÷ game speed.",
+                              "Formula: per hour × duration (game min) × loot multiplier ÷ game speed. Loot multiplier extends buff duration.",
                             ],
                           },
                         ],
@@ -1036,9 +1040,10 @@ export function Lootbug() {
                   const perHour =
                     totalGemWeightAll > 0 ? (lootbugsPerHour * weight) / totalGemWeightAll : 0;
                   const durMin = getDurationMinutes(buff.duration);
+                  const effectiveDurMin = durMin != null ? durMin * lootMultiplier : null;
                   const minPerHour =
-                    durMin != null && gameSpeed > 0 ? (perHour * durMin) / gameSpeed : null;
-                  const realDurMin = durMin != null && gameSpeed > 0 ? durMin / gameSpeed : null;
+                    effectiveDurMin != null && gameSpeed > 0 ? (perHour * effectiveDurMin) / gameSpeed : null;
+                  const realDurMin = effectiveDurMin != null && gameSpeed > 0 ? effectiveDurMin / gameSpeed : null;
                   const actualCost = isBuy ? Math.max(0, buff.cost - state.gemCostReduction) : 0;
                   const gemCostWithGolden =
                     isBuy && actualCost > 0 ? perHour * actualCost * (1 - goldenPct) : 0;

@@ -106,8 +106,9 @@ export function computeFishingStatsFromLevels(
     0.5 * e("enhance_tick_speed") -
     2 * skill("lets_pick_up_the_pace");
 
-  // Drone Base Power: base 3, +0.25 per level. Drone Power Multiplier +0.06x (upgrade), +0.08x (enhance). Skill: Fishing With Friends +10% per level; Completionist Gatekeeper +2% per level per legendary (0–6).
-  const droneBase = 3 + 0.25 * u("drone_base_power");
+  // Drone Base Power: base 3, +0.25 per level. Game rounds base before multipliers (like rod). Drone Power Multiplier +0.06x (upgrade), +0.08x (enhance). Skill: Fishing With Friends +10% per level; Completionist Gatekeeper +2% per level per legendary (0–6).
+  const droneBaseRaw = 3 + 0.25 * u("drone_base_power");
+  const droneBase = Math.round(droneBaseRaw);
   const droneMultiUpgrade = 1 + 0.06 * u("drone_multiplier");
   const droneMultiEnhance = 1 + 0.08 * e("enhance_drone_multiplier");
   const legendary = Math.max(0, Math.min(6, options?.legendaryFishFound ?? 0));

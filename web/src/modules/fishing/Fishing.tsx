@@ -56,6 +56,7 @@ type SavedState = {
   dronesPerDock?: Partial<Record<DockId, number>>;
   activeDockId?: DockId | null;
   showDisabledFishGrayed?: boolean;
+  useGemIncomeForCostEffic?: boolean;
   upgradeLevels?: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels?: Partial<Record<EnhanceId, number>>;
   fishCardTier?: Partial<Record<string, FishCardTier>>;
@@ -71,6 +72,7 @@ type FishingState = {
   dronesPerDock: Record<DockId, number>;
   activeDockId: DockId;
   showDisabledFishGrayed: boolean;
+  useGemIncomeForCostEffic: boolean;
   upgradeLevels: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels: Partial<Record<EnhanceId, number>>;
   fishCardTier: Partial<Record<string, FishCardTier>>;
@@ -536,22 +538,22 @@ const costEfficGemTooltip = {
   title: "Cost efficiency",
   sections: [
     {
-      heading: "Formula",
+      heading: "Toggle",
       lines: [
-        "Marginal % ÷ hours to earn gem cost.",
-        "Hours = gem cost ÷ Gem EV total gems/h.",
+        "ON: Marginal % ÷ hours to earn gem cost. Hours = gem cost ÷ Gem EV gems/h.",
+        "OFF: Marginal % ÷ gem cost × 100 (gem-absolute, own heatmap).",
       ],
     },
     {
       heading: "Scale",
       lines: [
         "Same heatmap across all sections.",
-        "Higher = more gain per hour.",
+        "Higher = better.",
       ],
     },
     {
       heading: "Gem EV",
-      lines: ["Open Gem EV Calculator to sync gems/h."],
+      lines: ["Open Gem EV Calculator to sync gems/h (when toggle ON)."],
     },
   ],
 };
@@ -560,22 +562,22 @@ const costEfficSkillTooltip = {
   title: "Cost efficiency",
   sections: [
     {
-      heading: "Formula",
+      heading: "Toggle",
       lines: [
-        "Marginal % ÷ hours to earn gem cost.",
-        "1 skill point = 125 gems. Hours = gem cost ÷ Gem EV gems/h.",
+        "ON: Marginal % ÷ hours to earn gem cost. 1 SP = 125 gems.",
+        "OFF: Marginal % ÷ gem cost × 100 (gem-absolute, own heatmap).",
       ],
     },
     {
       heading: "Scale",
       lines: [
         "Same heatmap across all sections.",
-        "Higher = more gain per hour.",
+        "Higher = better.",
       ],
     },
     {
       heading: "Gem EV",
-      lines: ["Open Gem EV Calculator to sync gems/h."],
+      lines: ["Open Gem EV Calculator to sync gems/h (when toggle ON)."],
     },
   ],
 };
@@ -584,22 +586,22 @@ const costEfficFishCardTooltip = {
   title: "Cost efficiency",
   sections: [
     {
-      heading: "Formula",
+      heading: "Toggle",
       lines: [
-        "Marginal % ÷ hours to earn gem cost.",
-        "Cost: gems (Fish cards) or 1500 (Rod). Hours = cost ÷ Gem EV gems/h.",
+        "ON: Marginal % ÷ hours to earn gem cost. Cost: gems or 1500 (Rod).",
+        "OFF: Marginal % ÷ gem cost × 100 (gem-absolute, own heatmap).",
       ],
     },
     {
       heading: "Scale",
       lines: [
         "Same heatmap across all sections.",
-        "Higher = more gain per hour.",
+        "Higher = better.",
       ],
     },
     {
       heading: "Gem EV",
-      lines: ["Open Gem EV Calculator to sync gems/h."],
+      lines: ["Open Gem EV Calculator to sync gems/h (when toggle ON)."],
     },
   ],
 };
@@ -626,6 +628,7 @@ export function Fishing() {
       dronesPerDock[d.id] = saved?.dronesPerDock?.[d.id] ?? (i === 0 ? Math.max(0, Math.round(computed.fishing_drone_cap)) : 0);
     });
     const showDisabledFishGrayed = saved?.showDisabledFishGrayed ?? false;
+    const useGemIncomeForCostEffic = saved?.useGemIncomeForCostEffic ?? true;
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
     const fishCardTier = saved?.fishCardTier ?? {};
     const sushiCardTier = clamp(Math.trunc(Number(saved?.sushiCardTier ?? 0)), 0, 3) as FishCardTier;
@@ -633,7 +636,7 @@ export function Fishing() {
     const skillTreeLevels = saved?.skillTreeLevels ?? {};
     const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
     const fishingRodCardTier = clamp(Math.trunc(Number(saved?.fishingRodCardTier ?? 0)), 0, 3) as FishCardTier;
-    return { dronesPerDock, showDisabledFishGrayed, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
+    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
   });
 
   useEffect(() => {
@@ -1370,9 +1373,10 @@ export function Fishing() {
     state.dronesPerDock,
   ]);
 
-  /** Cost-efficiency heatmap for enhancements: min/max across T1 + T2 (marginal % per hour to earn gems; high = green). Uses Gem EV total gems/h. */
-  const { costEfficHeatMinEnhance, costEfficHeatMaxEnhance } = useMemo(() => {
-    const vals: number[] = [];
+  /** Cost-efficiency heatmap for enhancements: time-based (marginal % per hour) and gem-absolute (marginal % per gem × 100). */
+  const { costEfficHeatMinEnhance, costEfficHeatMaxEnhance, costEfficHeatMinEnhanceGemAbs, costEfficHeatMaxEnhanceGemAbs } = useMemo(() => {
+    const timeVals: number[] = [];
+    const gemAbsVals: number[] = [];
     const enhanceCosts = (def: { id: EnhanceId }) => {
       const t1 = ENHANCE_COSTS_T1[def.id as keyof typeof ENHANCE_COSTS_T1];
       const t2 = ENHANCE_COSTS_T2[def.id as keyof typeof ENHANCE_COSTS_T2];
@@ -1386,15 +1390,20 @@ export function Fishing() {
       const marginalPct = enhanceMarginalPct.get(def.id);
       const nextLevel = lvl + 1;
       const nextCostEntry = costs?.find((c) => c.level === nextLevel);
-      if (marginalPct != null && nextCostEntry && nextCostEntry.gems > 0 && gemEvGemsPerHour > 0) {
-        const hoursToEarn = nextCostEntry.gems / gemEvGemsPerHour;
-        vals.push(marginalPct / hoursToEarn);
+      if (marginalPct != null && nextCostEntry && nextCostEntry.gems > 0) {
+        if (gemEvGemsPerHour > 0) {
+          const hoursToEarn = nextCostEntry.gems / gemEvGemsPerHour;
+          timeVals.push(marginalPct / hoursToEarn);
+        }
+        gemAbsVals.push((marginalPct / nextCostEntry.gems) * 100);
       }
     }
-    if (vals.length === 0) return { costEfficHeatMinEnhance: 0, costEfficHeatMaxEnhance: 1 };
+    const fallback = { min: 0, max: 1 };
     return {
-      costEfficHeatMinEnhance: Math.min(...vals),
-      costEfficHeatMaxEnhance: Math.max(...vals),
+      costEfficHeatMinEnhance: timeVals.length ? Math.min(...timeVals) : fallback.min,
+      costEfficHeatMaxEnhance: timeVals.length ? Math.max(...timeVals) : fallback.max,
+      costEfficHeatMinEnhanceGemAbs: gemAbsVals.length ? Math.min(...gemAbsVals) : fallback.min,
+      costEfficHeatMaxEnhanceGemAbs: gemAbsVals.length ? Math.max(...gemAbsVals) : fallback.max,
     };
   }, [
     availableT1Enhancements,
@@ -1405,7 +1414,7 @@ export function Fishing() {
   ]);
 
   /** Skill tree: marginal % gain for +1 level, optional breakdown by effect, and cost-efficiency heatmap. */
-  const { skillMarginalPct, skillMarginalBreakdown, costEfficHeatMinSkill, costEfficHeatMaxSkill } = useMemo(() => {
+  const { skillMarginalPct, skillMarginalBreakdown, costEfficHeatMinSkill, costEfficHeatMaxSkill, costEfficHeatMinSkillGemAbs, costEfficHeatMaxSkillGemAbs } = useMemo(() => {
     const skillOpts = {
       skillTreeLevels: state.skillTreeLevels,
       fishCardTier: state.fishCardTier,
@@ -1424,6 +1433,7 @@ export function Fishing() {
     const marginalMap = new Map<FishingSkillId, number | null>();
     const breakdownMap = new Map<FishingSkillId, Array<{ label: string; pct: number }>>();
     const efficVals: number[] = [];
+    const efficValsGemAbs: number[] = [];
     for (const def of FISHING_SKILL_TREE) {
       const maxLvl = def.costs.length;
       const lvl = Math.max(0, Math.min(maxLvl, state.skillTreeLevels[def.id] ?? 0));
@@ -1548,9 +1558,9 @@ export function Fishing() {
 
       const costForNext = def.costs[lvl] ?? 0;
       const gemsForNext = costForNext * GEMS_PER_SKILL_POINT;
-      if (marginalPct != null && gemsForNext > 0 && gemEvGemsPerHour > 0) {
-        const hoursToEarn = gemsForNext / gemEvGemsPerHour;
-        efficVals.push(marginalPct / hoursToEarn);
+      if (marginalPct != null && gemsForNext > 0) {
+        if (gemEvGemsPerHour > 0) efficVals.push(marginalPct / (gemsForNext / gemEvGemsPerHour));
+        efficValsGemAbs.push((marginalPct / gemsForNext) * 100);
       }
     }
     return {
@@ -1558,6 +1568,8 @@ export function Fishing() {
       skillMarginalBreakdown: breakdownMap,
       costEfficHeatMinSkill: efficVals.length ? Math.min(...efficVals) : 0,
       costEfficHeatMaxSkill: efficVals.length ? Math.max(...efficVals) : 1,
+      costEfficHeatMinSkillGemAbs: efficValsGemAbs.length ? Math.min(...efficValsGemAbs) : 0,
+      costEfficHeatMaxSkillGemAbs: efficValsGemAbs.length ? Math.max(...efficValsGemAbs) : 1,
     };
   }, [
     upgradeLevels,
@@ -1573,16 +1585,19 @@ export function Fishing() {
     gemEvGemsPerHour,
   ]);
 
-  /** Fish card gild (Card → Gilded): marginal % and cost efficiency. Fish cards: "With This Fish I Summon Two More Fish". Fishing Rod: Card → Poly, cost 1500 gems. */
-  const { fishCardGildMarginalPct, fishCardGildCostEffic, fishingRodCardGildMarginalPct, fishingRodCardGildCostEffic, costEfficHeatMinFishCard, costEfficHeatMaxFishCard } = useMemo(() => {
+  /** Fish card gild (Card → Gilded): marginal % and cost efficiency (time-based and gem-absolute). */
+  const { fishCardGildMarginalPct, fishCardGildCostEffic, fishCardGildCostEfficGemAbs, fishingRodCardGildMarginalPct, fishingRodCardGildCostEffic, fishingRodCardGildCostEfficGemAbs, costEfficHeatMinFishCard, costEfficHeatMaxFishCard, costEfficHeatMinFishCardGemAbs, costEfficHeatMaxFishCardGemAbs } = useMemo(() => {
     const total = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).reduce((s, r) => s + r.fishPerHour, 0);
     const marginalMap = new Map<string, number>();
     const efficMap = new Map<string, number>();
+    const efficMapGemAbs = new Map<string, number>();
     const efficVals: number[] = [];
+    const efficValsGemAbs: number[] = [];
     let rodMarginalPct: number | null = null;
     let rodCostEffic: number | null = null;
+    let rodCostEfficGemAbs: number | null = null;
     if (total <= 0) {
-      return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1 };
+      return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishCardGildCostEfficGemAbs: efficMapGemAbs, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, fishingRodCardGildCostEfficGemAbs: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1, costEfficHeatMinFishCardGemAbs: 0, costEfficHeatMaxFishCardGemAbs: 1 };
     }
     const cardToGildedDelta = 2 / 1.5 - 1; // Card 1.5× → Gilded 2×
     for (const row of visibleGainsRows) {
@@ -1592,48 +1607,71 @@ export function Fishing() {
       const marginalPct = (row.fishPerHour * cardToGildedDelta / total) * 100;
       marginalMap.set(row.fish.id, marginalPct);
       const gems = getFishCardGildGemCost(row.fish.id);
-      if (gems > 0 && gemEvGemsPerHour > 0) {
-        const hoursToEarn = gems / gemEvGemsPerHour;
-        const effic = marginalPct / hoursToEarn;
-        efficMap.set(row.fish.id, effic);
-        efficVals.push(effic);
+      if (gems > 0) {
+        if (gemEvGemsPerHour > 0) {
+          const effic = marginalPct / (gems / gemEvGemsPerHour);
+          efficMap.set(row.fish.id, effic);
+          efficVals.push(effic);
+        }
+        const efficGemAbs = (marginalPct / gems) * 100;
+        efficMapGemAbs.set(row.fish.id, efficGemAbs);
+        efficValsGemAbs.push(efficGemAbs);
       }
     }
-    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0 && gemEvGemsPerHour > 0) {
+    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0) {
       rodMarginalPct = ((totalFishPerHourWithRodPoly - total) / total) * 100;
-      const hoursToEarnRod = FISHING_ROD_GILD_CARD_COST / gemEvGemsPerHour;
-      rodCostEffic = rodMarginalPct / hoursToEarnRod;
-      efficVals.push(rodCostEffic);
+      if (gemEvGemsPerHour > 0) {
+        rodCostEffic = rodMarginalPct / (FISHING_ROD_GILD_CARD_COST / gemEvGemsPerHour);
+        efficVals.push(rodCostEffic);
+      }
+      rodCostEfficGemAbs = (rodMarginalPct / FISHING_ROD_GILD_CARD_COST) * 100;
+      efficValsGemAbs.push(rodCostEfficGemAbs);
     }
     return {
       fishCardGildMarginalPct: marginalMap,
       fishCardGildCostEffic: efficMap,
+      fishCardGildCostEfficGemAbs: efficMapGemAbs,
       fishingRodCardGildMarginalPct: rodMarginalPct,
       fishingRodCardGildCostEffic: rodCostEffic,
+      fishingRodCardGildCostEfficGemAbs: rodCostEfficGemAbs,
       costEfficHeatMinFishCard: efficVals.length ? Math.min(...efficVals) : 0,
       costEfficHeatMaxFishCard: efficVals.length ? Math.max(...efficVals) : 1,
+      costEfficHeatMinFishCardGemAbs: efficValsGemAbs.length ? Math.min(...efficValsGemAbs) : 0,
+      costEfficHeatMaxFishCardGemAbs: efficValsGemAbs.length ? Math.max(...efficValsGemAbs) : 1,
     };
   }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, totalFishPerHourWithRodPoly, gemEvGemsPerHour]);
 
-  /** Unified cost-efficiency heatmap: same scale across upgrades, enhancements, skill tree, fish cards (marginal % per hour). */
-  const { costEfficHeatMinGlobal, costEfficHeatMaxGlobal } = useMemo(() => {
-    const mins = [costEfficHeatMin, costEfficHeatMinEnhance, costEfficHeatMinSkill, costEfficHeatMinFishCard];
-    const maxs = [costEfficHeatMax, costEfficHeatMaxEnhance, costEfficHeatMaxSkill, costEfficHeatMaxFishCard];
-    const globalMin = Math.min(...mins);
-    const globalMax = Math.max(...maxs);
+  /** Unified cost-efficiency heatmap. Time-based (useGemIncome) or gem-absolute (separate heatmap for gem items). */
+  const { costEfficHeatMinGlobal, costEfficHeatMaxGlobal, costEfficHeatMinGemAbsGlobal, costEfficHeatMaxGemAbsGlobal } = useMemo(() => {
+    const timeMins = [costEfficHeatMin, costEfficHeatMinEnhance, costEfficHeatMinSkill, costEfficHeatMinFishCard];
+    const timeMaxs = [costEfficHeatMax, costEfficHeatMaxEnhance, costEfficHeatMaxSkill, costEfficHeatMaxFishCard];
+    const gemAbsMins = [costEfficHeatMinEnhanceGemAbs, costEfficHeatMinSkillGemAbs, costEfficHeatMinFishCardGemAbs];
+    const gemAbsMaxs = [costEfficHeatMaxEnhanceGemAbs, costEfficHeatMaxSkillGemAbs, costEfficHeatMaxFishCardGemAbs];
+    const timeMin = Math.min(...timeMins);
+    const timeMax = Math.max(...timeMaxs);
+    const gemAbsMin = Math.min(...gemAbsMins);
+    const gemAbsMax = Math.max(...gemAbsMaxs);
     return {
-      costEfficHeatMinGlobal: globalMin,
-      costEfficHeatMaxGlobal: globalMax > globalMin ? globalMax : globalMin + 1,
+      costEfficHeatMinGlobal: timeMin,
+      costEfficHeatMaxGlobal: timeMax > timeMin ? timeMax : timeMin + 1,
+      costEfficHeatMinGemAbsGlobal: gemAbsMin,
+      costEfficHeatMaxGemAbsGlobal: gemAbsMax > gemAbsMin ? gemAbsMax : gemAbsMin + 1,
     };
   }, [
     costEfficHeatMin,
     costEfficHeatMax,
     costEfficHeatMinEnhance,
     costEfficHeatMaxEnhance,
+    costEfficHeatMinEnhanceGemAbs,
+    costEfficHeatMaxEnhanceGemAbs,
     costEfficHeatMinSkill,
     costEfficHeatMaxSkill,
+    costEfficHeatMinSkillGemAbs,
+    costEfficHeatMaxSkillGemAbs,
     costEfficHeatMinFishCard,
     costEfficHeatMaxFishCard,
+    costEfficHeatMinFishCardGemAbs,
+    costEfficHeatMaxFishCardGemAbs,
   ]);
 
   return (
@@ -1648,6 +1686,17 @@ export function Fishing() {
           </h1>
           <p className="subtitle">Enter your fishing stats and toggle docks. Same formulas as game.</p>
         </div>
+      </div>
+
+      <div className="fishingGemIncomeToggleWrap">
+        <label className="fishingGemIncomeToggle">
+          <input
+            type="checkbox"
+            checked={state.useGemIncomeForCostEffic}
+            onChange={(e) => setState((prev) => ({ ...prev, useGemIncomeForCostEffic: e.target.checked }))}
+          />
+          <span className="fishingGemIncomeToggleLabel">Use Gem Income for Cost Efficiency calculations</span>
+        </label>
       </div>
 
       <div className="fishingLayoutGrid">
@@ -2219,8 +2268,8 @@ export function Fishing() {
                   <StatRow
                     label="Drone base power"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
-                    value={Math.round(stats.drone_base_power)}
-                    decimals={0}
+                    value={stats.drone_base_power}
+                    decimals={2}
                     suffix=""
                   />
                   <StatRow
@@ -2849,14 +2898,16 @@ export function Fishing() {
                             {!isMaxed &&
                             marginalPct != null &&
                             nextCostEntry &&
-                            nextCostEntry.gems > 0 && gemEvGemsPerHour > 0
+                            nextCostEntry.gems > 0 &&
+                            (state.useGemIncomeForCostEffic ? gemEvGemsPerHour > 0 : true)
                               ? (() => {
-                                  const hoursToEarn = nextCostEntry.gems / gemEvGemsPerHour;
-                                  const costEffic = marginalPct / hoursToEarn;
-                                  const heatT =
-                                    costEfficHeatMaxGlobal > costEfficHeatMinGlobal
-                                      ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
-                                      : 0.5;
+                                  const costEffic = state.useGemIncomeForCostEffic
+                                    ? marginalPct / (nextCostEntry.gems / gemEvGemsPerHour)
+                                    : (marginalPct / nextCostEntry.gems) * 100;
+                                  const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
+                                    ? { min: costEfficHeatMinGlobal, max: costEfficHeatMaxGlobal }
+                                    : { min: costEfficHeatMinGemAbsGlobal, max: costEfficHeatMaxGemAbsGlobal };
+                                  const heatT = heatMax > heatMin ? (costEffic - heatMin) / (heatMax - heatMin) : 0.5;
                                   const rateColor = heatmapColor(heatT);
                                   return (
                                     <span
@@ -2991,14 +3042,16 @@ export function Fishing() {
                             {!isMaxed &&
                             marginalPct != null &&
                             nextCostEntry &&
-                            nextCostEntry.gems > 0 && gemEvGemsPerHour > 0
+                            nextCostEntry.gems > 0 &&
+                            (state.useGemIncomeForCostEffic ? gemEvGemsPerHour > 0 : true)
                               ? (() => {
-                                  const hoursToEarn = nextCostEntry.gems / gemEvGemsPerHour;
-                                  const costEffic = marginalPct / hoursToEarn;
-                                  const heatT =
-                                    costEfficHeatMaxGlobal > costEfficHeatMinGlobal
-                                      ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
-                                      : 0.5;
+                                  const costEffic = state.useGemIncomeForCostEffic
+                                    ? marginalPct / (nextCostEntry.gems / gemEvGemsPerHour)
+                                    : (marginalPct / nextCostEntry.gems) * 100;
+                                  const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
+                                    ? { min: costEfficHeatMinGlobal, max: costEfficHeatMaxGlobal }
+                                    : { min: costEfficHeatMinGemAbsGlobal, max: costEfficHeatMaxGemAbsGlobal };
+                                  const heatT = heatMax > heatMin ? (costEffic - heatMin) / (heatMax - heatMin) : 0.5;
                                   const rateColor = heatmapColor(heatT);
                                   return (
                                     <span
@@ -3089,9 +3142,14 @@ export function Fishing() {
                   {[
                     ...visibleGainsRows
                       .filter((r) => r.hasPower && r.fishPerHour > 0 && (state.fishCardTier[r.fish.id] ?? 0) === 1)
-                      .map((row) => ({ type: "fish" as const, id: row.fish.id, effic: fishCardGildCostEffic.get(row.fish.id) ?? 0, row })),
-                    ...(fishingRodCardGildCostEffic != null
-                      ? [{ type: "rod" as const, id: "fishing_rod_power", effic: fishingRodCardGildCostEffic }]
+                      .map((row) => ({
+                        type: "fish" as const,
+                        id: row.fish.id,
+                        effic: (state.useGemIncomeForCostEffic ? fishCardGildCostEffic.get(row.fish.id) : fishCardGildCostEfficGemAbs.get(row.fish.id)) ?? 0,
+                        row,
+                      })),
+                    ...((state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) != null
+                      ? [{ type: "rod" as const, id: "fishing_rod_power", effic: (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs)! }]
                       : []),
                   ]
                     .sort((a, b) => b.effic - a.effic)
@@ -3099,11 +3157,14 @@ export function Fishing() {
                       if (entry.type === "fish") {
                         const row = entry.row!;
                         const marginalPct = fishCardGildMarginalPct.get(row.fish.id) ?? 0;
-                        const costEffic = fishCardGildCostEffic.get(row.fish.id) ?? null;
+                        const costEffic = state.useGemIncomeForCostEffic ? fishCardGildCostEffic.get(row.fish.id) ?? null : fishCardGildCostEfficGemAbs.get(row.fish.id) ?? null;
                         const gems = getFishCardGildGemCost(row.fish.id);
+                        const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
+                          ? { min: costEfficHeatMinGlobal, max: costEfficHeatMaxGlobal }
+                          : { min: costEfficHeatMinGemAbsGlobal, max: costEfficHeatMaxGemAbsGlobal };
                         const heatT =
-                          costEffic != null && costEfficHeatMaxGlobal > costEfficHeatMinGlobal
-                            ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
+                          costEffic != null && heatMax > heatMin
+                            ? (costEffic - heatMin) / (heatMax - heatMin)
                             : 0.5;
                         return (
                           <tr key={row.fish.id} className="fishingUpgradeRow">
@@ -3140,11 +3201,14 @@ export function Fishing() {
                           </tr>
                         );
                       }
-                      const costEffic = fishingRodCardGildCostEffic!;
+                      const costEffic = (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs)!;
                       const marginalPct = fishingRodCardGildMarginalPct ?? 0;
+                      const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
+                        ? { min: costEfficHeatMinGlobal, max: costEfficHeatMaxGlobal }
+                        : { min: costEfficHeatMinGemAbsGlobal, max: costEfficHeatMaxGemAbsGlobal };
                       const heatT =
-                        costEfficHeatMaxGlobal > costEfficHeatMinGlobal
-                          ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
+                        heatMax > heatMin
+                          ? (costEffic - heatMin) / (heatMax - heatMin)
                           : 0.5;
                       return (
                         <tr key="fishing_rod_power" className="fishingUpgradeRow">
@@ -3180,7 +3244,7 @@ export function Fishing() {
                 </tbody>
               </table>
             </div>
-            {visibleGainsRows.filter((r) => r.hasPower && (state.fishCardTier[r.fish.id] ?? 0) === 1).length === 0 && fishingRodCardGildCostEffic == null ? (
+            {visibleGainsRows.filter((r) => r.hasPower && (state.fishCardTier[r.fish.id] ?? 0) === 1).length === 0 && (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) == null ? (
               <div className="small" style={{ padding: 8, opacity: 0.85 }}>You currently have no un-gilded Fish cards and no un-gilded Fishing Rod Power Card.</div>
             ) : null}
           </Collapsible>
@@ -3269,12 +3333,17 @@ export function Fishing() {
                     !isMaxed &&
                     marginalPct != null &&
                     gemsForNext > 0 &&
-                    gemEvGemsPerHour > 0
-                      ? marginalPct / (gemsForNext / gemEvGemsPerHour)
+                    (state.useGemIncomeForCostEffic ? gemEvGemsPerHour > 0 : true)
+                      ? state.useGemIncomeForCostEffic
+                        ? marginalPct / (gemsForNext / gemEvGemsPerHour)
+                        : (marginalPct / gemsForNext) * 100
                       : null;
+                  const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
+                    ? { min: costEfficHeatMinGlobal, max: costEfficHeatMaxGlobal }
+                    : { min: costEfficHeatMinGemAbsGlobal, max: costEfficHeatMaxGemAbsGlobal };
                   const heatT =
-                    costEffic != null && costEfficHeatMaxGlobal > costEfficHeatMinGlobal
-                      ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
+                    costEffic != null && heatMax > heatMin
+                      ? (costEffic - heatMin) / (heatMax - heatMin)
                       : 0.5;
                   return (
                     <tr key={def.id} className="fishingUpgradeRow">
