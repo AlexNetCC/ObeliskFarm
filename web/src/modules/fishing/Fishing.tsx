@@ -1987,7 +1987,7 @@ export function Fishing() {
                 />
                 {effectiveTickSec < tickDurationSec && tickDurationSec > 0 ? (
                   <span className="fishingTickBetterPulse">
-                    ({((1 - effectiveTickSec / tickDurationSec) * 100).toFixed(0)}% faster)
+                    (Your reality is {((1 - effectiveTickSec / tickDurationSec) * 100).toFixed(0)}% faster!)
                   </span>
                 ) : null}
               </div>
@@ -2004,6 +2004,11 @@ export function Fishing() {
                   }}
                   label="?"
                 />
+                {effectiveTickSec > 0 && ticksPerSushi > 0 ? (
+                  <span className="fishingTickBetterPulse">
+                    (Corresponds to {(3600 / effectiveTickSec / ticksPerSushi).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })} Sushi!)
+                  </span>
+                ) : null}
               </div>
               <div className="fishingTickFlowArrow">↓</div>
               <div className="fishingTickRow">
