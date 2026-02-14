@@ -71,6 +71,17 @@ const ANGLER_SUIT_SEC_PER_LEVEL = 2; // 1140 - 20*2 = 1100
 /** Angler fuel duration: same pattern as Frogger (3:00 + 0:09 per grade). */
 const ANGLER_FUEL_DURATION_BASE_SEC = 180;
 const ANGLER_FUEL_DURATION_SEC_PER_GRADE = 9;
+/** Angler fuel buff: 1% proc per Angler cycle. When proc: +6 ticks (base), +2% Legendary Fish Chance, 1:45 duration. Per grade: +6 ticks, +2%, +0:05.25. Max (Poly): +222 ticks, +52%, 3:09. */
+const ANGLER_BUFF_PROC_CHANCE = 0.01;
+const ANGLER_BUFF_TICKS_BASE = 6;
+const ANGLER_BUFF_TICKS_PER_GRADE = 6;
+const ANGLER_BUFF_TICKS_MAX = 222;
+const ANGLER_BUFF_LEGENDARY_PCT_BASE = 2;
+const ANGLER_BUFF_LEGENDARY_PCT_PER_GRADE = 2;
+const ANGLER_BUFF_LEGENDARY_PCT_MAX = 52;
+const ANGLER_BUFF_DURATION_BASE_SEC = 105; // 1:45
+const ANGLER_BUFF_DURATION_SEC_PER_GRADE = 5.25; // +0:05.25
+const ANGLER_BUFF_DURATION_MAX_SEC = 189; // 3:09
 
 /** Starburst Drone: Stargazing. Suit: Triple Star Chance 6% base + 1% per level. Fuel buff: +100% Auto-catch (always), +15% Star Spawn Rate at grade 0, +1% per grade; duration 2:20 at grade 0, +0:09 per grade. */
 const STARBURST_TRIPLE_STAR_PCT_BASE = 6;
@@ -614,10 +625,30 @@ export function Drone() {
   );
   const bombBearFuelDurationSecReal = bombBearFuelDurationGameSec / gameSpeedMult;
 
-  /** Angler: interval (game time) = 1140 − suit×2 s; real time = interval / game speed. Ticks per hour = 2 × 3600 / (interval/gameSpeed) = 7200×gameSpeed/interval. */
+  /** Angler: interval (game time) = 1140 − suit×2 s; real time = interval / game speed. Base ticks per hour = 2 × 3600 / (interval/gameSpeed). */
   const anglerIntervalSecGame = Math.max(1, ANGLER_BASE_INTERVAL_SEC - state.anglerSuitLevel * ANGLER_SUIT_SEC_PER_LEVEL);
   const anglerIntervalSecReal = anglerIntervalSecGame / gameSpeedMult;
-  const anglerTicksPerHour = (ANGLER_TICKS_PER_INTERVAL * 3600) / anglerIntervalSecReal;
+  const anglerBaseTicksPerHour = (ANGLER_TICKS_PER_INTERVAL * 3600) / anglerIntervalSecReal;
+  /** Angler fuel buff: 1% proc per Angler cycle. When proc: +6 ticks (base) + 6×grade, +2% Legendary Chance, duration 1:45 + 5.25s×grade. */
+  const anglerBuffTicksPerProc = state.anglerDroneOn && state.anglerFueled
+    ? Math.min(ANGLER_BUFF_TICKS_MAX, ANGLER_BUFF_TICKS_BASE + ANGLER_BUFF_TICKS_PER_GRADE * state.anglerGradeLevel)
+    : 0;
+  const anglerProcsPerHour = state.anglerDroneOn && state.anglerFueled
+    ? ANGLER_BUFF_PROC_CHANCE * (3600 / anglerIntervalSecReal)
+    : 0;
+  const anglerBuffTicksPerHour = anglerProcsPerHour * anglerBuffTicksPerProc;
+  const anglerTicksPerHour = anglerBaseTicksPerHour + anglerBuffTicksPerHour;
+  /** Buff uptime and legendary bonus for Fishing: when buff active, LEGENDARY_CATCH_BASE is reduced by bonusPct. */
+  const anglerBuffDurationSec = state.anglerDroneOn && state.anglerFueled
+    ? Math.min(ANGLER_BUFF_DURATION_MAX_SEC, ANGLER_BUFF_DURATION_BASE_SEC + ANGLER_BUFF_DURATION_SEC_PER_GRADE * state.anglerGradeLevel)
+    : 0;
+  const anglerTimeBetweenProcsSec = anglerProcsPerHour > 0 ? 3600 / anglerProcsPerHour : 0;
+  const anglerBuffUptimeFraction = anglerTimeBetweenProcsSec > 0 && anglerBuffDurationSec > 0
+    ? Math.min(1, anglerBuffDurationSec / anglerTimeBetweenProcsSec)
+    : 0;
+  const anglerLegendaryBonusPct = state.anglerDroneOn && state.anglerFueled
+    ? Math.min(ANGLER_BUFF_LEGENDARY_PCT_MAX, ANGLER_BUFF_LEGENDARY_PCT_BASE + ANGLER_BUFF_LEGENDARY_PCT_PER_GRADE * state.anglerGradeLevel)
+    : 0;
 
   /** Angler fuel duration: 3:00 base + 0:09 per grade (shared multipliers). */
   const anglerFuelDurationFromGradeSec = ANGLER_FUEL_DURATION_BASE_SEC + state.anglerGradeLevel * ANGLER_FUEL_DURATION_SEC_PER_GRADE;
@@ -904,8 +935,12 @@ export function Drone() {
     ext.elixir3xFishingTickSpeedMinPerHour = elixir3xFishingTickSpeedMinPerHour;
     ext.elixir3xFishingTickSpeedUptimeFraction = elixir3xFishingTickSpeedUptimeFraction;
     ext.anglerTicksPerHour = state.anglerDroneOn ? anglerTicksPerHour : 0;
+    ext.anglerBaseTicksPerHour = state.anglerDroneOn ? anglerBaseTicksPerHour : 0;
+    ext.anglerBuffTicksPerHour = state.anglerDroneOn && state.anglerFueled ? anglerBuffTicksPerHour : 0;
+    ext.anglerLegendaryBonusPct = state.anglerDroneOn && state.anglerFueled ? anglerLegendaryBonusPct : 0;
+    ext.anglerBuffUptimeFraction = state.anglerDroneOn && state.anglerFueled ? anglerBuffUptimeFraction : 0;
     saveJson(FISHING_EXTERNAL_KEY, ext);
-  }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction, state.anglerDroneOn, anglerTicksPerHour]);
+  }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction, state.anglerDroneOn, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
 
   /** Drone's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
   const drone10xGemEvPerHour = (() => {
@@ -916,7 +951,7 @@ export function Drone() {
     return impact * (droneBomb10xMinPerHour / total10x);
   })();
 
-  /** Fishing data for Angler subsection: read from Fishing. Extra = full − base (global ticks from Angler + Lootbug apply to every dock). */
+  /** Fishing data for Angler subsection: read from Fishing. Compute suit/buff split locally so it updates when grade changes (Fishing may be unmounted). */
   const anglerFishingData = useMemo(() => {
     const ext = loadJson<{
       effectiveTickSec?: number;
@@ -926,18 +961,71 @@ export function Drone() {
         baseFishPerHour?: number;
         fishPerHour?: number;
       }>;
+      anglerBreakdown?: {
+        extraFromSuit: number;
+        extraFromBuff: number;
+        legendaryPctIncrease: number;
+        totalBaseAll: number;
+        totalFullAll: number;
+        perFish: Array<{ fishId: string; fishName: string; base: number; suit: number; full: number; extraPct: number }>;
+      };
+      lootbugFishing12TicksProcsPerHour?: number;
+      giftSushiPerHour?: number;
+      anglerTicksUsedForFishGains?: number;
     }>(FISHING_EXTERNAL_KEY);
     const effectiveTickSec = typeof ext?.effectiveTickSec === "number" ? ext.effectiveTickSec : 0;
+    const breakdown = ext?.anglerBreakdown;
     const gains = Array.isArray(ext?.fishGains) ? ext.fishGains : [];
-    const extraPerFish = gains.map((g) => {
-      const base = typeof g.baseFishPerHour === "number" ? g.baseFishPerHour : g.fishPerHour ?? 0;
-      const full = typeof g.fishPerHour === "number" ? g.fishPerHour : base;
-      return { ...g, baseFishPerHour: base, fishPerHour: full, extraFishPerHour: full - base };
-    });
+    const anglerTicksUsed = typeof ext?.anglerTicksUsedForFishGains === "number" && ext.anglerTicksUsedForFishGains > 0 ? ext.anglerTicksUsedForFishGains : anglerTicksPerHour;
+    const scale = anglerTicksUsed > 0 ? anglerTicksPerHour / anglerTicksUsed : 1;
+    const extraPerFish = breakdown?.perFish
+      ? breakdown.perFish.map((p) => {
+          const base = p.base;
+          const oldExtra = p.full - p.base;
+          const newExtra = oldExtra * scale;
+          const full = base + newExtra;
+          const pct = base > 0 ? (newExtra / base) * 100 : 0;
+          return {
+            fishId: p.fishId,
+            fishName: p.fishName,
+            baseFishPerHour: base,
+            fishPerHour: full,
+            extraFishPerHour: newExtra,
+            extraPct: pct,
+          };
+        })
+      : gains.map((g) => {
+          const base = typeof g.baseFishPerHour === "number" ? g.baseFishPerHour : g.fishPerHour ?? 0;
+          const full = typeof g.fishPerHour === "number" ? g.fishPerHour : base;
+          const extra = full - base;
+          const pct = base > 0 ? (extra / base) * 100 : 0;
+          return { ...g, baseFishPerHour: base, fishPerHour: full, extraFishPerHour: extra, extraPct: pct };
+        });
     const totalBaseFishPerHour = extraPerFish.reduce((s, g) => s + (g.baseFishPerHour ?? 0), 0);
     const totalFullFishPerHour = extraPerFish.reduce((s, g) => s + (g.fishPerHour ?? 0), 0);
     const totalExtraFishPerHour = totalFullFishPerHour - totalBaseFishPerHour;
     const extraFishPct = totalBaseFishPerHour > 0 ? (totalExtraFishPerHour / totalBaseFishPerHour) * 100 : 0;
+
+    /** Compute suit/buff split from tick proportions: Angler share of total ticks, then suit vs buff within Angler. Updates when grade changes. */
+    let extraFromSuit = breakdown?.extraFromSuit ?? 0;
+    let extraFromBuff = breakdown?.extraFromBuff ?? 0;
+    const lootbugTicks = typeof ext?.lootbugFishing12TicksProcsPerHour === "number" ? Math.max(0, ext.lootbugFishing12TicksProcsPerHour) : 0;
+    const sushiTicks = (typeof ext?.giftSushiPerHour === "number" ? Math.max(0, ext.giftSushiPerHour) : 0) * 90;
+    const totalTicks = anglerTicksPerHour + lootbugTicks + sushiTicks;
+    if (totalTicks > 0 && anglerTicksPerHour > 0 && totalExtraFishPerHour > 0) {
+      const anglerShare = anglerTicksPerHour / totalTicks;
+      const extraFromAngler = totalExtraFishPerHour * anglerShare;
+      extraFromSuit = extraFromAngler * (anglerBaseTicksPerHour / anglerTicksPerHour);
+      extraFromBuff = extraFromAngler * (anglerBuffTicksPerHour / anglerTicksPerHour);
+    }
+
+    /** Legendary % increase: buff lowers effective base, so rate ≈ 1/(1 - bonus×uptime). Computed locally so it updates with grade. */
+    let legendaryPctIncrease = breakdown?.legendaryPctIncrease ?? 0;
+    if (anglerLegendaryBonusPct > 0 && anglerBuffUptimeFraction > 0) {
+      const factor = 1 - (anglerLegendaryBonusPct / 100) * anglerBuffUptimeFraction;
+      if (factor > 0 && factor < 1) legendaryPctIncrease = (1 / factor - 1) * 100;
+    }
+
     return {
       effectiveTickSec,
       extraPerFish,
@@ -945,8 +1033,11 @@ export function Drone() {
       totalBaseFishPerHour,
       totalFullFishPerHour,
       extraFishPct,
+      extraFromSuit,
+      extraFromBuff,
+      legendaryPctIncrease,
     };
-  }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, anglerTicksPerHour]);
+  }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
 
   /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. Prefer value from Lootbug (includes Gems, 10×, Item Chests). Fallback: live calc from gems+net10x when Lootbug has not run yet. */
   const bombBearLootbugGemsEvPerHour = (() => {
@@ -2377,20 +2468,42 @@ export function Drone() {
           {state.anglerDroneOn && anglerFishingData.extraPerFish.length > 0 ? (
             <>
               <div className="droneRow">
-                <span className="droneLabel">Total extra fish/h (from ticks)</span>
-                <span className="droneStepperValue">
-                  {anglerFishingData.totalExtraFishPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                  {" "}({anglerFishingData.extraFishPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%)
+                <span className="droneLabel">Extra from 2 suit ticks</span>
+                <span className="droneStepperValue mono">
+                  +{anglerFishingData.extraFromSuit.toLocaleString(undefined, { maximumFractionDigits: 1 })} fish/h
                 </span>
               </div>
-              <div className="droneSubTitle" style={{ marginTop: 8, marginBottom: 4 }}>Extra fish by type</div>
-              <ul className="droneList small" style={{ margin: 0, paddingLeft: 20 }}>
-                {anglerFishingData.extraPerFish.map(({ fishName, extraFishPerHour }) => (
-                  <li key={fishName}>
-                    <span className="mono">{fishName}</span>: +{extraFishPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
-                  </li>
-                ))}
-              </ul>
+              {state.anglerFueled && anglerBuffTicksPerHour > 0 ? (
+                <>
+                  <div className="droneRow">
+                    <span className="droneLabel">Extra from 1% procs (buff, +6 ticks/grade)</span>
+                    <span className="droneStepperValue mono">
+                      +{anglerFishingData.extraFromBuff.toLocaleString(undefined, { maximumFractionDigits: 1 })} fish/h
+                    </span>
+                  </div>
+                  <div className="droneRow">
+                    <span className="droneLabel">Legendary fish: buff gives</span>
+                    <span className="droneStepperValue mono">
+                      +{anglerFishingData.legendaryPctIncrease.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+                    </span>
+                  </div>
+                </>
+              ) : null}
+              {anglerFishingData.extraPerFish.some(({ extraFishPerHour }) => extraFishPerHour > 0) ? (
+                <>
+                  <div className="droneSubTitle" style={{ marginTop: 8, marginBottom: 4 }}>Extra fish by type</div>
+                  <ul className="droneList small" style={{ margin: 0, paddingLeft: 20 }}>
+                    {anglerFishingData.extraPerFish
+                      .filter(({ extraFishPerHour }) => extraFishPerHour > 0)
+                      .map(({ fishName, extraFishPerHour, extraPct }) => (
+                        <li key={fishName}>
+                          <span className="mono">{fishName}</span>: +{extraFishPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
+                          {typeof extraPct === "number" && extraPct > 0 ? ` (+${extraPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%)` : null}
+                        </li>
+                      ))}
+                  </ul>
+                </>
+              ) : null}
             </>
           ) : state.anglerDroneOn ? (
             <p className="droneHint small" style={{ marginBottom: 0 }}>

@@ -97,7 +97,7 @@ const SUSHI_MC_RUNS = 10000;
 /** Fishing Rod card: Fishing Rod Power. Card 1.02×, Gilded 1.05×, Poly 1.10×. */
 const FISHING_ROD_CARD_MULT: Record<FishCardTier, number> = { 0: 1, 1: 1.02, 2: 1.05, 3: 1.1 };
 
-/** Legendary fish catch: 1/LEGENDARY_CATCH_BASE per 100% on last fish, max 9/LEGENDARY_CATCH_BASE. Angler drone reduces base (not yet). */
+/** Legendary fish catch: 1/LEGENDARY_CATCH_BASE per 100% on last fish, max 9/LEGENDARY_CATCH_BASE. Angler fuel buff reduces effective base during buff uptime. */
 const LEGENDARY_CATCH_BASE = 150_000;
 
 /** Elixir 3× Fishing Tick Speed buff icon (same as Drone module). */
@@ -811,6 +811,10 @@ export function Fishing() {
       elixir3xFishingTickSpeedMinPerHour?: number;
       elixir3xFishingTickSpeedUptimeFraction?: number;
       anglerTicksPerHour?: number;
+      anglerBaseTicksPerHour?: number;
+      anglerBuffTicksPerHour?: number;
+      anglerLegendaryBonusPct?: number;
+      anglerBuffUptimeFraction?: number;
       lootbugFishing12TicksProcsPerHour?: number;
       giftSushiPerHour?: number;
     }>(FISHING_EXTERNAL_KEY);
@@ -820,14 +824,24 @@ export function Fishing() {
         ? Math.max(0, Math.min(1, ext.elixir3xFishingTickSpeedUptimeFraction))
         : 0;
     const anglerTicksPerHour = typeof ext?.anglerTicksPerHour === "number" ? Math.max(0, ext.anglerTicksPerHour) : 0;
+    const anglerBaseTicksPerHour = typeof ext?.anglerBaseTicksPerHour === "number" ? Math.max(0, ext.anglerBaseTicksPerHour) : 0;
+    const anglerBuffTicksPerHour = typeof ext?.anglerBuffTicksPerHour === "number" ? Math.max(0, ext.anglerBuffTicksPerHour) : 0;
+    const anglerLegendaryBonusPct = typeof ext?.anglerLegendaryBonusPct === "number" ? Math.max(0, Math.min(52, ext.anglerLegendaryBonusPct)) : 0;
+    const anglerBuffUptimeFraction = typeof ext?.anglerBuffUptimeFraction === "number" ? Math.max(0, Math.min(1, ext.anglerBuffUptimeFraction)) : 0;
     const lootbugFishing12TicksProcsPerHour = typeof ext?.lootbugFishing12TicksProcsPerHour === "number" ? Math.max(0, ext.lootbugFishing12TicksProcsPerHour) : 0;
     const giftSushiPerHour = typeof ext?.giftSushiPerHour === "number" ? Math.max(0, ext.giftSushiPerHour) : 0;
-    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, lootbugFishing12TicksProcsPerHour, giftSushiPerHour };
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour };
   })();
   const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
   const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
+  const anglerBaseTicksPerHour = fishingExternalData.anglerBaseTicksPerHour;
+  const anglerBuffTicksPerHour = fishingExternalData.anglerBuffTicksPerHour;
+  const anglerLegendaryBonusPct = fishingExternalData.anglerLegendaryBonusPct;
+  const anglerBuffUptimeFraction = fishingExternalData.anglerBuffUptimeFraction;
   const lootbugFishing12TicksProcsPerHour = fishingExternalData.lootbugFishing12TicksProcsPerHour;
   const giftSushiPerHour = fishingExternalData.giftSushiPerHour;
+  /** Angler fuel buff: +X% Legendary Fish Chance during buff uptime. Effective base = 150k × (1 − bonus% × uptime). */
+  const effectiveLegendaryCatchBase = Math.max(1, LEGENDARY_CATCH_BASE * (1 - (anglerLegendaryBonusPct / 100) * anglerBuffUptimeFraction));
 
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
   /** Fish/h multiplier from Elixir 3× buff (1 = no buff, 3 = 100% uptime). */
@@ -904,7 +918,7 @@ export function Fishing() {
       const lastCatchPct = catchChancePercent(powerOnThisDock, lastFish.powerRating);
       const eligible = allPoly && lastCatchPct >= 100 && powerOnThisDock > 0;
       const numerator = eligible ? Math.min(9, Math.floor(lastCatchPct / 100)) : 0;
-      const legendaryChance = numerator / LEGENDARY_CATCH_BASE;
+      const legendaryChance = numerator / effectiveLegendaryCatchBase;
       const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
       const fillsPerHour = dockFillsPerHour + extraFillsPerDockPerHour;
       const fishPerHour = fillsPerHour * legendaryChance;
@@ -964,6 +978,7 @@ export function Fishing() {
     availableDocks,
     effectiveTickSec,
     extraFillsPerDockPerHour,
+    effectiveLegendaryCatchBase,
     expectedShinyMulti,
     effectiveRodPower,
     stats.drone_base_power,
@@ -1031,7 +1046,101 @@ export function Fishing() {
     return fishingGainsRows.filter((r) => r.hasPower);
   }, [fishingGainsRows, state.showDisabledFishGrayed]);
 
-  /** Export for Drone (Angler): base (bar only) and full fish/h (with global ticks). Drone uses difference for extra from Angler + Lootbug. */
+  /** Angler breakdown for Drone: gains from suit ticks only, from buff ticks only, legendary +% from buff. */
+  const anglerBreakdownForDrone = useMemo(() => {
+    const dockIds = new Set(availableDocks.map((d) => d.id));
+    const rod = effectiveRodPower;
+    const dronePower = stats.drone_base_power;
+    const doublePct = stats.double_tick_chance_pct / 100;
+    const triplePct = stats.triple_tick_chance_pct / 100;
+    const fivePct = stats.five_tick_chance_pct / 100;
+    const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
+    const anglerSuitExtra = anglerBaseTicksPerHour;
+    const anglerBuffExtra = anglerBuffTicksPerHour;
+
+    let totalBase = 0;
+    let totalAnglerSuit = 0;
+    let totalAnglerFull = 0;
+    let legendaryBase = 0;
+    let legendaryAnglerSuit = 0;
+    let legendaryAnglerFull = 0;
+    const perFish: Array<{ fishId: string; fishName: string; base: number; suit: number; full: number; extraPct: number }> = [];
+
+    for (const leg of LEGENDARY_FISH) {
+      if (!dockIds.has(leg.dockId)) continue;
+      const set = AQUARIUM.find((s) => s.dockId === leg.dockId)!;
+      const dock = DOCKS.find((d) => d.id === leg.dockId)!;
+      const rodHere = state.activeDockId === leg.dockId ? rod : 0;
+      const dronesHere = state.dronesPerDock[leg.dockId] ?? 0;
+      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const allPoly = set.fish.every((f) => (state.fishCardTier[f.id] ?? 0) === 3);
+      const lastFish = set.fish[set.fish.length - 1]!;
+      const lastCatchPct = catchChancePercent(powerOnThisDock, lastFish.powerRating);
+      const eligible = allPoly && lastCatchPct >= 100 && powerOnThisDock > 0;
+      const numerator = eligible ? Math.min(9, Math.floor(lastCatchPct / 100)) : 0;
+      const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const chanceBase = numerator / LEGENDARY_CATCH_BASE;
+      const chanceBuff = numerator / effectiveLegendaryCatchBase;
+      const b = dockFillsPerHour * chanceBase;
+      const s = (dockFillsPerHour + anglerSuitExtra) * chanceBase;
+      const f = (dockFillsPerHour + anglerSuitExtra + anglerBuffExtra) * chanceBuff;
+      legendaryBase += b;
+      legendaryAnglerSuit += s;
+      legendaryAnglerFull += f;
+      const extra = b > 0 ? ((f - b) / b) * 100 : 0;
+      perFish.push({ fishId: leg.id, fishName: leg.name, base: b, suit: s, full: f, extraPct: extra });
+    }
+    const sets = AQUARIUM.filter((set) => dockIds.has(set.dockId));
+    for (const set of sets) {
+      const dock = DOCKS.find((d) => d.id === set.dockId)!;
+      const rodHere = state.activeDockId === set.dockId ? rod : 0;
+      const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
+      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      for (const f of set.fish) {
+        const catchMulti =
+          expectedRollsPerFill *
+          expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
+          stats.fish_income_multi *
+          expectedShinyMulti *
+          getCardMulti(f.id);
+        const b = dockFillsPerHour * catchMulti;
+        const s = (dockFillsPerHour + anglerSuitExtra) * catchMulti;
+        const fu = (dockFillsPerHour + anglerSuitExtra + anglerBuffExtra) * catchMulti;
+        totalBase += b;
+        totalAnglerSuit += s;
+        totalAnglerFull += fu;
+        const extra = b > 0 ? ((fu - b) / b) * 100 : 0;
+        perFish.push({ fishId: f.id, fishName: f.name, base: b, suit: s, full: fu, extraPct: extra });
+      }
+    }
+    const totalBaseAll = totalBase + legendaryBase;
+    const totalSuitAll = totalAnglerSuit + legendaryAnglerSuit;
+    const totalFullAll = totalAnglerFull + legendaryAnglerFull;
+    const extraFromSuit = totalSuitAll - totalBaseAll;
+    const extraFromBuff = totalFullAll - totalSuitAll;
+    const legendaryPctIncrease = legendaryAnglerSuit > 0 ? ((legendaryAnglerFull - legendaryAnglerSuit) / legendaryAnglerSuit) * 100 : 0;
+    return { extraFromSuit, extraFromBuff, legendaryPctIncrease, totalBaseAll, totalFullAll, perFish };
+  }, [
+    availableDocks,
+    effectiveTickSec,
+    effectiveRodPower,
+    stats.drone_base_power,
+    stats.double_tick_chance_pct,
+    stats.triple_tick_chance_pct,
+    stats.five_tick_chance_pct,
+    stats.fish_income_multi,
+    state.dronesPerDock,
+    state.activeDockId,
+    state.fishCardTier,
+    getCardMulti,
+    anglerBaseTicksPerHour,
+    anglerBuffTicksPerHour,
+    effectiveLegendaryCatchBase,
+    expectedShinyMulti,
+  ]);
+
+  /** Export for Drone (Angler): base, full, angler breakdown, and angler ticks used so Drone can scale per-fish when grade changes. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
     ext.effectiveTickSec = effectiveTickSec;
@@ -1043,8 +1152,10 @@ export function Fishing() {
         baseFishPerHour: r.baseFishPerHour,
         fishPerHour: r.fishPerHour,
       }));
+    ext.anglerBreakdown = anglerBreakdownForDrone;
+    ext.anglerTicksUsedForFishGains = anglerTicksPerHour;
     saveJson(FISHING_EXTERNAL_KEY, ext);
-  }, [effectiveTickSec, visibleGainsRows]);
+  }, [effectiveTickSec, visibleGainsRows, anglerBreakdownForDrone, anglerTicksPerHour]);
 
   /** Run MC: simulate each fill → rolls → catch attempt per fish; record total and per-fish. */
   function runFishingMc() {
