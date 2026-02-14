@@ -482,6 +482,12 @@ export function GemEv() {
     : (external.lootbugNetGemsPerHour ?? 0);
   const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + lootbugNetContribution - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
 
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
+    ext.totalGemsPerHour = totalWithLootbugAndDroneFuel;
+    saveJson(GEMEV_EXTERNAL_KEY, ext);
+  }, [totalWithLootbugAndDroneFuel]);
+
   const evForChart = useMemo(() => ({
     ...ev,
     gem_bomb_gems: bombContribution,

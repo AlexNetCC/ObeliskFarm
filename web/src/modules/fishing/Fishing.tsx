@@ -138,13 +138,13 @@ function formatElixirMinSecPerHour(minPerHour: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/** Format hours as "h:mm" (e.g. 5.2 → "5:12", 0.75 → "0:45"). */
+/** Format hours as "h:mm h" (e.g. 5.2 → "5:12 h", 0.75 → "0:45 h"). */
 function formatHoursToHhMin(hours: number): string {
-  if (!Number.isFinite(hours) || hours < 0) return "0:00";
+  if (!Number.isFinite(hours) || hours < 0) return "0:00 h";
   const totalMin = Math.round(hours * 60);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  return `${h}:${String(m).padStart(2, "0")}`;
+  return `${h}:${String(m).padStart(2, "0")} h`;
 }
 
 /** Toggles for fish card tier: None (0), Card 1.5× (1), Gilded 2× (2), Poly 4× (3). Same layout as Stargazing card tier row. */
@@ -512,6 +512,98 @@ const statsTooltip = {
   ],
 };
 
+const costEfficUpgradeTooltip = {
+  title: "Cost efficiency",
+  sections: [
+    {
+      heading: "Formula",
+      lines: [
+        "Marginal % ÷ time to next (hours).",
+        "Time = fish amount ÷ fish per hour.",
+      ],
+    },
+    {
+      heading: "Scale",
+      lines: [
+        "Same heatmap across upgrades, enhancements, skill tree, fish cards.",
+        "Higher = more gain per hour.",
+      ],
+    },
+  ],
+};
+
+const costEfficGemTooltip = {
+  title: "Cost efficiency",
+  sections: [
+    {
+      heading: "Formula",
+      lines: [
+        "Marginal % ÷ hours to earn gem cost.",
+        "Hours = gem cost ÷ Gem EV total gems/h.",
+      ],
+    },
+    {
+      heading: "Scale",
+      lines: [
+        "Same heatmap across all sections.",
+        "Higher = more gain per hour.",
+      ],
+    },
+    {
+      heading: "Gem EV",
+      lines: ["Open Gem EV Calculator to sync gems/h."],
+    },
+  ],
+};
+
+const costEfficSkillTooltip = {
+  title: "Cost efficiency",
+  sections: [
+    {
+      heading: "Formula",
+      lines: [
+        "Marginal % ÷ hours to earn gem cost.",
+        "1 skill point = 125 gems. Hours = gem cost ÷ Gem EV gems/h.",
+      ],
+    },
+    {
+      heading: "Scale",
+      lines: [
+        "Same heatmap across all sections.",
+        "Higher = more gain per hour.",
+      ],
+    },
+    {
+      heading: "Gem EV",
+      lines: ["Open Gem EV Calculator to sync gems/h."],
+    },
+  ],
+};
+
+const costEfficFishCardTooltip = {
+  title: "Cost efficiency",
+  sections: [
+    {
+      heading: "Formula",
+      lines: [
+        "Marginal % ÷ hours to earn gem cost.",
+        "Cost: gems (Fish cards) or 1500 (Rod). Hours = cost ÷ Gem EV gems/h.",
+      ],
+    },
+    {
+      heading: "Scale",
+      lines: [
+        "Same heatmap across all sections.",
+        "Higher = more gain per hour.",
+      ],
+    },
+    {
+      heading: "Gem EV",
+      lines: ["Open Gem EV Calculator to sync gems/h."],
+    },
+  ],
+};
+
 const boxplotStatsTooltip = {
   title: "Box plot abbreviations",
   lines: [
@@ -702,6 +794,12 @@ export function Fishing() {
   /** Base tick duration in seconds (60 + reduction, e.g. -40 → 20). */
   const tickDurationSec = Math.max(1, 60 + stats.fishing_tick_reduction);
   /** Elixir 3× and Angler Drone: from Drone module (fishing_external.json). Open Drone to sync. */
+  /** Gem EV total gems/h. Used for cost effic (marginal % per hour to earn gem cost). Open Gem EV to sync. */
+  const gemEvGemsPerHour = (() => {
+    const ext = loadJson<{ totalGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    return typeof ext?.totalGemsPerHour === "number" && ext.totalGemsPerHour > 0 ? ext.totalGemsPerHour : 0;
+  })();
+
   const fishingExternalData = (() => {
     const ext = loadJson<{
       elixir3xFishingTickSpeedMinPerHour?: number;
@@ -1272,7 +1370,7 @@ export function Fishing() {
     state.dronesPerDock,
   ]);
 
-  /** Cost-efficiency heatmap for enhancements: min/max across T1 + T2 (marginal % / gem cost; high = green). */
+  /** Cost-efficiency heatmap for enhancements: min/max across T1 + T2 (marginal % per hour to earn gems; high = green). Uses Gem EV total gems/h. */
   const { costEfficHeatMinEnhance, costEfficHeatMaxEnhance } = useMemo(() => {
     const vals: number[] = [];
     const enhanceCosts = (def: { id: EnhanceId }) => {
@@ -1288,8 +1386,9 @@ export function Fishing() {
       const marginalPct = enhanceMarginalPct.get(def.id);
       const nextLevel = lvl + 1;
       const nextCostEntry = costs?.find((c) => c.level === nextLevel);
-      if (marginalPct != null && nextCostEntry && nextCostEntry.gems > 0) {
-        vals.push((marginalPct / nextCostEntry.gems) * 100);
+      if (marginalPct != null && nextCostEntry && nextCostEntry.gems > 0 && gemEvGemsPerHour > 0) {
+        const hoursToEarn = nextCostEntry.gems / gemEvGemsPerHour;
+        vals.push(marginalPct / hoursToEarn);
       }
     }
     if (vals.length === 0) return { costEfficHeatMinEnhance: 0, costEfficHeatMaxEnhance: 1 };
@@ -1302,6 +1401,7 @@ export function Fishing() {
     availableT2Enhancements,
     enhanceLevels,
     enhanceMarginalPct,
+    gemEvGemsPerHour,
   ]);
 
   /** Skill tree: marginal % gain for +1 level, optional breakdown by effect, and cost-efficiency heatmap. */
@@ -1448,8 +1548,9 @@ export function Fishing() {
 
       const costForNext = def.costs[lvl] ?? 0;
       const gemsForNext = costForNext * GEMS_PER_SKILL_POINT;
-      if (marginalPct != null && gemsForNext > 0) {
-        efficVals.push((marginalPct / gemsForNext) * 100);
+      if (marginalPct != null && gemsForNext > 0 && gemEvGemsPerHour > 0) {
+        const hoursToEarn = gemsForNext / gemEvGemsPerHour;
+        efficVals.push(marginalPct / hoursToEarn);
       }
     }
     return {
@@ -1469,6 +1570,7 @@ export function Fishing() {
     state.fishingRodCardTier,
     effectiveRodPower,
     elixir3xFishingExternal,
+    gemEvGemsPerHour,
   ]);
 
   /** Fish card gild (Card → Gilded): marginal % and cost efficiency. Fish cards: "With This Fish I Summon Two More Fish". Fishing Rod: Card → Poly, cost 1500 gems. */
@@ -1490,15 +1592,17 @@ export function Fishing() {
       const marginalPct = (row.fishPerHour * cardToGildedDelta / total) * 100;
       marginalMap.set(row.fish.id, marginalPct);
       const gems = getFishCardGildGemCost(row.fish.id);
-      if (gems > 0) {
-        const effic = (marginalPct / gems) * 100;
+      if (gems > 0 && gemEvGemsPerHour > 0) {
+        const hoursToEarn = gems / gemEvGemsPerHour;
+        const effic = marginalPct / hoursToEarn;
         efficMap.set(row.fish.id, effic);
         efficVals.push(effic);
       }
     }
-    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0) {
+    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0 && gemEvGemsPerHour > 0) {
       rodMarginalPct = ((totalFishPerHourWithRodPoly - total) / total) * 100;
-      rodCostEffic = (rodMarginalPct / FISHING_ROD_GILD_CARD_COST) * 100;
+      const hoursToEarnRod = FISHING_ROD_GILD_CARD_COST / gemEvGemsPerHour;
+      rodCostEffic = rodMarginalPct / hoursToEarnRod;
       efficVals.push(rodCostEffic);
     }
     return {
@@ -1509,7 +1613,28 @@ export function Fishing() {
       costEfficHeatMinFishCard: efficVals.length ? Math.min(...efficVals) : 0,
       costEfficHeatMaxFishCard: efficVals.length ? Math.max(...efficVals) : 1,
     };
-  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, totalFishPerHourWithRodPoly]);
+  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, totalFishPerHourWithRodPoly, gemEvGemsPerHour]);
+
+  /** Unified cost-efficiency heatmap: same scale across upgrades, enhancements, skill tree, fish cards (marginal % per hour). */
+  const { costEfficHeatMinGlobal, costEfficHeatMaxGlobal } = useMemo(() => {
+    const mins = [costEfficHeatMin, costEfficHeatMinEnhance, costEfficHeatMinSkill, costEfficHeatMinFishCard];
+    const maxs = [costEfficHeatMax, costEfficHeatMaxEnhance, costEfficHeatMaxSkill, costEfficHeatMaxFishCard];
+    const globalMin = Math.min(...mins);
+    const globalMax = Math.max(...maxs);
+    return {
+      costEfficHeatMinGlobal: globalMin,
+      costEfficHeatMaxGlobal: globalMax > globalMin ? globalMax : globalMin + 1,
+    };
+  }, [
+    costEfficHeatMin,
+    costEfficHeatMax,
+    costEfficHeatMinEnhance,
+    costEfficHeatMaxEnhance,
+    costEfficHeatMinSkill,
+    costEfficHeatMaxSkill,
+    costEfficHeatMinFishCard,
+    costEfficHeatMaxFishCard,
+  ]);
 
   return (
     <div className="container fishingModule">
@@ -2305,15 +2430,7 @@ export function Fishing() {
                       <th className="fishingUpgradeThLvl">Lvl</th>
                       <th className="fishingUpgradeThCostEffic">
                         Cost Effic.
-                        <Tooltip
-                          content={{
-                            title: "Cost efficiency",
-                            lines: [
-                              "Cost Effic. = Marginal % ÷ time to next (hours).",
-                              "Higher = more gain per hour farming.",
-                            ],
-                          }}
-                        />
+                        <Tooltip content={costEfficUpgradeTooltip} />
                       </th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThTime">
@@ -2413,8 +2530,8 @@ export function Fishing() {
                           ? (() => {
                               const costEffic = marginalPct / hoursToNext;
                               const heatT =
-                                costEfficHeatMax > costEfficHeatMin
-                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
+                                costEfficHeatMaxGlobal > costEfficHeatMinGlobal
+                                  ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
                                   : 0.5;
                               const rateColor = heatmapColor(heatT);
                               return (
@@ -2478,15 +2595,7 @@ export function Fishing() {
                       <th className="fishingUpgradeThLvl">Lvl</th>
                       <th className="fishingUpgradeThCostEffic">
                         Cost Effic.
-                        <Tooltip
-                          content={{
-                            title: "Cost efficiency",
-                            lines: [
-                              "Cost Effic. = Marginal % ÷ time to next (hours).",
-                              "Higher = more gain per hour farming.",
-                            ],
-                          }}
-                        />
+                        <Tooltip content={costEfficUpgradeTooltip} />
                       </th>
                       <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThTime">
@@ -2586,8 +2695,8 @@ export function Fishing() {
                           ? (() => {
                               const costEffic = marginalPct / hoursToNext;
                               const heatT =
-                                costEfficHeatMax > costEfficHeatMin
-                                  ? (costEffic - costEfficHeatMin) / (costEfficHeatMax - costEfficHeatMin)
+                                costEfficHeatMaxGlobal > costEfficHeatMinGlobal
+                                  ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
                                   : 0.5;
                               const rateColor = heatmapColor(heatT);
                               return (
@@ -2658,17 +2767,20 @@ export function Fishing() {
                       <th className="fishingUpgradeThLvl">Lvl</th>
                       <th className="fishingUpgradeThCostEffic">
                         Cost Effic.
+                        <Tooltip content={costEfficGemTooltip} />
+                      </th>
+                      <th className="fishingUpgradeThCost">Cost</th>
+                      <th className="fishingUpgradeThTime">
+                        Time to next
                         <Tooltip
                           content={{
-                            title: "Cost efficiency",
+                            title: "Time to next",
                             lines: [
-                              "Cost Effic. = Marginal % ÷ gem cost × 100.",
-                              "Higher = more gain per gem.",
+                              "Hours to earn the gem cost at your Gem EV rate. Open Gem EV to sync.",
                             ],
                           }}
                         />
                       </th>
-                      <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThSpeed">
                         +% gains
                         <Tooltip
@@ -2737,12 +2849,13 @@ export function Fishing() {
                             {!isMaxed &&
                             marginalPct != null &&
                             nextCostEntry &&
-                            nextCostEntry.gems > 0
+                            nextCostEntry.gems > 0 && gemEvGemsPerHour > 0
                               ? (() => {
-                                  const costEffic = (marginalPct / nextCostEntry.gems) * 100;
+                                  const hoursToEarn = nextCostEntry.gems / gemEvGemsPerHour;
+                                  const costEffic = marginalPct / hoursToEarn;
                                   const heatT =
-                                    costEfficHeatMaxEnhance > costEfficHeatMinEnhance
-                                      ? (costEffic - costEfficHeatMinEnhance) / (costEfficHeatMaxEnhance - costEfficHeatMinEnhance)
+                                    costEfficHeatMaxGlobal > costEfficHeatMinGlobal
+                                      ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
                                       : 0.5;
                                   const rateColor = heatmapColor(heatT);
                                   return (
@@ -2772,6 +2885,11 @@ export function Fishing() {
                               "—"
                             )}
                           </td>
+                          <td className="fishingUpgradeTdTime">
+                            {!isMaxed && nextCostEntry && nextCostEntry.gems > 0 && gemEvGemsPerHour > 0
+                              ? formatHoursToHhMin(nextCostEntry.gems / gemEvGemsPerHour)
+                              : "—"}
+                          </td>
                           <td className="fishingUpgradeTdSpeed">
                             {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
                           </td>
@@ -2791,17 +2909,20 @@ export function Fishing() {
                       <th className="fishingUpgradeThLvl">Lvl</th>
                       <th className="fishingUpgradeThCostEffic">
                         Cost Effic.
+                        <Tooltip content={costEfficGemTooltip} />
+                      </th>
+                      <th className="fishingUpgradeThCost">Cost</th>
+                      <th className="fishingUpgradeThTime">
+                        Time to next
                         <Tooltip
                           content={{
-                            title: "Cost efficiency",
+                            title: "Time to next",
                             lines: [
-                              "Cost Effic. = Marginal % ÷ gem cost × 100.",
-                              "Higher = more gain per gem.",
+                              "Hours to earn the gem cost at your Gem EV rate. Open Gem EV to sync.",
                             ],
                           }}
                         />
                       </th>
-                      <th className="fishingUpgradeThCost">Cost</th>
                       <th className="fishingUpgradeThSpeed">
                         +% gains
                         <Tooltip
@@ -2870,12 +2991,13 @@ export function Fishing() {
                             {!isMaxed &&
                             marginalPct != null &&
                             nextCostEntry &&
-                            nextCostEntry.gems > 0
+                            nextCostEntry.gems > 0 && gemEvGemsPerHour > 0
                               ? (() => {
-                                  const costEffic = (marginalPct / nextCostEntry.gems) * 100;
+                                  const hoursToEarn = nextCostEntry.gems / gemEvGemsPerHour;
+                                  const costEffic = marginalPct / hoursToEarn;
                                   const heatT =
-                                    costEfficHeatMaxEnhance > costEfficHeatMinEnhance
-                                      ? (costEffic - costEfficHeatMinEnhance) / (costEfficHeatMaxEnhance - costEfficHeatMinEnhance)
+                                    costEfficHeatMaxGlobal > costEfficHeatMinGlobal
+                                      ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
                                       : 0.5;
                                   const rateColor = heatmapColor(heatT);
                                   return (
@@ -2905,6 +3027,11 @@ export function Fishing() {
                               "—"
                             )}
                           </td>
+                          <td className="fishingUpgradeTdTime">
+                            {!isMaxed && nextCostEntry && nextCostEntry.gems > 0 && gemEvGemsPerHour > 0
+                              ? formatHoursToHhMin(nextCostEntry.gems / gemEvGemsPerHour)
+                              : "—"}
+                          </td>
                           <td className="fishingUpgradeTdSpeed">
                             {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
                           </td>
@@ -2931,7 +3058,7 @@ export function Fishing() {
           </div>
           <Collapsible id="fishing-fish-card-gild-effic" title="How much do fish gains improve when I gild my cards?" defaultExpanded={true} className="fishingFishCardGildEffic">
             <div className="small" style={{ marginBottom: 8 }}>
-              Cost efficiency = marginal % gain per cost. Fish cards: Card → Gilded (gems). Fishing Rod Power: Card → Poly, 1500 gems. Same scale as enhancements and skill tree.
+              Cost efficiency = marginal % per hour to earn gem cost (uses Gem EV Calculator total). Fish cards: Card → Gilded (gems). Fishing Rod Power: Card → Poly, 1500 gems. Open Gem EV to sync.
               <div style={{ marginTop: 6 }}>Fishing Rod: upgrading from Gilded to Poly is trivial, so the jump is calculated directly to Poly.</div>
             </div>
             <div className="fishingUpgradesList">
@@ -2941,18 +3068,20 @@ export function Fishing() {
                     <th className="fishingUpgradeThName">Fish Card</th>
                     <th className="fishingUpgradeThCostEffic">
                       Cost Effic.
+                      <Tooltip content={costEfficFishCardTooltip} />
+                    </th>
+                    <th className="fishingUpgradeThCost"><img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" /></th>
+                    <th className="fishingUpgradeThTime">
+                      Time to next
                       <Tooltip
                         content={{
-                          title: "Cost efficiency",
+                          title: "Time to next",
                           lines: [
-                            "Cost Effic. = (Marginal % ÷ Cost) × 100.",
-                            "Cost: gems (Fish cards) or 1500 gems (Rod).",
-                            "Higher = more gain per cost.",
+                            "Hours to earn the gem cost at your Gem EV rate. Open Gem EV to sync.",
                           ],
                         }}
                       />
                     </th>
-                    <th className="fishingUpgradeThCost"><img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" /></th>
                     <th className="fishingUpgradeThSpeed">+% gains</th>
                   </tr>
                 </thead>
@@ -2973,8 +3102,8 @@ export function Fishing() {
                         const costEffic = fishCardGildCostEffic.get(row.fish.id) ?? null;
                         const gems = getFishCardGildGemCost(row.fish.id);
                         const heatT =
-                          costEffic != null && costEfficHeatMaxFishCard > costEfficHeatMinFishCard
-                            ? (costEffic - costEfficHeatMinFishCard) / (costEfficHeatMaxFishCard - costEfficHeatMinFishCard)
+                          costEffic != null && costEfficHeatMaxGlobal > costEfficHeatMinGlobal
+                            ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
                             : 0.5;
                         return (
                           <tr key={row.fish.id} className="fishingUpgradeRow">
@@ -3004,6 +3133,9 @@ export function Fishing() {
                                 <span className="mono">{gems.toLocaleString()}</span>
                               </span>
                             </td>
+                            <td className="fishingUpgradeTdTime">
+                              {gems > 0 && gemEvGemsPerHour > 0 ? formatHoursToHhMin(gems / gemEvGemsPerHour) : "—"}
+                            </td>
                             <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
                           </tr>
                         );
@@ -3011,8 +3143,8 @@ export function Fishing() {
                       const costEffic = fishingRodCardGildCostEffic!;
                       const marginalPct = fishingRodCardGildMarginalPct ?? 0;
                       const heatT =
-                        costEfficHeatMaxFishCard > costEfficHeatMinFishCard
-                          ? (costEffic - costEfficHeatMinFishCard) / (costEfficHeatMaxFishCard - costEfficHeatMinFishCard)
+                        costEfficHeatMaxGlobal > costEfficHeatMinGlobal
+                          ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
                           : 0.5;
                       return (
                         <tr key="fishing_rod_power" className="fishingUpgradeRow">
@@ -3037,6 +3169,9 @@ export function Fishing() {
                               <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
                               <span className="mono">{FISHING_ROD_GILD_CARD_COST.toLocaleString()}</span>
                             </span>
+                          </td>
+                          <td className="fishingUpgradeTdTime">
+                            {gemEvGemsPerHour > 0 ? formatHoursToHhMin(FISHING_ROD_GILD_CARD_COST / gemEvGemsPerHour) : "—"}
                           </td>
                           <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
                         </tr>
@@ -3094,7 +3229,7 @@ export function Fishing() {
 
         <Collapsible id="fishing-skill-tree" title="Skill Tree" defaultExpanded={false}>
           <div className="small" style={{ marginBottom: 8 }}>
-            Skills cost skill points (from Obelisk level). 1 skill point = 125 gems. Cost efficiency = marginal % gain per gem for the next level.
+            Skills cost skill points (from Obelisk level). 1 skill point = 125 gems. Cost efficiency = marginal % per hour to earn gem cost (uses Gem EV Calculator). Open Gem EV to sync.
           </div>
           <div style={{ marginBottom: 12 }}>
             <div className="label" style={{ alignItems: "center", gap: 8 }}>
@@ -3116,15 +3251,7 @@ export function Fishing() {
                   <th className="fishingUpgradeThLvl">Lvl</th>
                   <th className="fishingUpgradeThCostEffic">
                     Cost Effic.
-                    <Tooltip
-                      content={{
-                        title: "Cost efficiency",
-                        lines: [
-                          "Cost Effic. = Marginal % ÷ gem cost × 100.",
-                          "1 skill point = 125 gems. Higher = more gain per gem.",
-                        ],
-                      }}
-                    />
+                    <Tooltip content={costEfficSkillTooltip} />
                   </th>
                   <th className="fishingUpgradeThCost">Cost (next)</th>
                   <th className="fishingUpgradeThSpeed">+% gains</th>
@@ -3141,12 +3268,13 @@ export function Fishing() {
                   const costEffic =
                     !isMaxed &&
                     marginalPct != null &&
-                    gemsForNext > 0
-                      ? (marginalPct / gemsForNext) * 100
+                    gemsForNext > 0 &&
+                    gemEvGemsPerHour > 0
+                      ? marginalPct / (gemsForNext / gemEvGemsPerHour)
                       : null;
                   const heatT =
-                    costEffic != null && costEfficHeatMaxSkill > costEfficHeatMinSkill
-                      ? (costEffic - costEfficHeatMinSkill) / (costEfficHeatMaxSkill - costEfficHeatMinSkill)
+                    costEffic != null && costEfficHeatMaxGlobal > costEfficHeatMinGlobal
+                      ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
                       : 0.5;
                   return (
                     <tr key={def.id} className="fishingUpgradeRow">
