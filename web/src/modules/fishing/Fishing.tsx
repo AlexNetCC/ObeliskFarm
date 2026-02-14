@@ -850,6 +850,7 @@ export function Fishing() {
           fishPerHour,
           catchPct,
           totalMulti,
+          isLegendary: false,
         };
       });
     });
@@ -1870,7 +1871,7 @@ export function Fishing() {
                   {sushiEvAndTotal.fishPerSushiEvPerFish.map(({ fishId, fishName, iconFile, fishPerSushiEv }) => (
                     <div key={fishId} className="fishingSushiStatRow fishingSushiEvPerFishRow">
                       <span className="fishingSushiStatLabel">
-                        <img src={fishIconUrl(iconFile)} alt="" className="fishingSushiEvFishIcon" aria-hidden />
+                        <img src={fishIconUrl(iconFile ?? "Gem.png")} alt="" className="fishingSushiEvFishIcon" aria-hidden />
                         {fishName}
                       </span>
                       <span className="mono">{fishPerSushiEv.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
@@ -2978,7 +2979,7 @@ export function Fishing() {
                         return (
                           <tr key={row.fish.id} className="fishingUpgradeRow">
                             <td className="fishingUpgradeTdName">
-                              <img src={fishIconUrl(row.fish.iconFile)} alt="" className="fishingUpgradeIcon" />
+                              <img src={fishIconUrl(row.fish.iconFile ?? "Gem.png")} alt="" className="fishingUpgradeIcon" />
                               <span className="fishingUpgradeName">{row.fish.name}</span>
                             </td>
                             <td className="fishingUpgradeTdCostEffic">
