@@ -512,6 +512,17 @@ const statsTooltip = {
   ],
 };
 
+const boxplotStatsTooltip = {
+  title: "Box plot abbreviations",
+  lines: [
+    "min: minimum value in the MC sample.",
+    "Q1: first quartile (25th percentile).",
+    "med: median (50th percentile).",
+    "Q3: third quartile (75th percentile).",
+    "max: maximum value in the MC sample.",
+  ],
+};
+
 export function Fishing() {
   const [state, setState] = useState<FishingState>(() => {
     const saved = loadJson<SavedState>(STORAGE_KEY);
@@ -1636,7 +1647,7 @@ export function Fishing() {
                 </p>
                 <div className="fishingMcInputRow">
                   <label className="fishingMcLabel">
-                    Hours
+                    {typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("de") ? "Stunden" : "Hours"}
                     <input
                       type="number"
                       inputMode="decimal"
@@ -1654,7 +1665,7 @@ export function Fishing() {
                     />
                   </label>
                   <label className="fishingMcLabel">
-                    Runs
+                    {typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("de") ? "Durchläufe" : "Runs"}
                     <input
                       type="number"
                       min={1000}
@@ -1676,7 +1687,9 @@ export function Fishing() {
                     onClick={runFishingMc}
                     disabled={mcState.running || visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).length === 0}
                   >
-                    {mcState.running ? "Running…" : "Run simulation"}
+                    {mcState.running
+                      ? (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("de") ? "Läuft…" : "Running…")
+                      : (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("de") ? "Simulation starten" : "Run simulation")}
                   </button>
                 </div>
                 {mcState.samples && mcState.samples.length > 0 && (
@@ -1751,7 +1764,6 @@ export function Fishing() {
                 {mcState.samplesPerFish && Object.keys(mcState.samplesPerFish).length > 0 && (() => {
                   const fishIdsWithPower = new Set(visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).map((r) => r.fish.id));
                   const fishIds = Object.keys(mcState.samplesPerFish).filter((id) => fishIdsWithPower.has(id));
-                  const bins = 10;
                   let globalHi = 0;
                   for (const id of fishIds) {
                     const a = mcState.samplesPerFish![id]!;
@@ -1762,45 +1774,42 @@ export function Fishing() {
                   const globalLo = 0;
                   const globalSpan = globalHi - globalLo || 1;
                   return (
-                  <div className="fishingMcPerFish">
-                    <div className="fishingMcResultsTitle">Per fish (same x-axis for comparison)</div>
+                  <div className="fishingMcPerFishBoxplots">
+                    <div className="fishingMcResultsTitle" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      Per fish – box plot (same scale)
+                      <Tooltip content={boxplotStatsTooltip} />
+                    </div>
                     {fishIds.map((fishId) => {
                         const fish = getFishById(fishId);
                         if (!fish) return null;
                         const arr = mcState.samplesPerFish![fishId]!;
-                        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-                        const p10 = arr[Math.floor(0.1 * arr.length)] ?? 0;
-                        const p90 = arr[Math.floor(0.9 * arr.length)] ?? 0;
-                        const med = arr[Math.floor(0.5 * arr.length)] ?? 0;
-                        const counts = new Array(bins).fill(0);
-                        for (const v of arr) {
-                          const idx = Math.min(bins - 1, Math.max(0, Math.floor(((v - globalLo) / globalSpan) * bins)));
-                          counts[idx]++;
-                        }
-                        const maxC = Math.max(...counts);
+                        const n = arr.length;
+                        const q1 = arr[Math.floor(0.25 * n)] ?? 0;
+                        const med = arr[Math.floor(0.5 * n)] ?? 0;
+                        const q3 = arr[Math.floor(0.75 * n)] ?? 0;
+                        const minV = arr[0] ?? 0;
+                        const maxV = arr[n - 1] ?? 0;
+                        const toPct = (v: number) => ((v - globalLo) / globalSpan) * 100;
+                        const pctMin = toPct(minV);
+                        const pctQ1 = toPct(q1);
+                        const pctMed = toPct(med);
+                        const pctQ3 = toPct(q3);
+                        const pctMax = toPct(maxV);
                         return (
-                          <div key={fishId} className="fishingMcPerFishRow">
+                          <div key={fishId} className="fishingMcPerFishRow fishingMcBoxplotRow">
                             <div className="fishingMcPerFishHead">
                               <img src={fishIconUrl(fish.iconFile)} alt="" className="fishingFishIcon" />
                               <span className="fishingMcPerFishName">{fish.name}</span>
                               <span className="fishingMcPerFishStats mono small">
-                                mean {mean.toLocaleString(undefined, { maximumFractionDigits: 1 })} · med {med.toLocaleString(undefined, { maximumFractionDigits: 0 })} · P10 {p10.toLocaleString(undefined, { maximumFractionDigits: 0 })} / P90 {p90.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                min {minV.toLocaleString(undefined, { maximumFractionDigits: 0 })} · Q1 {q1.toLocaleString(undefined, { maximumFractionDigits: 0 })} · med {med.toLocaleString(undefined, { maximumFractionDigits: 0 })} · Q3 {q3.toLocaleString(undefined, { maximumFractionDigits: 0 })} · max {maxV.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                               </span>
                             </div>
-                            <div className="fishingMcHistogramBarRow fishingMcPerFishBars">
-                              {counts.map((c, i) => {
-                                const barHeightPx = maxC > 0 ? Math.max(c > 0 ? 2 : 0, Math.round((c / maxC) * 24)) : 0;
-                                const binLo = globalLo + (globalSpan * i) / bins;
-                                const binHi = globalLo + (globalSpan * (i + 1)) / bins;
-                                return (
-                                <div key={i} className="fishingMcHistogramCell fishingMcPerFishCell" title={`${binLo.toFixed(0)}–${binHi.toFixed(0)}: ${c}`}>
-                                  <div
-                                    className="fishingMcHistogramBar fishingMcPerFishBar"
-                                    style={{ height: barHeightPx }}
-                                  />
-                                </div>
-                                );
-                              })}
+                            <div className="fishingMcBoxplotTrack">
+                              <div className="fishingMcBoxplotWhiskerLeft" style={{ left: `${pctMin}%`, width: `${pctQ1 - pctMin}%` }} />
+                              <div className="fishingMcBoxplotBox" style={{ left: `${pctQ1}%`, width: `${pctQ3 - pctQ1}%` }}>
+                                <div className="fishingMcBoxplotMedian" style={{ left: `${(pctQ3 - pctQ1 > 0 ? (pctMed - pctQ1) / (pctQ3 - pctQ1) : 0.5) * 100}%` }} />
+                              </div>
+                              <div className="fishingMcBoxplotWhiskerRight" style={{ left: `${pctQ3}%`, width: `${pctMax - pctQ3}%` }} />
                             </div>
                             <div className="fishingMcPerFishAxis small">
                               <div className="fishingMcPerFishAxisTicks">
