@@ -8,6 +8,7 @@ import {
   AQUARIUM,
   ALL_FISH,
   DOCKS,
+  LEGENDARY_FISH,
   catchChancePercent,
   computeFishingStatsFromLevels,
   type ComputedFishingStats,
@@ -93,6 +94,9 @@ const SUSHI_MC_RUNS = 10000;
 
 /** Fishing Rod card: Fishing Rod Power. Card 1.02×, Gilded 1.05×, Poly 1.10×. */
 const FISHING_ROD_CARD_MULT: Record<FishCardTier, number> = { 0: 1, 1: 1.02, 2: 1.05, 3: 1.1 };
+
+/** Legendary fish catch: 1/LEGENDARY_CATCH_BASE per 100% on last fish, max 9/LEGENDARY_CATCH_BASE. Angler drone reduces base (not yet). */
+const LEGENDARY_CATCH_BASE = 150_000;
 
 /** Elixir 3× Fishing Tick Speed buff icon (same as Drone module). */
 const ELIXIR_3X_FISHING_BUFF_ICON = "https://static.wikitide.net/shminerwiki/8/87/Triple_Fish_Tick_Chance.png";
@@ -760,8 +764,50 @@ export function Fishing() {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rod = effectiveRodPower;
     const dronePower = stats.drone_base_power;
+
+    /** Legendary rows (first group, always at top). One per dock. Eligible when all fish Poly + last fish 100%+ catch. */
+    const legendaryRows: Array<{
+      dockId: DockId;
+      dockName: string;
+      hasPower: boolean;
+      fish: { id: string; name: string; iconFile?: string; iconUrl?: string };
+      baseFishPerHour: number;
+      fishPerHour: number;
+      catchPct: number;
+      totalMulti: number;
+      isLegendary?: boolean;
+    }> = [];
+    for (const leg of LEGENDARY_FISH) {
+      if (!dockIds.has(leg.dockId)) continue;
+      const set = AQUARIUM.find((s) => s.dockId === leg.dockId)!;
+      const dock = DOCKS.find((d) => d.id === leg.dockId)!;
+      const rodHere = state.activeDockId === leg.dockId ? rod : 0;
+      const dronesHere = state.dronesPerDock[leg.dockId] ?? 0;
+      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const allPoly = set.fish.every((f) => (state.fishCardTier[f.id] ?? 0) === 3);
+      const lastFish = set.fish[set.fish.length - 1]!;
+      const lastCatchPct = catchChancePercent(powerOnThisDock, lastFish.powerRating);
+      const eligible = allPoly && lastCatchPct >= 100 && powerOnThisDock > 0;
+      const numerator = eligible ? Math.min(9, Math.floor(lastCatchPct / 100)) : 0;
+      const legendaryChance = numerator / LEGENDARY_CATCH_BASE;
+      const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const fillsPerHour = dockFillsPerHour + extraFillsPerDockPerHour;
+      const fishPerHour = fillsPerHour * legendaryChance;
+      legendaryRows.push({
+        dockId: leg.dockId,
+        dockName: dock.name,
+        hasPower: eligible,
+        fish: { id: leg.id, name: leg.name, iconUrl: leg.iconUrl },
+        baseFishPerHour: fishPerHour,
+        fishPerHour,
+        catchPct: legendaryChance * 100,
+        totalMulti: 1,
+        isLegendary: true,
+      });
+    }
+
     const sets = AQUARIUM.filter((set) => dockIds.has(set.dockId));
-    return sets.flatMap((set) => {
+    const regularRows = sets.flatMap((set) => {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const rodHere = state.activeDockId === set.dockId ? rod : 0;
       const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
@@ -796,6 +842,8 @@ export function Fishing() {
         };
       });
     });
+
+    return [...legendaryRows, ...regularRows];
   }, [
     availableDocks,
     effectiveTickSec,
@@ -809,6 +857,7 @@ export function Fishing() {
     stats.five_tick_chance_pct,
     state.dronesPerDock,
     state.activeDockId,
+    state.fishCardTier,
     getCardMulti,
   ]);
 
@@ -1485,6 +1534,13 @@ export function Fishing() {
                 title: "Gains from power",
                 sections: [
                   {
+                    heading: "Legendary fish",
+                    lines: [
+                      "One per dock, shown first. Requires all fish on that dock at Polychrome and 100%+ catch on the dock's last fish.",
+                      "Catch chance: 1/150k per 100% on last fish, max 9/150k per fill.",
+                    ],
+                  },
+                  {
                     heading: "Dock power",
                     lines: [
                       "Each dock's power = rod (if you fish there) + every fishing drone on that dock × drone base power.",
@@ -1513,27 +1569,28 @@ export function Fishing() {
               </label>
             </div>
             <div className="fishingGainsList">
-              {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct, totalMulti }) => {
+              {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct, totalMulti, isLegendary }) => {
                 const isActive = hasPower;
                 const heatT =
                   heatMax > heatMin && isActive && fishPerHour > 0
                     ? (fishPerHour - heatMin) / (heatMax - heatMin)
                     : 0.5;
                 const rateColor = isActive ? heatmapColor(heatT) : undefined;
+                const iconSrc = "iconUrl" in fish && fish.iconUrl ? fish.iconUrl : fishIconUrl(fish.iconFile!);
                 return (
                   <div
                     key={`${dockId}-${fish.id}`}
-                    className={`fishingGainsRow ${!hasPower ? "fishingGainsRowDisabled" : ""}`}
-                    title={!hasPower ? `No power on dock “${dockName}”` : undefined}
+                    className={`fishingGainsRow ${!hasPower ? "fishingGainsRowDisabled" : ""} ${isLegendary ? "fishingGainsRowLegendary" : ""}`}
+                    title={!hasPower ? (isLegendary ? `Need all Poly fish cards and 100%+ catch on last fish in ${dockName}` : `No power on dock “${dockName}”`) : undefined}
                   >
                     <img
-                      src={fishIconUrl(fish.iconFile)}
+                      src={iconSrc}
                       alt=""
                       className="fishingFishIcon"
                     />
                     <span className="fishingGainsFishName">
                       {fish.name}
-                      <span className="fishingGainsCardMulti"> ×{totalMulti.toFixed(2)}</span>
+                      {!isLegendary && <span className="fishingGainsCardMulti"> ×{totalMulti.toFixed(2)}</span>}
                     </span>
                     <span className="small fishingGainsDockName">{dockName}</span>
                     <span className="fishingGainsRateWrap">

@@ -504,6 +504,16 @@
   background: transparent;
 }
 
+.fishingGainsRowLegendary {
+  border-left: 3px solid rgba(202, 138, 4, 0.6);
+  background: rgba(254, 243, 199, 0.4);
+}
+
+.fishingGainsRowLegendary.fishingGainsRowDisabled {
+  background: transparent;
+  border-left-color: rgba(202, 138, 4, 0.25);
+}
+
 /* Elixir 3× Fishing Tick Speed info below fish list (from Drone module) – grayish secondary info */
 .fishingGainsElixirRow {
   display: flex;

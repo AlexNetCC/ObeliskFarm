@@ -177,6 +177,21 @@ export function getFishForDock(dockId: DockDef["id"]): FishDef[] {
   return set ? [...set.fish] : [];
 }
 
+/** Legendary Fish: one per dock. Caught when all fish in dock are Poly and last fish has 100%+ catch. Chance: min(9, floor(lastCatch%/100))/150k per fill. */
+export const LEGENDARY_FISH: { dockId: DockId; id: string; name: string; iconUrl: string }[] = [
+  { dockId: "lake", id: "lake_legendary", name: "Rainbow Trout", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/d/da/Lake_Legendary_Fish.png/45px-Lake_Legendary_Fish.png" },
+  { dockId: "desert", id: "desert_legendary", name: "Dune's Eelworm", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/4/44/Desert_Legendary_Fish.png/45px-Desert_Legendary_Fish.png" },
+  { dockId: "tundra", id: "tundra_legendary", name: "Glacial Shellstealer", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/0/06/Tundra_Legendary_Fish.png/45px-Tundra_Legendary_Fish.png" },
+  { dockId: "ocean", id: "ocean_legendary", name: "Megalodon", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/3/34/Ocean_Legendary_Fish.png/45px-Ocean_Legendary_Fish.png" },
+  { dockId: "nuclear", id: "nuclear_legendary", name: "Radioactive Slug", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/9/9c/Nuclear_Legendary_Fish.png/45px-Nuclear_Legendary_Fish.png" },
+  { dockId: "abyss", id: "abyss_legendary", name: "Cthulhu", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/6/6f/Abyss_Legendary_Fish.png/45px-Abyss_Legendary_Fish.png" },
+  { dockId: "cave", id: "cave_legendary", name: "Glimmering Geoduck", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/d/d3/Cave_Legendary_Fish.png/45px-Cave_Legendary_Fish.png" },
+  { dockId: "volcano", id: "volcano_legendary", name: "Laviathan", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/8/85/Volcano_Legendary_Fish.png/45px-Volcano_Legendary_Fish.png" },
+  { dockId: "sky", id: "sky_legendary", name: "Storm Serpent", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/1/11/Sky_Legendary_Fish.png/45px-Sky_Legendary_Fish.png" },
+  { dockId: "solaris", id: "solaris_legendary", name: "Melting Gibbous", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/3/35/Solaris_Legendary_Fish.png/45px-Solaris_Legendary_Fish.png" },
+  { dockId: "galaxy", id: "galaxy_legendary", name: "Blackened Basker", iconUrl: "https://static.wikitide.net/shminerwiki/thumb/f/f3/Galaxy_Legendary_Fish.png/45px-Galaxy_Legendary_Fish.png" },
+];
+
 /** All fish flattened (for lookup by id). */
 export const ALL_FISH: FishDef[] = AQUARIUM.flatMap((s) => s.fish);
 

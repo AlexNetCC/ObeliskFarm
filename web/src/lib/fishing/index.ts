@@ -33,6 +33,7 @@ export { FISHING_SKILL_TREE } from "./skillTree";
 export {
   AQUARIUM,
   DOCKS,
+  LEGENDARY_FISH,
   ALL_FISH,
   ENHANCEMENTS_T1,
   ENHANCEMENTS_T2,
