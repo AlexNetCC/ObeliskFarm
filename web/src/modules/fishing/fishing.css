@@ -966,6 +966,14 @@
   display: block;
 }
 
+/* Friendship Ended: special frame to highlight notice-farming value */
+.fishingSkillRowNoticeFarming {
+  background: rgba(56, 161, 105, 0.06);
+}
+.fishingSkillRowNoticeFarming td:first-child {
+  border-left: 3px solid rgba(56, 161, 105, 0.6);
+}
+
 /* Fishing gains collapsible: title flexes so rainbow total goes right */
 .fishingGainsCollapsible .collapseTitle {
   flex: 1;

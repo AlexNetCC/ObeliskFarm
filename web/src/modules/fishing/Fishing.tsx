@@ -113,6 +113,9 @@ const SKILL_POINT_ICON_URL = "https://static.wikitide.net/shminerwiki/thumb/5/51
 /** 1 skill point = 125 gems (for cost efficiency: marginal % per gem). */
 const GEMS_PER_SKILL_POINT = 125;
 
+/** Notice Fish Req -10% per level = 1/0.9 − 1 ≈ +11.1% effective gains when notice farming. */
+const FRIENDSHIP_ENDED_NOTICE_MARGINAL_PCT = (1 / 0.9 - 1) * 100;
+
 
 function parseNumber(raw: string): number | null {
   const cleaned = raw.trim().replaceAll(",", ".").replaceAll(" ", "");
@@ -1459,8 +1462,14 @@ export function Fishing() {
         elixir3xFishingExternal,
         { ...skillOpts, skillTreeLevels: newSkillLevels },
       );
-      const marginalPct =
+      let marginalPct =
         currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
+      if (def.id === "friendship_ended_tier1" && (marginalPct == null || marginalPct < 0.1)) {
+        marginalPct = FRIENDSHIP_ENDED_NOTICE_MARGINAL_PCT;
+        breakdownMap.set(def.id, [
+          { label: "Notice -10% req ≈ +11.1% (notice farming)", pct: FRIENDSHIP_ENDED_NOTICE_MARGINAL_PCT },
+        ]);
+      }
       marginalMap.set(def.id, marginalPct);
 
       if (currentTotal > 0 && extraDronesFromSkill > 0) {
@@ -3345,12 +3354,36 @@ export function Fishing() {
                     costEffic != null && heatMax > heatMin
                       ? (costEffic - heatMin) / (heatMax - heatMin)
                       : 0.5;
+                  const isFriendshipEnded = def.id === "friendship_ended_tier1";
                   return (
-                    <tr key={def.id} className="fishingUpgradeRow">
+                    <tr
+                      key={def.id}
+                      className={"fishingUpgradeRow" + (isFriendshipEnded ? " fishingSkillRowNoticeFarming" : "")}
+                    >
                       <td className="fishingUpgradeTdName">
                         <img src={fishIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
                         <div className="fishingUpgradeNameBlock">
-                          <span className="fishingUpgradeName">{def.name}</span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <span className="fishingUpgradeName">{def.name}</span>
+                            {isFriendshipEnded ? (
+                              <Tooltip
+                                content={{
+                                  title: "Notice farming",
+                                  sections: [
+                                    {
+                                      heading: "Indirect gains",
+                                      lines: [
+                                        "Notice Fish Req -10% means you need 10% less fish per notice.",
+                                        "For notice farming this equals 1/0.9 ≈ +11.1% effective gains per level.",
+                                        "Fish/h does not change; the gain is in completing notices faster.",
+                                      ],
+                                    },
+                                  ],
+                                }}
+                                label="?"
+                              />
+                            ) : null}
+                          </span>
                           <div className="small" style={{ marginTop: 2, opacity: 0.9 }}>
                             {def.effectLines.map((line, i) => (
                               <div key={i}>{line}</div>
@@ -3438,7 +3471,13 @@ export function Fishing() {
                         )}
                       </td>
                       <td className="fishingUpgradeTdSpeed">
-                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                        {marginalPct != null ? (
+                          <span title={isFriendshipEnded ? "Notice farming: effective +11.1% per level" : undefined}>
+                            +{marginalPct.toFixed(1)}%{isFriendshipEnded ? " (notice)" : ""}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   );
