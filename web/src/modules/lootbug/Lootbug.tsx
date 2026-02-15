@@ -25,6 +25,7 @@ const STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
+const ARCH_EXTERNAL_KEY = "obeliskfarm:web:arch_external.json";
 
 type LootbugState = {
   spawnRateMultiplier: number;
@@ -372,12 +373,13 @@ export function Lootbug() {
     return (perHour * durMin * lootMultiplier) / gameSpeed;
   }, [lootbugsPerHour, totalGemWeightAll, gameSpeed, lootMultiplier]);
 
-  /** Free buff "+1 Item Chest" per hour; written to external for Items / Chests module. */
+  /** Free buff "+1 Item Chest" per hour (× loot multiplier); written to external for Items / Chests module. */
   const lootbugItemChestsPerHour = useMemo(() => {
     const buff = FREE_BUFFS.find((b) => b.name === "+1 Item Chest");
     if (!buff || totalFreeWeight <= 0) return 0;
-    return (lootbugsPerHour * getWeight(buff)) / totalFreeWeight;
-  }, [lootbugsPerHour, totalFreeWeight]);
+    const procsPerHour = (lootbugsPerHour * getWeight(buff)) / totalFreeWeight;
+    return procsPerHour * lootMultiplier;
+  }, [lootbugsPerHour, totalFreeWeight, lootMultiplier]);
 
   /** Gem EV/h from Lootbug "+1 Item Chest": value per chest from Items. When Chaos Totem 100% uptime, only Charge Magnet; else Charge Magnet + Chaos Totem. */
   const lootbugChestGemEvPerHour = useMemo(() => {
@@ -409,14 +411,27 @@ export function Lootbug() {
     return freeMinPerHour + gemMinPerHour;
   }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct, lootMultiplier]);
 
-  /** Fishing +12 Ticks (gem buff): procs per hour. Bought = every gem roll; else Golden Lootbug chance only. Written to Fishing module. */
+  /** Fishing +12 Ticks (gem buff): ticks per hour = procs × 12 × lootMultiplier. Loot Multi multiplies the tick count (e.g. 1.2× → 14 ticks per proc). Written to Fishing module. */
+  const LOOTBUG_FISHING_TICKS_PER_PROC = 12;
   const lootbugFishing12TicksProcsPerHour = useMemo(() => {
     const buff = GEM_BUFFS.find((b) => b.name === "Fishing +12 Ticks");
     if (!buff || totalGemWeightAll <= 0) return 0;
     const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
     const effectiveRate = buyGemBuffsSet.has("Fishing +12 Ticks") ? 1 : goldenPct;
-    return perHour * effectiveRate;
-  }, [lootbugsPerHour, totalGemWeightAll, buyGemBuffsSet, goldenPct]);
+    const procsPerHour = perHour * effectiveRate;
+    return procsPerHour * LOOTBUG_FISHING_TICKS_PER_PROC * lootMultiplier;
+  }, [lootbugsPerHour, totalGemWeightAll, buyGemBuffsSet, goldenPct, lootMultiplier]);
+
+  /** Archaeology +600 Attacks (gem buff): attacks per hour = procs × 600 × lootMultiplier. Loot Multi multiplies the attack count. Written to Arch module. */
+  const LOOTBUG_ARCH_ATTACKS_PER_PROC = 600;
+  const lootbugArch600AttacksPerHour = useMemo(() => {
+    const buff = GEM_BUFFS.find((b) => b.name === "Archaeology +600 Attacks");
+    if (!buff || totalGemWeightAll <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
+    const effectiveRate = buyGemBuffsSet.has("Archaeology +600 Attacks") ? 1 : goldenPct;
+    const procsPerHour = perHour * effectiveRate;
+    return procsPerHour * LOOTBUG_ARCH_ATTACKS_PER_PROC * lootMultiplier;
+  }, [lootbugsPerHour, totalGemWeightAll, buyGemBuffsSet, goldenPct, lootMultiplier]);
 
   const totalGemCostPerHour = useMemo(() => {
     if (totalGemWeightAll <= 0) return 0;
@@ -454,13 +469,14 @@ export function Lootbug() {
 
   const netGemsPerHour = gemsPerHour - totalGemCostPerHour;
 
-  /** Gem value of +10 Cherry Charges free buff per hour (for EV per claim). Only +2 Gems, +10 Cherry and 10× count toward overnight EV. */
+  /** Gem value of +10 Cherry Charges free buff per hour (for EV per claim). Only +2 Gems, +10 Cherry and 10× count toward overnight EV. Loot multiplier applies to charges. */
   const cherryChargesGemsPerHourFromLootbug = useMemo(() => {
     const buff = FREE_BUFFS.find((b) => b.name === "+10 Cherry Charges");
     if (!buff || totalFreeWeight <= 0 || lootbugsPerHour <= 0) return 0;
-    const chargesPerHourFromBuff = lootbugsPerHour * (getWeight(buff) / totalFreeWeight) * 10;
+    const procsPerHour = lootbugsPerHour * (getWeight(buff) / totalFreeWeight);
+    const chargesPerHourFromBuff = procsPerHour * 10 * lootMultiplier;
     return calculateCherryChargesGemsPerHour(gameSpeedParams, chargesPerHourFromBuff);
-  }, [lootbugsPerHour, totalFreeWeight, gameSpeedParams]);
+  }, [lootbugsPerHour, totalFreeWeight, lootMultiplier, gameSpeedParams]);
 
   /** Extra Gem EV/h from Bomb Bear: user enters spawn rate WITH Bomb Bear. Base = entered / mult; extra = gains(entered) − gains(base) = gains × (mult − 1) / mult. Uses net (gross gains − costs). */
   const bombBearLootbugGemsEvPerHour = useMemo(() => {
@@ -516,6 +532,12 @@ export function Lootbug() {
     ext.lootbugFishing12TicksProcsPerHour = lootbugFishing12TicksProcsPerHour;
     saveJson(FISHING_EXTERNAL_KEY, ext);
   }, [lootbugFishing12TicksProcsPerHour]);
+
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(ARCH_EXTERNAL_KEY) ?? {};
+    ext.lootbugArch600AttacksPerHour = lootbugArch600AttacksPerHour;
+    saveJson(ARCH_EXTERNAL_KEY, ext);
+  }, [lootbugArch600AttacksPerHour]);
 
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
@@ -897,13 +919,23 @@ export function Lootbug() {
               <tbody>
                 {FREE_BUFFS.map((buff) => {
                   const weight = getWeight(buff);
-                  const perHour = totalFreeWeight > 0 ? (lootbugsPerHour * weight) / totalFreeWeight : 0;
+                  const perHourProcs = totalFreeWeight > 0 ? (lootbugsPerHour * weight) / totalFreeWeight : 0;
+                  /** Effective quantity per hour (with loot multi). */
+                  const perHour =
+                    buff.name === "+1 Item Chest"
+                      ? perHourProcs * lootMultiplier
+                      : buff.name === "+10 Cherry Charges"
+                        ? perHourProcs * 10 * lootMultiplier
+                        : perHourProcs;
                   const durMin = getDurationMinutes(buff.duration);
                   const effectiveDurMin = durMin != null ? durMin * lootMultiplier : null;
                   const minPerHour =
-                    effectiveDurMin != null && gameSpeed > 0 ? (perHour * effectiveDurMin) / gameSpeed : null;
+                    effectiveDurMin != null && gameSpeed > 0 ? (perHourProcs * effectiveDurMin) / gameSpeed : null;
                   const realDurMin = effectiveDurMin != null && gameSpeed > 0 ? effectiveDurMin / gameSpeed : null;
-                  const cherryValue = getCherryChargesValueGemEv(gameSpeedParams, buff.name);
+                  const cherryValue =
+                    buff.name === "+10 Cherry Charges"
+                      ? calculateCherryChargesGemsPerHour(gameSpeedParams, perHour)
+                      : getCherryChargesValueGemEv(gameSpeedParams, buff.name);
                   return (
                     <tr key={buff.name}>
                       <td>
@@ -990,9 +1022,19 @@ export function Lootbug() {
                     <Tooltip
                       content={{
                         title: "Per hour",
-                        lines: [
-                          "Average occurrences of this buff per hour (full pool, independent of Buy).",
-                          "Formula: lootbugs/h × (weight ÷ total weight of all gem buffs).",
+                        sections: [
+                          {
+                            heading: "Quantity buffs",
+                            lines: [
+                              "Fishing +12 Ticks: effective ticks/h (procs × 12 × loot multi). Arch +600: effective attacks/h. Item Chests, Cherry Charges: quantity × loot multi.",
+                            ],
+                          },
+                          {
+                            heading: "Other buffs",
+                            lines: [
+                              "Occurrences per hour (full pool). Formula: lootbugs/h × (weight ÷ total weight of all gem buffs).",
+                            ],
+                          },
                         ],
                       }}
                     />
@@ -1037,19 +1079,33 @@ export function Lootbug() {
                 {GEM_BUFFS.map((buff) => {
                   const isBuy = buyGemBuffsSet.has(buff.name);
                   const weight = getWeight(buff);
-                  const perHour =
+                  const perHourProcs =
                     totalGemWeightAll > 0 ? (lootbugsPerHour * weight) / totalGemWeightAll : 0;
+                  /** Effective quantity per hour (with loot multi). For Fishing/Arch uses buy or golden rate. */
+                  const perHour =
+                    buff.name === "Fishing +12 Ticks"
+                      ? lootbugFishing12TicksProcsPerHour
+                      : buff.name === "Archaeology +600 Attacks"
+                        ? lootbugArch600AttacksPerHour
+                        : buff.name === "+3 Item Chests"
+                          ? perHourProcs * 3 * lootMultiplier
+                          : buff.name === "+100 Cherry Charges"
+                            ? perHourProcs * 100 * lootMultiplier
+                            : perHourProcs;
                   const durMin = getDurationMinutes(buff.duration);
                   const effectiveDurMin = durMin != null ? durMin * lootMultiplier : null;
                   const minPerHour =
-                    effectiveDurMin != null && gameSpeed > 0 ? (perHour * effectiveDurMin) / gameSpeed : null;
+                    effectiveDurMin != null && gameSpeed > 0 ? (perHourProcs * effectiveDurMin) / gameSpeed : null;
                   const realDurMin = effectiveDurMin != null && gameSpeed > 0 ? effectiveDurMin / gameSpeed : null;
                   const actualCost = isBuy ? Math.max(0, buff.cost - state.gemCostReduction) : 0;
                   const gemCostWithGolden =
-                    isBuy && actualCost > 0 ? perHour * actualCost * (1 - goldenPct) : 0;
+                    isBuy && actualCost > 0 ? perHourProcs * actualCost * (1 - goldenPct) : 0;
                   const gemPerHourDisplay =
                     isBuy && gemCostWithGolden > 0 ? -gemCostWithGolden : null;
-                  const cherryValue = getCherryChargesValueGemEv(gameSpeedParams, buff.name);
+                  const cherryValue =
+                    buff.name === "+100 Cherry Charges"
+                      ? calculateCherryChargesGemsPerHour(gameSpeedParams, perHour)
+                      : getCherryChargesValueGemEv(gameSpeedParams, buff.name);
                   function toggleBuy() {
                     setState((s) => {
                       const list = Array.isArray(s.activeGemBuffs) ? s.activeGemBuffs : DEFAULT_ACTIVE_GEM_BUFFS;
@@ -1074,7 +1130,11 @@ export function Lootbug() {
                         <span className="lootbugBuffCell">
                           <img src={getGemBuffIcon(buff.name)} alt="" className="lootbugBuffIcon" aria-hidden />
                           <span>
-                            {buff.name}
+                            {buff.name === "Fishing +12 Ticks"
+                              ? `Fishing +${Math.round(12 * lootMultiplier)} Ticks`
+                              : buff.name === "Archaeology +600 Attacks"
+                                ? `Archaeology +${Math.round(600 * lootMultiplier)} Attacks`
+                                : buff.name}
                             {cherryValue != null ? (
                               <span className="lootbugCherryValue">
                                 {" "}

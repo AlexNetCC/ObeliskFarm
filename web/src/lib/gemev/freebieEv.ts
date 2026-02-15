@@ -106,6 +106,10 @@ export type GameParameters = {
   gift_drone_fuel_gems_per_fuel?: number;
   /** Sushi: fish EV per 1 Sushi (from Fishing module). Sushi only affects fish gain, not Gem EV total. */
   gift_sushi_fish_per_sushi?: number;
+
+  /** Chain Bomber Drone (from Drone module): +X% Golden Floor Multi during buff. When set, stonks mult is scaled by (1 + uptime × bonus/100). */
+  chain_bomber_golden_floor_bonus_pct?: number;
+  chain_bomber_buff_uptime_fraction?: number;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -360,7 +364,10 @@ export function calculateStonksEvPerHour(params: GameParameters): number {
     sc * ssc * usc * clampPositive(params.ultra_stonks_bonus_gems ?? 0, 0) * clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
   const sumPerClaim = stonksPerClaim + superPerClaim + ultraPerClaim;
   const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
-  return freebiesPerHour * refreshMult * sumPerClaim * allMult;
+  const bonusPct = params.chain_bomber_golden_floor_bonus_pct ?? 0;
+  const uptime = Math.max(0, Math.min(1, params.chain_bomber_buff_uptime_fraction ?? 0));
+  const chainBomberMult = 1 + (bonusPct / 100) * uptime;
+  return freebiesPerHour * refreshMult * sumPerClaim * allMult * chainBomberMult;
 }
 
 /** Expected Item Chests per hour from stonks procs. In-game: base stonks 20 chests; super/ultra same base per proc, each tier uses its multiplier. */
@@ -381,7 +388,10 @@ export function calculateStonksChestsPerHour(params: GameParameters): number {
   const baseChests = effectiveRate * sc * STONKS_CHESTS_BASE * stonksMult;
   const superChests = effectiveRate * sc * ssc * STONKS_CHESTS_BASE * superMult;
   const ultraChests = effectiveRate * sc * ssc * usc * STONKS_CHESTS_BASE * ultraMult;
-  return (baseChests + superChests + ultraChests) * allMult;
+  const bonusPct = params.chain_bomber_golden_floor_bonus_pct ?? 0;
+  const uptime = Math.max(0, Math.min(1, params.chain_bomber_buff_uptime_fraction ?? 0));
+  const chainBomberMult = 1 + (bonusPct / 100) * uptime;
+  return (baseChests + superChests + ultraChests) * allMult * chainBomberMult;
 }
 
 export function calculateSkillShardsEvPerHour(params: GameParameters): number {

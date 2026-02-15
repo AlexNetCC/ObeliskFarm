@@ -14,6 +14,7 @@ import type { ArchBuild, ArchGemUpgradeKey, BlockTier, BlockType, CardLevel, Ski
 const STORAGE_KEY = "obeliskfarm:web:archaeology_save.json:v1";
 const MC_LOG_KEY = "obeliskfarm:web:archaeology_mc_results_log.json:v1";
 const MC_SETTINGS_KEY = "obeliskfarm:web:archaeology_mc_settings.json:v1";
+const ARCH_EXTERNAL_KEY = "obeliskfarm:web:arch_external.json";
 
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -1162,10 +1163,18 @@ export function ArchSim() {
         const avgXp = sampleCount > 0 ? sumXp / sampleCount : 0;
         const avgTotalFrags = sampleCount > 0 ? sumTotalFrags / sampleCount : 0;
         const avgDur = sampleCount > 0 ? sumDur / sampleCount : 1;
-        const xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
-        const fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
+        let xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
+        let fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
         const fragmentsPerHourByType: Record<string, number> = {};
         if (sumDur > 0) for (const k of FRAG_TYPES_STAGE) fragmentsPerHourByType[k] = (sumFragsByType[k] ?? 0) * (3600.0 / sumDur);
+        const archExt = loadJson<{ lootbugArch600AttacksPerHour?: number }>(ARCH_EXTERNAL_KEY) ?? {};
+        const lootbugAttacks = typeof archExt?.lootbugArch600AttacksPerHour === "number" ? archExt.lootbugArch600AttacksPerHour : 0;
+        if (lootbugAttacks > 0 && bestStats.max_stamina > 0) {
+          const extraRunsPerHour = lootbugAttacks / bestStats.max_stamina;
+          xpPerHour += extraRunsPerHour * avgXp;
+          fragmentsPerHour += extraRunsPerHour * avgTotalFrags;
+          if (sampleCount > 0) for (const k of FRAG_TYPES_STAGE) fragmentsPerHourByType[k] = (fragmentsPerHourByType[k] ?? 0) + extraRunsPerHour * ((sumFragsByType[k] ?? 0) / sampleCount);
+        }
 
         const avgStaminaAtEndOfStage: Record<number, number> = {};
         const stdStaminaAtEndOfStage: Record<number, number> = {};
@@ -1542,10 +1551,18 @@ export function ArchSim() {
       const avgXp = sampleCount > 0 ? sumXp / sampleCount : 0;
       const avgTotalFrags = sampleCount > 0 ? sumTotalFrags / sampleCount : 0;
       const avgDur = sampleCount > 0 ? sumDur / sampleCount : 1;
-      const xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
-      const fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
+      let xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
+      let fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
       const fragmentsPerHourByTypeRef: Record<string, number> = {};
       if (sumDur > 0) for (const k of FRAG_TYPES_REF) fragmentsPerHourByTypeRef[k] = (sumFragsByTypeRef[k] ?? 0) * (3600.0 / sumDur);
+      const archExtRef = loadJson<{ lootbugArch600AttacksPerHour?: number }>(ARCH_EXTERNAL_KEY) ?? {};
+      const lootbugAttacksRef = typeof archExtRef?.lootbugArch600AttacksPerHour === "number" ? archExtRef.lootbugArch600AttacksPerHour : 0;
+      if (lootbugAttacksRef > 0 && bestStats.max_stamina > 0) {
+        const extraRunsPerHour = lootbugAttacksRef / bestStats.max_stamina;
+        xpPerHour += extraRunsPerHour * avgXp;
+        fragmentsPerHour += extraRunsPerHour * avgTotalFrags;
+        if (sampleCount > 0) for (const k of FRAG_TYPES_REF) fragmentsPerHourByTypeRef[k] = (fragmentsPerHourByTypeRef[k] ?? 0) + extraRunsPerHour * ((sumFragsByTypeRef[k] ?? 0) / sampleCount);
+      }
       const avgStaminaAtEndOfStageRef: Record<number, number> = {};
       const stdStaminaAtEndOfStageRef: Record<number, number> = {};
       if (mode === "stage") {

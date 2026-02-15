@@ -91,12 +91,32 @@ const STARBURST_FUEL_DURATION_SEC_PER_GRADE = 9;
 const STARBURST_STAR_SPAWN_PCT_BASE = 15;
 const STARBURST_STAR_SPAWN_PCT_PER_GRADE = 1;
 
+/** Void Drone: +3× Portal Resource Multi / 3:00 at grade 0, +1× / +0:09 per grade. Max +23× / 6:00 (Polychrome). */
+const VOID_PORTAL_MULT_BASE = 3;
+const VOID_PORTAL_MULT_PER_GRADE = 1;
+const VOID_PORTAL_MULT_MAX = 23;
+const VOID_BUFF_DURATION_BASE_SEC = 180; // 3:00
+const VOID_BUFF_DURATION_SEC_PER_GRADE = 9;
+const VOID_BUFF_DURATION_MAX_SEC = 360; // 6:00
+const VOID_FUEL_DURATION_BASE_SEC = 180; // 3:00
+const VOID_FUEL_DURATION_SEC_PER_GRADE = 9;
+
+/** Chain Bomber Drone: +50% Golden Floor Multi / 3:40 at grade 0, +10% / +0:11 per grade. Max +250% / 7:20 (Polychrome). Gem EV only. */
+const CHAIN_BOMBER_GOLDEN_FLOOR_PCT_BASE = 50;
+const CHAIN_BOMBER_GOLDEN_FLOOR_PCT_PER_GRADE = 10;
+const CHAIN_BOMBER_GOLDEN_FLOOR_PCT_MAX = 250;
+const CHAIN_BOMBER_BUFF_DURATION_BASE_SEC = 220; // 3:40
+const CHAIN_BOMBER_BUFF_DURATION_SEC_PER_GRADE = 11;
+const CHAIN_BOMBER_BUFF_DURATION_MAX_SEC = 440; // 7:20
+const CHAIN_BOMBER_FUEL_DURATION_BASE_SEC = 180; // 3:00
+const CHAIN_BOMBER_FUEL_DURATION_SEC_PER_GRADE = 9;
+
 const GASOLINE_GUZZLER_FUEL_DURATION_PCT = 20;
 
 const ELIXIR_BUFF_ICONS =
   "https://static.wikitide.net/shminerwiki/";
-/** Base duration (game time) in seconds. realTimeOnly = duration not affected by game speed (e.g. Fishing Tick). */
-const ELIXIR_BUFFS: Array<{ id: string; label: string; baseSec: number; icon: string; realTimeOnly?: boolean }> = [
+/** Base duration (game time) in seconds. realTimeOnly = duration not affected by game speed (e.g. Fishing Tick). noFuelMult = skip Elixir fuelMult (e.g. Chain Bomber has own fuel). */
+const ELIXIR_BUFFS: Array<{ id: string; label: string; baseSec: number; icon: string; realTimeOnly?: boolean; noFuelMult?: boolean }> = [
   { id: "2xgs", label: "2× Game Speed", baseSec: 120, icon: `${ELIXIR_BUFF_ICONS}d/d4/Game_Speed_Multiplier.png` },
   { id: "10xbomb", label: "10× Bomb Recharge", baseSec: 60, icon: `${ELIXIR_BUFF_ICONS}b/ba/Bomb_Recharge_Speed_10x_Buff.png` },
   { id: "3xcoal", label: "3× Coal Production Speed", baseSec: 240, icon: `${ELIXIR_BUFF_ICONS}7/71/3x_Coal_Production_Speed_Buff.png` },
@@ -191,9 +211,18 @@ type ElixirState = {
   starburstSuitLevel: number;
   starburstGradeLevel: number;
   starburstFueled: boolean;
+  /** Chain Bomber Drone: +X% Golden Floor Multi (Gift procs in Gem EV). Grade + fuel only. */
+  chainBomberDroneOn: boolean;
+  chainBomberGradeLevel: number;
+  chainBomberFueled: boolean;
+  /** Void Drone: +X× Portal Resource Multi. Grade + fuel only. */
+  voidDroneOn: boolean;
+  voidGradeLevel: number;
+  voidFueled: boolean;
 };
 
-const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v7";
+const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v8";
+const STORAGE_KEY_V7 = "obeliskfarm:web:drone_elixir_save.json:v7";
 const STORAGE_KEY_V6 = "obeliskfarm:web:drone_elixir_save.json:v6";
 const STORAGE_KEY_V5 = "obeliskfarm:web:drone_elixir_save.json:v5";
 const STORAGE_KEY_V4 = "obeliskfarm:web:drone_elixir_save.json:v4";
@@ -254,6 +283,12 @@ const DEFAULT: ElixirState = {
   starburstSuitLevel: 0,
   starburstGradeLevel: 0,
   starburstFueled: false,
+  chainBomberDroneOn: false,
+  chainBomberGradeLevel: 0,
+  chainBomberFueled: false,
+  voidDroneOn: false,
+  voidGradeLevel: 0,
+  voidFueled: false,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -480,6 +515,15 @@ function migrateFromV5(migrated: Partial<ElixirState>): Partial<ElixirState> {
   };
 }
 
+function migrateFromV7(migrated: Partial<ElixirState>): Partial<ElixirState> {
+  return {
+    ...migrated,
+    voidDroneOn: typeof migrated.voidDroneOn === "boolean" ? migrated.voidDroneOn : DEFAULT.voidDroneOn,
+    voidGradeLevel: clamp(migrated.voidGradeLevel ?? DEFAULT.voidGradeLevel, 0, 45),
+    voidFueled: typeof migrated.voidFueled === "boolean" ? migrated.voidFueled : DEFAULT.voidFueled,
+  };
+}
+
 function migrateFromV6(migrated: Partial<ElixirState>): Partial<ElixirState> {
   return {
     ...migrated,
@@ -497,6 +541,7 @@ function migrateFromV6(migrated: Partial<ElixirState>): Partial<ElixirState> {
 export function Drone() {
   const [state, setState] = useState<ElixirState>(() => {
     const saved = loadJson<Record<string, unknown>>(STORAGE_KEY)
+      ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V7)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V6)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V5)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V4)
@@ -504,9 +549,11 @@ export function Drone() {
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V2)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V1);
     const migrated = saved
-      ? migrateFromV6(
-          migrateFromV5(
-            migrateFromV4(migrateFromV3(migrateFromV2(migrateFromV1(saved))))
+      ? migrateFromV7(
+          migrateFromV6(
+            migrateFromV5(
+              migrateFromV4(migrateFromV3(migrateFromV2(migrateFromV1(saved))))
+            )
           )
         )
       : {};
@@ -541,6 +588,12 @@ export function Drone() {
     s.starburstSuitLevel = clamp(s.starburstSuitLevel ?? DEFAULT.starburstSuitLevel, 0, 20);
     s.starburstGradeLevel = clamp(s.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, 45);
     s.starburstFueled = typeof migrated.starburstFueled === "boolean" ? migrated.starburstFueled : DEFAULT.starburstFueled;
+    s.chainBomberDroneOn = typeof migrated.chainBomberDroneOn === "boolean" ? migrated.chainBomberDroneOn : DEFAULT.chainBomberDroneOn;
+    s.chainBomberGradeLevel = clamp(s.chainBomberGradeLevel ?? DEFAULT.chainBomberGradeLevel, 0, 45);
+    s.chainBomberFueled = typeof migrated.chainBomberFueled === "boolean" ? migrated.chainBomberFueled : DEFAULT.chainBomberFueled;
+    s.voidDroneOn = typeof migrated.voidDroneOn === "boolean" ? migrated.voidDroneOn : DEFAULT.voidDroneOn;
+    s.voidGradeLevel = clamp(s.voidGradeLevel ?? DEFAULT.voidGradeLevel, 0, 45);
+    s.voidFueled = typeof migrated.voidFueled === "boolean" ? migrated.voidFueled : DEFAULT.voidFueled;
     const sgExt = loadJson<{ starburstDroneOn?: boolean }>("obeliskfarm:web:stargazing_external.json");
     if (typeof sgExt?.starburstDroneOn === "boolean") s.starburstDroneOn = sgExt.starburstDroneOn;
     return s;
@@ -731,22 +784,88 @@ export function Drone() {
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [starburstFuelDurationSecReal, state.starburstFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
+  /** Chain Bomber: +50% Golden Floor Multi at grade 0, +10% per grade, max +250%. Buff duration 3:40 + 0:11 per grade, max 7:20. */
+  const chainBomberGoldenFloorBonusPct = state.chainBomberDroneOn && state.chainBomberFueled
+    ? Math.min(CHAIN_BOMBER_GOLDEN_FLOOR_PCT_MAX, CHAIN_BOMBER_GOLDEN_FLOOR_PCT_BASE + state.chainBomberGradeLevel * CHAIN_BOMBER_GOLDEN_FLOOR_PCT_PER_GRADE)
+    : 0;
+  const chainBomberBuffDurationSec = state.chainBomberDroneOn && state.chainBomberFueled
+    ? Math.min(CHAIN_BOMBER_BUFF_DURATION_MAX_SEC, CHAIN_BOMBER_BUFF_DURATION_BASE_SEC + state.chainBomberGradeLevel * CHAIN_BOMBER_BUFF_DURATION_SEC_PER_GRADE)
+    : 0;
+  const chainBomberBuffDurationSecReal = chainBomberBuffDurationSec / gameSpeedMult;
+  /** Chain Bomber fuel duration: 3:00 base + 0:09 per grade (shared multipliers). */
+  const chainBomberFuelDurationFromGradeSec = CHAIN_BOMBER_FUEL_DURATION_BASE_SEC + state.chainBomberGradeLevel * CHAIN_BOMBER_FUEL_DURATION_SEC_PER_GRADE;
+  const chainBomberFuelDurationGameSec = Math.round(
+    chainBomberFuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
+    (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
+  );
+  const chainBomberFuelDurationSecReal = chainBomberFuelDurationGameSec / gameSpeedMult;
+  const chainBomberFuelGemsPerHour = useMemo(() => {
+    if (!state.chainBomberFueled || chainBomberFuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / chainBomberFuelDurationSecReal;
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [chainBomberFuelDurationSecReal, state.chainBomberFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
+
+  /** Void Drone: +3× Portal Resource Multi at grade 0, +1× per grade, max +23×. Buff duration 3:00 + 0:09 per grade, max 6:00. */
+  const voidPortalMult = state.voidDroneOn && state.voidFueled
+    ? Math.min(VOID_PORTAL_MULT_MAX, VOID_PORTAL_MULT_BASE + state.voidGradeLevel * VOID_PORTAL_MULT_PER_GRADE)
+    : 0;
+  const voidBuffDurationSec = state.voidDroneOn && state.voidFueled
+    ? Math.min(VOID_BUFF_DURATION_MAX_SEC, VOID_BUFF_DURATION_BASE_SEC + state.voidGradeLevel * VOID_BUFF_DURATION_SEC_PER_GRADE)
+    : 0;
+  const voidFuelDurationFromGradeSec = VOID_FUEL_DURATION_BASE_SEC + state.voidGradeLevel * VOID_FUEL_DURATION_SEC_PER_GRADE;
+  const voidFuelDurationGameSec = Math.round(
+    voidFuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.gasolineGuzzler ? 1 + GASOLINE_GUZZLER_FUEL_DURATION_PCT / 100 : 1) *
+    (state.axolotlSkin ? 1.1 : 1) *
+    platinumStatueMult *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
+  );
+  const voidFuelDurationSecReal = voidFuelDurationGameSec / gameSpeedMult;
+  const voidFuelGemsPerHour = useMemo(() => {
+    if (!state.voidFueled || voidFuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / voidFuelDurationSecReal;
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [voidFuelDurationSecReal, state.voidFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
+
   const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
   const buffDurations = useMemo(() => {
-    const list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
+    let list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
+    if (state.chainBomberDroneOn && state.chainBomberFueled) {
+      list = [...list, { id: "chainbomber", label: "+Golden Floor Multi", baseSec: chainBomberBuffDurationSec, icon: `${ELIXIR_BUFF_ICONS}a/aa/Gem.png`, realTimeOnly: false, noFuelMult: true }];
+    }
+    if (state.voidDroneOn && state.voidFueled) {
+      list = [...list, { id: "void", label: "+Portal Resource Multi", baseSec: voidBuffDurationSec, icon: "https://static.wikitide.net/shminerwiki/d/d9/Drone_Void.png", realTimeOnly: false, noFuelMult: true }];
+    }
+    const multFor = (b: { baseSec: number; realTimeOnly?: boolean; noFuelMult?: boolean }) =>
+      (b as { noFuelMult?: boolean }).noFuelMult ? 1 : fuelMult;
     const maxSec = Math.max(
       ...list.map((b) =>
-        b.realTimeOnly ? b.baseSec * fuelMult : (b.baseSec * fuelMult) / gameSpeedMult,
+        b.realTimeOnly ? b.baseSec * multFor(b) : (b.baseSec * multFor(b)) / gameSpeedMult,
       ),
       1,
     );
     return list
       .map((b) => {
-        const sec = b.realTimeOnly ? b.baseSec * fuelMult : (b.baseSec * fuelMult) / gameSpeedMult;
+        const sec = b.realTimeOnly ? b.baseSec * multFor(b) : (b.baseSec * multFor(b)) / gameSpeedMult;
         return { ...b, sec, pct: (sec / maxSec) * 100 };
       })
       .sort((a, b) => a.sec - b.sec);
-  }, [state.fueled, state.fishingUnlocked, fueledBuffDurationPct, fuelMult, gameSpeedMult]);
+  }, [state.fueled, state.fishingUnlocked, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, chainBomberBuffDurationSec, voidBuffDurationSec, fueledBuffDurationPct, fuelMult, gameSpeedMult]);
 
   const droneBomb10xMinPerHour = useMemo(() => {
     const cycleSec = numBuffs * intervalSec;
@@ -853,6 +972,25 @@ export function Drone() {
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
+  /** Void: uptime fraction (0..1) when ON and fueled. Buff appears in Elixir pool. */
+  const voidBuffUptimeFraction = useMemo(() => {
+    if (!state.voidDroneOn || !state.voidFueled || intervalSec <= 0) return 0;
+    const b = buffDurations.find((x) => x.id === "void");
+    if (!b) return 0;
+    const totalBuffs = buffDurations.length;
+    return Math.min(1, b.sec / (totalBuffs * intervalSec));
+  }, [state.voidDroneOn, state.voidFueled, intervalSec, buffDurations]);
+
+  /** Chain Bomber: uptime fraction (0..1) for Gem EV Gift procs. When ON and fueled, buff appears in Elixir pool. Uptime = buffSec / (totalBuffs × intervalSec). */
+  const chainBomberBuffUptimeFraction = useMemo(() => {
+    if (!state.chainBomberDroneOn || !state.chainBomberFueled) return 0;
+    if (intervalSec <= 0) return 0;
+    const b = buffDurations.find((x) => x.id === "chainbomber");
+    if (!b) return 0;
+    const totalBuffs = buffDurations.length;
+    return Math.min(1, b.sec / (totalBuffs * intervalSec));
+  }, [state.chainBomberDroneOn, state.chainBomberFueled, intervalSec, buffDurations]);
+
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.droneBomb10xMinPerHour = state.elixirDroneOn ? droneBomb10xMinPerHour : 0;
@@ -861,12 +999,20 @@ export function Drone() {
     const bombBearFuelGems = state.bombBearDroneOn && state.bombBearFueled ? bombBearFuelGemsPerHour : 0;
     const anglerFuelGems = state.anglerDroneOn && state.anglerFueled ? anglerFuelGemsPerHour : 0;
     const starburstFuelGems = state.starburstDroneOn && state.starburstFueled ? starburstFuelGemsPerHour : 0;
-    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems + starburstFuelGems;
+    const chainBomberFuelGems = state.chainBomberDroneOn && state.chainBomberFueled ? chainBomberFuelGemsPerHour : 0;
+    const voidFuelGems = state.voidDroneOn && state.voidFueled ? voidFuelGemsPerHour : 0;
+    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems + starburstFuelGems + chainBomberFuelGems + voidFuelGems;
     ext.elixirFuelGemsPerHour = elixirFuelGems;
     ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     ext.fishingUnlocked = state.fishingUnlocked;
+    ext.chainBomberDroneOn = state.chainBomberDroneOn;
+    ext.chainBomberGoldenFloorBonusPct = state.chainBomberDroneOn && state.chainBomberFueled ? chainBomberGoldenFloorBonusPct : 0;
+    ext.chainBomberBuffUptimeFraction = chainBomberBuffUptimeFraction;
+    ext.voidDroneOn = state.voidDroneOn;
+    ext.voidPortalMult = state.voidDroneOn && state.voidFueled ? voidPortalMult : 0;
+    ext.voidBuffUptimeFraction = voidBuffUptimeFraction;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.fishingUnlocked]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.fishingUnlocked]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -2675,6 +2821,289 @@ export function Drone() {
               Turn drone ON to see Starburst multi (Triple Star × Star Spawn Rate when fueled).
             </p>
           )}
+        </div>
+      </Collapsible>
+
+      <Collapsible
+        id="drone-chain-bomber"
+        title="Chain Bomber Drone"
+        defaultExpanded={false}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/6/66/Drone_Chain.png" alt="" className="droneHeaderIcon" aria-hidden />
+            <input
+              type="checkbox"
+              id="chain-bomber-drone-on"
+              className="droneCheckbox"
+              checked={state.chainBomberDroneOn}
+              onChange={(e) => update({ chainBomberDroneOn: e.target.checked })}
+            />
+            <label htmlFor="chain-bomber-drone-on" className="droneLabel">
+              Drone: {state.chainBomberDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Chain Bomber Drone",
+                sections: [
+                  {
+                    heading: "Effect",
+                    lines: [
+                      "When fueled: +50% Golden Floor Multi at grade 0, +10% per grade, max +250% (Polychrome).",
+                      "Buff duration: 3:40 at grade 0, +0:11 per grade, max 7:20. Appears in Elixir buff pool.",
+                    ],
+                  },
+                  {
+                    heading: "Gem EV",
+                    lines: [
+                      "Golden Floor Multi multiplies bonus gems and Item Chests from Gift procs (Stonks section in Gem EV Calculator).",
+                      "Toggle ON/OFF to include or exclude the buff from those gains.",
+                    ],
+                  },
+                ],
+              }}
+            />
+          </div>
+        }
+      >
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            When fueled, Chain Bomber adds +X% Golden Floor Multi to the Elixir buff pool. Multiplies Gift proc gains (Stonks section) in Gem EV Calculator.
+          </p>
+          <div className="droneSectionTitle">Settings</div>
+          <div className="droneCheckboxRow">
+            <img src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png" alt="" className="droneSkillIcon" aria-hidden />
+            <input
+              type="checkbox"
+              id="chain-bomber-fueled"
+              className="droneCheckbox"
+              checked={state.chainBomberFueled}
+              onChange={(e) => update({ chainBomberFueled: e.target.checked })}
+            />
+            <label htmlFor="chain-bomber-fueled" className="droneLabel">
+              Drone fueled
+            </label>
+          </div>
+          {state.chainBomberFueled ? (
+            <div className="droneSubSection">
+              <div className="droneSubTitle">When fueled</div>
+              <Stepper
+                label="Grade level"
+                value={state.chainBomberGradeLevel}
+                onChange={(n) => update({ chainBomberGradeLevel: n })}
+                min={0}
+                max={45}
+                step={1}
+                stepLarge={5}
+                tooltip={{
+                  title: "Chain Bomber grade (fuel buff)",
+                  lines: [
+                    "Buff: +50% Golden Floor Multi at grade 0, +10% per grade, max +250% (Polychrome). Duration: 3:40 at grade 0, +0:11 per grade, max 7:20.",
+                    "Same fuel duration multipliers (Coal, Cards, etc.) as other drones.",
+                  ],
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {state.chainBomberFueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel (Chain Bomber)</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">{formatMinSec(chainBomberFuelDurationGameSec)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">{formatMinSec(chainBomberFuelDurationSecReal)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      lines: [
+                        "Average gems per hour spent on fuel to keep the Chain Bomber Drone fueled 100% of the time.",
+                        "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span className="droneFuelGemsValue" aria-label={`${chainBomberFuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{chainBomberFuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="droneSection">
+          <div className="droneRow">
+            <span className="droneLabel">
+              Golden Floor Multi bonus
+              <Tooltip
+                content={{
+                  title: "Golden Floor Multi bonus",
+                  lines: [
+                    "When buff is active: +X% multiplier on Gift proc gains (Stonks section) in Gem EV. Uptime from Elixir pool.",
+                  ],
+                }}
+              />
+            </span>
+            <span className="droneStepperValue mono">
+              {state.chainBomberDroneOn && state.chainBomberFueled ? `+${chainBomberGoldenFloorBonusPct}%` : "—"}
+            </span>
+          </div>
+          <div className="droneRow">
+            <span className="droneLabel">Buff uptime</span>
+            <span className="droneStepperValue mono">
+              {state.chainBomberDroneOn && state.chainBomberFueled ? `${(chainBomberBuffUptimeFraction * 100).toFixed(1)}%` : "—"}
+            </span>
+          </div>
+        </div>
+      </Collapsible>
+
+      <Collapsible
+        id="drone-void"
+        title="Void Drone"
+        defaultExpanded={false}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/d/d9/Drone_Void.png" alt="" className="droneHeaderIcon" aria-hidden />
+            <input
+              type="checkbox"
+              id="void-drone-on"
+              className="droneCheckbox"
+              checked={state.voidDroneOn}
+              onChange={(e) => update({ voidDroneOn: e.target.checked })}
+            />
+            <label htmlFor="void-drone-on" className="droneLabel">
+              Drone: {state.voidDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Void Drone",
+                sections: [
+                  {
+                    heading: "Effect",
+                    lines: [
+                      "When fueled: +3× Portal Resource Multi at grade 0, +1× per grade, max +23× (Polychrome).",
+                      "Buff duration: 3:00 at grade 0, +0:09 per grade, max 6:00. Appears in Elixir buff pool.",
+                    ],
+                  },
+                ],
+              }}
+            />
+          </div>
+        }
+      >
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            When fueled, Void Drone adds +X× Portal Resource Multi to the Elixir buff pool.
+          </p>
+          <div className="droneSectionTitle">Settings</div>
+          <div className="droneCheckboxRow">
+            <img src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png" alt="" className="droneSkillIcon" aria-hidden />
+            <input
+              type="checkbox"
+              id="void-fueled"
+              className="droneCheckbox"
+              checked={state.voidFueled}
+              onChange={(e) => update({ voidFueled: e.target.checked })}
+            />
+            <label htmlFor="void-fueled" className="droneLabel">
+              Drone fueled
+            </label>
+          </div>
+          {state.voidFueled ? (
+            <div className="droneSubSection">
+              <div className="droneSubTitle">When fueled</div>
+              <Stepper
+                label="Grade level"
+                value={state.voidGradeLevel}
+                onChange={(n) => update({ voidGradeLevel: n })}
+                min={0}
+                max={45}
+                step={1}
+                stepLarge={5}
+                tooltip={{
+                  title: "Void grade (fuel buff)",
+                  lines: [
+                    "Buff: +3× Portal Resource Multi at grade 0, +1× per grade, max +23× (Polychrome). Duration: 3:00 at grade 0, +0:09 per grade, max 6:00.",
+                    "Same fuel duration multipliers (Coal, Cards, etc.) as other drones.",
+                  ],
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {state.voidFueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel (Void)</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">{formatMinSec(voidFuelDurationGameSec)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">{formatMinSec(voidFuelDurationSecReal)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      lines: [
+                        "Average gems per hour spent on fuel to keep the Void Drone fueled 100% of the time.",
+                        "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span className="droneFuelGemsValue" aria-label={`${voidFuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{voidFuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="droneSection">
+          <div className="droneRow">
+            <span className="droneLabel">
+              Portal Resource Multi bonus
+              <Tooltip
+                content={{
+                  title: "Portal Resource Multi bonus",
+                  lines: ["When buff is active: +X× to Portal Resource Multi. Uptime from Elixir pool."],
+                }}
+              />
+            </span>
+            <span className="droneStepperValue mono">
+              {state.voidDroneOn && state.voidFueled ? `+${voidPortalMult}×` : "—"}
+            </span>
+          </div>
+          <div className="droneRow">
+            <span className="droneLabel">Buff uptime</span>
+            <span className="droneStepperValue mono">
+              {state.voidDroneOn && state.voidFueled ? `${(voidBuffUptimeFraction * 100).toFixed(1)}%` : "—"}
+            </span>
+          </div>
         </div>
       </Collapsible>
     </div>
