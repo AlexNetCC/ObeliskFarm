@@ -62,6 +62,30 @@ function formatMinSec(minDecimal: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/** Format decimal minutes as MM:SS min (e.g. 2 → "02:00 min"). */
+function formatMinSecWithUnit(minDecimal: number): string {
+  if (!Number.isFinite(minDecimal) || minDecimal < 0) return "00:00 min";
+  let m = Math.floor(minDecimal);
+  let s = Math.round((minDecimal - m) * 60);
+  if (s >= 60) {
+    s = 0;
+    m += 1;
+  }
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min`;
+}
+
+/** True if buff is event-based (ticks, attacks, chests, charges) rather than duration-based. */
+function isEventBuff(buffName: string): boolean {
+  return (
+    buffName === "Fishing +12 Ticks" ||
+    buffName === "Archaeology +600 Attacks" ||
+    buffName === "+3 Item Chests" ||
+    buffName === "+100 Cherry Charges" ||
+    buffName === "+1 Item Chest" ||
+    buffName === "+10 Cherry Charges"
+  );
+}
+
 /** Red heatmap for negative values: more negative = stronger red. */
 function heatmapRed(gemPerHour: number): string {
   if (gemPerHour >= 0) return "inherit";
@@ -818,7 +842,7 @@ export function Lootbug() {
                     />
                   </span>
                 </span>
-                <span className="lootbugValue">{formatMinSec(gameSpeed2xMinPerHour)} min</span>
+                <span className="lootbugValue">{formatMinSecWithUnit(gameSpeed2xMinPerHour)}</span>
               </div>
             )}
             {buyGemBuffsSet.has("10x Bomb Recharge") && (
@@ -898,15 +922,15 @@ export function Lootbug() {
                     />
                   </th>
                   <th className="lootbugTableThRight">
-                    min/h
+                    min/h (min:sec)
                     <Tooltip
                       content={{
-                        title: "min/h",
+                        title: "min/h (min:sec)",
                         sections: [
                           {
                             heading: "Real time",
                             lines: [
-                              "Average minutes per hour this buff is active (real time).",
+                              "Average minutes per hour this buff is active (real time). Format: MM:SS min.",
                               "Formula: per hour × duration (game min) × loot multiplier ÷ game speed. Loot multiplier extends buff duration.",
                             ],
                           },
@@ -977,16 +1001,18 @@ export function Lootbug() {
                                 ? (() => {
                                     const m = Math.floor(realDurMin);
                                     const s = Math.round((realDurMin * 60) % 60);
-                                    return ` (${m}:${String(s).padStart(2, "0")} min)`;
+                                    return ` (${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min)`;
                                   })()
                                 : ` (${buff.duration})`}
                             </span>
                           ) : null}
                         </span>
                       </td>
-                      <td className="lootbugTableNum">{perHour.toFixed(2)}</td>
                       <td className="lootbugTableNum">
-                        {minPerHour != null ? minPerHour.toFixed(2) : "—"}
+                        {isEventBuff(buff.name) ? `${perHour.toFixed(2)} events` : perHour.toFixed(2)}
+                      </td>
+                      <td className="lootbugTableNum">
+                        {minPerHour != null ? formatMinSecWithUnit(minPerHour) : "—"}
                       </td>
                     </tr>
                   );
@@ -1024,9 +1050,9 @@ export function Lootbug() {
                         title: "Per hour",
                         sections: [
                           {
-                            heading: "Quantity buffs",
+                            heading: "Events",
                             lines: [
-                              "Fishing +12 Ticks: effective ticks/h (procs × 12 × loot multi). Arch +600: effective attacks/h. Item Chests, Cherry Charges: quantity × loot multi.",
+                              "Fishing ticks, Arch attacks, Item Chests, Cherry Charges: events/h (quantity × loot multi). Unit: events.",
                             ],
                           },
                           {
@@ -1040,15 +1066,15 @@ export function Lootbug() {
                     />
                   </th>
                   <th className="lootbugTableThRight">
-                    min/h
+                    min/h (min:sec)
                     <Tooltip
                       content={{
-                        title: "min/h",
+                        title: "min/h (min:sec)",
                         sections: [
                           {
                             heading: "Real time",
                             lines: [
-                              "Average minutes per hour this buff is active (real time). From full pool.",
+                              "Average minutes per hour this buff is active (real time). Format: MM:SS min. From full pool.",
                               "Formula: per hour × duration (game min) × loot multiplier ÷ game speed. Loot multiplier extends buff duration.",
                             ],
                           },
@@ -1169,16 +1195,18 @@ export function Lootbug() {
                                 ? (() => {
                                     const m = Math.floor(realDurMin);
                                     const s = Math.round((realDurMin * 60) % 60);
-                                    return ` (${m}:${String(s).padStart(2, "0")} min)`;
+                                    return ` (${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min)`;
                                   })()
                                 : ` (${buff.duration})`}
                             </span>
                           ) : null}
                         </span>
                       </td>
-                      <td className="lootbugTableNum">{perHour.toFixed(2)}</td>
                       <td className="lootbugTableNum">
-                        {minPerHour != null ? formatMinSec(minPerHour) : "—"}
+                        {isEventBuff(buff.name) ? `${perHour.toFixed(2)} events` : perHour.toFixed(2)}
+                      </td>
+                      <td className="lootbugTableNum">
+                        {minPerHour != null ? formatMinSecWithUnit(minPerHour) : "—"}
                       </td>
                       <td
                         className="lootbugTableNum lootbugGemPerHour"

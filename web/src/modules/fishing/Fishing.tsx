@@ -851,6 +851,8 @@ export function Fishing() {
   /** When a tick from Angler, Lootbug, or Sushi happens, it ticks on every dock (not distributed). So each dock gets the same +fills. */
   const giftSushiTicksPerHour = giftSushiPerHour * (SUSHI_BASE_TICKS + SUSHI_CARD_TICKS[state.sushiCardTier]);
   const extraFillsPerDockPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour;
+  /** Total effective fishing ticks per hour (base + Angler + Lootbug + Gift Sushi). Used for display and Sushi correspondence. */
+  const totalEffectiveTicksPerHour = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) + extraFillsPerDockPerHour;
 
   /** Catch attempts per hour (fills × rolls per fill), total and per dock (only docks with power). */
   const catchAttemptsPerHour = useMemo(() => {
@@ -1227,7 +1229,7 @@ export function Fishing() {
   const sushiEvAndTotal = useMemo(() => {
     const rowsWithPower = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0);
     const totalFishPerHour = rowsWithPower.reduce((s, r) => s + r.fishPerHour, 0);
-    const ticksPerHour = effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0;
+    const ticksPerHour = totalEffectiveTicksPerHour;
     const fishPerSushiEv = ticksPerHour > 0 ? (ticksPerSushi * totalFishPerHour) / ticksPerHour : 0;
     const fishPerSushiEvPerFish = rowsWithPower.map((r) => ({
       fishId: r.fish.id,
@@ -1236,7 +1238,7 @@ export function Fishing() {
       fishPerSushiEv: ticksPerHour > 0 ? (ticksPerSushi * r.fishPerHour) / ticksPerHour : 0,
     }));
     return { totalFishPerHour, fishPerSushiEv, fishPerSushiEvPerFish };
-  }, [visibleGainsRows, effectiveTickSec, ticksPerSushi]);
+  }, [visibleGainsRows, totalEffectiveTicksPerHour, ticksPerSushi]);
 
   /** Export for Gem EV: fish EV per 1 Sushi (for Gift Sushi rare roll value). */
   useEffect(() => {
@@ -2288,20 +2290,19 @@ export function Fishing() {
               </div>
               <div className="fishingTickFlowArrow">↓</div>
               <div className="fishingTickRow">
-                <strong>Effective</strong> Fishing Ticks per hour = <span className="mono">{effectiveTickSec > 0 ? (3600 / effectiveTickSec).toFixed(2) : "—"}</span>
+                <strong>Effective</strong> Fishing Ticks per hour = <span className="mono">{totalEffectiveTicksPerHour > 0 ? totalEffectiveTicksPerHour.toFixed(2) : "—"}</span>
                 <Tooltip
                   content={{
                     title: "Effective fishing ticks per hour",
                     lines: [
-                      "Base fishing ticks per hour (3600 ÷ effective tick seconds). Includes Elixir Drone 3× Fishing Tick Speed.",
-                      "Angler Suit and Lootbug add extra fill progress on top of this.",
+                      "Base ticks (3600 ÷ effective tick sec, incl. Elixir 3×) + Angler Drone + Lootbug + Gift Sushi.",
                     ],
                   }}
                   label="?"
                 />
-                {effectiveTickSec > 0 && ticksPerSushi > 0 ? (
+                {totalEffectiveTicksPerHour > 0 && ticksPerSushi > 0 ? (
                   <span className="fishingTickBetterPulse">
-                    (Corresponds to {(3600 / effectiveTickSec / ticksPerSushi).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })} Sushi!)
+                    (Corresponds to {(totalEffectiveTicksPerHour / ticksPerSushi).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })} Sushi!)
                   </span>
                 ) : null}
               </div>
