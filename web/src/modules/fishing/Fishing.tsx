@@ -2334,7 +2334,7 @@ export function Fishing() {
                 />
                 {rawTicksPerHour > 0 && ticksPerSushi > 0 ? (
                   <span className="fishingTickBetterPulse">
-                    (Corresponds to {(rawTicksPerHour / ticksPerSushi).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })} Sushi!)
+                    (It's like eating {(rawTicksPerHour / ticksPerSushi).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })} Sushi per hour!)
                   </span>
                 ) : null}
               </div>
