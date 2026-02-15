@@ -2679,14 +2679,25 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneSectionTitle">Fishing</div>
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            Ticks from this drone and extra fish based on your Fishing module selection (location, rod, etc.). Open Fishing to update.
+            Ticks from this drone and extra fish based on your Fishing module selection (location, rod, etc.). Each tick adds a fill; fills are multiplied by your double/triple/5× tick chance in Fishing. Open Fishing to update.
           </p>
           {state.anglerDroneOn ? (
             <>
               <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="droneRow">
-                    <span className="droneLabel">From 2 suit ticks</span>
+                    <span className="droneLabel">
+                      From 2 suit ticks
+                      <Tooltip
+                        content={{
+                          title: "Angler ticks and fish gains",
+                          lines: [
+                            "Each Angler tick adds one fill to every dock. Fills are multiplied by your double/triple/5× tick chance in Fishing.",
+                            "The Extra fish by type values already include that multiplier.",
+                          ],
+                        }}
+                      />
+                    </span>
                     <span className="droneStepperValue mono">
                       {anglerBaseTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </span>
