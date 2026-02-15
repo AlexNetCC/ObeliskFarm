@@ -582,6 +582,13 @@ export function Stargazing() {
     return calc.get_summary();
   }, [statsWithoutStarburst]);
 
+  /** Write total 2× Star min/h so Drone can compute Bomb Bear star gains impact. */
+  useEffect(() => {
+    const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
+    ext.total2xStarMinPerHour = droneBuffs.total2xStarMinPerHour;
+    saveJson(STARGAZING_EXTERNAL_KEY, ext);
+  }, [droneBuffs.total2xStarMinPerHour]);
+
   /** Write stars/h and super stars/h (Offline Gains, no spoon) with and without Starburst to external so Drone can show +% gain. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};

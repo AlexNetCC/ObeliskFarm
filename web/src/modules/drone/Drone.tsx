@@ -1186,6 +1186,29 @@ export function Drone() {
     };
   }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
 
+  /** +% Fishing gains from Bomb Bear: Lootbug's share of total fishing ticks × (spawn mult − 1). Open Fishing and Lootbug to sync. */
+  const bombBearFishingGainsPct = (() => {
+    if (bombBearLootbugSpawnRateMult <= 1) return null;
+    const fish = loadJson<{ totalEffectiveTicksPerHour?: number; lootbugFishing12TicksProcsPerHour?: number }>(FISHING_EXTERNAL_KEY);
+    const totalTicks = typeof fish?.totalEffectiveTicksPerHour === "number" ? fish.totalEffectiveTicksPerHour : 0;
+    const lootbugTicks = typeof fish?.lootbugFishing12TicksProcsPerHour === "number" ? Math.max(0, fish.lootbugFishing12TicksProcsPerHour) : 0;
+    if (lootbugTicks <= 0 || totalTicks <= 0) return null;
+    const lootbugShare = lootbugTicks / totalTicks;
+    return lootbugShare * (bombBearLootbugSpawnRateMult - 1) * 100;
+  })();
+
+  /** +% Star gains from Bomb Bear: Lootbug's share of 2× Star factor × (spawn mult − 1). Open Stargazing and Lootbug to sync. */
+  const bombBearStarGainsPct = (() => {
+    if (bombBearLootbugSpawnRateMult <= 1) return null;
+    const gemev = loadJson<{ lootbug2xStarMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    const sg = loadJson<{ total2xStarMinPerHour?: number }>(STARGAZING_EXTERNAL_KEY);
+    const lootbugMin = typeof gemev?.lootbug2xStarMinPerHour === "number" ? Math.max(0, gemev.lootbug2xStarMinPerHour) : 0;
+    const total2xMin = typeof sg?.total2xStarMinPerHour === "number" ? Math.max(0, sg.total2xStarMinPerHour) : 0;
+    if (lootbugMin <= 0 || 60 + total2xMin <= 0) return null;
+    const lootbugShare = lootbugMin / (60 + total2xMin);
+    return lootbugShare * (bombBearLootbugSpawnRateMult - 1) * 100;
+  })();
+
   /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. Prefer value from Lootbug (includes Gems, 10×, Item Chests). Fallback: live calc from gems+net10x when Lootbug has not run yet. */
   const bombBearLootbugGemsEvPerHour = (() => {
     if (bombBearLootbugSpawnRateMult <= 1) return 0;
@@ -2422,22 +2445,20 @@ export function Drone() {
                     {
                       heading: "Meaning",
                       lines: [
-                        "When Lootbug gem buff Fishing +12 Ticks is enabled: Bomb Bear increases lootbug spawn rate, so you get more Fishing tick procs.",
-                        "This is the +% increase in fishing gains from Bomb Bear alone.",
+                        "How much more fishing gain you get from Bomb Bear's increased Lootbug spawn rate.",
+                        "Lootbug contributes Fishing +12 Ticks. Bomb Bear spawns more Lootbugs, so more ticks. This is the +% impact on your total fishing gains.",
                       ],
                     },
                     {
                       heading: "Formula",
-                      lines: ["(Lootbug Spawn Rate Mult − 1) × 100%."],
+                      lines: ["(Lootbug share of total ticks) × (Spawn Rate Mult − 1) × 100%. Open Fishing and Lootbug to update."],
                     },
                   ],
                 }}
               />
             </span>
             <span className="droneStepperValue mono">
-              {bombBearLootbugSpawnRateMult > 1
-                ? `+${((bombBearLootbugSpawnRateMult - 1) * 100).toFixed(1)}%`
-                : "—"}
+              {bombBearFishingGainsPct != null ? `+${bombBearFishingGainsPct.toFixed(1)}%` : "—"}
             </span>
           </div>
           <div className="droneRow">
@@ -2450,22 +2471,20 @@ export function Drone() {
                     {
                       heading: "Meaning",
                       lines: [
-                        "Bomb Bear increases lootbug spawn rate, so you get more 2× Star Spawn Rate from Lootbug (free 2 min + gem 10 min when bought).",
-                        "Both add to total 2× Star min/h. This is the +% increase in that contribution to Stargazing gains.",
+                        "How much more star gain you get from Bomb Bear's increased Lootbug spawn rate.",
+                        "Lootbug contributes 2× Star Spawn Rate (free 2 min + gem 10 min when bought). Bomb Bear spawns more Lootbugs, so more 2× uptime. This is the +% impact on your total star gains.",
                       ],
                     },
                     {
                       heading: "Formula",
-                      lines: ["(Lootbug Spawn Rate Mult − 1) × 100%."],
+                      lines: ["(Lootbug share of 2× Star factor) × (Spawn Rate Mult − 1) × 100%. Open Stargazing and Lootbug to update."],
                     },
                   ],
                 }}
               />
             </span>
             <span className="droneStepperValue mono">
-              {bombBearLootbugSpawnRateMult > 1
-                ? `+${((bombBearLootbugSpawnRateMult - 1) * 100).toFixed(1)}%`
-                : "—"}
+              {bombBearStarGainsPct != null ? `+${bombBearStarGainsPct.toFixed(1)}%` : "—"}
             </span>
           </div>
           <div className="droneRow">
