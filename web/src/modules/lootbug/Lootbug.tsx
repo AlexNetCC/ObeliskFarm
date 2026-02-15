@@ -74,13 +74,15 @@ function formatMinSecWithUnit(minDecimal: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min`;
 }
 
-/** True if buff is event-based (ticks, attacks, chests, charges) rather than duration-based. */
+/** True if buff is event-based (ticks, attacks, chests, charges, gems) rather than duration-based. */
 function isEventBuff(buffName: string): boolean {
   return (
     buffName === "Fishing +12 Ticks" ||
     buffName === "Archaeology +600 Attacks" ||
     buffName === "+3 Item Chests" ||
+    buffName === "+1 Relic Chest" ||
     buffName === "+100 Cherry Charges" ||
+    buffName === "+2 Gems" ||
     buffName === "+1 Item Chest" ||
     buffName === "+10 Cherry Charges"
   );
@@ -563,6 +565,15 @@ export function Lootbug() {
     saveJson(ARCH_EXTERNAL_KEY, ext);
   }, [lootbugArch600AttacksPerHour]);
 
+  /** +% Fishing gains from Lootbug Fishing +12 Ticks gem buff. Requires Fishing module to have run (totalEffectiveTicksPerHour). */
+  const lootbugFishingGainsPct = useMemo(() => {
+    const ext = loadJson<{ totalEffectiveTicksPerHour?: number }>(FISHING_EXTERNAL_KEY);
+    const totalTicks = typeof ext?.totalEffectiveTicksPerHour === "number" ? ext.totalEffectiveTicksPerHour : 0;
+    const ticksWithoutLootbug = totalTicks - lootbugFishing12TicksProcsPerHour;
+    if (lootbugFishing12TicksProcsPerHour <= 0 || ticksWithoutLootbug <= 0) return null;
+    return (lootbugFishing12TicksProcsPerHour / ticksWithoutLootbug) * 100;
+  }, [lootbugFishing12TicksProcsPerHour]);
+
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
   const BOMB_RECHARGE_ICON =
@@ -845,6 +856,28 @@ export function Lootbug() {
                 <span className="lootbugValue">{formatMinSecWithUnit(gameSpeed2xMinPerHour)}</span>
               </div>
             )}
+            {lootbugFishingGainsPct != null ? (
+                <div className="lootbugRow">
+                  <span className="lootbugStatLabel">
+                    <img src={getGemBuffIcon("Fishing +12 Ticks")} alt="" className="lootbugStatIcon" aria-hidden />
+                    <span className="lootbugLabel">
+                      Fishing +{Math.round(12 * lootMultiplier)} Ticks: Fishing gains
+                      <Tooltip
+                        content={{
+                          title: "Fishing gains from Lootbug gem buff",
+                          lines: [
+                            "Percentage increase in fishing gains from the Lootbug Fishing +12 Ticks gem buff.",
+                            "Based on total effective ticks (base + Angler + Lootbug + Gift Sushi). Open Fishing once to sync.",
+                          ],
+                        }}
+                      />
+                    </span>
+                  </span>
+                  <span className={`lootbugValue ${lootbugFishingGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
+                    +{lootbugFishingGainsPct.toFixed(1)}%
+                  </span>
+                </div>
+              ) : null}
             {buyGemBuffsSet.has("10x Bomb Recharge") && (
               <div className="lootbugRow">
                 <span className="lootbugStatLabel">
@@ -925,7 +958,7 @@ export function Lootbug() {
                     min/h (min:sec)
                     <Tooltip
                       content={{
-                        title: "min/h (min:sec)",
+                        title: "min/h",
                         sections: [
                           {
                             heading: "Real time",
@@ -946,11 +979,15 @@ export function Lootbug() {
                   const perHourProcs = totalFreeWeight > 0 ? (lootbugsPerHour * weight) / totalFreeWeight : 0;
                   /** Effective quantity per hour (with loot multi). */
                   const perHour =
-                    buff.name === "+1 Item Chest"
-                      ? perHourProcs * lootMultiplier
-                      : buff.name === "+10 Cherry Charges"
-                        ? perHourProcs * 10 * lootMultiplier
-                        : perHourProcs;
+                    buff.name === "+2 Gems"
+                      ? perHourProcs * 2 * lootMultiplier
+                      : buff.name === "+1 Item Chest"
+                        ? perHourProcs * lootMultiplier
+                        : buff.name === "+1 Relic Chest"
+                          ? perHourProcs * lootMultiplier
+                          : buff.name === "+10 Cherry Charges"
+                            ? perHourProcs * 10 * lootMultiplier
+                            : perHourProcs;
                   const durMin = getDurationMinutes(buff.duration);
                   const effectiveDurMin = durMin != null ? durMin * lootMultiplier : null;
                   const minPerHour =
@@ -1009,7 +1046,7 @@ export function Lootbug() {
                         </span>
                       </td>
                       <td className="lootbugTableNum">
-                        {isEventBuff(buff.name) ? `${perHour.toFixed(2)} events` : perHour.toFixed(2)}
+                        {isEventBuff(buff.name) ? `${Math.round(perHour)} events` : perHour.toFixed(2)}
                       </td>
                       <td className="lootbugTableNum">
                         {minPerHour != null ? formatMinSecWithUnit(minPerHour) : "—"}
@@ -1069,7 +1106,7 @@ export function Lootbug() {
                     min/h (min:sec)
                     <Tooltip
                       content={{
-                        title: "min/h (min:sec)",
+                        title: "min/h",
                         sections: [
                           {
                             heading: "Real time",
@@ -1115,9 +1152,11 @@ export function Lootbug() {
                         ? lootbugArch600AttacksPerHour
                         : buff.name === "+3 Item Chests"
                           ? perHourProcs * 3 * lootMultiplier
-                          : buff.name === "+100 Cherry Charges"
-                            ? perHourProcs * 100 * lootMultiplier
-                            : perHourProcs;
+                          : buff.name === "+1 Relic Chest"
+                            ? perHourProcs * lootMultiplier
+                            : buff.name === "+100 Cherry Charges"
+                              ? perHourProcs * 100 * lootMultiplier
+                              : perHourProcs;
                   const durMin = getDurationMinutes(buff.duration);
                   const effectiveDurMin = durMin != null ? durMin * lootMultiplier : null;
                   const minPerHour =
@@ -1203,7 +1242,7 @@ export function Lootbug() {
                         </span>
                       </td>
                       <td className="lootbugTableNum">
-                        {isEventBuff(buff.name) ? `${perHour.toFixed(2)} events` : perHour.toFixed(2)}
+                        {isEventBuff(buff.name) ? `${Math.round(perHour)} events` : perHour.toFixed(2)}
                       </td>
                       <td className="lootbugTableNum">
                         {minPerHour != null ? formatMinSecWithUnit(minPerHour) : "—"}

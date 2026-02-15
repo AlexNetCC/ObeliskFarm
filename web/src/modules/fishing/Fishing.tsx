@@ -1142,10 +1142,11 @@ export function Fishing() {
     expectedShinyMulti,
   ]);
 
-  /** Export for Drone (Angler): base, full, angler breakdown, and angler ticks used so Drone can scale per-fish when grade changes. */
+  /** Export for Drone (Angler) and Lootbug: base, full, angler breakdown, total ticks, and angler ticks used. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
     ext.effectiveTickSec = effectiveTickSec;
+    ext.totalEffectiveTicksPerHour = totalEffectiveTicksPerHour;
     ext.fishGains = visibleGainsRows
       .filter((r) => r.hasPower && (r.baseFishPerHour > 0 || r.fishPerHour > 0))
       .map((r) => ({
@@ -1157,7 +1158,7 @@ export function Fishing() {
     ext.anglerBreakdown = anglerBreakdownForDrone;
     ext.anglerTicksUsedForFishGains = anglerTicksPerHour;
     saveJson(FISHING_EXTERNAL_KEY, ext);
-  }, [effectiveTickSec, visibleGainsRows, anglerBreakdownForDrone, anglerTicksPerHour]);
+  }, [effectiveTickSec, totalEffectiveTicksPerHour, visibleGainsRows, anglerBreakdownForDrone, anglerTicksPerHour]);
 
   /** Run MC: simulate each fill → rolls → catch attempt per fish; record total and per-fish. */
   function runFishingMc() {

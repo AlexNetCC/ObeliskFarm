@@ -1143,9 +1143,10 @@ export function Drone() {
       : gains.map((g) => {
           const base = typeof g.baseFishPerHour === "number" ? g.baseFishPerHour : g.fishPerHour ?? 0;
           const full = typeof g.fishPerHour === "number" ? g.fishPerHour : base;
-          const extra = full - base;
+          const extra = (full - base) * scale;
+          const scaledFull = base + extra;
           const pct = base > 0 ? (extra / base) * 100 : 0;
-          return { ...g, baseFishPerHour: base, fishPerHour: full, extraFishPerHour: extra, extraPct: pct };
+          return { ...g, baseFishPerHour: base, fishPerHour: scaledFull, extraFishPerHour: extra, extraPct: pct };
         });
     const totalBaseFishPerHour = extraPerFish.reduce((s, g) => s + (g.baseFishPerHour ?? 0), 0);
     const totalFullFishPerHour = extraPerFish.reduce((s, g) => s + (g.fishPerHour ?? 0), 0);
@@ -1183,7 +1184,7 @@ export function Drone() {
       extraFromBuff,
       legendaryPctIncrease,
     };
-  }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
+  }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
 
   /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. Prefer value from Lootbug (includes Gems, 10×, Item Chests). Fallback: live calc from gems+net10x when Lootbug has not run yet. */
   const bombBearLootbugGemsEvPerHour = (() => {
@@ -2413,6 +2414,62 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneRow">
             <span className="droneLabel">
+              Fishing Gains from Bomb Bear
+              <Tooltip
+                content={{
+                  title: "Fishing Gains from Bomb Bear",
+                  sections: [
+                    {
+                      heading: "Meaning",
+                      lines: [
+                        "When Lootbug gem buff Fishing +12 Ticks is enabled: Bomb Bear increases lootbug spawn rate, so you get more Fishing tick procs.",
+                        "This is the +% increase in fishing gains from Bomb Bear alone.",
+                      ],
+                    },
+                    {
+                      heading: "Formula",
+                      lines: ["(Lootbug Spawn Rate Mult − 1) × 100%."],
+                    },
+                  ],
+                }}
+              />
+            </span>
+            <span className="droneStepperValue mono">
+              {bombBearLootbugSpawnRateMult > 1
+                ? `+${((bombBearLootbugSpawnRateMult - 1) * 100).toFixed(1)}%`
+                : "—"}
+            </span>
+          </div>
+          <div className="droneRow">
+            <span className="droneLabel">
+              Star Gains from Bomb Bear
+              <Tooltip
+                content={{
+                  title: "Star Gains from Bomb Bear",
+                  sections: [
+                    {
+                      heading: "Meaning",
+                      lines: [
+                        "Bomb Bear increases lootbug spawn rate, so you get more 2× Star Spawn Rate from Lootbug (free 2 min + gem 10 min when bought).",
+                        "Both add to total 2× Star min/h. This is the +% increase in that contribution to Stargazing gains.",
+                      ],
+                    },
+                    {
+                      heading: "Formula",
+                      lines: ["(Lootbug Spawn Rate Mult − 1) × 100%."],
+                    },
+                  ],
+                }}
+              />
+            </span>
+            <span className="droneStepperValue mono">
+              {bombBearLootbugSpawnRateMult > 1
+                ? `+${((bombBearLootbugSpawnRateMult - 1) * 100).toFixed(1)}%`
+                : "—"}
+            </span>
+          </div>
+          <div className="droneRow">
+            <span className="droneLabel">
               Lootbug Spawn Rate Mult
               <Tooltip
                 content={{
@@ -2605,37 +2662,68 @@ export function Drone() {
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
             Ticks from this drone and extra fish based on your Fishing module selection (location, rod, etc.). Open Fishing to update.
           </p>
-          <div className="droneRow">
-            <span className="droneLabel">Fishing ticks per hour (from drone)</span>
-            <span className="droneStepperValue">
-              {state.anglerDroneOn ? anglerTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
-            </span>
-          </div>
-          {state.anglerDroneOn && anglerFishingData.extraPerFish.length > 0 ? (
+          {state.anglerDroneOn ? (
             <>
-              <div className="droneRow">
-                <span className="droneLabel">Extra from 2 suit ticks</span>
-                <span className="droneStepperValue mono">
-                  +{anglerFishingData.extraFromSuit.toLocaleString(undefined, { maximumFractionDigits: 1 })} fish/h
-                </span>
+              <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="droneRow">
+                    <span className="droneLabel">From 2 suit ticks</span>
+                    <span className="droneStepperValue mono">
+                      {anglerBaseTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  {state.anglerFueled && anglerBuffTicksPerHour > 0 ? (
+                    <div className="droneRow">
+                      <span className="droneLabel">From 1% procs (buff, +6 ticks/grade)</span>
+                      <span className="droneStepperValue mono">
+                        {anglerBuffTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingLeft: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 22,
+                      lineHeight: 1,
+                      color: "rgba(71,85,105,0.4)",
+                      fontFamily: "serif",
+                    }}
+                  >
+                    {"}"}
+                  </span>
+                  <span className="droneStepperValue mono">
+                    {anglerTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })} ticks/h
+                  </span>
+                </div>
               </div>
-              {state.anglerFueled && anglerBuffTicksPerHour > 0 ? (
+              {anglerFishingData.extraPerFish.length > 0 ? (
                 <>
-                  <div className="droneRow">
-                    <span className="droneLabel">Extra from 1% procs (buff, +6 ticks/grade)</span>
-                    <span className="droneStepperValue mono">
-                      +{anglerFishingData.extraFromBuff.toLocaleString(undefined, { maximumFractionDigits: 1 })} fish/h
-                    </span>
-                  </div>
-                  <div className="droneRow">
-                    <span className="droneLabel">Legendary fish: buff gives</span>
-                    <span className="droneStepperValue mono">
-                      +{anglerFishingData.legendaryPctIncrease.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
-                    </span>
-                  </div>
-                </>
-              ) : null}
-              {anglerFishingData.extraPerFish.some(({ extraFishPerHour }) => extraFishPerHour > 0) ? (
+                  {state.anglerFueled && anglerBuffTicksPerHour > 0 ? (
+                    <div
+                      className="droneRow"
+                      style={{
+                        marginTop: 12,
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        border: "1px solid rgba(212, 175, 37, 0.5)",
+                        background: "rgba(255, 248, 220, 0.35)",
+                      }}
+                    >
+                      <span className="droneLabel">Legendary fish: buff gives</span>
+                      <span className="droneStepperValue mono">
+                        +{anglerFishingData.legendaryPctIncrease.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+                      </span>
+                    </div>
+                  ) : null}
+                  {anglerFishingData.extraPerFish.some(({ extraFishPerHour }) => extraFishPerHour > 0) ? (
                 <>
                   <div className="droneSubTitle" style={{ marginTop: 8, marginBottom: 4 }}>Extra fish by type</div>
                   <ul className="droneList small" style={{ margin: 0, paddingLeft: 20 }}>
@@ -2648,13 +2736,15 @@ export function Drone() {
                         </li>
                       ))}
                   </ul>
+                  </>
+                ) : null}
                 </>
-              ) : null}
+              ) : (
+                <p className="droneHint small" style={{ marginBottom: 0 }}>
+                  No fish with power in Fishing module. Open Fishing, select a dock and ensure rod/drones give power to at least one fish.
+                </p>
+              )}
             </>
-          ) : state.anglerDroneOn ? (
-            <p className="droneHint small" style={{ marginBottom: 0 }}>
-              No fish with power in Fishing module. Open Fishing, select a dock and ensure rod/drones give power to at least one fish.
-            </p>
           ) : null}
         </div>
       </Collapsible>
