@@ -242,3 +242,156 @@
   color: rgba(15, 23, 42, 0.75);
 }
 
+/* 2× Star buff uptime row: above Stats Contributions, same width as Results .kv */
+.sg2xUptimeRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 12px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 10px;
+}
+.sg2xUptimeLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sg2xUptimeIcon {
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.sg2xUptimeValue {
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.85);
+}
+
+/* Stats Contributions: button row – same gray as chart modal (no blue, no black; uniform) */
+.sgStatsChartRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.sgStatsChartRow .btn.sgStatsChartBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-weight: 700;
+  background: #4a5368 !important;
+  border: 1px solid #3d4556 !important;
+  color: rgba(226, 232, 240, 0.92) !important;
+}
+.sgStatsChartRow .btn.sgStatsChartBtn:hover {
+  background: #5a6378 !important;
+  border-color: #4a5368 !important;
+  color: rgba(226, 232, 240, 0.98) !important;
+}
+.sgStatsChartIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #3d4556;
+  border-radius: 6px;
+  background: #3d4556;
+  color: rgba(226, 232, 240, 0.9);
+}
+.sgStatsChartRow .btn.sgStatsChartBtn:hover .sgStatsChartIconWrap {
+  background: #4a5368;
+  border-color: #4a5368;
+}
+/* ? tooltip in same row: same gray as chart */
+.sgStatsChartRow .tooltipWrap .qmark {
+  background: #4a5368 !important;
+  border: 1px solid #3d4556 !important;
+  color: rgba(226, 232, 240, 0.92) !important;
+}
+.sgStatsChartRow .tooltipWrap .qmark:hover {
+  background: #5a6378 !important;
+  border-color: #4a5368 !important;
+  color: rgba(226, 232, 240, 0.98) !important;
+}
+
+/* Stats Contributions modal: gray stargazing-style, not too dark; title grayish */
+.sgStatsChartModal .modalHeader {
+  background: #3d4556;
+  color: rgba(226, 232, 240, 0.95);
+}
+.sgStatsChartModal .modalHeader .mono {
+  color: rgba(226, 232, 240, 0.9);
+}
+.sgStatsChartModal .modalHeader .small {
+  color: rgba(226, 232, 240, 0.7);
+}
+.sgStatsChartModal .modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #3d4556;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 0 0 12px 12px;
+}
+.sgStatsContribBlock {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sgStatsContribBlock:last-child {
+  border-bottom: none;
+}
+.sgStatsContribTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.95);
+  margin-bottom: 8px;
+}
+.sgStatsContribBars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sgStatsContribRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+.sgStatsContribLabel {
+  flex: 0 0 110px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.88);
+}
+.sgStatsContribBarTrack {
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sgStatsContribBarFill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 4px;
+  transition: width 0.15s ease;
+}
+.sgStatsContribValue {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(226, 232, 240, 0.95);
+}
+.sgStatsContribPct {
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.65);
+  margin-left: 2px;
+}
+

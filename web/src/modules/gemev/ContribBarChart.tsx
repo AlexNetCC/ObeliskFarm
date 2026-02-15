@@ -469,6 +469,8 @@ export function ContribBarChart(props: {
                 : totalBarLen,
         );
         const labelY = y0 + barH / 2 + 4;
+        /** Value text: for Lootbug costs put it right of the bar (like Drone Fuel), not at barEndX which is the left end of the negative bar. */
+        const valueTextX = isLootbugCostsRow && typeof lootbugTotalGemCostPerHour === "number" && lootbugTotalGemCostPerHour > 0 ? xOf(0) + 8 : barEndX + 8;
 
         return (
           <g key={i}>
@@ -784,7 +786,7 @@ export function ContribBarChart(props: {
             <text x={padL - 8} y={labelY} textAnchor="end" fontSize={11} fontWeight={800} fill="rgba(15,23,42,0.85)">
               {label}
             </text>
-            <text x={barEndX + 8} y={labelY} textAnchor="start" fontSize={10} fontWeight={800} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
+            <text x={valueTextX} y={labelY} textAnchor="start" fontSize={10} fontWeight={800} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
               {fmt1(valuesTop[i] ?? 0)} ({fmt1(pcts[i] ?? 0)}%)
             </text>
           </g>

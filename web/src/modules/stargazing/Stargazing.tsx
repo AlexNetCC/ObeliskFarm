@@ -6,6 +6,43 @@ import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
 import { StargazingCalculator, type PlayerStats } from "../../lib/stargazing/calculator";
 
+/** Horizontal bar chart for one of Stars or Super Stars: label, bar (width = % of total), value. */
+function StatsContribChart(props: {
+  title: string;
+  total: number;
+  rows: { label: string; value: number; color: string }[];
+  fmt: (x: number) => string;
+}) {
+  const { title, total, rows, fmt } = props;
+  const maxVal = Math.max(...rows.map((r) => r.value), 1);
+  return (
+    <div className="sgStatsContribBlock">
+      <div className="sgStatsContribTitle">{title}</div>
+      <div className="sgStatsContribBars" role="img" aria-label={`${title} contributions bar chart`}>
+        {rows.map(({ label, value, color }) => {
+          const pct = total > 0 ? (value / total) * 100 : 0;
+          const widthPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
+          return (
+            <div key={label} className="sgStatsContribRow">
+              <span className="sgStatsContribLabel">{label}</span>
+              <div className="sgStatsContribBarTrack">
+                <div
+                  className="sgStatsContribBarFill"
+                  style={{ width: `${widthPct}%`, backgroundColor: color }}
+                />
+              </div>
+              <span className="mono sgStatsContribValue" title={`${fmt(value)}/h (${pct.toFixed(1)}%)`}>
+                {fmt(value)}
+                <span className="sgStatsContribPct"> ({pct.toFixed(1)}%)</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 type UiStats = {
   floor_clears_per_minute: number;
   star_spawn_rate_mult: number;
@@ -30,6 +67,9 @@ type UiStats = {
   all_star_mult: number;
   novagiant_combo_mult: number;
 };
+
+/** 2× Star Spawn Rate buff icon (Elixir/Lootbug/Founder). */
+const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spawn_Rate_Buff.png";
 
 /** Star card ids that have sprites in sprites/stargazing (from main Python/assets). */
 const STAR_CARD_IDS = [
@@ -609,6 +649,11 @@ export function Stargazing() {
 
   const spawnTree = useMemo(() => new StargazingCalculator(stats).get_spawn_tree(), [stats]);
 
+  const starContributions = useMemo(() => new StargazingCalculator(stats).get_star_contributions_per_hour(), [stats]);
+  const superStarContributions = useMemo(() => new StargazingCalculator(stats).get_super_star_contributions_per_hour(), [stats]);
+
+  const [statsChartOpen, setStatsChartOpen] = useState(false);
+
   /** Multiplier for selected card tier (Stars only; SS not affected). */
   const resultsCardMult = useMemo(() => {
     const sel = starCards.selected_card_for_results;
@@ -776,6 +821,58 @@ export function Stargazing() {
               <div className="mono sgResultValueOrange">{fmt1(summaryOffline.super_stars_per_hour_offline_gains)}</div>
             </div>
 
+            {droneBuffs.total2xStarMinPerHour > 0 && (
+              <div className="sg2xUptimeRow">
+                <span className="sg2xUptimeLabel">
+                  <img src={ICON_2X_STAR_SPAWN} alt="" width={18} height={18} className="sg2xUptimeIcon" aria-hidden />
+                  2× Star buff uptime
+                  <Tooltip
+                    content={{
+                      title: "2× Star Spawn Rate buff uptime",
+                      sections: [
+                        {
+                          heading: "Combined min/h",
+                          lines: [
+                            "Buff uptime per hour from Elixir (Drone), Lootbug (free + gem; Golden Lootbug), and Founder Supply Drop. Same buff; durations add (e.g. 3 + 5 + 2 = 10 min/h → 1/6 uptime). That uptime multiplies star gain.",
+                          ],
+                        },
+                      ],
+                    }}
+                    label="?"
+                  />
+                </span>
+                <span className="mono sg2xUptimeValue">{droneBuffs.total2xStarMinPerHour.toFixed(1)} min/h</span>
+              </div>
+            )}
+
+            <div className="sgStatsChartRow">
+              <button
+                type="button"
+                className="btn sgStatsChartBtn"
+                onClick={() => setStatsChartOpen(true)}
+                title="Stats Contributions"
+                aria-label="Open Stats Contributions chart"
+              >
+                Stats Contributions
+                <span className="sgStatsChartIconWrap" aria-hidden>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="14" width="4" height="6" rx="1" />
+                    <rect x="10" y="10" width="4" height="10" rx="1" />
+                    <rect x="17" y="6" width="4" height="14" rx="1" />
+                  </svg>
+                </span>
+              </button>
+              <Tooltip
+                content={{
+                  title: "Stats Contributions",
+                  lines: [
+                    "Opens a chart showing how much each stat contributes to Stars and Super Stars gains (Double Star, Triple Star, Supernova, Supergiant, Radiant; for SS: 10× Chance instead of Double Star).",
+                  ],
+                }}
+                label="?"
+              />
+            </div>
+
             <Collapsible id="stargazing-spawn-events" title="Floor clear / Spawn events" defaultExpanded={false} className="sgSpawnCollapse" headerRight={<span className="small mono" style={{ opacity: 0.9 }}>{fmt0(summary.star_spawn_rate_per_hour)} /h star · {fmt0(summary.super_star_spawn_rate_per_hour)} /h SS</span>}>
               <div className="small" style={{ marginBottom: 6 }}>
                 Spawn events/hour: <span className="mono">{fmt0(summary.star_spawn_rate_per_hour)}</span> · Super-star events/hour:{" "}
@@ -823,40 +920,6 @@ export function Stargazing() {
                 )}
               </div>
             </Collapsible>
-            {(droneBuffs.total2xStarMinPerHour > 0 || droneBuffs.drone3xSuperUptimeFraction > 0 || droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0) && (
-              <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  Includes 2× Star (Elixir + Lootbug incl. Golden + Founder Supply; minutes add)
-                  {droneBuffs.drone3xSuperUptimeFraction > 0 && ", 3× Super Star (Elixir)"}
-                  {droneBuffs.founderSupplyDropAutoCatch100MinPerHour > 0 && ", 100% Auto-catch (Founder Supply)"}
-                  <Tooltip
-                    content={{
-                      title: "External buffs",
-                      sections: [
-                        {
-                          heading: "2× Star Spawn Rate",
-                          lines: [
-                            "Same buff from three sources: Drone Elixir, Lootbug (free + gem; gem or Golden Lootbug), Founder Supply Drop. They do not multiply; their durations add (e.g. 3 + 5 + 2 = 10 min/h → 1/6 uptime). That uptime acts as a multiplier for star gain.",
-                          ],
-                        },
-                        {
-                          heading: "3× Super Star",
-                          lines: [
-                            "From Drone Elixir only. When active together with 2× Star they multiply in-game; we use average uptime.",
-                          ],
-                        },
-                        {
-                          heading: "100% Auto-catch",
-                          lines: [
-                            "Founder Supply Drop gives 8 min (÷ game speed) of 100% Star Auto-catch per drop. Blended with your base auto-catch over the hour. Starburst Drone effects: enter manually in Your stats to avoid double-counting.",
-                          ],
-                        },
-                      ],
-                    }}
-                  />
-                </span>
-              </div>
-            )}
           </div>
 
         <Collapsible id="stargazing-star-cards" title="Star Cards" defaultExpanded={false}>
@@ -1282,6 +1345,48 @@ export function Stargazing() {
           </div>
         </Collapsible>
       </div>
+
+      {statsChartOpen ? (
+        <div className="modalOverlay" onMouseDown={() => setStatsChartOpen(false)}>
+          <div className="modalWindow sgStatsChartModal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div>
+                <div className="mono" style={{ fontWeight: 900 }}>Stats Contributions</div>
+                <div className="small">Share of Stars and Super Stars gains per stat (online rates).</div>
+              </div>
+              <button className="btn btnSecondary" type="button" onClick={() => setStatsChartOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="modalBody">
+              <StatsContribChart
+                title="Stars"
+                total={summary.stars_per_hour_online}
+                rows={[
+                  { label: "Double Star", value: starContributions.doubleStar, color: "#fff59d" },
+                  { label: "Triple Star", value: starContributions.tripleStar, color: "#ffeb3b" },
+                  { label: "Supernova", value: starContributions.supernova, color: "#ffc107" },
+                  { label: "Supergiant", value: starContributions.supergiant, color: "#ffa726" },
+                  { label: "Radiant", value: starContributions.radiant, color: "#f57f17" },
+                ]}
+                fmt={fmt1}
+              />
+              <StatsContribChart
+                title="Super Stars"
+                total={summary.super_stars_per_hour_online}
+                rows={[
+                  { label: "Triple Star", value: superStarContributions.tripleStar, color: "#42a5f5" },
+                  { label: "10× Chance", value: superStarContributions.tenXChance, color: "#90caf9" },
+                  { label: "Supernova", value: superStarContributions.supernova, color: "#2196f3" },
+                  { label: "Supergiant", value: superStarContributions.supergiant, color: "#1e88e5" },
+                  { label: "Radiant", value: superStarContributions.radiant, color: "#1565c0" },
+                ]}
+                fmt={fmt1}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

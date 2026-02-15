@@ -2608,9 +2608,21 @@ export function Drone() {
             }}
           />
           <div className="droneRow">
-            <span className="droneLabel">→ Interval (2 ticks every)</span>
+            <span className="droneLabel">
+              → Interval (2 ticks every)
+              <Tooltip
+                content={{
+                  title: "Interval real time",
+                  lines: [
+                    "Real time = game time ÷ game speed (from Gem EV).",
+                    "If in-game shows a slightly different value (e.g. 403.97 s), the game may use a rounded game speed or a slightly different interval; our value uses the exact formula 1140 − suit×2 s game.",
+                  ],
+                }}
+                label="?"
+              />
+            </span>
             <span className="droneStepperValue">
-              {anglerIntervalSecGame} s game{gameSpeedMult > 1 ? ` = ${anglerIntervalSecReal.toFixed(1)} s real` : ""}
+              {anglerIntervalSecGame} s game{gameSpeedMult > 1 ? ` = ${anglerIntervalSecReal.toFixed(2)} s real` : ""}
             </span>
           </div>
           <div className="droneCheckboxRow">

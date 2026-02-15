@@ -574,6 +574,17 @@ export function Lootbug() {
     return (lootbugFishing12TicksProcsPerHour / ticksWithoutLootbug) * 100;
   }, [lootbugFishing12TicksProcsPerHour]);
 
+  /** +% gem gains from Lootbug overall (gross − cost vs rest of total). Requires Gem EV to have run (totalGemsPerHour). */
+  const lootbugOverallGainsPct = useMemo(() => {
+    const ext = loadJson<{ totalGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
+    const total = typeof ext?.totalGemsPerHour === "number" ? ext.totalGemsPerHour : 0;
+    const gross = gemsPerHour + lootbug10xGemEvPerHour + lootbugChestGemEvPerHour;
+    const net = gross - totalGemCostPerHour;
+    const withoutLootbug = total - net;
+    if (withoutLootbug <= 0 || net <= 0) return null;
+    return (net / withoutLootbug) * 100;
+  }, [gemsPerHour, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
   const BOMB_RECHARGE_ICON =
@@ -836,6 +847,33 @@ export function Lootbug() {
           </div>
           <div className="lootbugGainsBlock">
             <span className="lootbugSectionTitle">Gem buffs</span>
+            {lootbugOverallGainsPct != null ? (
+              <div className="lootbugRow">
+                <span className="lootbugStatLabel">
+                  <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                  <span className="lootbugLabel">
+                    Lootbug: Overall gains
+                    <Tooltip
+                      content={{
+                        title: "Lootbug overall gains",
+                        sections: [
+                          {
+                            heading: "What the +% means",
+                            lines: [
+                              "Increase in total gem EV per hour from Lootbug (all buffs and gains minus gem buff costs).",
+                              "Baseline = total without Lootbug. Open Gem EV once to sync.",
+                            ],
+                          },
+                        ],
+                      }}
+                    />
+                  </span>
+                </span>
+                <span className={`lootbugValue ${lootbugOverallGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
+                  +{lootbugOverallGainsPct.toFixed(1)}%
+                </span>
+              </div>
+            ) : null}
             {buyGemBuffsSet.has("2x Game Speed") && (
               <div className="lootbugRow">
                 <span className="lootbugStatLabel">

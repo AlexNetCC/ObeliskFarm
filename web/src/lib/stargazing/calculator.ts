@@ -318,6 +318,91 @@ export class StargazingCalculator {
     };
   }
 
+  /**
+   * Contribution of each stat to stars per hour (online), for Stats Contributions chart.
+   * Parts add up to total stars/hour. Double Star includes base 1× outcome; multiplier parts (Supernova etc.) from (mult - 1) split.
+   */
+  get_star_contributions_per_hour(): {
+    doubleStar: number;
+    tripleStar: number;
+    supernova: number;
+    supergiant: number;
+    radiant: number;
+  } {
+    const spawns = this.calculate_star_spawn_rate_per_hour();
+    const mult = this.calculate_star_multiplier_per_star();
+    const p_double = clamp01(this.stats.double_star_chance);
+    const p_triple = clamp01(this.stats.triple_star_chance);
+    const p_1 = (1 - p_double) * (1 - p_triple);
+    const p_2 = p_double * (1 - p_triple);
+    const p_3 = (1 - p_double) * p_triple;
+    const p_both = p_double * p_triple;
+    const stars_per_spawn = 1 * p_1 + 2 * p_2 + 3 * p_3 + (4 + 5 + 6) / 3 * p_both;
+
+    const doublePart = 2 * p_2 + 1.5 * p_both;
+    const triplePart = 3 * p_3 + 3 * p_both;
+    const basePart = p_1;
+
+    const doubleStar = (basePart + doublePart) * spawns * mult;
+    const tripleStar = triplePart * spawns * mult;
+
+    const p_sn = clamp01(this.stats.star_supernova_chance);
+    const p_sg = clamp01(this.stats.star_supergiant_chance);
+    const p_rad = clamp01(this.stats.star_radiant_chance);
+    const sn_contrib = 1 + p_sn * (this.stats.star_supernova_mult - 1);
+    const sg_contrib = 1 + p_sg * (this.stats.star_supergiant_mult - 1);
+    const rad_contrib = 1 + p_rad * (this.stats.star_radiant_mult - 1);
+    const p_nov = p_sn * p_sg;
+    const nov_contrib = 1 + p_nov * (this.stats.novagiant_combo_mult - 1);
+    const sum_extra = (sn_contrib - 1) + (sg_contrib - 1) + (rad_contrib - 1) + (nov_contrib - 1);
+    const mult_extra = mult - 1;
+    const slice = sum_extra > 0 && mult_extra > 0 ? (mult_extra * spawns * stars_per_spawn) / sum_extra : 0;
+    const supernova = (sn_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
+    const supergiant = (sg_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
+    const radiant = (rad_contrib - 1) * slice;
+
+    return { doubleStar, tripleStar, supernova, supergiant, radiant };
+  }
+
+  /**
+   * Contribution of each stat to super stars per hour (online), for Stats Contributions chart.
+   * 10× Chance includes 1× base outcome; Triple, then Supernova/Supergiant/Radiant from multiplier.
+   */
+  get_super_star_contributions_per_hour(): {
+    tenXChance: number;
+    tripleStar: number;
+    supernova: number;
+    supergiant: number;
+    radiant: number;
+  } {
+    const spawns = this.calculate_super_star_spawn_rate_per_hour();
+    const mult = this.calculate_super_star_multiplier_per_star();
+    const p_triple = clamp01(this.stats.triple_super_star_chance);
+    const p_10x = clamp01(this.stats.super_star_10x_chance);
+    const p_1 = Math.max(0, 1 - p_triple - p_10x);
+    const ss_per_spawn = 1 * p_1 + 3 * p_triple + 10 * p_10x;
+
+    const tenXChance = (p_1 + 10 * p_10x) * spawns * mult;
+    const tripleStar = 3 * p_triple * spawns * mult;
+
+    const p_sn = clamp01(this.stats.super_star_supernova_chance);
+    const p_sg = clamp01(this.stats.super_star_supergiant_chance);
+    const p_rad = clamp01(this.stats.super_star_radiant_chance);
+    const sn_contrib = 1 + p_sn * (this.stats.super_star_supernova_mult - 1);
+    const sg_contrib = 1 + p_sg * (this.stats.super_star_supergiant_mult - 1);
+    const rad_contrib = 1 + p_rad * (this.stats.super_star_radiant_mult - 1);
+    const p_nov = p_sn * p_sg;
+    const nov_contrib = 1 + p_nov * (this.stats.novagiant_combo_mult - 1);
+    const sum_extra = (sn_contrib - 1) + (sg_contrib - 1) + (rad_contrib - 1) + (nov_contrib - 1);
+    const mult_extra = mult - 1;
+    const slice = sum_extra > 0 && mult_extra > 0 ? (mult_extra * spawns * ss_per_spawn) / sum_extra : 0;
+    const supernova = (sn_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
+    const supergiant = (sg_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
+    const radiant = (rad_contrib - 1) * slice;
+
+    return { tenXChance, tripleStar, supernova, supergiant, radiant };
+  }
+
   /** Get a summary of all calculated values. */
   get_summary(): {
     star_spawn_rate_per_hour: number;
