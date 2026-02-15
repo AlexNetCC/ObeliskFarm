@@ -503,8 +503,7 @@ const statsTooltip = {
     {
       heading: "Double / triple / 5× tick chance",
       lines: [
-        "When the tick bar fills, you can get 2, 3, or 5 ticks at once instead of 1.",
-        "Example: at 4/5, a 5× tick gives 5 ticks (bar fills and resets), then 4 more → 4/5 again.",
+        "Three multipliers from Your stats. When the tick bar fills, double can give 2× ticks, triple 3×, 5× gives 5×; they multiply together (e.g. 2× and 3× and 5× → 30×).",
         "5× from fishing only is 0%; the game can add more from relics, store, or cards.",
       ],
     },
@@ -898,7 +897,7 @@ export function Fishing() {
   const extraTicksPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour;
   /** Raw tick-bar units per hour (before double/triple/5× mult). Used for Sushi correspondence. */
   const rawTicksPerHour = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) + extraTicksPerHour;
-  /** Double/triple/5× tick chance: extra rolls per fill. Applies to Base, Angler, Lootbug, Gift Sushi. */
+  /** Double/triple/5× tick chance: mult (2×, 3×, 5×) from stats, multiplied together. Applies to Base, Angler, Lootbug, Gift Sushi. */
   const tickMult =
     (1 + stats.double_tick_chance_pct / 100) *
     (1 + 2 * stats.triple_tick_chance_pct / 100) *
@@ -1184,7 +1183,7 @@ export function Fishing() {
     saveJson(FISHING_EXTERNAL_KEY, ext);
   }, [effectiveTickSec, rawTicksPerHour, tickMult, visibleGainsRows, anglerBreakdownForDrone, anglerTicksPerHour]);
 
-  /** Run MC: simulate each fill → rolls → catch attempt per fish; record total and per-fish. */
+  /** Run MC: simulate each fill → tick mult (2×/3×/5×) → catch attempt per fish; record total and per-fish. */
   function runFishingMc() {
     const { hours, runs } = mcState;
     const dockIds = new Set(availableDocks.map((d) => d.id));
@@ -1970,7 +1969,7 @@ export function Fishing() {
             <Collapsible id="fishing-mc" title="Variance (MC simulation)" defaultExpanded={false}>
               <div className="fishingMcSection">
                 <p className="small" style={{ marginBottom: 8 }}>
-                  Simulate each catch attempt: every fill → rolls (double/triple) → catch roll per fish. EV above is the average; variance can be high.
+                  Simulate each catch attempt: every fill → 2×/3×/5× tick mult → catch per fish. EV above is the average; variance can be high.
                 </p>
                 <div className="fishingMcInputRow">
                   <label className="fishingMcLabel">
@@ -2164,7 +2163,37 @@ export function Fishing() {
               <img src="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png" alt="" className="fishingSushiIcon" aria-hidden />
               <span className="fishingSectionTitle">Sushi</span>
             </div>
-            <p className="small" style={{ marginBottom: 8, opacity: 0.85 }}>Sushi gives <span className="mono">{ticksPerSushi}</span> fishing ticks.</p>
+            <p className="small" style={{ marginBottom: 4, opacity: 0.85 }}>Sushi gives <span className="mono">{ticksPerSushi}</span> fishing ticks.</p>
+            <p className="small" style={{ marginBottom: 8, opacity: 0.85 }}>
+              Effective Fishing Ticks: <span className="mono">{(ticksPerSushi * tickMult).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
+              <Tooltip
+                content={{
+                  title: "Effective Fishing Ticks",
+                  sections: [
+                    {
+                      heading: "Formula",
+                      lines: [
+                        "Raw ticks per Sushi × tick mult. Sushi gives raw tick-bar units; the mult is from Your stats (2×, 3×, 5× tick chance).",
+                      ],
+                    },
+                    {
+                      heading: "Tick mult (2×, 3×, 5×)",
+                      lines: [
+                        "Three multipliers from Your stats: double tick chance (up to 2×), triple (up to 3×), 5× (up to 5×). They multiply together, e.g. all at 100% → 2× × 3× × 5× = 30×.",
+                        "Same formula is used everywhere in Fishing for effective ticks (gains, Sushi EV, MC).",
+                      ],
+                    },
+                    {
+                      heading: "Average and MC",
+                      lines: [
+                        "Average EV (fish per Sushi) and the MC simulation both use effective ticks: fish per hour is already based on effective ticks, so the per-Sushi EV reflects this value.",
+                      ],
+                    },
+                  ],
+                }}
+                label="?"
+              />
+            </p>
             <div className="fishingFishCardsGrid fishingSushiCardGrid">
               <div className="fishingFishCardCell">
                 <div className="fishingFishCardCellTop">
@@ -2334,7 +2363,7 @@ export function Fishing() {
                 />
                 {rawTicksPerHour > 0 && ticksPerSushi > 0 ? (
                   <span className="fishingTickBetterPulse">
-                    (It's like eating {(rawTicksPerHour / ticksPerSushi).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })} Sushi per hour!)
+                    (It's like eating {(rawTicksPerHour / ticksPerSushi).toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })} Sushi per hour!)
                   </span>
                 ) : null}
               </div>

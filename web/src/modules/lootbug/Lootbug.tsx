@@ -437,6 +437,27 @@ export function Lootbug() {
     return freeMinPerHour + gemMinPerHour;
   }, [lootbugsPerHour, totalFreeWeight, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct, lootMultiplier]);
 
+  /** 2× Star from Lootbug: free buff portion only (2 min). */
+  const lootbug2xStarFreeMinPerHour = useMemo(() => {
+    if (gameSpeed <= 0) return 0;
+    const freeBuff = FREE_BUFFS.find((b) => b.name === "2x Star Spawn Rate");
+    const freeMin = getDurationMinutes(freeBuff?.duration ?? null) ?? 0;
+    if (!freeBuff || totalFreeWeight <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(freeBuff)) / totalFreeWeight;
+    return (perHour * freeMin * lootMultiplier) / gameSpeed;
+  }, [lootbugsPerHour, totalFreeWeight, gameSpeed, lootMultiplier]);
+
+  /** 2× Star from Lootbug: gem buff portion only (10 min when bought, or golden). */
+  const lootbug2xStarGemMinPerHour = useMemo(() => {
+    if (gameSpeed <= 0) return 0;
+    const gemBuff = GEM_BUFFS.find((b) => b.name === "2x Star Spawn Rate");
+    const gemMin = getDurationMinutes(gemBuff?.duration ?? null) ?? 0;
+    if (!gemBuff || totalGemWeightAll <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(gemBuff)) / totalGemWeightAll;
+    const effectiveRate = buyGemBuffsSet.has("2x Star Spawn Rate") ? 1 : goldenPct;
+    return (perHour * effectiveRate * gemMin * lootMultiplier) / gameSpeed;
+  }, [lootbugsPerHour, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct, lootMultiplier]);
+
   /** Fishing +12 Ticks (gem buff): ticks per hour = procs × 12 × lootMultiplier. Loot Multi multiplies the tick count (e.g. 1.2× → 14 ticks per proc). Written to Fishing module. */
   const LOOTBUG_FISHING_TICKS_PER_PROC = 12;
   const lootbugFishing12TicksProcsPerHour = useMemo(() => {
@@ -574,16 +595,27 @@ export function Lootbug() {
     return (lootbugFishing12TicksProcsPerHour / ticksWithoutLootbug) * 100;
   }, [lootbugFishing12TicksProcsPerHour]);
 
-  /** +% gem gains from Lootbug overall (gross − cost vs rest of total). Requires Gem EV to have run (totalGemsPerHour). */
-  const lootbugOverallGainsPct = useMemo(() => {
-    const ext = loadJson<{ totalGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
-    const total = typeof ext?.totalGemsPerHour === "number" ? ext.totalGemsPerHour : 0;
-    const gross = gemsPerHour + lootbug10xGemEvPerHour + lootbugChestGemEvPerHour;
-    const net = gross - totalGemCostPerHour;
-    const withoutLootbug = total - net;
-    if (withoutLootbug <= 0 || net <= 0) return null;
-    return (net / withoutLootbug) * 100;
-  }, [gemsPerHour, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  /** +% Star gains from Lootbug's 2× Star (gem buff portion only). Baseline = star mult without this part; uses Stargazing total when available. */
+  const lootbug2xStarGemGainsPct = useMemo(() => {
+    if (lootbug2xStarGemMinPerHour <= 0) return null;
+    const sg = loadJson<{ total2xStarMinPerHour?: number }>("obeliskfarm:web:stargazing_external.json");
+    const total2x = typeof sg?.total2xStarMinPerHour === "number" ? sg.total2xStarMinPerHour : 0;
+    const other2x = Math.max(0, total2x - lootbug2xStarGemMinPerHour);
+    const baselineMult = 1 + other2x / 60;
+    const pct = (lootbug2xStarGemMinPerHour / 60 / baselineMult) * 100;
+    return pct;
+  }, [lootbug2xStarGemMinPerHour]);
+
+  /** +% Star gains from Lootbug's 2× Star (free buff portion only). Baseline = star mult without this part; uses Stargazing total when available. */
+  const lootbug2xStarFreeGainsPct = useMemo(() => {
+    if (lootbug2xStarFreeMinPerHour <= 0) return null;
+    const sg = loadJson<{ total2xStarMinPerHour?: number }>("obeliskfarm:web:stargazing_external.json");
+    const total2x = typeof sg?.total2xStarMinPerHour === "number" ? sg.total2xStarMinPerHour : 0;
+    const other2x = Math.max(0, total2x - lootbug2xStarFreeMinPerHour);
+    const baselineMult = 1 + other2x / 60;
+    const pct = (lootbug2xStarFreeMinPerHour / 60 / baselineMult) * 100;
+    return pct;
+  }, [lootbug2xStarFreeMinPerHour]);
 
   const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
@@ -844,24 +876,21 @@ export function Lootbug() {
                 {lootbugChestGemEvPerHour > 0 ? `+${lootbugChestGemEvPerHour.toFixed(1)}` : "—"}
               </span>
             </div>
-          </div>
-          <div className="lootbugGainsBlock">
-            <span className="lootbugSectionTitle">Gem buffs</span>
-            {lootbugOverallGainsPct != null ? (
+            {lootbug2xStarFreeGainsPct != null ? (
               <div className="lootbugRow">
                 <span className="lootbugStatLabel">
-                  <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                  <img src={getGemBuffIcon("2x Star Spawn Rate")} alt="" className="lootbugStatIcon" aria-hidden />
                   <span className="lootbugLabel">
-                    Lootbug: Overall gains
+                    2× Star Spawn Rate: Star gains
                     <Tooltip
                       content={{
-                        title: "Lootbug overall gains",
+                        title: "Star gains from 2× Star Spawn Rate (free buff only)",
                         sections: [
                           {
-                            heading: "What the +% means",
+                            heading: "Free buff portion",
                             lines: [
-                              "Increase in total gem EV per hour from Lootbug (all buffs and gains minus gem buff costs).",
-                              "Baseline = total without Lootbug. Open Gem EV once to sync.",
+                              "Increase in star gains from Lootbug's 2× Star Spawn Rate free buff (2 min). Gem buff part is under Gem buffs.",
+                              "Baseline = star mult without this free portion. Open Stargazing once to sync.",
                             ],
                           },
                         ],
@@ -869,8 +898,38 @@ export function Lootbug() {
                     />
                   </span>
                 </span>
-                <span className={`lootbugValue ${lootbugOverallGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
-                  +{lootbugOverallGainsPct.toFixed(1)}%
+                <span className={`lootbugValue ${lootbug2xStarFreeGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
+                  +{lootbug2xStarFreeGainsPct.toFixed(1)}%
+                </span>
+              </div>
+            ) : null}
+          </div>
+          <div className="lootbugGainsBlock">
+            <span className="lootbugSectionTitle">Gem buffs</span>
+            {lootbug2xStarGemGainsPct != null ? (
+              <div className="lootbugRow">
+                <span className="lootbugStatLabel">
+                  <img src={getGemBuffIcon("2x Star Spawn Rate")} alt="" className="lootbugStatIcon" aria-hidden />
+                  <span className="lootbugLabel">
+                    2× Star Spawn Rate: Star gains
+                    <Tooltip
+                      content={{
+                        title: "Star gains from 2× Star Spawn Rate (gem buff only)",
+                        sections: [
+                          {
+                            heading: "Gem buff portion",
+                            lines: [
+                              "Increase in star gains from Lootbug's 2× Star Spawn Rate gem buff (10 min when bought, or Golden Lootbug). Free buff part is under Free buffs.",
+                              "Baseline = star mult without this gem portion. Open Stargazing once to sync.",
+                            ],
+                          },
+                        ],
+                      }}
+                    />
+                  </span>
+                </span>
+                <span className={`lootbugValue ${lootbug2xStarGemGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
+                  +{lootbug2xStarGemGainsPct.toFixed(1)}%
                 </span>
               </div>
             ) : null}

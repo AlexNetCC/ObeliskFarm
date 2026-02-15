@@ -157,7 +157,7 @@ function GiftChartSvg(props: {
       {title ? (
         <div style={{ marginBottom: 4 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(71,85,105,0.85)" }}>{title}</div>
-          <div style={{ fontSize: 12, color: "rgba(71,85,105,0.65)", marginTop: 2 }}>Gift Reward Multipliers already applied!</div>
+          <div style={{ fontSize: 12, color: "rgba(71,85,105,0.65)", marginTop: 2 }}>Fish with your current Docks/Power setup</div>
         </div>
       ) : null}
       <div style={{ position: "relative", display: "inline-block", minWidth: W }}>
@@ -307,7 +307,7 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown }) {
         {(Number(breakdown.sushi_fish ?? 0) > 0 || Number((breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty?.sushi_fish ?? 0) > 0) ? (
           <div style={{ marginTop: 12, marginBottom: 4 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(71,85,105,0.85)" }}>Sushi</div>
-            <div style={{ fontSize: 12, color: "rgba(71,85,105,0.65)", marginTop: 2, marginBottom: 6 }}>Gift Reward Multipliers already applied!</div>
+            <div style={{ fontSize: 12, color: "rgba(71,85,105,0.65)", marginTop: 2, marginBottom: 6 }}>Fish with your current Docks/Power setup</div>
             <div
               style={{
                 display: "inline-flex",
@@ -322,7 +322,7 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown }) {
             >
               <img src={SUSHI_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
               <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: "rgba(71,85,105,0.9)" }}>
-                {fmt1(Number((breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty?.sushi_fish ?? 0))} sushi/Gift · {fmt1(Number(breakdown.sushi_fish ?? 0))} fish
+                {fmt1(Number((breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty?.sushi_fish ?? 0))} Sushi/Gift · {fmt1(Number(breakdown.sushi_fish ?? 0))} fish
               </span>
             </div>
           </div>
