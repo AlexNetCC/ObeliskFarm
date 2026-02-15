@@ -555,9 +555,9 @@ export function Lootbug() {
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
-    ext.lootbugFishing12TicksProcsPerHour = lootbugFishing12TicksProcsPerHour;
+    ext.lootbugFishing12TicksProcsPerHour = buyGemBuffsSet.has("Fishing +12 Ticks") ? lootbugFishing12TicksProcsPerHour : 0;
     saveJson(FISHING_EXTERNAL_KEY, ext);
-  }, [lootbugFishing12TicksProcsPerHour]);
+  }, [lootbugFishing12TicksProcsPerHour, buyGemBuffsSet]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(ARCH_EXTERNAL_KEY) ?? {};

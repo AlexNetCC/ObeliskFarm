@@ -480,7 +480,10 @@ export function GemEv() {
   }, [founderSupplyDrop.starSpawn2xMinPerHour, founderSupplyDrop.starAutoCatch100MinPerHour]);
 
   useEffect(() => {
-    const giftSushiPerHour = calculateGiftSushiPerHour(effectiveParams);
+    const gemevExt = loadJson<{ fishingUnlocked?: boolean }>(GEMEV_EXTERNAL_KEY);
+    const fishingUnlocked = gemevExt?.fishingUnlocked !== false;
+    const raw = calculateGiftSushiPerHour(effectiveParams);
+    const giftSushiPerHour = fishingUnlocked ? raw : 0;
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
     ext.giftSushiPerHour = giftSushiPerHour;
     saveJson(FISHING_EXTERNAL_KEY, ext);
