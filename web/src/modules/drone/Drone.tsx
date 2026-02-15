@@ -603,6 +603,14 @@ export function Drone() {
     saveJson(STORAGE_KEY, state);
   }, [state]);
 
+  /** Bump when fishing_external is updated (by this module or Fishing) so Angler ticks/h display re-reads. */
+  const [fishingExternalRevision, setFishingExternalRevision] = useState(0);
+  useEffect(() => {
+    const handler = () => setFishingExternalRevision((r) => r + 1);
+    window.addEventListener("obelisk:fishing_external_updated", handler);
+    return () => window.removeEventListener("obelisk:fishing_external_updated", handler);
+  }, []);
+
   const update = useMemo(
     () => (patch: Partial<ElixirState>) => setState((s) => ({ ...s, ...patch })),
     [],
@@ -1076,16 +1084,21 @@ export function Drone() {
   }, [state.starburstDroneOn, state.starburstFueled, starburstTripleStarChancePct, starburstStarSpawnRateUptimeFraction, starburstStarSpawnRatePct]);
 
   const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
+  /** When Drone updates angler data it also writes effectiveAnglerTicksPerHour (using tickMult from Fishing) so ticks/h stays correct when fuel is toggled. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
     ext.elixir3xFishingTickSpeedMinPerHour = elixir3xFishingTickSpeedMinPerHour;
     ext.elixir3xFishingTickSpeedUptimeFraction = elixir3xFishingTickSpeedUptimeFraction;
-    ext.anglerTicksPerHour = state.anglerDroneOn ? anglerTicksPerHour : 0;
+    const rawAngler = state.anglerDroneOn ? anglerTicksPerHour : 0;
+    ext.anglerTicksPerHour = rawAngler;
     ext.anglerBaseTicksPerHour = state.anglerDroneOn ? anglerBaseTicksPerHour : 0;
     ext.anglerBuffTicksPerHour = state.anglerDroneOn && state.anglerFueled ? anglerBuffTicksPerHour : 0;
     ext.anglerLegendaryBonusPct = state.anglerDroneOn && state.anglerFueled ? anglerLegendaryBonusPct : 0;
     ext.anglerBuffUptimeFraction = state.anglerDroneOn && state.anglerFueled ? anglerBuffUptimeFraction : 0;
+    const tickMult = typeof ext.tickMult === "number" && ext.tickMult >= 1 ? ext.tickMult : 1;
+    ext.effectiveAnglerTicksPerHour = rawAngler * tickMult;
     saveJson(FISHING_EXTERNAL_KEY, ext);
+    window.dispatchEvent(new CustomEvent("obelisk:fishing_external_updated"));
   }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction, state.anglerDroneOn, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
 
   /** Drone's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
@@ -1101,6 +1114,7 @@ export function Drone() {
   const anglerFishingData = useMemo(() => {
     const ext = loadJson<{
       effectiveTickSec?: number;
+      effectiveAnglerTicksPerHour?: number;
       fishGains?: Array<{
         fishId: string;
         fishName: string;
@@ -1173,8 +1187,10 @@ export function Drone() {
       if (factor > 0 && factor < 1) legendaryPctIncrease = (1 / factor - 1) * 100;
     }
 
+    const effectiveAnglerTicksPerHour = typeof ext?.effectiveAnglerTicksPerHour === "number" && ext.effectiveAnglerTicksPerHour >= 0 ? ext.effectiveAnglerTicksPerHour : null;
     return {
       effectiveTickSec,
+      effectiveAnglerTicksPerHour,
       extraPerFish,
       totalExtraFishPerHour,
       totalBaseFishPerHour,
@@ -1184,7 +1200,7 @@ export function Drone() {
       extraFromBuff,
       legendaryPctIncrease,
     };
-  }, [state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
+  }, [fishingExternalRevision, state.anglerDroneOn, state.anglerSuitLevel, state.anglerGradeLevel, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
 
   /** +% Fishing gains from Bomb Bear: Lootbug's share of total fishing ticks × (spawn mult − 1). Open Fishing and Lootbug to sync. */
   const bombBearFishingGainsPct = (() => {
@@ -2699,14 +2715,14 @@ export function Drone() {
                       />
                     </span>
                     <span className="droneStepperValue mono">
-                      {anglerBaseTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      {anglerBaseTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                     </span>
                   </div>
                   {state.anglerFueled && anglerBuffTicksPerHour > 0 ? (
                     <div className="droneRow">
                       <span className="droneLabel">From 1% procs (buff, +6 ticks/grade)</span>
                       <span className="droneStepperValue mono">
-                        {anglerBuffTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        {anglerBuffTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                       </span>
                     </div>
                   ) : null}
@@ -2730,7 +2746,7 @@ export function Drone() {
                     {"}"}
                   </span>
                   <span className="droneStepperValue mono">
-                    {anglerTicksPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })} ticks/h
+                    {(anglerFishingData.effectiveAnglerTicksPerHour ?? anglerTicksPerHour).toLocaleString(undefined, { maximumFractionDigits: 1 })} ticks/h
                   </span>
                 </div>
               </div>

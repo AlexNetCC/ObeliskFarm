@@ -635,14 +635,20 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   } as unknown as Record<string, number>;
 }
 
-/** Expected Sushi per hour from gifts (Founder supply drop + Statue of Soprano freebie gifts). */
-export function calculateGiftSushiPerHour(params: GameParameters): number {
+/** Sushi per hour from gifts, split by source (Freebie = Statue of Soprano, Founder = supply drop). */
+export interface GiftSushiPerHourBySource {
+  freebie: number;
+  founder: number;
+}
+
+export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftSushiPerHourBySource {
   const luckyMult = calculateLuckyMultiplier();
   const obelisk = clampPositive(params.obelisk_level, 0);
   const rare = computeRareRollWinProbs(obelisk);
   const sushiPerGift = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
 
-  let giftsPerHour = 0;
+  let freebieGiftsPerHour = 0;
+  let founderGiftsPerHour = 0;
 
   // Statue of Soprano (freebie gift chance)
   const level = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
@@ -653,7 +659,7 @@ export function calculateGiftSushiPerHour(params: GameParameters): number {
     const expectedRolls = calculateExpectedRollsPerClaim(params);
     const freebieEventsPerHour = freebiesPerHour * refreshMult * expectedRolls;
     const expectedGiftsPerEvent = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
-    giftsPerHour += freebieEventsPerHour * expectedGiftsPerEvent;
+    freebieGiftsPerHour = freebieEventsPerHour * expectedGiftsPerEvent;
   }
 
   // Founder supply drop
@@ -664,10 +670,19 @@ export function calculateGiftSushiPerHour(params: GameParameters): number {
     const tripleChance = clamp01(getTripleDropChance(params));
     const singleChance = 1.0 - doubleChance - tripleChance;
     const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-    giftsPerHour += founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10;
+    founderGiftsPerHour = founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10;
   }
 
-  return giftsPerHour * sushiPerGift;
+  return {
+    freebie: freebieGiftsPerHour * sushiPerGift,
+    founder: founderGiftsPerHour * sushiPerGift,
+  };
+}
+
+/** Expected Sushi per hour from gifts (Founder supply drop + Statue of Soprano freebie gifts). */
+export function calculateGiftSushiPerHour(params: GameParameters): number {
+  const { freebie, founder } = calculateGiftSushiPerHourBySource(params);
+  return freebie + founder;
 }
 
 export function calculateFounderGemsPerHour(params: GameParameters): number {

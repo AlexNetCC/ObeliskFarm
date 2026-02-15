@@ -604,6 +604,11 @@
   flex-shrink: 0;
 }
 
+.fishingDockReqTicks {
+  font-size: 0.8em;
+  opacity: 0.9;
+}
+
 .fishingGainsRateWrap {
   display: inline-flex;
   align-items: baseline;

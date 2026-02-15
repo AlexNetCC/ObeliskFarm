@@ -6,6 +6,7 @@ import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
   calculateGiftSushiPerHour,
+  calculateGiftSushiPerHourBySource,
   defaultGameParameters,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
@@ -667,6 +668,14 @@ export function Fishing() {
     running: boolean;
   }>({ samples: null, samplesPerFish: null, running: false });
 
+  /** Bump when Drone (or other module) updates fishing_external so we re-read and re-render. */
+  const [fishingExternalRevision, setFishingExternalRevision] = useState(0);
+  useEffect(() => {
+    const handler = () => setFishingExternalRevision((r) => r + 1);
+    window.addEventListener("obelisk:fishing_external_updated", handler);
+    return () => window.removeEventListener("obelisk:fishing_external_updated", handler);
+  }, []);
+
   const upgradeLevels = state.upgradeLevels ?? {};
   const enhanceLevels = state.enhanceLevels ?? {};
   const skillTreeLevels = state.skillTreeLevels ?? {};
@@ -824,6 +833,8 @@ export function Fishing() {
       anglerBuffUptimeFraction?: number;
       lootbugFishing12TicksProcsPerHour?: number;
       giftSushiPerHour?: number;
+      giftSushiFreebiePerHour?: number;
+      giftSushiFounderPerHour?: number;
     }>(FISHING_EXTERNAL_KEY);
     const minPerHour = typeof ext?.elixir3xFishingTickSpeedMinPerHour === "number" ? ext.elixir3xFishingTickSpeedMinPerHour : 0;
     const uptimeFraction =
@@ -844,6 +855,8 @@ export function Fishing() {
     const gemevExt = loadJson<{ fishingUnlocked?: boolean }>(GEMEV_EXTERNAL_KEY);
     const fishingUnlocked = gemevExt?.fishingUnlocked !== false;
     let giftSushiPerHour = 0;
+    let giftSushiFreebiePerHour = 0;
+    let giftSushiFounderPerHour = 0;
     if (fishingUnlocked) {
       const gemevSave = loadJson<{ params?: Partial<GameParameters>; statue_soprano_level?: number }>(GEMEV_STORAGE_KEY);
       const def = defaultGameParameters();
@@ -852,9 +865,12 @@ export function Fishing() {
         params.statue_soprano_level = Math.max(0, Math.min(3, gemevSave.statue_soprano_level));
       }
       giftSushiPerHour = Math.max(0, calculateGiftSushiPerHour(params));
+      const bySource = calculateGiftSushiPerHourBySource(params);
+      giftSushiFreebiePerHour = Math.max(0, bySource.freebie);
+      giftSushiFounderPerHour = Math.max(0, bySource.founder);
     }
 
-    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour };
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour, giftSushiFreebiePerHour, giftSushiFounderPerHour };
   })();
   const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
   const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
@@ -864,6 +880,8 @@ export function Fishing() {
   const anglerBuffUptimeFraction = fishingExternalData.anglerBuffUptimeFraction;
   const lootbugFishing12TicksProcsPerHour = fishingExternalData.lootbugFishing12TicksProcsPerHour;
   const giftSushiPerHour = fishingExternalData.giftSushiPerHour;
+  const giftSushiFreebiePerHour = fishingExternalData.giftSushiFreebiePerHour ?? 0;
+  const giftSushiFounderPerHour = fishingExternalData.giftSushiFounderPerHour ?? 0;
   /** Angler fuel buff: +X% Legendary Fish Chance during buff uptime. Effective base = 150k × (1 − bonus% × uptime). */
   const effectiveLegendaryCatchBase = Math.max(1, LEGENDARY_CATCH_BASE * (1 - (anglerLegendaryBonusPct / 100) * anglerBuffUptimeFraction));
 
@@ -873,7 +891,10 @@ export function Fishing() {
     effectiveTickSec > 0 ? Math.min(3, tickDurationSec / effectiveTickSec) : 1;
 
   /** When a tick from Angler, Lootbug, or Sushi happens, it adds tick-bar units to every dock. Divide by baseTicksNeeded to get fills per dock (e.g. Desert: 8 ticks = 1 fill). */
-  const giftSushiTicksPerHour = giftSushiPerHour * (SUSHI_BASE_TICKS + SUSHI_CARD_TICKS[state.sushiCardTier]);
+  const ticksPerSushiForGift = SUSHI_BASE_TICKS + SUSHI_CARD_TICKS[state.sushiCardTier];
+  const giftSushiTicksPerHour = giftSushiPerHour * ticksPerSushiForGift;
+  const giftSushiFreebieTicksPerHour = giftSushiFreebiePerHour * ticksPerSushiForGift;
+  const giftSushiFounderTicksPerHour = giftSushiFounderPerHour * ticksPerSushiForGift;
   const extraTicksPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour;
   /** Raw tick-bar units per hour (before double/triple/5× mult). Used for Sushi correspondence. */
   const rawTicksPerHour = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) + extraTicksPerHour;
@@ -1042,7 +1063,7 @@ export function Fishing() {
     return fishingGainsRows.filter((r) => r.hasPower);
   }, [fishingGainsRows, state.showDisabledFishGrayed]);
 
-  /** Angler breakdown for Drone: gains from suit ticks only, from buff ticks only, legendary +% from buff. */
+  /** Angler breakdown for Drone: base = fish without Angler (base ticks + Lootbug + Gift Sushi), full = with Angler. So extra % = Angler gain as % of fish without Angler. */
   const anglerBreakdownForDrone = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rod = effectiveRodPower;
@@ -1053,6 +1074,8 @@ export function Fishing() {
     const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
     const anglerSuitExtra = anglerBaseTicksPerHour;
     const anglerBuffExtra = anglerBuffTicksPerHour;
+    const baseTicksPerHour = effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0;
+    const ticksWithoutAngler = baseTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour;
 
     let totalBase = 0;
     let totalAnglerSuit = 0;
@@ -1074,12 +1097,13 @@ export function Fishing() {
       const lastCatchPct = catchChancePercent(powerOnThisDock, lastFish.powerRating);
       const eligible = allPoly && lastCatchPct >= 100 && powerOnThisDock > 0;
       const numerator = eligible ? Math.min(9, Math.floor(lastCatchPct / 100)) : 0;
-      const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
       const chanceBase = numerator / LEGENDARY_CATCH_BASE;
       const chanceBuff = numerator / effectiveLegendaryCatchBase;
-      const b = dockFillsPerHour * chanceBase;
-      const s = (dockFillsPerHour + anglerSuitExtra) * chanceBase;
-      const f = (dockFillsPerHour + anglerSuitExtra + anglerBuffExtra) * chanceBuff;
+      const fillsWithoutAngler = ticksWithoutAngler / dock.baseTicksNeeded;
+      const fillsWithAngler = fillsWithoutAngler + anglerTicksPerHour / dock.baseTicksNeeded;
+      const b = fillsWithoutAngler * chanceBase;
+      const s = (fillsWithoutAngler + anglerSuitExtra / dock.baseTicksNeeded) * chanceBase;
+      const f = (fillsWithoutAngler + anglerSuitExtra / dock.baseTicksNeeded) * chanceBase + (anglerBuffExtra / dock.baseTicksNeeded) * chanceBuff;
       legendaryBase += b;
       legendaryAnglerSuit += s;
       legendaryAnglerFull += f;
@@ -1092,7 +1116,8 @@ export function Fishing() {
       const rodHere = state.activeDockId === set.dockId ? rod : 0;
       const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
       const powerOnThisDock = rodHere + dronesHere * dronePower;
-      const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+      const fillsWithoutAngler = ticksWithoutAngler / dock.baseTicksNeeded;
+      const fillsWithAngler = fillsWithoutAngler + anglerTicksPerHour / dock.baseTicksNeeded;
       for (const f of set.fish) {
         const catchMulti =
           expectedRollsPerFill *
@@ -1100,9 +1125,9 @@ export function Fishing() {
           stats.fish_income_multi *
           expectedShinyMulti *
           getCardMulti(f.id);
-        const b = dockFillsPerHour * catchMulti;
-        const s = (dockFillsPerHour + anglerSuitExtra) * catchMulti;
-        const fu = (dockFillsPerHour + anglerSuitExtra + anglerBuffExtra) * catchMulti;
+        const b = fillsWithoutAngler * catchMulti;
+        const fu = fillsWithAngler * catchMulti;
+        const s = (fillsWithoutAngler + anglerSuitExtra / dock.baseTicksNeeded) * catchMulti;
         totalBase += b;
         totalAnglerSuit += s;
         totalAnglerFull += fu;
@@ -1130,10 +1155,13 @@ export function Fishing() {
     state.activeDockId,
     state.fishCardTier,
     getCardMulti,
+    anglerTicksPerHour,
     anglerBaseTicksPerHour,
     anglerBuffTicksPerHour,
     effectiveLegendaryCatchBase,
     expectedShinyMulti,
+    lootbugFishing12TicksProcsPerHour,
+    giftSushiTicksPerHour,
   ]);
 
   /** Export for Drone (Angler) and Lootbug: raw total for share calc, angler breakdown. Display uses totalEffectiveTicksPerHour (incl. mult). */
@@ -1141,6 +1169,8 @@ export function Fishing() {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
     ext.effectiveTickSec = effectiveTickSec;
     ext.totalEffectiveTicksPerHour = rawTicksPerHour;
+    ext.tickMult = tickMult;
+    ext.effectiveAnglerTicksPerHour = anglerTicksPerHour * tickMult;
     ext.fishGains = visibleGainsRows
       .filter((r) => r.hasPower && (r.baseFishPerHour > 0 || r.fishPerHour > 0))
       .map((r) => ({
@@ -1152,7 +1182,7 @@ export function Fishing() {
     ext.anglerBreakdown = anglerBreakdownForDrone;
     ext.anglerTicksUsedForFishGains = anglerTicksPerHour;
     saveJson(FISHING_EXTERNAL_KEY, ext);
-  }, [effectiveTickSec, rawTicksPerHour, visibleGainsRows, anglerBreakdownForDrone, anglerTicksPerHour]);
+  }, [effectiveTickSec, rawTicksPerHour, tickMult, visibleGainsRows, anglerBreakdownForDrone, anglerTicksPerHour]);
 
   /** Run MC: simulate each fill → rolls → catch attempt per fish; record total and per-fish. */
   function runFishingMc() {
@@ -1872,6 +1902,7 @@ export function Fishing() {
             </div>
             <div className="fishingGainsList">
               {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct, totalMulti, isLegendary }) => {
+                const dock = DOCKS.find((d) => d.id === dockId);
                 const isActive = hasPower;
                 const heatT =
                   heatMax > heatMin && isActive && fishPerHour > 0
@@ -1894,7 +1925,12 @@ export function Fishing() {
                       {fish.name}
                       {!isLegendary && <span className="fishingGainsCardMulti"> ×{totalMulti.toFixed(2)}</span>}
                     </span>
-                    <span className="small fishingGainsDockName">{dockName}</span>
+                    <span className="small fishingGainsDockName">
+                      {dockName}
+                      {dock ? (
+                        <span className="fishingDockReqTicks"> (Req: {dock.baseTicksNeeded} Ticks)</span>
+                      ) : null}
+                    </span>
                     <span className="fishingGainsRateWrap">
                       {isActive && (
                         <span className="fishingGainsCatchPct" title="Catch chance (%)">
@@ -2309,12 +2345,22 @@ export function Fishing() {
                   {lootbugFishing12TicksProcsPerHour > 0 ? <> + Lootbug {(lootbugFishing12TicksProcsPerHour * tickMult).toFixed(1)}</> : null}
                   {giftSushiTicksPerHour > 0 ? (
                     <>
-                      + Gift Sushi {(giftSushiTicksPerHour * tickMult).toFixed(1)}
+                      + Gift Sushi{" "}
+                      {[
+                        giftSushiFreebieTicksPerHour > 0
+                          ? `Freebie ${(giftSushiFreebieTicksPerHour * tickMult).toFixed(1)}`
+                          : null,
+                        giftSushiFounderTicksPerHour > 0
+                          ? `Founder ${(giftSushiFounderTicksPerHour * tickMult).toFixed(1)}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" + ")}
                       <Tooltip
                         content={{
                           title: "Gift Sushi",
                           lines: [
-                            "Sushi from Gifts: Statue of Soprano (freebie gift chance) + Founder supply drop (1/1234 rare per drop).",
+                            "Freebie: Statue of Soprano (freebie gift chance). Founder: supply drop (1/1234 rare per drop, 10 gifts).",
                             "Includes double/triple/5× tick mult.",
                           ],
                         }}
@@ -2521,7 +2567,10 @@ export function Fishing() {
                         aria-label={`Fisher at ${dock.name}`}
                       />
                       <span className="fishingDockRowNameBlock">
-                        <span className="fishingDockRowName">{dock.name}</span>
+                        <span className="fishingDockRowName">
+                          {dock.name}
+                          <span className="fishingDockReqTicks"> (Req: {dock.baseTicksNeeded} Ticks)</span>
+                        </span>
                         <img
                           src={dockIconUrl(dock.id)}
                           alt=""

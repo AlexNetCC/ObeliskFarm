@@ -865,9 +865,18 @@ export function Lootbug() {
                       <Tooltip
                         content={{
                           title: "Fishing gains from Lootbug gem buff",
-                          lines: [
-                            "Percentage increase in fishing gains from the Lootbug Fishing +12 Ticks gem buff.",
-                            "Based on total effective ticks (base + Angler + Lootbug + Gift Sushi). Open Fishing once to sync.",
+                          sections: [
+                            {
+                              heading: "What the +% means",
+                              lines: [
+                                "Increase in fishing gains when you add this Lootbug buff on top of your current setup.",
+                                "Baseline = gains without this buff (base ticks + Angler + Gift Sushi). So the +% is relative to all other buffs included, not base only.",
+                              ],
+                            },
+                            {
+                              heading: "Sync",
+                              lines: ["Uses total effective ticks from Fishing. Open Fishing once to sync."],
+                            },
                           ],
                         }}
                       />
