@@ -5,6 +5,7 @@ import { Tooltip } from "../../components/Tooltip";
 import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
+  calculateGift5xTickUptimeFraction,
   calculateGiftSushiPerHour,
   calculateGiftSushiPerHourBySource,
   defaultGameParameters,
@@ -120,6 +121,17 @@ const GEM_ICON_URL = fishIconUrl("Gem.png");
 const SKILL_POINT_ICON_URL = "https://static.wikitide.net/shminerwiki/thumb/5/51/Skill_Point.png/24px-Skill_Point.png";
 /** 1 skill point = 125 gems (for cost efficiency: marginal % per gem). */
 const GEMS_PER_SKILL_POINT = 125;
+
+/** Small gift/present icon (slightly yellowish) for breakdown: Gift Sushi, Gift 5× Tick. */
+function GiftIcon() {
+  return (
+    <span className="fishingGiftIcon" aria-hidden title="Gift">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 12v10H4V12M2 7h20v5H2V7zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    </span>
+  );
+}
 
 /** Notice Fish Req -10% per level = 1/0.9 − 1 ≈ +11.1% effective gains when notice farming. */
 const FRIENDSHIP_ENDED_NOTICE_MARGINAL_PCT = (1 / 0.9 - 1) * 100;
@@ -856,6 +868,7 @@ export function Fishing() {
     let giftSushiPerHour = 0;
     let giftSushiFreebiePerHour = 0;
     let giftSushiFounderPerHour = 0;
+    let gift5xTickUptimeFraction = 0;
     if (fishingUnlocked) {
       const gemevSave = loadJson<{ params?: Partial<GameParameters>; statue_soprano_level?: number }>(GEMEV_STORAGE_KEY);
       const def = defaultGameParameters();
@@ -867,9 +880,10 @@ export function Fishing() {
       const bySource = calculateGiftSushiPerHourBySource(params);
       giftSushiFreebiePerHour = Math.max(0, bySource.freebie);
       giftSushiFounderPerHour = Math.max(0, bySource.founder);
+      gift5xTickUptimeFraction = calculateGift5xTickUptimeFraction(params);
     }
 
-    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour, giftSushiFreebiePerHour, giftSushiFounderPerHour };
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour, giftSushiFreebiePerHour, giftSushiFounderPerHour, gift5xTickUptimeFraction };
   })();
   const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
   const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
@@ -881,6 +895,7 @@ export function Fishing() {
   const giftSushiPerHour = fishingExternalData.giftSushiPerHour;
   const giftSushiFreebiePerHour = fishingExternalData.giftSushiFreebiePerHour ?? 0;
   const giftSushiFounderPerHour = fishingExternalData.giftSushiFounderPerHour ?? 0;
+  const gift5xTickUptimeFraction = fishingExternalData.gift5xTickUptimeFraction ?? 0;
   /** Angler fuel buff: +X% Legendary Fish Chance during buff uptime. Effective base = 150k × (1 − bonus% × uptime). */
   const effectiveLegendaryCatchBase = Math.max(1, LEGENDARY_CATCH_BASE * (1 - (anglerLegendaryBonusPct / 100) * anglerBuffUptimeFraction));
 
@@ -902,8 +917,10 @@ export function Fishing() {
     (1 + stats.double_tick_chance_pct / 100) *
     (1 + 2 * stats.triple_tick_chance_pct / 100) *
     (1 + 4 * stats.five_tick_chance_pct / 100);
-  /** Total effective fishing ticks per hour (raw fills × tick mult). Used for display. */
-  const totalEffectiveTicksPerHour = rawTicksPerHour * tickMult;
+  /** Extra effective ticks from Gift basic reward "5× Fishing Tick Chance" (uptime × 4× on that slice). */
+  const gift5xTickContribution = rawTicksPerHour * tickMult * 4 * gift5xTickUptimeFraction;
+  /** Total effective fishing ticks per hour (base×mult + Gift 5× contribution). Used for display. */
+  const totalEffectiveTicksPerHour = rawTicksPerHour * tickMult + gift5xTickContribution;
 
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
@@ -2354,8 +2371,8 @@ export function Fishing() {
                   content={{
                     title: "Effective fishing ticks per hour",
                     lines: [
-                      "(Base + Angler + Lootbug + Gift Sushi) × double/triple/5× tick mult. All sources tick with the mult.",
-                      "Base ticks (3600 ÷ effective tick sec, incl. Elixir 3×) + Angler Drone + Lootbug + Gift Sushi (Statue + Founder supply drop).",
+                      "(Base + Angler + Lootbug + Gift Sushi) × double/triple/5× tick mult, plus Gift 5× Tick (basic reward uptime).",
+                      "Base ticks (3600 ÷ effective tick sec, incl. Elixir 3×) + Angler + Lootbug + Gift Sushi (Statue + Founder) + Gift 5× Tick buff.",
                       "Values from Drone, Lootbug, Gem EV. Open those modules to refresh.",
                     ],
                   }}
@@ -2367,20 +2384,20 @@ export function Fishing() {
                   </span>
                 ) : null}
               </div>
-              {(anglerTicksPerHour > 0 || lootbugFishing12TicksProcsPerHour > 0 || giftSushiTicksPerHour > 0 || tickMult > 1) ? (
+              {(anglerTicksPerHour > 0 || lootbugFishing12TicksProcsPerHour > 0 || giftSushiTicksPerHour > 0 || gift5xTickContribution > 0 || tickMult > 1) ? (
                 <div className="fishingTickRow small" style={{ marginTop: -4, marginBottom: 4, color: "rgba(71,85,105,0.85)" }}>
                   Base {((effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) * tickMult).toFixed(1)}
                   {anglerTicksPerHour > 0 ? <> + Angler {(anglerTicksPerHour * tickMult).toFixed(1)}</> : null}
                   {lootbugFishing12TicksProcsPerHour > 0 ? <> + Lootbug {(lootbugFishing12TicksProcsPerHour * tickMult).toFixed(1)}</> : null}
                   {giftSushiTicksPerHour > 0 ? (
                     <>
-                      + Gift Sushi{" "}
+                      + <GiftIcon /> Sushi{" "}
                       {[
                         giftSushiFreebieTicksPerHour > 0
                           ? `Freebie ${(giftSushiFreebieTicksPerHour * tickMult).toFixed(1)}`
                           : null,
                         giftSushiFounderTicksPerHour > 0
-                          ? `Founder ${(giftSushiFounderTicksPerHour * tickMult).toFixed(1)}`
+                          ? `from Founder/Supply ${(giftSushiFounderTicksPerHour * tickMult).toFixed(1)}`
                           : null,
                       ]
                         .filter(Boolean)
@@ -2389,8 +2406,26 @@ export function Fishing() {
                         content={{
                           title: "Gift Sushi",
                           lines: [
-                            "Freebie: Statue of Soprano (freebie gift chance). Founder: supply drop (1/1234 rare per drop, 10 gifts).",
+                            "Freebie: Statue of Soprano (freebie gift chance). Founder/Supply: supply drop (1/1234 rare per drop, 10 gifts).",
                             "Includes double/triple/5× tick mult.",
+                          ],
+                        }}
+                        label="?"
+                      />
+                    </>
+                  ) : null}
+                  {gift5xTickContribution > 0 ? (
+                    <>
+                      {" "}
+                      + <GiftIcon /> 5× Tick{" "}
+                      <span className="mono">{gift5xTickContribution.toFixed(1)}</span>
+                      <Tooltip
+                        content={{
+                          title: "Gift 5× Tick",
+                          lines: [
+                            "Basic reward from Gifts: 5× Fishing Tick Chance, ~12.5 min per proc.",
+                            "Chance = P(basic roll) × 1/12 (when no rare wins). Rare outcomes replace the basic roll.",
+                            "Uptime from Freebie + Founder gifts. Extra effective ticks during that buff.",
                           ],
                         }}
                         label="?"

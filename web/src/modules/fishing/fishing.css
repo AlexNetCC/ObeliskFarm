@@ -160,6 +160,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/** Slightly yellowish gift icon in effective-ticks breakdown (compact, less space than "Gift" text). */
+.fishingGiftIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  color: #b8922e;
+  margin: 0 1px;
+}
+.fishingGiftIcon svg {
+  display: block;
+}
+
 .fishingTickBetterPulse {
   margin-left: 6px;
   color: #1b5e20;

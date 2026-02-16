@@ -75,7 +75,7 @@ const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spaw
 const STAR_CARD_IDS = [
   "aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio",
   "sagittarius", "capricorn", "aquarius", "pisces",
-  "cetus", "draco", "eridanus", "hercules", "ophiuchus", "orion", "phoenix",
+  "ophiuchus", "cetus", "draco", "eridanus", "hercules", "orion", "phoenix",
 ] as const;
 
 /** Card tier: 0 = none, 1 = standard, 2 = gilded, 3 = polychrome, 4 = infernal */
@@ -788,7 +788,7 @@ export function Stargazing() {
                   <Tooltip content={onlineInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueBlue">{fmt1((catchManually ? summary.stars_per_hour_online : summary.stars_per_hour_online_afk) * resultsCardMult)}</div>
+              <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_online * resultsCardMult)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   ⭐ Stars/hour (Online AFK)
@@ -810,7 +810,7 @@ export function Stargazing() {
                   <Tooltip content={onlineInfo} label="?" />
                 </span>
               </kbd>
-              <div className="mono sgResultValueOrange">{fmt1(catchManually ? summary.super_stars_per_hour_online : summary.super_stars_per_hour_online_afk)}</div>
+              <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_online)}</div>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
