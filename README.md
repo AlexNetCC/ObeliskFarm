@@ -1,6 +1,6 @@
 # ObeliskFarm Calculator
 
-> ⚠️ **Data based on OB41 (Obelisk Level 41)** — All calculations and game data are based on OB41. Results may vary for different progression levels.
+> ⚠️ **Data tested up to OB44 (Obelisk Level 44)** — Numerical outcomes have been tested & confirmed within this progression. The web app “About this tool” shows the current value; keep `OB_LEVEL` in `web/src/App.tsx` and this line in sync when you progress.
 
 An interactive calculator toolkit for the Android game **Idle Obelisk Miner**.
 

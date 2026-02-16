@@ -13,8 +13,10 @@ import { Items } from "./modules/items/Items";
 import { Bombs } from "./modules/bombs/Bombs";
 import { OvernightGains } from "./modules/overnight/OvernightGains";
 import "./modules/overnight/overnight.css";
-type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight";
+type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight" | "about";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
+/** Obelisk level for “tested up to” in About and README. Update README when this changes. */
+const OB_LEVEL = 44;
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
@@ -119,28 +121,43 @@ export function App() {
             </button>
           ))}
 
-          <a className="navTile navTileDonation" href={SUPPORT_URL} target="_blank" rel="noreferrer noopener">
+          <button
+            type="button"
+            className={`navTile navTileAbout ${active === "about" ? "navTileActive" : ""}`}
+            onClick={() => setActive("about")}
+          >
             <span className="navEmoji" aria-hidden="true">
-              💵
+              ℹ️
             </span>
-            <span className="navTileSupportLabel">
-              Support me{" "}
-              <Tooltip
-                content={{
-                  title: "Support this project",
-                  lines: [
-                    "I'm a beginner and I build ObeliskFarm as a hobby project.",
-                    "If you find it useful, a small donation helps me keep improving it.",
-                    "Thank you for the support!",
-                  ],
-                }}
-              />
-            </span>
-          </a>
+            <span className="navTileLabel">About this tool</span>
+          </button>
         </div>
       </div>
 
-      {active === "gemev" ? (
+      {active === "about" ? (
+        <div className="aboutSection">
+          <h2 className="aboutTitle">About this tool</h2>
+          <p className="aboutText">
+            I'm a hobby developer and gamer. I created this tool for my personal use, opposing spreadsheet/Excel workflows.
+          </p>
+          <p className="aboutText">
+            I realized how helpful it could be to the community so here it is publicly available for everybody. I have used a lot of AI to make this possible; however, I tested {' & '}{' '}
+            <strong>confirmed numerical outcomes as far as my game progress would allow</strong>
+          </p>
+          <div className="aboutObWrap" aria-hidden="true">
+            <span className="aboutObArrow">↓</span>
+            <span className={`mono aboutObRainbow`} style={{ fontSize: "1.5em", fontWeight: 800 }}>
+              ob {OB_LEVEL}
+            </span>
+          </div>
+          <p className="aboutText">
+            If you like my work and want to support me, you can do so here:
+          </p>
+          <a className="aboutCta" href={SUPPORT_URL} target="_blank" rel="noreferrer noopener">
+            Support me on Buy Me a Coffee
+          </a>
+        </div>
+      ) : active === "gemev" ? (
         <GemEv />
       ) : active === "bombs" ? (
         <Bombs />

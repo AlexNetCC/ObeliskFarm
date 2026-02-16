@@ -56,17 +56,14 @@
   box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
 }
 
-.appShell.overnightActive .navTileDonation {
-  background: rgba(127, 29, 29, 0.6);
-  border-color: rgba(248, 113, 113, 0.4);
-}
-
-.appShell.overnightActive .navTileDonation:hover {
-  background: rgba(153, 27, 27, 0.7);
-}
-
-.appShell.overnightActive .navTileSupportLabel {
+.appShell.overnightActive .navTileAbout {
+  background: rgba(55, 65, 81, 0.6);
+  border-color: rgba(75, 85, 99, 0.5);
   color: rgba(248, 250, 252, 0.9);
+}
+
+.appShell.overnightActive .navTileAbout:hover {
+  background: rgba(75, 85, 99, 0.7);
 }
 
 .appShell.overnightActive .navBetaBadge .qmark {
