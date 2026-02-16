@@ -233,6 +233,7 @@ export function GemEv() {
       chaosTotemValuePerTotemForGift?: number;
       fishingUnlocked?: boolean;
       giftFishingTickValue?: number;
+      giftFishPerHourDuring5xBuff?: number;
       fishPerSushiEvForGift?: number;
       chainBomberGoldenFloorBonusPct?: number;
       chainBomberBuffUptimeFraction?: number;
@@ -258,11 +259,12 @@ export function GemEv() {
     const chaosTotemValuePerTotemForGift = typeof ext?.chaosTotemValuePerTotemForGift === "number" ? ext.chaosTotemValuePerTotemForGift : undefined;
     const fishingUnlocked = Boolean(ext?.fishingUnlocked);
     const giftFishingTickValue = typeof ext?.giftFishingTickValue === "number" ? ext.giftFishingTickValue : undefined;
+    const giftFishPerHourDuring5xBuff = typeof ext?.giftFishPerHourDuring5xBuff === "number" ? ext.giftFishPerHourDuring5xBuff : undefined;
     const fishPerSushiEvForGift = typeof ext?.fishPerSushiEvForGift === "number" ? ext.fishPerSushiEvForGift : undefined;
     const chainBomberGoldenFloorBonusPct = typeof ext?.chainBomberGoldenFloorBonusPct === "number" ? ext.chainBomberGoldenFloorBonusPct : undefined;
     const chainBomberBuffUptimeFraction = typeof ext?.chainBomberBuffUptimeFraction === "number" ? ext.chainBomberBuffUptimeFraction : undefined;
     return {
-      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction,
+      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction,
     };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
@@ -366,6 +368,7 @@ export function GemEv() {
     p.gift_chaos_totem_value_per_totem = external.chaosTotemValuePerTotemForGift;
     p.gift_fishing_unlocked = external.fishingUnlocked;
     p.gift_fishing_tick_value = external.giftFishingTickValue;
+    p.gift_fish_per_hour_during_5x_buff = external.giftFishPerHourDuring5xBuff;
     p.gift_charge_magnet_value_per_magnet = !external.fishingUnlocked
       ? calculateChargeMagnetGemsPerHour(p, 20)
       : undefined;
@@ -376,7 +379,7 @@ export function GemEv() {
     p.chain_bomber_buff_uptime_fraction = external.chainBomberBuffUptimeFraction;
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.fishPerSushiEvForGift, external.chainBomberGoldenFloorBonusPct, external.chainBomberBuffUptimeFraction]);
+  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.chainBomberGoldenFloorBonusPct, external.chainBomberBuffUptimeFraction]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);

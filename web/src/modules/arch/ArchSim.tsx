@@ -2793,7 +2793,6 @@ export function ArchSim() {
             id="arch-fragment-upgrades"
             title="Fragment upgrades"
             defaultExpanded={false}
-            headerRight={<Sprite path="sprites/common/skill_shard.png" alt="Fragment upgrades" className="iconSmall" />}
           >
             <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
               <Collapsible

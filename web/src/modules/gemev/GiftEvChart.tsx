@@ -6,6 +6,7 @@ import { Tooltip } from "../../components/Tooltip";
 const WIKI = "https://static.wikitide.net/shminerwiki";
 
 const SUSHI_ICON = `${WIKI}/6/6d/Sushi.png`;
+const FISH_TICK_ICON = `${WIKI}/8/8d/5x_Fish_Tick_Chance.png`;
 
 const BASIC_ENTRIES = [
   { key: "gems_20_40" as const, label: "Basic Gems Roll Type 1", color: "#2E86AB", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
@@ -14,7 +15,7 @@ const BASIC_ENTRIES = [
   { key: "item_chests" as const, label: "Item Chests", color: "#78909C", qtyUnit: "chests", icon: `${WIKI}/a/a8/Item_Chest.png` },
   { key: "chaos_totem" as const, label: "Chaos Totem", color: "#7B1FA2", qtyUnit: "totems", icon: `${WIKI}/a/a6/Chaos_Totem.png` },
   { key: "charge_magnet" as const, label: "Charge Magnet", color: "#00897B", qtyUnit: "magnets", icon: `${WIKI}/f/fc/Charge_Magnet.png` },
-  { key: "fishing_tick" as const, label: "5× Fishing Tick Chance", color: "#0288D1", qtyUnit: "min", icon: `${WIKI}/8/87/Triple_Fish_Tick_Chance.png` },
+  { key: "fishing_tick" as const, label: "5× Fishing Tick Chance", color: "#0288D1", qtyUnit: "min", icon: `${WIKI}/8/8d/5x_Fish_Tick_Chance.png` },
 ] as const;
 
 const RARE_ENTRIES = [
@@ -110,24 +111,41 @@ function GiftRewardMultipliersTable(props: { obeliskMult: number; luckyMult: num
   );
 }
 
+type GiftChartRow = {
+  key: string;
+  label: string;
+  color: string;
+  qtyUnit: string;
+  icon?: string;
+  showTooltip?: boolean;
+  value: number;
+  qtyVal: number;
+  qtyVal2?: number;
+  qtyUnit2?: string;
+};
+
 function buildRows(
   entries: readonly { key: string; label: string; color: string; qtyUnit: string; icon?: string; showTooltip?: boolean }[],
   breakdown: GiftBreakdown
-): { key: string; label: string; color: string; qtyUnit: string; icon?: string; showTooltip?: boolean; value: number; qtyVal: number }[] {
+): GiftChartRow[] {
   const qty = (breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty ?? {};
   return entries
-    .map((e) => ({
-      ...e,
-      value: Number(breakdown[e.key] ?? 0),
-      qtyVal: Number(qty[e.key] ?? 0),
-    }))
+    .map((e): GiftChartRow => {
+      const qtyVal2 = e.key === "fishing_tick" ? Number(qty.fishing_tick_fish ?? 0) : undefined;
+      return {
+        ...e,
+        value: Number(breakdown[e.key] ?? 0),
+        qtyVal: Number(qty[e.key] ?? 0),
+        ...(qtyVal2 != null && qtyVal2 > 0 ? { qtyVal2, qtyUnit2: "fish" } : {}),
+      };
+    })
     .filter((r) => r.value > 0)
     .sort((a, b) => b.value - a.value);
 }
 
 function GiftChartSvg(props: {
   title: string;
-  rows: { key: string; label: string; color: string; qtyUnit: string; icon?: string; showTooltip?: boolean; value: number; qtyVal: number }[];
+  rows: GiftChartRow[];
   total: number;
   maxVal: number;
   subchart?: ReactNode;
@@ -239,7 +257,9 @@ function GiftChartSvg(props: {
                     fill="rgba(71,85,105,0.9)"
                     fontFamily="var(--mono)"
                   >
-                    {fmt1(row.qtyVal)} {row.qtyUnit} · {fmt1(row.value)} Gems ({fmtInt(pctVal)}%)
+                    {row.qtyVal2 != null && row.qtyVal2 > 0 && row.qtyUnit2
+                      ? `${fmt1(row.qtyVal)} ${row.qtyUnit}, ${fmt1(row.qtyVal2)} ${row.qtyUnit2} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`
+                      : `${fmt1(row.qtyVal)} ${row.qtyUnit} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`}
                   </text>
                 </g>
               );
@@ -327,6 +347,35 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown }) {
             </div>
           </div>
         ) : null}
+        {(() => {
+          const qty = (breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty ?? {};
+          const fishingTickMin = Number(qty.fishing_tick ?? 0);
+          const fishingTickFish = Number(qty.fishing_tick_fish ?? 0);
+          if (fishingTickMin <= 0 && fishingTickFish <= 0) return null;
+          return (
+            <div style={{ marginTop: 12, marginBottom: 4 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(71,85,105,0.85)" }}>5× Fishing Tick Chance</div>
+              <div style={{ fontSize: 12, color: "rgba(71,85,105,0.65)", marginTop: 2, marginBottom: 6 }}>Effective buff time and fish gains (stacks with 2×/3× tick chance)</div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 10px",
+                  background: "rgba(248,250,252,0.95)",
+                  border: "1px solid rgba(15,23,42,0.10)",
+                  borderRadius: 8,
+                }}
+                aria-label="5× tick buff min and fish per gift"
+              >
+                <img src={FISH_TICK_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
+                <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: "rgba(71,85,105,0.9)" }}>
+                  {fmt1(fishingTickMin)} min/Gift{fishingTickFish > 0 ? ` · ${fmt1(fishingTickFish)} fish` : ""}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
         <GiftChartSvg title="Rare Roll Rewards" rows={rareRows} total={total} maxVal={maxVal} />
       </div>
     </div>

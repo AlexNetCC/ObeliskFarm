@@ -160,23 +160,103 @@
   font-variant-numeric: tabular-nums;
 }
 
-/** Slightly yellowish gift icon in effective-ticks breakdown (compact, less space than "Gift" text). */
+/** Real gift sprite with yellowish filter in effective-ticks breakdown. */
 .fishingGiftIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   vertical-align: middle;
-  color: #b8922e;
   margin: 0 1px;
 }
-.fishingGiftIcon svg {
+.fishingGiftIcon img {
   display: block;
+  width: 14px;
+  height: 14px;
+  filter: sepia(0.35) saturate(1.15) hue-rotate(5deg);
 }
 
 .fishingTickBetterPulse {
   margin-left: 6px;
   color: #1b5e20;
   font-weight: 600;
+}
+
+/** Button to open effective-ticks breakdown modal (bar chart icon). */
+.fishingTickChartBtn {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  color: rgba(71, 85, 105, 0.9);
+  cursor: pointer;
+}
+.fishingTickChartBtn:hover {
+  background: rgba(248, 250, 252, 0.98);
+  color: rgba(15, 23, 42, 0.9);
+}
+
+/** Modal: effective ticks breakdown — content left-aligned. */
+.fishingTickChartModal {
+  width: min(420px, 96vw);
+}
+.fishingTickChartModalBody {
+  text-align: left;
+}
+.fishingTickChartModalBody .fishingTickBarChart {
+  max-width: 360px;
+}
+
+/** Effective ticks breakdown bar chart. Order per row: Bar -> Number -> Icon -> Label -> ? tooltip. */
+.fishingTickBarChart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fishingTickBarRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(71, 85, 105, 0.9);
+}
+.fishingTickBarTrack {
+  height: 10px;
+  min-width: 24px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.fishingTickBarFill {
+  height: 100%;
+  background: rgba(2, 136, 209, 0.45);
+  border-radius: 4px;
+  min-width: 2px;
+}
+.fishingTickBarValue {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(71, 85, 105, 0.95);
+  min-width: 2.5em;
+  text-align: right;
+}
+.fishingTickBarIconPlaceholder {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.fishingTickBarLabel {
+  min-width: 0;
+  white-space: nowrap;
 }
 
 /* Boat level row: brown glow so it stands out at top of Your stats */

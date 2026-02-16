@@ -102,6 +102,8 @@ export type GameParameters = {
   gift_fishing_unlocked?: boolean; // When true, use fishing tick value instead of Charge Magnet for 12–20 Charge Magnets outcome
   gift_charge_magnet_value_per_magnet?: number; // When fishing not unlocked, value per 1 Charge Magnet (Gems/h)
   gift_fishing_tick_value?: number; // When fishing unlocked: Gems value of 12.5 min of 5× Fishing Tick Chance. Must reflect actual fish gain during the buff (i.e. include the 5× tick effect, e.g. +25% or equivalent).
+  /** Fish per hour during 5× Tick Chance buff (from Fishing). Used for Gift chart: fish gains from that buff per gift. */
+  gift_fish_per_hour_during_5x_buff?: number;
   /** Drone Fuel: value per 1 Fuel in Gems. Default 5. */
   gift_drone_fuel_gems_per_fuel?: number;
   /** Sushi: fish EV per 1 Sushi (from Fishing module). Sushi only affects fish gain, not Gem EV total. */
@@ -614,6 +616,8 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const chaosTotem_qty = params.gift_chaos_totem_100_from_bombs ? 0 : probBasicRoll * chancePerItem * chaosTotemAvg * obeliskMult * luckyMult;
   const chargeMagnet_qty = !params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * chargeMagnetAvg * obeliskMult * luckyMult : 0;
   const fishingTick_min = params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * 12.5 * obeliskMult * luckyMult : 0;
+  const fishPerHourDuring5x = params.gift_fish_per_hour_during_5x_buff ?? 0;
+  const fishing_tick_fish = fishPerHourDuring5x > 0 ? (fishingTick_min / 60) * fishPerHourDuring5x : 0;
   const rareGems_qty = rare.gems80_130 * 105 * obeliskMult * luckyMult;
   const droneFuel_qty = rare.droneFuel * droneFuelAvgQty * obeliskMult * luckyMult;
   const skin_qty = rare.skin * 105 * obeliskMult;
@@ -642,6 +646,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
       chaos_totem: chaosTotem_qty,
       charge_magnet: chargeMagnet_qty,
       fishing_tick: fishingTick_min,
+      fishing_tick_fish: fishing_tick_fish,
       rare_gems: rareGems_qty,
       drone_fuel: droneFuel_qty,
       skin: skin_qty,

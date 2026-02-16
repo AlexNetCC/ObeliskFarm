@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import "./fishing.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
@@ -122,13 +124,17 @@ const SKILL_POINT_ICON_URL = "https://static.wikitide.net/shminerwiki/thumb/5/51
 /** 1 skill point = 125 gems (for cost efficiency: marginal % per gem). */
 const GEMS_PER_SKILL_POINT = 125;
 
-/** Small gift/present icon (slightly yellowish) for breakdown: Gift Sushi, Gift 5× Tick. */
+const WIKI_SPRITES = "https://static.wikitide.net/shminerwiki";
+/** Wiki gift sprite URL (same as Gem EV Gift chart). */
+const GIFT_SPRITE_URL = `${WIKI_SPRITES}/2/24/Gift.png`;
+/** 5× Fishing Tick Chance icon for breakdown bar chart. */
+const FISH_TICK_5X_ICON = `${WIKI_SPRITES}/8/8d/5x_Fish_Tick_Chance.png`;
+
+/** Real gift sprite with yellowish filter for breakdown: Gift Sushi, Gift 5× Tick. */
 function GiftIcon() {
   return (
     <span className="fishingGiftIcon" aria-hidden title="Gift">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M20 12v10H4V12M2 7h20v5H2V7zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
+      <img src={GIFT_SPRITE_URL} alt="" width={14} height={14} />
     </span>
   );
 }
@@ -681,6 +687,7 @@ export function Fishing() {
 
   /** Bump when Drone (or other module) updates fishing_external so we re-read and re-render. */
   const [fishingExternalRevision, setFishingExternalRevision] = useState(0);
+  const [tickChartOpen, setTickChartOpen] = useState(false);
   useEffect(() => {
     const handler = () => setFishingExternalRevision((r) => r + 1);
     window.addEventListener("obelisk:fishing_external_updated", handler);
@@ -921,6 +928,57 @@ export function Fishing() {
   const gift5xTickContribution = rawTicksPerHour * tickMult * 4 * gift5xTickUptimeFraction;
   /** Total effective fishing ticks per hour (base×mult + Gift 5× contribution). Used for display. */
   const totalEffectiveTicksPerHour = rawTicksPerHour * tickMult + gift5xTickContribution;
+
+  /** Rows for the effective-ticks breakdown bar chart (modal). Only when there is something to show. */
+  const tickChartRows = useMemo(() => {
+    if (anglerTicksPerHour <= 0 && lootbugFishing12TicksProcsPerHour <= 0 && giftSushiTicksPerHour <= 0 && gift5xTickContribution <= 0 && tickMult <= 1) return [];
+    const baseVal = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) * tickMult;
+    type Row = { key: string; label: string; value: number; icon?: ReactNode; tooltip: { title: string; lines: string[] } | null };
+    const rows: (Row | null)[] = [
+      { key: "base", label: "Base", value: baseVal, tooltip: null },
+      anglerTicksPerHour > 0 ? { key: "angler", label: "Angler", value: anglerTicksPerHour * tickMult, tooltip: null } : null,
+      lootbugFishing12TicksProcsPerHour > 0 ? { key: "lootbug", label: "Lootbug", value: lootbugFishing12TicksProcsPerHour * tickMult, tooltip: null } : null,
+      giftSushiTicksPerHour > 0
+        ? {
+            key: "giftSushi",
+            label: "Gift Sushi",
+            value: giftSushiTicksPerHour * tickMult,
+            icon: <GiftIcon />,
+            tooltip: {
+              title: "Gift Sushi",
+              lines: [
+                "Freebie: Statue of Soprano (freebie gift chance). Founder/Supply: supply drop (1/1234 rare per drop, 10 gifts).",
+                "Includes double/triple/5× tick mult.",
+              ],
+            },
+          }
+        : null,
+      gift5xTickContribution > 0
+        ? {
+            key: "gift5x",
+            label: "5× Tick",
+            value: gift5xTickContribution,
+            icon: <img src={FISH_TICK_5X_ICON} alt="" width={14} height={14} style={{ display: "block" }} />,
+            tooltip: {
+              title: "Gift 5× Tick",
+              lines: [
+                "Basic reward from Gifts: 5× Fishing Tick Chance, ~12.5 min per proc.",
+                "Chance = P(basic roll) × 1/12 (when no rare wins). Rare outcomes replace the basic roll.",
+                "Uptime from Freebie + Founder gifts. Extra effective ticks during that buff.",
+              ],
+            },
+          }
+        : null,
+    ];
+    return rows.filter((r): r is Row => r != null && r.value > 0);
+  }, [
+    effectiveTickSec,
+    tickMult,
+    anglerTicksPerHour,
+    lootbugFishing12TicksProcsPerHour,
+    giftSushiTicksPerHour,
+    gift5xTickContribution,
+  ]);
 
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
@@ -1280,12 +1338,16 @@ export function Fishing() {
     return { totalFishPerHour, fishPerSushiEv, fishPerSushiEvPerFish };
   }, [visibleGainsRows, rawTicksPerHour, ticksPerSushi]);
 
-  /** Export for Gem EV: fish EV per 1 Sushi (for Gift Sushi rare roll value). */
+  /** Fish per hour during 5× Tick Chance buff. totalFishPerHour already includes 2×/3×/5× tick mult; gift adds one more 5× (multiplicative). For Gem EV Gift chart: effective min + fish from that buff. */
+  const giftFishPerHourDuring5xBuff = 5 * sushiEvAndTotal.totalFishPerHour;
+
+  /** Export for Gem EV: fish EV per 1 Sushi; fish/h during 5× buff (for Gift chart min + fish). */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.fishPerSushiEvForGift = sushiEvAndTotal.fishPerSushiEv;
+    ext.giftFishPerHourDuring5xBuff = giftFishPerHourDuring5xBuff;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [sushiEvAndTotal.fishPerSushiEv]);
+  }, [sushiEvAndTotal.fishPerSushiEv, giftFishPerHourDuring5xBuff]);
 
   function runSushiMc() {
     const { fishPerSushiEv, fishPerSushiEvPerFish } = sushiEvAndTotal;
@@ -2366,6 +2428,21 @@ export function Fishing() {
               </div>
               <div className="fishingTickFlowArrow">↓</div>
               <div className="fishingTickRow">
+                {tickChartRows.length > 0 ? (
+                  <button
+                    type="button"
+                    className="fishingTickChartBtn"
+                    onClick={() => setTickChartOpen(true)}
+                    title="Effective ticks breakdown"
+                    aria-label="Open effective ticks breakdown"
+                  >
+                    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                      <rect x="5" y="14" width="4" height="6" rx="1.5" fill="currentColor" opacity={0.7} />
+                      <rect x="11" y="10" width="4" height="10" rx="1.5" fill="currentColor" opacity={0.85} />
+                      <rect x="17" y="6" width="4" height="14" rx="1.5" fill="currentColor" />
+                    </svg>
+                  </button>
+                ) : null}
                 <strong>Effective</strong> Fishing Ticks per hour = <span className="mono">{totalEffectiveTicksPerHour > 0 ? totalEffectiveTicksPerHour.toFixed(2) : "—"}</span>
                 <Tooltip
                   content={{
@@ -2384,56 +2461,49 @@ export function Fishing() {
                   </span>
                 ) : null}
               </div>
-              {(anglerTicksPerHour > 0 || lootbugFishing12TicksProcsPerHour > 0 || giftSushiTicksPerHour > 0 || gift5xTickContribution > 0 || tickMult > 1) ? (
-                <div className="fishingTickRow small" style={{ marginTop: -4, marginBottom: 4, color: "rgba(71,85,105,0.85)" }}>
-                  Base {((effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) * tickMult).toFixed(1)}
-                  {anglerTicksPerHour > 0 ? <> + Angler {(anglerTicksPerHour * tickMult).toFixed(1)}</> : null}
-                  {lootbugFishing12TicksProcsPerHour > 0 ? <> + Lootbug {(lootbugFishing12TicksProcsPerHour * tickMult).toFixed(1)}</> : null}
-                  {giftSushiTicksPerHour > 0 ? (
-                    <>
-                      + <GiftIcon /> Sushi{" "}
-                      {[
-                        giftSushiFreebieTicksPerHour > 0
-                          ? `Freebie ${(giftSushiFreebieTicksPerHour * tickMult).toFixed(1)}`
-                          : null,
-                        giftSushiFounderTicksPerHour > 0
-                          ? `from Founder/Supply ${(giftSushiFounderTicksPerHour * tickMult).toFixed(1)}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" + ")}
-                      <Tooltip
-                        content={{
-                          title: "Gift Sushi",
-                          lines: [
-                            "Freebie: Statue of Soprano (freebie gift chance). Founder/Supply: supply drop (1/1234 rare per drop, 10 gifts).",
-                            "Includes double/triple/5× tick mult.",
-                          ],
-                        }}
-                        label="?"
-                      />
-                    </>
-                  ) : null}
-                  {gift5xTickContribution > 0 ? (
-                    <>
-                      {" "}
-                      + <GiftIcon /> 5× Tick{" "}
-                      <span className="mono">{gift5xTickContribution.toFixed(1)}</span>
-                      <Tooltip
-                        content={{
-                          title: "Gift 5× Tick",
-                          lines: [
-                            "Basic reward from Gifts: 5× Fishing Tick Chance, ~12.5 min per proc.",
-                            "Chance = P(basic roll) × 1/12 (when no rare wins). Rare outcomes replace the basic roll.",
-                            "Uptime from Freebie + Founder gifts. Extra effective ticks during that buff.",
-                          ],
-                        }}
-                        label="?"
-                      />
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
+              {tickChartOpen
+                ? createPortal(
+                    <div
+                      className="modalOverlay"
+                      onMouseDown={() => setTickChartOpen(false)}
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="fishing-tick-chart-modal-title"
+                    >
+                      <div className="modalWindow fishingTickChartModal" onMouseDown={(e) => e.stopPropagation()}>
+                        <div className="modalHeader">
+                          <div id="fishing-tick-chart-modal-title" className="mono" style={{ fontWeight: 700 }}>
+                            Effective Fishing Ticks breakdown
+                          </div>
+                          <button className="btn btnSecondary" type="button" onClick={() => setTickChartOpen(false)}>
+                            Close
+                          </button>
+                        </div>
+                        <div className="modalBody fishingTickChartModalBody">
+                          <div className="fishingTickBarChart">
+                            {tickChartRows.map((row) => {
+                              const pct = totalEffectiveTicksPerHour > 0 ? (row.value / totalEffectiveTicksPerHour) * 100 : 0;
+                              return (
+                                <div key={row.key} className="fishingTickBarRow">
+                                  <div className="fishingTickBarTrack">
+                                    <div className="fishingTickBarFill" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="mono fishingTickBarValue">{row.value.toFixed(1)}</span>
+                                  {row.icon ?? <span className="fishingTickBarIconPlaceholder" />}
+                                  <span className="fishingTickBarLabel">{row.label}</span>
+                                  {row.tooltip ? (
+                                    <Tooltip content={{ title: row.tooltip.title, lines: row.tooltip.lines }} label="?" />
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>,
+                    document.body
+                  )
+                : null}
             </div>
           </div>
           <div className="fishingBoatLevelRow">
@@ -2443,7 +2513,7 @@ export function Fishing() {
               value={stats.boat_level}
             />
             <StatRow
-              label="T2 boat level"
+              label="Boat level (T2)"
               iconUrl={upgradeIconUrl("Fishing_Boat_Upgrade_T2.png")}
               value={stats.t2_boat_level}
             />

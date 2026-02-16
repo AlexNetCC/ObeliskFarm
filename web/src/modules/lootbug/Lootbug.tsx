@@ -1061,7 +1061,7 @@ export function Lootbug() {
                     />
                   </th>
                   <th className="lootbugTableThRight">
-                    min/h (min:sec)
+                    min/h
                     <Tooltip
                       content={{
                         title: "min/h",
@@ -1209,7 +1209,7 @@ export function Lootbug() {
                     />
                   </th>
                   <th className="lootbugTableThRight">
-                    min/h (min:sec)
+                    min/h
                     <Tooltip
                       content={{
                         title: "min/h",
