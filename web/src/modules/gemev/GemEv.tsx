@@ -609,8 +609,6 @@ export function GemEv() {
               </div>
             </div>
 
-            {!params.founder_enabled ? <div className="small" style={{ marginTop: 10 }}>FOUNDER is disabled: all founder-related contributions are set to 0.</div> : null}
-
             <div className="btnRow" style={{ marginTop: 12, alignItems: "center" }}>
               <span className="gemEvChartArrow" aria-hidden>→</span>
               <button className="btn gemEvOverviewChartBtn" type="button" onClick={() => setChartOpen(true)}>
@@ -1028,26 +1026,22 @@ export function GemEv() {
             </div>
           </Collapsible>
 
-          <Collapsible
-            id="gemev-founder"
-            title="Founder / VIP"
-            defaultExpanded={false}
-            className="gemEvSection tierHeader2"
-            headerRight={
-              <>
-                <Sprite path="sprites/event/founderbomb.png" alt="Founder" className="iconSmall" />
+          <div className="gemEvSection tierHeader2" id="gemev-founder">
+            <div className="gemEvSectionHeader gemEvFounderHeader">
+              <span className="gemEvSectionTitle">
+                Founder / VIP
+                <Sprite path="sprites/event/founderbomb.png" alt="Founder" className="iconSmall" aria-hidden />
                 <Tooltip content={founderInfo} />
-                <label className="toggle" style={{ margin: 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(params.founder_enabled)}
-                    onChange={(e) => setParams((s) => ({ ...s, founder_enabled: e.target.checked }))}
-                  />
-                  FOUNDER enabled
-                </label>
-              </>
-            }
-          >
+              </span>
+              <label className="toggle" style={{ margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(params.founder_enabled)}
+                  onChange={(e) => setParams((s) => ({ ...s, founder_enabled: e.target.checked }))}
+                />
+                FOUNDER enabled
+              </label>
+            </div>
             <div className="gemEvSectionBody">
               <Stepper
                 label="VIP Lounge Level (1–12)"
@@ -1061,7 +1055,7 @@ export function GemEv() {
                 disabled={!params.founder_enabled}
               />
             </div>
-          </Collapsible>
+          </div>
 
         {chartOpen ? (
           <div className="modalOverlay" onMouseDown={() => setChartOpen(false)}>

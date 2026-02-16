@@ -772,7 +772,15 @@ export function Stargazing() {
                   checked={catchManually}
                   onChange={(e) => setCatchManually(e.target.checked)}
                 />
-                <span>Do you catch manually?</span>
+                <span>Do you catch manually? (like 100% auto-catch rate, online only)</span>
+              </label>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2 }}>
+                <input
+                  type="checkbox"
+                  checked={spoonStrat}
+                  onChange={(e) => setSpoonStrat(e.target.checked)}
+                />
+                <span>Spoon Strat / Holding finger (+20% floor clears, online only)</span>
               </label>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -1033,14 +1041,6 @@ export function Stargazing() {
                     max={10_000}
                     decimals={2}
                   />
-                  <label className="sgCheckRow" style={{ marginTop: 4 }}>
-                    <input
-                      type="checkbox"
-                      checked={spoonStrat}
-                      onChange={(e) => setSpoonStrat(e.target.checked)}
-                    />
-                    <span>Spoon Strat / Holding finger (+20% floor clears, online only)</span>
-                  </label>
                 </div>
                 <Stepper
                   label={
