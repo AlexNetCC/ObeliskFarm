@@ -68,6 +68,19 @@ type UiStats = {
   novagiant_combo_mult: number;
 };
 
+/** W3 Debuff: in W3, game speed is 70% for part of the time (cannot be avoided). Fraction varies by star. Effective floors/h mult = 1 − 0.3 × fraction. Auto-applied when that star is selected. */
+const W3_DEBUFF_FRACTION: Partial<Record<string, number>> = {
+  orion: 2 / 5,
+  hercules: 4 / 5,
+  draco: 5 / 5,
+  cetus: 5 / 5,
+  phoenix: 5 / 5,
+};
+function getW3FloorsMult(selectedCardId: string): number {
+  const fraction = W3_DEBUFF_FRACTION[selectedCardId] ?? 0;
+  return 1 - 0.3 * fraction;
+}
+
 /** 2× Star Spawn Rate buff icon (Elixir/Lootbug/Founder). */
 const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spawn_Rate_Buff.png";
 
@@ -75,7 +88,7 @@ const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spaw
 const STAR_CARD_IDS = [
   "aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio",
   "sagittarius", "capricorn", "aquarius", "pisces",
-  "ophiuchus", "cetus", "draco", "eridanus", "hercules", "orion", "phoenix",
+  "ophiuchus", "orion", "hercules", "draco", "cetus", "phoenix", "eridanus",
 ] as const;
 
 /** Card tier: 0 = none, 1 = standard, 2 = gilded, 3 = polychrome, 4 = infernal */
@@ -444,8 +457,10 @@ export function Stargazing() {
 
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
+  const w3FloorsMult = useMemo(() => getW3FloorsMult(starCards.selected_card_for_results), [starCards.selected_card_for_results]);
+
   const stats = useMemo<PlayerStats>(() => {
-    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1);
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1) * w3FloorsMult;
     const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
@@ -482,11 +497,11 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, spoonStrat, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst (no Lootbug, no Founder). */
   const statsOnlineAfk = useMemo<PlayerStats>(() => {
-    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1);
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1) * w3FloorsMult;
     const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
@@ -522,11 +537,11 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, spoonStrat, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Offline Gains: no spoon strat, no external buffs (Lootbug, Founder, Elixir, Starburst off). */
   const statsOffline = useMemo<PlayerStats>(() => {
-    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0;
+    const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0 * w3FloorsMult;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
     const starburstStarMult = 1 + droneBuffsOffline.starburstStarSpawnRateUptimeFraction * (droneBuffsOffline.starburstStarSpawnRatePct / 100);
@@ -561,11 +576,11 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
+  }, [ui, ctrlF, w3FloorsMult, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
 
   /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
   const statsWithoutStarburst = useMemo<PlayerStats>(() => {
-    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1);
+    const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1) * w3FloorsMult;
     const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
     const baseSuperMult = clamp(ui.super_star_spawn_rate_mult, 0, 1_000_000);
@@ -600,7 +615,7 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, spoonStrat, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderOnlyAutoCatch100MinPerHour, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderOnlyAutoCatch100MinPerHour, starburstToggleRefresh]);
 
   const summary = useMemo(() => {
     const calc = new StargazingCalculator(stats);
