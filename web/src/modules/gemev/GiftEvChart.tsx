@@ -324,55 +324,62 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown }) {
       ) : null}
       <div style={{ padding: "8px 0", border: "1px solid rgba(15,23,42,0.10)", borderTop: "none", borderRadius: "0 0 10px 10px", background: "#ffffff" }}>
         <GiftChartSvg title="Basic Rewards" rows={basicRows} total={total} maxVal={maxVal} />
-        {(Number(breakdown.sushi_fish ?? 0) > 0 || Number((breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty?.sushi_fish ?? 0) > 0) ? (
-          <div style={{ marginTop: 12, marginBottom: 4 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(71,85,105,0.85)" }}>Sushi</div>
-            <div style={{ fontSize: 12, color: "rgba(71,85,105,0.65)", marginTop: 2, marginBottom: 6 }}>Fish with your current Docks/Power setup</div>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 10px",
-                background: "rgba(248,250,252,0.95)",
-                border: "1px solid rgba(15,23,42,0.10)",
-                borderRadius: 8,
-              }}
-              aria-label="Sushi fish EV"
-            >
-              <img src={SUSHI_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
-              <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: "rgba(71,85,105,0.9)" }}>
-                {fmt1(Number((breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty?.sushi_fish ?? 0))} Sushi/Gift · {fmt1(Number(breakdown.sushi_fish ?? 0))} fish
-              </span>
-            </div>
-          </div>
-        ) : null}
         {(() => {
           const qty = (breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty ?? {};
-          const fishingTickMin = Number(qty.fishing_tick ?? 0);
+          const sushiFish = Number(breakdown.sushi_fish ?? 0);
           const fishingTickFish = Number(qty.fishing_tick_fish ?? 0);
-          if (fishingTickMin <= 0 && fishingTickFish <= 0) return null;
+          const hasSushi = sushiFish > 0 || Number(qty.sushi_fish ?? 0) > 0;
+          const hasFishingTick = Number(qty.fishing_tick ?? 0) > 0 || fishingTickFish > 0;
+          if (!hasSushi && !hasFishingTick) return null;
           return (
             <div style={{ marginTop: 12, marginBottom: 4 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(71,85,105,0.85)" }}>5× Fishing Tick Chance</div>
-              <div style={{ fontSize: 12, color: "rgba(71,85,105,0.65)", marginTop: 2, marginBottom: 6 }}>Effective buff time and fish gains (stacks with 2×/3× tick chance)</div>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 10px",
-                  background: "rgba(248,250,252,0.95)",
-                  border: "1px solid rgba(15,23,42,0.10)",
-                  borderRadius: 8,
-                }}
-                aria-label="5× tick buff min and fish per gift"
-              >
-                <img src={FISH_TICK_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
-                <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: "rgba(71,85,105,0.9)" }}>
-                  {fmt1(fishingTickMin)} min/Gift{fishingTickFish > 0 ? ` · ${fmt1(fishingTickFish)} fish` : ""}
-                </span>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(71,85,105,0.85)", marginBottom: 6 }}>
+                Fish gains with your current Docks/Power setup
               </div>
+              {hasSushi ? (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(71,85,105,0.8)", marginBottom: 4 }}>Sushi</div>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "8px 10px",
+                      background: "rgba(248,250,252,0.95)",
+                      border: "1px solid rgba(15,23,42,0.10)",
+                      borderRadius: 8,
+                    }}
+                    aria-label="Sushi fish EV"
+                  >
+                    <img src={SUSHI_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
+                    <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: "rgba(71,85,105,0.9)" }}>
+                      {fmt1(Number(qty.sushi_fish ?? 0))} Sushi/Gift · {fmt1(sushiFish)} fish
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              {hasFishingTick ? (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(71,85,105,0.8)", marginBottom: 4 }}>5× Fishing Tick Chance</div>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "8px 10px",
+                      background: "rgba(248,250,252,0.95)",
+                      border: "1px solid rgba(15,23,42,0.10)",
+                      borderRadius: 8,
+                    }}
+                    aria-label="5× tick buff min and fish per gift"
+                  >
+                    <img src={FISH_TICK_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
+                    <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: "rgba(71,85,105,0.9)" }}>
+                      {fmt1(Number(qty.fishing_tick ?? 0))} min/Gift{fishingTickFish > 0 ? ` · ${fmt1(fishingTickFish)} fish` : ""}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
           );
         })()}
