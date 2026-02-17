@@ -84,6 +84,11 @@
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 12px rgba(46, 125, 50, 0.5);
 }
+/** Percentage values (e.g. Star gains %, Fishing gains %): normal black, not green. */
+.lootbugValuePct {
+  color: rgba(15, 23, 42, 0.9);
+  font-weight: 600;
+}
 
 /* Net-negative: like Fuel cost (100% uptime) row in Drone */
 .lootbugNetGemEvNegative {

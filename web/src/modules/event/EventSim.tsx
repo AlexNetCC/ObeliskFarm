@@ -220,17 +220,18 @@ export function EventSim() {
   const [appliedSinceLastOptimize, setAppliedSinceLastOptimize] = useState(false);
   const [resetUpgradesArmed, setResetUpgradesArmed] = useState(false);
   const PRESTIGE_REACH_HOURS = [1, 2, 4, 8] as const;
+  type PrestigeReachHour = (typeof PRESTIGE_REACH_HOURS)[number];
   const [prestigeReachMcResult, setPrestigeReachMcResult] = useState<PrestigeReachMcResult[] | null>(null);
   const [prestigeReachMcRunning, setPrestigeReachMcRunning] = useState(false);
   const [prestigeReachMcProgress, setPrestigeReachMcProgress] = useState<{
-    hour: number;
+    hour: PrestigeReachHour;
     currentRun: number;
     totalRuns: number;
   } | null>(null);
   const prestigeReachCancelRef = useRef(false);
   const workerJobRef = useRef<"main" | "prestigeReach" | null>(null);
   type PrestigeReachContext = {
-    hour: number;
+    hour: PrestigeReachHour;
     results: PrestigeReachMcResult[];
     initial: UpgradeState;
     budget1h: Budget;

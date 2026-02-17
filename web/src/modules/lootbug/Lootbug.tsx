@@ -470,6 +470,27 @@ export function Lootbug() {
     return (perHour * effectiveRate * gemMin * lootMultiplier) / gameSpeed;
   }, [lootbugsPerHour, totalGemWeightAll, gameSpeed, buyGemBuffsSet, goldenPct, lootMultiplier]);
 
+  /** 100% Auto-Catch from Lootbug: free buff portion only (4 min). Real-time min/h. */
+  const lootbugAutoCatchFreeMinPerHour = useMemo(() => {
+    if (gameSpeed <= 0) return 0;
+    const freeBuff = FREE_BUFFS.find((b) => b.name === "100% Auto-Catch");
+    const freeMin = getDurationMinutes(freeBuff?.duration ?? null) ?? 0;
+    if (!freeBuff || totalFreeWeight <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(freeBuff)) / totalFreeWeight;
+    return (perHour * freeMin * lootMultiplier) / gameSpeed;
+  }, [lootbugsPerHour, totalFreeWeight, gameSpeed, lootMultiplier]);
+
+  /** +% Star gains from Lootbug's 100% Auto-Catch (free buff only). Only when Stargazing auto catch < 100%. Baseline = AFK star gains without this buff. */
+  const lootbugAutoCatchFreeGainsPct = useMemo(() => {
+    if (lootbugAutoCatchFreeMinPerHour <= 0) return null;
+    const sg = loadJson<{ autoCatchChance?: number }>("obeliskfarm:web:stargazing_external.json");
+    const autoCatch = typeof sg?.autoCatchChance === "number" ? Math.max(0, Math.min(1, sg.autoCatchChance)) : null;
+    if (autoCatch == null || autoCatch >= 1) return null;
+    const f = lootbugAutoCatchFreeMinPerHour / 60;
+    const pct = f * ((1 - autoCatch) / autoCatch) * 100;
+    return pct;
+  }, [lootbugAutoCatchFreeMinPerHour]);
+
   /** Fishing +12 Ticks (gem buff): ticks per hour = procs × 12 × lootMultiplier. Loot Multi multiplies the tick count (e.g. 1.2× → 14 ticks per proc). Written to Fishing module. */
   const LOOTBUG_FISHING_TICKS_PER_PROC = 12;
   const lootbugFishing12TicksProcsPerHour = useMemo(() => {
@@ -933,14 +954,72 @@ export function Lootbug() {
                     />
                   </span>
                 </span>
-                <span className={`lootbugValue ${lootbug2xStarFreeGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
+                <span className="lootbugValue lootbugValuePct">
                   +{lootbug2xStarFreeGainsPct.toFixed(1)}%
+                </span>
+              </div>
+            ) : null}
+            {lootbugAutoCatchFreeGainsPct != null ? (
+              <div className="lootbugRow">
+                <span className="lootbugStatLabel">
+                  <img src={getFreeBuffIcon("100% Auto-Catch")} alt="" className="lootbugStatIcon" aria-hidden />
+                  <span className="lootbugLabel">
+                    100% Auto-Catch: Star gains
+                    <Tooltip
+                      content={{
+                        title: "Star gains from 100% Auto-Catch (free buff only)",
+                        sections: [
+                          {
+                            heading: "When this appears",
+                            lines: [
+                              "Only shown when Stargazing Auto Catch Chance is under 100%. At 100% you already catch all stars when AFK.",
+                            ],
+                          },
+                          {
+                            heading: "Free buff portion",
+                            lines: [
+                              "Increase in star gains from Lootbug's 100% Auto-Catch free buff (4 min). During the buff, AFK catch rate is 100%.",
+                              "Baseline = your current AFK star gains (from Stargazing). Open Stargazing once to sync.",
+                            ],
+                          },
+                        ],
+                      }}
+                    />
+                  </span>
+                </span>
+                <span className="lootbugValue lootbugValuePct">
+                  +{lootbugAutoCatchFreeGainsPct.toFixed(1)}%
                 </span>
               </div>
             ) : null}
           </div>
           <div className="lootbugGainsBlock">
             <span className="lootbugSectionTitle">Gem buffs</span>
+            {buyGemBuffsSet.size > 0 && (
+              <div className="lootbugRow">
+                <span className="lootbugStatLabel">
+                  <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
+                  <span className="lootbugLabel">
+                    Costs for Lootbug Gem buffs
+                    <Tooltip
+                      content={{
+                        title: "Costs for Lootbug Gem buffs",
+                        lines: [
+                          "Hourly gem cost when you Buy the checked gem buffs (10× Bomb Recharge, 2× Game Speed, Fishing +12 Ticks, etc.).",
+                          "Per hour × actual cost × (1 − Golden Lootbug %). Golden = free.",
+                        ],
+                      }}
+                    />
+                  </span>
+                </span>
+                <span
+                  className={`lootbugValue lootbugCostsValue ${totalGemCostPerHour > 0 ? "lootbugCostsValueNegative" : ""}`}
+                  aria-label={totalGemCostPerHour > 0 ? `−${totalGemCostPerHour.toFixed(1)} gems per hour cost` : "0"}
+                >
+                  {totalGemCostPerHour > 0 ? `−${totalGemCostPerHour.toFixed(1)}` : "0"}
+                </span>
+              </div>
+            )}
             {lootbug2xStarGemGainsPct != null ? (
               <div className="lootbugRow">
                 <span className="lootbugStatLabel">
@@ -963,7 +1042,7 @@ export function Lootbug() {
                     />
                   </span>
                 </span>
-                <span className={`lootbugValue ${lootbug2xStarGemGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
+                <span className="lootbugValue lootbugValuePct">
                   +{lootbug2xStarGemGainsPct.toFixed(1)}%
                 </span>
               </div>
@@ -1026,7 +1105,7 @@ export function Lootbug() {
                       />
                     </span>
                   </span>
-                  <span className={`lootbugValue ${lootbugFishingGainsPct > 0 ? "lootbugNetGemEvPositive" : ""}`}>
+                  <span className="lootbugValue lootbugValuePct">
                     +{lootbugFishingGainsPct.toFixed(1)}%
                   </span>
                 </div>
@@ -1042,7 +1121,7 @@ export function Lootbug() {
                         title: "10× Bomb Recharge Gem EV/h",
                         lines: [
                           "Share of Gem EV per hour from the 10× Bomb Recharge buff (from Lootbug). Gross value before cost.",
-                          "Cost is shown in Costs for Lootbug Gem buffs below.",
+                          "Cost is shown in Costs for Lootbug Gem buffs above.",
                         ],
                       }}
                     />
@@ -1052,31 +1131,6 @@ export function Lootbug() {
                   className={`lootbugValue ${lootbug10xGemEvPerHour > 0 ? "lootbugNetGemEvPositive" : ""}`}
                 >
                   {lootbug10xGemEvPerHour > 0 ? `+${lootbug10xGemEvPerHour.toFixed(1)}` : "—"}
-                </span>
-              </div>
-            )}
-            {buyGemBuffsSet.size > 0 && (
-              <div className="lootbugRow">
-                <span className="lootbugStatLabel">
-                  <img src={GEM_ICON} alt="" className="lootbugStatIcon" aria-hidden />
-                  <span className="lootbugLabel">
-                    Costs for Lootbug Gem buffs
-                    <Tooltip
-                      content={{
-                        title: "Costs for Lootbug Gem buffs",
-                        lines: [
-                          "Hourly gem cost when you Buy the checked gem buffs (10× Bomb Recharge, 2× Game Speed, Fishing +12 Ticks, etc.).",
-                          "Per hour × actual cost × (1 − Golden Lootbug %). Golden = free.",
-                        ],
-                      }}
-                    />
-                  </span>
-                </span>
-                <span
-                  className={`lootbugValue lootbugCostsValue ${totalGemCostPerHour > 0 ? "lootbugCostsValueNegative" : ""}`}
-                  aria-label={totalGemCostPerHour > 0 ? `−${totalGemCostPerHour.toFixed(1)} gems per hour cost` : "0"}
-                >
-                  {totalGemCostPerHour > 0 ? `−${totalGemCostPerHour.toFixed(1)}` : "0"}
                 </span>
               </div>
             )}

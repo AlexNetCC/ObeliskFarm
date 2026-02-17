@@ -644,12 +644,13 @@ export function Stargazing() {
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
   }, [droneBuffs.total2xStarMinPerHour]);
 
-  /** Write stars/h and super stars/h (Offline Gains, no spoon) with and without Starburst to external so Drone can show +% gain. */
+  /** Write stars/h, super stars/h, and auto_catch_chance (0..1) to external so Drone and Lootbug can use them. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(STARGAZING_EXTERNAL_KEY) ?? {};
     ext.stargazingStarsPerHourOnline = summary.stars_per_hour_online;
     ext.stargazingStarsPerHourOffline = summaryOffline.stars_per_hour_offline_gains;
     ext.stargazingSuperStarsPerHourOffline = summaryOffline.super_stars_per_hour_offline_gains;
+    ext.autoCatchChance = stats.auto_catch_chance;
     if (hasStarburst) {
       ext.stargazingStarsPerHourOnlineWithoutStarburst = summaryWithoutStarburst.stars_per_hour_online;
       ext.stargazingStarsPerHourOfflineWithoutStarburst = summaryOffline.stars_per_hour_offline_gains;
@@ -660,7 +661,7 @@ export function Stargazing() {
       ext.stargazingSuperStarsPerHourOfflineWithoutStarburst = summaryOffline.super_stars_per_hour_offline_gains;
     }
     saveJson(STARGAZING_EXTERNAL_KEY, ext);
-  }, [hasStarburst, summary.stars_per_hour_online, summaryOffline.stars_per_hour_offline_gains, summaryOffline.super_stars_per_hour_offline_gains, summaryWithoutStarburst.stars_per_hour_online]);
+  }, [hasStarburst, summary.stars_per_hour_online, summaryOffline.stars_per_hour_offline_gains, summaryOffline.super_stars_per_hour_offline_gains, summaryWithoutStarburst.stars_per_hour_online, stats.auto_catch_chance]);
 
   const spawnTree = useMemo(() => new StargazingCalculator(stats).get_spawn_tree(), [stats]);
 
