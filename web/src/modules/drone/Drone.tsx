@@ -64,10 +64,10 @@ const BOMB_BEAR_LOOTBUG_SPAWN_PCT_MAX = 90;
 const BOMB_BEAR_FUEL_DURATION_BASE_SEC = 240; // 4:00
 const BOMB_BEAR_FUEL_DURATION_SEC_PER_GRADE = 12; // +0:12
 
-/** Angler Drone: 2 Fishing Ticks every 1140 s (game time). Suit: Time Between Fishing Ticks −40 s (e.g. −2 s per level → 1100 s at 20). */
+/** Angler Drone: 2 Fishing Ticks every 1140 s (game time). Suit: Time Between Fishing Ticks −40 s per level (1140 − level×40 → 1100 at 1, 340 at 20). */
 const ANGLER_BASE_INTERVAL_SEC = 1140;
 const ANGLER_TICKS_PER_INTERVAL = 2;
-const ANGLER_SUIT_SEC_PER_LEVEL = 2; // 1140 - 20*2 = 1100
+const ANGLER_SUIT_SEC_PER_LEVEL = 40; // −40 s per suit level
 /** Angler fuel duration: same pattern as Frogger (3:00 + 0:09 per grade). */
 const ANGLER_FUEL_DURATION_BASE_SEC = 180;
 const ANGLER_FUEL_DURATION_SEC_PER_GRADE = 9;
@@ -2591,7 +2591,7 @@ export function Drone() {
       >
         <div className="droneSection">
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            Gives 2 Fishing Ticks every {ANGLER_BASE_INTERVAL_SEC} s (game time). Suit: Time Between Fishing Ticks −40 s. Integrates with Fishing module for ticks and extra fish.
+            Gives 2 Fishing Ticks every {ANGLER_BASE_INTERVAL_SEC} s (game time). Suit: Time Between Fishing Ticks −40 s per level. Integrates with Fishing module for ticks and extra fish.
           </p>
           <div className="droneSectionTitle">Settings</div>
           <Stepper
@@ -2604,7 +2604,7 @@ export function Drone() {
             stepLarge={5}
             tooltip={{
               title: "Angler Suit",
-              lines: ["Time Between Fishing Ticks −2 s per level (base 1140 s). Real time = game time ÷ game speed."],
+              lines: ["Time Between Fishing Ticks −40 s per level (base 1140 s). Real time = game time ÷ game speed."],
             }}
           />
           <div className="droneRow">
@@ -2615,7 +2615,7 @@ export function Drone() {
                   title: "Interval real time",
                   lines: [
                     "Real time = game time ÷ game speed (from Gem EV).",
-                    "If in-game shows a slightly different value (e.g. 403.97 s), the game may use a rounded game speed or a slightly different interval; our value uses the exact formula 1140 − suit×2 s game.",
+                    "If in-game shows a slightly different value, the game may use a rounded game speed; our value uses 1140 − suit×40 s (game time).",
                   ],
                 }}
                 label="?"
