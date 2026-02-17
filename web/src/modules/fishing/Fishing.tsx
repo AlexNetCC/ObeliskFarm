@@ -932,20 +932,30 @@ export function Fishing() {
   /** Total effective fishing ticks per hour (base×mult + Gift 5× contribution). Used for display. */
   const totalEffectiveTicksPerHour = rawTicksPerHour * tickMult + gift5xTickContribution;
 
+  /** Row colors for breakdown (Stargazing-style blue gradient). */
+  const TICK_CHART_ROW_COLORS: Record<string, string> = {
+    base: "#90caf9",
+    angler: "#42a5f5",
+    lootbug: "#2196f3",
+    giftSushi: "#1e88e5",
+    gift5x: "#1565c0",
+  };
+
   /** Rows for the effective-ticks breakdown bar chart (modal). Only when there is something to show. */
   const tickChartRows = useMemo(() => {
     if (anglerTicksPerHour <= 0 && lootbugFishing12TicksProcsPerHour <= 0 && giftSushiTicksPerHour <= 0 && gift5xTickContribution <= 0 && tickMult <= 1) return [];
     const baseVal = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) * tickMult;
-    type Row = { key: string; label: string; value: number; icon?: ReactNode; tooltip: { title: string; lines: string[] } | null };
+    type Row = { key: string; label: string; value: number; color: string; icon?: ReactNode; tooltip: { title: string; lines: string[] } | null };
     const rows: (Row | null)[] = [
-      { key: "base", label: "Base", value: baseVal, tooltip: null },
-      anglerTicksPerHour > 0 ? { key: "angler", label: "Angler", value: anglerTicksPerHour * tickMult, tooltip: null } : null,
-      lootbugFishing12TicksProcsPerHour > 0 ? { key: "lootbug", label: "Lootbug", value: lootbugFishing12TicksProcsPerHour * tickMult, tooltip: null } : null,
+      { key: "base", label: "Base", value: baseVal, color: TICK_CHART_ROW_COLORS.base, tooltip: null },
+      anglerTicksPerHour > 0 ? { key: "angler", label: "Angler Drone", value: anglerTicksPerHour * tickMult, color: TICK_CHART_ROW_COLORS.angler, tooltip: null } : null,
+      lootbugFishing12TicksProcsPerHour > 0 ? { key: "lootbug", label: "Lootbug", value: lootbugFishing12TicksProcsPerHour * tickMult, color: TICK_CHART_ROW_COLORS.lootbug, tooltip: null } : null,
       giftSushiTicksPerHour > 0
         ? {
             key: "giftSushi",
             label: "Gift Sushi",
             value: giftSushiTicksPerHour * tickMult,
+            color: TICK_CHART_ROW_COLORS.giftSushi,
             icon: <GiftIcon />,
             tooltip: {
               title: "Gift Sushi",
@@ -959,8 +969,9 @@ export function Fishing() {
       gift5xTickContribution > 0
         ? {
             key: "gift5x",
-            label: "5× Tick",
+            label: "Gift 5× Tick",
             value: gift5xTickContribution,
+            color: TICK_CHART_ROW_COLORS.gift5x,
             icon: <img src={FISH_TICK_5X_ICON} alt="" width={14} height={14} style={{ display: "block" }} />,
             tooltip: {
               title: "Gift 5× Tick",
@@ -2482,8 +2493,8 @@ export function Fishing() {
                       aria-labelledby="fishing-tick-chart-modal-title"
                     >
                       <div className="modalWindow fishingTickChartModal" onMouseDown={(e) => e.stopPropagation()}>
-                        <div className="modalHeader">
-                          <div id="fishing-tick-chart-modal-title" className="mono" style={{ fontWeight: 700 }}>
+                        <div className="modalHeader fishingTickChartModalHeader">
+                          <div id="fishing-tick-chart-modal-title" className="mono" style={{ fontWeight: 900 }}>
                             Effective Fishing Ticks breakdown
                           </div>
                           <button className="btn btnSecondary" type="button" onClick={() => setTickChartOpen(false)}>
@@ -2491,23 +2502,36 @@ export function Fishing() {
                           </button>
                         </div>
                         <div className="modalBody fishingTickChartModalBody">
-                          <div className="fishingTickBarChart">
-                            {tickChartRows.map((row) => {
-                              const pct = totalEffectiveTicksPerHour > 0 ? (row.value / totalEffectiveTicksPerHour) * 100 : 0;
-                              return (
-                                <div key={row.key} className="fishingTickBarRow">
-                                  <div className="fishingTickBarTrack">
-                                    <div className="fishingTickBarFill" style={{ width: `${pct}%` }} />
+                          <div className="fishingTickContribBlock">
+                            <div className="fishingTickContribTitle">Effective Ticks</div>
+                            <div className="fishingTickContribBars" role="img" aria-label="Effective ticks contributions bar chart">
+                              {tickChartRows.map((row) => {
+                                const pct = totalEffectiveTicksPerHour > 0 ? (row.value / totalEffectiveTicksPerHour) * 100 : 0;
+                                const maxVal = Math.max(...tickChartRows.map((r) => r.value), 1);
+                                const widthPct = maxVal > 0 ? (row.value / maxVal) * 100 : 0;
+                                return (
+                                  <div key={row.key} className="fishingTickContribRow">
+                                    <div className="fishingTickContribLabel">
+                                      {row.icon ?? null}
+                                      <span>{row.label}</span>
+                                    </div>
+                                    <div className="fishingTickContribBarTrack">
+                                      <div
+                                        className="fishingTickContribBarFill"
+                                        style={{ width: `${widthPct}%`, backgroundColor: row.color }}
+                                      />
+                                    </div>
+                                    <span className="mono fishingTickContribValue" title={`${row.value.toFixed(1)}/h (${pct.toFixed(1)}%)`}>
+                                      {row.value.toFixed(1)}
+                                      <span className="fishingTickContribPct"> ({pct.toFixed(1)}%)</span>
+                                    </span>
+                                    {row.tooltip ? (
+                                      <Tooltip content={{ title: row.tooltip.title, lines: row.tooltip.lines }} label="?" />
+                                    ) : null}
                                   </div>
-                                  <span className="mono fishingTickBarValue">{row.value.toFixed(1)}</span>
-                                  {row.icon ?? <span className="fishingTickBarIconPlaceholder" />}
-                                  <span className="fishingTickBarLabel">{row.label}</span>
-                                  {row.tooltip ? (
-                                    <Tooltip content={{ title: row.tooltip.title, lines: row.tooltip.lines }} label="?" />
-                                  ) : null}
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </div>

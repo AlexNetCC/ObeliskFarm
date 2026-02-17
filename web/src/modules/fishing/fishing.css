@@ -202,61 +202,93 @@
   color: rgba(15, 23, 42, 0.9);
 }
 
-/** Modal: effective ticks breakdown — content left-aligned. */
+/** Modal: effective ticks breakdown — Stargazing-style gray header/body. */
 .fishingTickChartModal {
   width: min(420px, 96vw);
 }
+/* Override default light modal header so title has contrast (Stargazing-style). */
+.fishingTickChartModal .modalHeader {
+  background: #3d4556 !important;
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+}
+.fishingTickChartModal .modalHeader .mono,
+.fishingTickChartModal #fishing-tick-chart-modal-title {
+  color: #e2e8f0 !important;
+}
 .fishingTickChartModalBody {
-  text-align: left;
-}
-.fishingTickChartModalBody .fishingTickBarChart {
-  max-width: 360px;
-}
-
-/** Effective ticks breakdown bar chart. Order per row: Bar -> Number -> Icon -> Label -> ? tooltip. */
-.fishingTickBarChart {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
+  background: #3d4556;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 0 0 12px 12px;
+  text-align: left;
 }
-.fishingTickBarRow {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto auto;
+
+/** Effective ticks contrib block (same layout as Stargazing Stats Contributions). */
+.fishingTickContribBlock {
+  padding: 8px 0;
+}
+.fishingTickContribTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.95);
+  margin-bottom: 8px;
+}
+.fishingTickContribBars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fishingTickContribRow {
+  display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: rgba(71, 85, 105, 0.9);
+  min-height: 24px;
 }
-.fishingTickBarTrack {
-  height: 10px;
-  min-width: 24px;
-  background: rgba(15, 23, 42, 0.08);
-  border-radius: 4px;
-  overflow: hidden;
+.fishingTickContribLabel {
+  flex: 0 0 120px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.88);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
-.fishingTickBarFill {
-  height: 100%;
-  background: rgba(2, 136, 209, 0.45);
-  border-radius: 4px;
-  min-width: 2px;
-}
-.fishingTickBarValue {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(71, 85, 105, 0.95);
-  min-width: 2.5em;
-  text-align: right;
-}
-.fishingTickBarIconPlaceholder {
+.fishingTickContribLabel img,
+.fishingTickContribLabel .fishingGiftIcon {
+  flex-shrink: 0;
   width: 14px;
   height: 14px;
   display: block;
 }
-.fishingTickBarLabel {
+.fishingTickContribBarTrack {
+  flex: 1;
   min-width: 0;
-  white-space: nowrap;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.fishingTickContribBarFill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 4px;
+  transition: width 0.15s ease;
+}
+.fishingTickContribValue {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+  color: rgba(226, 232, 240, 0.95);
+}
+.fishingTickContribPct {
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.65);
+  margin-left: 2px;
 }
 
 /* Boat level row: brown glow so it stands out at top of Your stats */
