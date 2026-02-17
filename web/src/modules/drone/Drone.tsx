@@ -1225,7 +1225,7 @@ export function Drone() {
     return lootbugShare * (bombBearLootbugSpawnRateMult - 1) * 100;
   })();
 
-  /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. Prefer value from Lootbug (includes Gems, 10×, Item Chests). Fallback: live calc from gems+net10x when Lootbug has not run yet. */
+  /** Gem EV/h from Bomb Bear: when no buff (mult 1), show 0. From Lootbug: raw Gems, 10× Bomb Recharge, Item Chests, Cherry Charges (free +10 and gem +100). Fallback: gems+net10x when Lootbug has not run yet. */
   const bombBearLootbugGemsEvPerHour = (() => {
     if (bombBearLootbugSpawnRateMult <= 1) return 0;
     const ext = loadJson<{
@@ -2547,8 +2547,8 @@ export function Drone() {
                       {
                         heading: "Formula",
                         lines: [
-                          "extra = Lootbug gains × (Bomb Bear mult − 1) ÷ Bomb Bear mult.",
-                          "Computed in Lootbug from Gems + 10× + Item Chests. Open Lootbug once to sync.",
+                          "extra = Lootbug net gains × (Bomb Bear mult − 1) ÷ Bomb Bear mult.",
+                          "Includes: raw Gems, 10× Bomb Recharge, Item Chests, Cherry Charges (+10 free, +100 gem). Open Lootbug to sync.",
                         ],
                       },
                     ],

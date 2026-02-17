@@ -537,13 +537,36 @@ export function Lootbug() {
     return calculateCherryChargesGemsPerHour(gameSpeedParams, chargesPerHourFromBuff);
   }, [lootbugsPerHour, totalFreeWeight, lootMultiplier, gameSpeedParams]);
 
-  /** Extra Gem EV/h from Bomb Bear: user enters spawn rate WITH Bomb Bear. Base = entered / mult; extra = gains(entered) − gains(base) = gains × (mult − 1) / mult. Uses net (gross gains − costs). */
+  /** Gem EV/h from +100 Cherry Charges gem buff (when in pool). Used in Bomb Bear gross so Drone shows all gem EV from Bomb Bear. */
+  const cherry100GemEvPerHourFromLootbug = useMemo(() => {
+    const buff = GEM_BUFFS.find((b) => b.name === "+100 Cherry Charges");
+    if (!buff || totalGemWeightAll <= 0 || lootbugsPerHour <= 0) return 0;
+    const perHourProcs = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
+    const effectiveRate = buyGemBuffsSet.has("+100 Cherry Charges") ? 1 : goldenPct;
+    const chargesPerHour = perHourProcs * effectiveRate * 100 * lootMultiplier;
+    return calculateCherryChargesGemsPerHour(gameSpeedParams, chargesPerHour);
+  }, [lootbugsPerHour, totalGemWeightAll, buyGemBuffsSet, goldenPct, lootMultiplier, gameSpeedParams]);
+
+  /** Extra Gem EV/h from Bomb Bear: user enters spawn rate WITH Bomb Bear. Base = entered / mult; extra = gains(entered) − gains(base) = gains × (mult − 1) / mult. Gross = raw gems + 10× Bomb Recharge + Item Chests + Cherry (free +10 and gem +100). */
   const bombBearLootbugGemsEvPerHour = useMemo(() => {
     if (bombBearLootbugSpawnRateMult <= 1) return 0;
-    const grossGains = gemsPerHour + lootbug10xGemEvPerHour + lootbugChestGemEvPerHour;
+    const grossGains =
+      gemsPerHour +
+      lootbug10xGemEvPerHour +
+      lootbugChestGemEvPerHour +
+      cherryChargesGemsPerHourFromLootbug +
+      cherry100GemEvPerHourFromLootbug;
     const netGains = grossGains - totalGemCostPerHour;
     return netGains * (bombBearLootbugSpawnRateMult - 1) / bombBearLootbugSpawnRateMult;
-  }, [bombBearLootbugSpawnRateMult, gemsPerHour, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  }, [
+    bombBearLootbugSpawnRateMult,
+    gemsPerHour,
+    lootbug10xGemEvPerHour,
+    lootbugChestGemEvPerHour,
+    cherryChargesGemsPerHourFromLootbug,
+    cherry100GemEvPerHourFromLootbug,
+    totalGemCostPerHour,
+  ]);
 
   /** EV per single lootbug claim (gem value): only +2 Gems, +10 Cherry Charges, and 10× Bomb Recharge (when that gem buff exists on a banked lootbug roll). Used by Overnight Gains. */
   const lootbugEvPerClaim = lootbugsPerHour > 0

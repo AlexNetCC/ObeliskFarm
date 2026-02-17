@@ -1365,9 +1365,17 @@ export function Stargazing() {
         <div className="modalOverlay" onMouseDown={() => setStatsChartOpen(false)}>
           <div className="modalWindow sgStatsChartModal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="modalHeader">
-              <div>
-                <div className="mono" style={{ fontWeight: 900 }}>Stats Contributions</div>
-                <div className="small">Share of Stars and Super Stars gains per stat (online rates).</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <Sprite
+                  paths={[`sprites/stargazing/${starCards.selected_card_for_results.charAt(0).toUpperCase() + starCards.selected_card_for_results.slice(1)}.png`]}
+                  alt={starCards.selected_card_for_results.charAt(0).toUpperCase() + starCards.selected_card_for_results.slice(1)}
+                  className="icon"
+                  label={`sprites/stargazing/${starCards.selected_card_for_results}.png`}
+                />
+                <div>
+                  <div className="mono" style={{ fontWeight: 900 }}>Stats Contributions</div>
+                  <div className="small">Share of Stars and Super Stars gains per stat (online rates).</div>
+                </div>
               </div>
               <button className="btn btnSecondary" type="button" onClick={() => setStatsChartOpen(false)}>
                 Close
