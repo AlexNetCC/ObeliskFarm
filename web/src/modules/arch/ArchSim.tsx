@@ -290,6 +290,19 @@ export function ArchSim() {
     significant: boolean;
   }> | null>(null);
   const gemNextCancelRef = useRef(false);
+  const [gemFragNextRunning, setGemFragNextRunning] = useState(false);
+  const [gemFragNextProgress, setGemFragNextProgress] = useState<string | null>(null);
+  const [gemFragNextResults, setGemFragNextResults] = useState<Array<{
+    key: ArchGemUpgradeKey;
+    displayName: string;
+    meanFrags: number;
+    growthPct: number;
+    cost: number;
+    perCost: number;
+    significant: boolean;
+  }> | null>(null);
+  const gemFragNextCancelRef = useRef(false);
+  const [gemFragNextRefId, setGemFragNextRefId] = useState<string | null>(null);
   const [skillTreeNextRunning, setSkillTreeNextRunning] = useState(false);
   const [skillTreeNextProgress, setSkillTreeNextProgress] = useState<string | null>(null);
   const [skillTreeNextResults, setSkillTreeNextResults] = useState<Array<{
@@ -2001,6 +2014,105 @@ export function ArchSim() {
     }
   }
 
+  async function runGemFragNext() {
+    const refEntry = gemFragNextRefId ? fragmentLogEntries.find((e) => e.id === gemFragNextRefId) ?? null : fragmentLogEntries[0] ?? null;
+    if (!refEntry) {
+      setGemFragNextProgress("No Fragment MC result to use. Run a Fragment MC first and pick it as template.");
+      return;
+    }
+    const targetFrag: BlockType = refEntry.mc?.targetFrag ?? mcSettings.targetFrag;
+    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const baseBuild: ArchBuild = {
+      ...refEntry.build,
+      skillPoints: {
+        strength: winnerDist.strength ?? 0,
+        agility: winnerDist.agility ?? 0,
+        perception: winnerDist.perception ?? 0,
+        intellect: winnerDist.intellect ?? 0,
+        luck: winnerDist.luck ?? 0,
+      },
+    };
+    const GEM_KEYS: ArchGemUpgradeKey[] = ["stamina", "xp", "fragment"];
+    const GEM_LABELS: Record<ArchGemUpgradeKey, string> = {
+      stamina: "Max Stamina / Stam mod chance",
+      xp: "Archaeology Exp / Exp mod chance",
+      fragment: "Fragment Gain / Loot mod chance",
+    };
+    const eligibleGems: Array<{ key: ArchGemUpgradeKey; displayName: string }> = [];
+    for (const key of GEM_KEYS) {
+      const maxLvl = GEM_UPGRADE_BONUSES[key].max_level ?? 0;
+      const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, maxLvl);
+      if (curLvl < maxLvl) eligibleGems.push({ key, displayName: GEM_LABELS[key] });
+    }
+    if (eligibleGems.length === 0) {
+      setGemFragNextProgress("No gem upgrades to evaluate (all maxed).");
+      return;
+    }
+    setGemFragNextRunning(true);
+    setGemFragNextProgress(null);
+    setGemFragNextResults(null);
+    gemFragNextCancelRef.current = false;
+    const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
+    const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
+    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
+    const N_SIMS = 3000;
+    type GemFragResult = { key: ArchGemUpgradeKey; displayName: string; meanFrags: number; growthPct: number; cost: number; perCost: number; significant: boolean };
+    const results: GemFragResult[] = [];
+    try {
+      setGemFragNextProgress(`Which Gem Upgrade next to maximize Fragment gains (${targetFrag}): Baseline…`);
+      const baseStats = getTotalStats(baseBuild);
+      const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+      const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
+      const baseOut = await pool.run({
+        type: "stageLite",
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag },
+      });
+      const baseFragSamples = (baseOut as { target_frag_samples?: number[] }).target_frag_samples ?? [];
+      const baseStatsRes = baseFragSamples.length > 0 ? sampleStats(baseFragSamples) : { mean: 0, std: 0, min: 0, max: 0 };
+      const baseMeanFrags = baseStatsRes.mean;
+      const baseStd = baseStatsRes.std;
+
+      for (let i = 0; i < eligibleGems.length; i += 1) {
+        if (gemFragNextCancelRef.current) break;
+        const { key, displayName } = eligibleGems[i]!;
+        setGemFragNextProgress(`Which Gem Upgrade next to maximize Fragment gains: ${i + 1}/${eligibleGems.length} — ${displayName}`);
+        const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, 999);
+        const cost = GEM_COSTS[key]?.[curLvl] ?? 0;
+        const variantBuild: ArchBuild = {
+          ...baseBuild,
+          gemUpgrades: { ...baseBuild.gemUpgrades, [key]: curLvl + 1 },
+        };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 40000 + i, targetFrag },
+        });
+        const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
+        const varStats = fragSamples.length > 0 ? sampleStats(fragSamples) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanFrags = varStats.mean;
+        const growthPct = baseMeanFrags > 0 ? ((meanFrags - baseMeanFrags) / baseMeanFrags) * 100 : 0;
+        const perCost = cost > 0 ? growthPct / cost : 0;
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        results.push({ key, displayName, meanFrags, growthPct, cost, perCost, significant });
+      }
+      results.sort((a, b) => b.growthPct - a.growthPct);
+      setGemFragNextResults(results);
+      setGemFragNextProgress(gemFragNextCancelRef.current ? "Cancelled." : "Done.");
+    } catch (e) {
+      setGemFragNextProgress(e instanceof Error ? e.message : String(e));
+    } finally {
+      pool.terminate();
+      setGemFragNextRunning(false);
+    }
+  }
+
   async function runSkillTreeNext() {
     const refEntry = skillTreeNextRefId ? stageLogEntries.find((e) => e.id === skillTreeNextRefId) ?? null : stageLogEntries[0] ?? null;
     if (!refEntry) {
@@ -2475,6 +2587,7 @@ export function ArchSim() {
 
   const visibleMcLog = useMemo(() => mcLog.filter((e) => e.mcType !== "det"), [mcLog]);
   const stageLogEntries = useMemo(() => visibleMcLog.filter((e) => e.mcType === "stage"), [visibleMcLog]);
+  const fragmentLogEntries = useMemo(() => visibleMcLog.filter((e) => e.mcType === "frag"), [visibleMcLog]);
   const activeLog = useMemo(() => (activeLogId ? visibleMcLog.find((x) => x.id === activeLogId) ?? null : null), [activeLogId, visibleMcLog]);
   const openLog = useMemo(() => (openLogId ? visibleMcLog.find((x) => x.id === openLogId) ?? null : null), [openLogId, visibleMcLog]);
 
@@ -3275,6 +3388,143 @@ export function ArchSim() {
                                       <td className="num">
                                         <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
                                           {!r.significant ? "*" : r.meanFloors.toFixed(3)}
+                                        </span>
+                                      </td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
+                                          {!r.significant ? "*" : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
+                                        </span>
+                                      </td>
+                                      <td className="num">{r.cost}</td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.perCost, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4 }}>{!r.significant || r.perCost < 0 ? "*" : r.perCost.toFixed(6)}</span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })() : null}
+                    </>
+                  )}
+                </div>
+              </Collapsible>
+
+              <Collapsible
+                id="arch-gem-frag-next"
+                title="Which Gem Upgrade next to maximize Fragment gains?"
+                defaultExpanded={false}
+                className="archWhichNextGold"
+                headerRight={
+                  <Tooltip
+                    content={{
+                      title: "Gem upgrade MC (Fragment)",
+                      sections: [
+                        {
+                          heading: "What",
+                          lines: [
+                            "Evaluates which gem upgrade (+1 level: Stamina, XP, or Fragment) gives the most target fragment/run gain per gem cost.",
+                            "Uses a Fragment MC result as template (build + target fragment type). Only non-maxed gem upgrades are evaluated.",
+                          ],
+                        },
+                        {
+                          heading: "Significance",
+                          lines: [
+                            "Uses same MC (N=3000) and 95% confidence test as Stage Push gem next.",
+                            "* = not statistically significant.",
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                }
+              >
+                <div className="small" style={{ marginBottom: 8 }}>
+                  {fragmentLogEntries.length === 0 ? (
+                    <div className="pillLocked" style={{ padding: 8 }}>
+                      Run a Fragment MC first. No Fragment result in the log. Pick one as template.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                        <label className="small">
+                          Fragment template:
+                          <select
+                            className="mono"
+                            style={{ marginLeft: 6 }}
+                            value={gemFragNextRefId ?? fragmentLogEntries[0]?.id ?? ""}
+                            onChange={(e) => setGemFragNextRefId(e.target.value || null)}
+                            disabled={gemFragNextRunning || mcRunning}
+                          >
+                            {fragmentLogEntries.map((e) => (
+                              <option key={e.id} value={e.id}>
+                                {e.label} — {(e.mc?.targetFrag ?? "?").toUpperCase()} {e.metrics.fragmentsPerHour.toFixed(1)}/h ({new Date(e.createdAt).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => runGemFragNext()}
+                          disabled={gemFragNextRunning || mcRunning || fragmentLogEntries.length === 0}
+                        >
+                          {gemFragNextRunning ? "Running…" : "Run (N=3000)"}
+                        </button>
+                        {gemFragNextRunning ? (
+                          <button className="btn btnSecondary" type="button" onClick={() => { gemFragNextCancelRef.current = true; }} disabled={!gemFragNextRunning}>
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                      {gemFragNextProgress ? (
+                        <div className="small mono" style={{ marginBottom: 8 }}>
+                          {gemFragNextProgress}
+                        </div>
+                      ) : null}
+                      {gemFragNextResults && gemFragNextResults.length > 0 ? (() => {
+                        const rs = gemFragNextResults;
+                        const minFrags = Math.min(...rs.map((r) => r.meanFrags));
+                        const maxFrags = Math.max(...rs.map((r) => r.meanFrags));
+                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
+                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
+                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
+                        const minPerCost = perCostVals.length > 0 ? Math.min(...perCostVals) : 0;
+                        const maxPerCost = perCostVals.length > 0 ? Math.max(...perCostVals) : 0;
+                        const heatPct = (v: number, lo: number, hi: number) =>
+                          hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        const targetFragLabel = (fragmentLogEntries.find((e) => e.id === (gemFragNextRefId ?? fragmentLogEntries[0]?.id))?.mc?.targetFrag ?? "target").toUpperCase();
+                        let rowNum = 0;
+                        return (
+                          <div className="small">
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next gem upgrade (by {targetFragLabel}/run +%, gem cost):</div>
+                            <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                              <span style={{ color: "hsl(120, 75%, 35%)", textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9)", fontWeight: 600 }}>GREEN = GOOD</span>
+                              <span title="95% confidence">* = not statistically significant</span>
+                            </div>
+                            <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gem Upgrade</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>{targetFragLabel}/run</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>{targetFragLabel}/run (+%)</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gems</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="(+%) per gem">(+%)/gem</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rs.map((r) => {
+                                  rowNum += 1;
+                                  return (
+                                    <tr key={r.key}>
+                                      <td style={{ paddingRight: 12 }}>{rowNum}</td>
+                                      <td style={{ paddingRight: 12 }}>{r.displayName}</td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.meanFrags, minFrags, maxFrags)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
+                                          {!r.significant ? "*" : r.meanFrags.toFixed(3)}
                                         </span>
                                       </td>
                                       <td className="num">

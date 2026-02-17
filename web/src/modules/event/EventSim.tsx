@@ -219,7 +219,7 @@ export function EventSim() {
   const [mcMeta, setMcMeta] = useState<{ startedAt: number; totalSims: number } | null>(null);
   const [appliedSinceLastOptimize, setAppliedSinceLastOptimize] = useState(false);
   const [resetUpgradesArmed, setResetUpgradesArmed] = useState(false);
-  const PRESTIGE_REACH_HOURS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+  const PRESTIGE_REACH_HOURS = [1, 2, 4, 8] as const;
   const [prestigeReachMcResult, setPrestigeReachMcResult] = useState<PrestigeReachMcResult[] | null>(null);
   const [prestigeReachMcRunning, setPrestigeReachMcRunning] = useState(false);
   const [prestigeReachMcProgress, setPrestigeReachMcProgress] = useState<{
@@ -395,7 +395,8 @@ export function EventSim() {
             runsPerCombo: 5,
           });
           ctx.results.push(reach);
-          if (prestigeReachCancelRef.current || ctx.hour >= 8) {
+          const nextIndex = PRESTIGE_REACH_HOURS.indexOf(ctx.hour) + 1;
+          if (prestigeReachCancelRef.current || nextIndex >= PRESTIGE_REACH_HOURS.length) {
             setPrestigeReachMcResult(ctx.results.length > 0 ? ctx.results : null);
             setPrestigeReachMcRunning(false);
             setPrestigeReachMcProgress(null);
@@ -403,7 +404,7 @@ export function EventSim() {
             workerJobRef.current = null;
             return;
           }
-          ctx.hour += 1;
+          ctx.hour = PRESTIGE_REACH_HOURS[nextIndex]!;
           setPrestigeReachMcProgress({ hour: ctx.hour, currentRun: 0, totalRuns: ctx.numCandidates });
           workerRef.current?.postMessage({
             type: "start",
@@ -1092,15 +1093,18 @@ export function EventSim() {
               <kbd>Hours Done</kbd>
               <div className="mono">
                 {prestigeReachMcProgress
-                  ? `${Math.max(0, prestigeReachMcProgress.currentRun >= prestigeReachMcProgress.totalRuns ? prestigeReachMcProgress.hour : prestigeReachMcProgress.hour - 1)}/8`
-                  : "0/8"}
+                  ? `${Math.max(0, PRESTIGE_REACH_HOURS.indexOf(prestigeReachMcProgress.hour) + (prestigeReachMcProgress.currentRun >= prestigeReachMcProgress.totalRuns ? 1 : 0))}/${PRESTIGE_REACH_HOURS.length}`
+                  : `0/${PRESTIGE_REACH_HOURS.length}`}
               </div>
               <kbd>Progress</kbd>
               <div className="mono">
                 {prestigeReachMcProgress ? (
                   <>
                     {Math.floor(
-                      ((prestigeReachMcProgress.hour - 1) / 8 + prestigeReachMcProgress.currentRun / prestigeReachMcProgress.totalRuns / 8) * 100
+                      ((PRESTIGE_REACH_HOURS.indexOf(prestigeReachMcProgress.hour) +
+                        prestigeReachMcProgress.currentRun / prestigeReachMcProgress.totalRuns) /
+                        PRESTIGE_REACH_HOURS.length) *
+                        100
                     )}
                     %
                   </>
@@ -1428,10 +1432,10 @@ export function EventSim() {
                                 lines: ["Per-tier currency after 1h with the suggested build (expected wave and time)."],
                               },
                               {
-                                heading: "1h … 8h",
+                                heading: "1h, 2h, 4h, 8h",
                                 lines: [
-                                  "Runs 8 full optimizations (same as Optimize Guided MC), one per hour budget (1h … 8h). Can take several minutes.",
-                                  "Progress bar shows current hour and optimization step. If 8h chance is still ≤ 95%, shows: Not even 8 hours farming will yield next Prestige!",
+                                  "Runs 4 full optimizations (same as Optimize Guided MC), one per budget: 1h, 2h, 4h, 8h. Can take several minutes.",
+                                  "Progress shows current step (1/4 … 4/4). If 8h chance is still ≤ 95%, shows: Not even 8 hours farming will yield next Prestige!",
                                 ],
                               },
                             ],
@@ -1521,16 +1525,16 @@ export function EventSim() {
                         <div className="kv small" style={{ marginTop: 8 }}>
                           <kbd>Hours Done</kbd>
                           <div className="mono">
-                            {prestigeReachMcProgress.currentRun >= prestigeReachMcProgress.totalRuns
-                              ? prestigeReachMcProgress.hour
-                              : prestigeReachMcProgress.hour - 1}
-                            /8
+                            {PRESTIGE_REACH_HOURS.indexOf(prestigeReachMcProgress.hour) +
+                              (prestigeReachMcProgress.currentRun >= prestigeReachMcProgress.totalRuns ? 1 : 0)}
+                            /{PRESTIGE_REACH_HOURS.length}
                           </div>
                           <kbd>Progress</kbd>
                           <div className="mono">
                             {Math.floor(
-                              ((prestigeReachMcProgress.hour - 1) / 8 +
-                                prestigeReachMcProgress.currentRun / prestigeReachMcProgress.totalRuns / 8) *
+                              ((PRESTIGE_REACH_HOURS.indexOf(prestigeReachMcProgress.hour) +
+                                prestigeReachMcProgress.currentRun / prestigeReachMcProgress.totalRuns) /
+                                PRESTIGE_REACH_HOURS.length) *
                                 100
                             )}
                             %
@@ -1539,7 +1543,7 @@ export function EventSim() {
                       ) : null}
                       {prestigeReachMcResult ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {prestigeReachMcResult[7].probability <= PRESTIGE_REACH_SIGNIFICANT ? (
+                          {prestigeReachMcResult[PRESTIGE_REACH_HOURS.length - 1]!.probability <= PRESTIGE_REACH_SIGNIFICANT ? (
                             <div className="mono" style={{ color: "var(--muted)" }}>
                               {useTargetWaveGoal ? "Not even 8 hours farming will yield target wave!" : "Not even 8 hours farming will yield next Prestige!"}
                             </div>

@@ -74,6 +74,18 @@ function formatMinSecWithUnit(minDecimal: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min`;
 }
 
+/**
+ * Loot multi applied to integer quantity (fishing ticks, arch attacks, chests, cherry, gems).
+ * Game logic: 100% get floor(base × multi); fractional part = chance for +1.
+ * E.g. 12 × 1.2 = 14.4 → 14 guaranteed, 40% chance 15. Expected = 14.4 (used for per-hour calc).
+ */
+function lootMultiQuantity(base: number, multi: number): { guaranteed: number; extraChance: number; expected: number } {
+  const product = base * multi;
+  const guaranteed = Math.floor(product);
+  const extraChance = product - guaranteed;
+  return { guaranteed, extraChance, expected: product };
+}
+
 /** True if buff is event-based (ticks, attacks, chests, charges, gems) rather than duration-based. */
 function isEventBuff(buffName: string): boolean {
   return (
@@ -958,7 +970,10 @@ export function Lootbug() {
                   <span className="lootbugStatLabel">
                     <img src={getGemBuffIcon("Fishing +12 Ticks")} alt="" className="lootbugStatIcon" aria-hidden />
                     <span className="lootbugLabel">
-                      Fishing +{Math.round(12 * lootMultiplier)} Ticks: Fishing gains
+                      Fishing +{(() => {
+                        const q = lootMultiQuantity(12, lootMultiplier);
+                        return q.extraChance > 0 ? `${q.guaranteed}–${q.guaranteed + 1} Ticks` : `${q.guaranteed} Ticks`;
+                      })()}: Fishing gains
                       <Tooltip
                         content={{
                           title: "Fishing gains from Lootbug gem buff",
@@ -969,6 +984,15 @@ export function Lootbug() {
                                 "Increase in fishing gains when you add this Lootbug buff on top of your current setup.",
                                 "Baseline = gains without this buff (base ticks + Angler + Gift Sushi). So the +% is relative to all other buffs included, not base only.",
                               ],
+                            },
+                            {
+                              heading: "Ticks per proc",
+                              lines: (() => {
+                                const q = lootMultiQuantity(12, lootMultiplier);
+                                if (q.extraChance <= 0) return [`${q.guaranteed} ticks per proc (100%).`];
+                                const pct = Math.round(q.extraChance * 100);
+                                return [`100% chance ${q.guaranteed} ticks, ${pct}% chance ${q.guaranteed + 1}. Expected ${q.expected.toFixed(2)}/proc. Gains use expected value.`];
+                              })(),
                             },
                             {
                               heading: "Sync",
@@ -1195,7 +1219,8 @@ export function Lootbug() {
                           {
                             heading: "Events",
                             lines: [
-                              "Fishing ticks, Arch attacks, Item Chests, Cherry Charges: events/h (quantity × loot multi). Unit: events.",
+                              "Fishing ticks, Arch attacks, Item Chests, Cherry Charges, Gems: per-hour = procs/h × expected quantity per proc.",
+                              "Per proc the game gives floor(base × loot multi) guaranteed; fractional part = chance for +1. E.g. 12×1.2 = 14.4 → 14 guaranteed, 40% chance 15. Calculator uses expected value (14.4) for gains.",
                             ],
                           },
                           {
@@ -1302,9 +1327,41 @@ export function Lootbug() {
                           <img src={getGemBuffIcon(buff.name)} alt="" className="lootbugBuffIcon" aria-hidden />
                           <span>
                             {buff.name === "Fishing +12 Ticks"
-                              ? `Fishing +${Math.round(12 * lootMultiplier)} Ticks`
+                              ? (() => {
+                                  const q = lootMultiQuantity(12, lootMultiplier);
+                                  const label = q.extraChance > 0 ? `Fishing +${q.guaranteed}–${q.guaranteed + 1} Ticks` : `Fishing +${q.guaranteed} Ticks`;
+                                  return (
+                                    <>
+                                      {label}
+                                      <Tooltip
+                                        content={{
+                                          title: "Quantity per proc",
+                                          lines: q.extraChance > 0
+                                            ? [`100% chance ${q.guaranteed} ticks, ${Math.round(q.extraChance * 100)}% chance ${q.guaranteed + 1}. Per-hour uses expected ${q.expected.toFixed(2)}/proc.`]
+                                            : [`${q.guaranteed} ticks per proc.`],
+                                        }}
+                                      />
+                                    </>
+                                  );
+                                })()
                               : buff.name === "Archaeology +600 Attacks"
-                                ? `Archaeology +${Math.round(600 * lootMultiplier)} Attacks`
+                                ? (() => {
+                                    const q = lootMultiQuantity(600, lootMultiplier);
+                                    const label = q.extraChance > 0 ? `Archaeology +${q.guaranteed}–${q.guaranteed + 1} Attacks` : `Archaeology +${q.guaranteed} Attacks`;
+                                    return (
+                                      <>
+                                        {label}
+                                        <Tooltip
+                                          content={{
+                                            title: "Quantity per proc",
+                                            lines: q.extraChance > 0
+                                              ? [`100% chance ${q.guaranteed}, ${Math.round(q.extraChance * 100)}% chance ${q.guaranteed + 1}. Per-hour uses expected ${q.expected.toFixed(0)}/proc.`]
+                                              : [`${q.guaranteed} attacks per proc.`],
+                                          }}
+                                        />
+                                      </>
+                                    );
+                                  })()
                                 : buff.name}
                             {cherryValue != null ? (
                               <span className="lootbugCherryValue">
