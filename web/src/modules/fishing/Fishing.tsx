@@ -74,6 +74,8 @@ type SavedState = {
   valuePackPotencyPoly?: boolean;
   skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
   legendaryFishFound?: number;
+  /** Divine Relic points: +2% 5× tick chance per point (applies to all gains; Sushi does not get Gift +25%). */
+  divineRelic5xPoints?: number;
 };
 
 /** Single persisted state (same pattern as Drone: one state, lazy load, save on change). */
@@ -92,6 +94,8 @@ type FishingState = {
   valuePackPotencyPoly: boolean;
   skillTreeLevels: Partial<Record<FishingSkillId, number>>;
   legendaryFishFound: number;
+  /** Divine Relic points: +2% 5× tick chance per point. */
+  divineRelic5xPoints: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
@@ -115,6 +119,8 @@ const LEGENDARY_CATCH_BASE = 150_000;
 const ELIXIR_3X_FISHING_BUFF_ICON = "https://static.wikitide.net/shminerwiki/8/87/Triple_Fish_Tick_Chance.png";
 
 const FISHING_ICON = "https://static.wikitide.net/shminerwiki/f/fb/Fishing_Button.png";
+/** Divine Relic (5× tick chance): +2% per point. Wiki Divine Relic Cap. */
+const RELICS_ICON_URL = "https://static.wikitide.net/shminerwiki/4/45/Divine_Relic_Cap.png";
 
 /** Gem icon for enhancement costs (wiki File:Gem.png). */
 const GEM_ICON_URL = fishIconUrl("Gem.png");
@@ -301,6 +307,7 @@ type TotalFishOptions = {
   legendaryFishFound?: number;
   /** Fishing Rod card tier (0–3) for rod power mult 1 / 1.02 / 1.05 / 1.10. */
   fishingRodCardTier?: FishCardTier;
+  relic5xPoints?: number;
 };
 
 /**
@@ -667,7 +674,8 @@ export function Fishing() {
     const skillTreeLevels = saved?.skillTreeLevels ?? {};
     const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
     const fishingRodCardTier = clamp(Math.trunc(Number(saved?.fishingRodCardTier ?? 0)), 0, 3) as FishCardTier;
-    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound };
+    const divineRelic5xPoints = clamp(Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)), 0, 50);
+    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints };
   });
 
   useEffect(() => {
@@ -704,6 +712,7 @@ export function Fishing() {
     skillTreeLevels,
     fishCardTier: state.fishCardTier,
     legendaryFishFound: state.legendaryFishFound,
+    relic5xPoints: state.divineRelic5xPoints,
   };
   const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillTreeOptions);
   /** Rod power: base (from lib, unrounded) × Fishing Rod card mult (1× / 1.02× / 1.05× / 1.10×). Round only once at the end. */
@@ -927,8 +936,9 @@ export function Fishing() {
     (1 + stats.double_tick_chance_pct / 100) *
     (1 + 2 * stats.triple_tick_chance_pct / 100) *
     (1 + 4 * stats.five_tick_chance_pct / 100);
-  /** Extra effective ticks from Gift basic reward "5× Fishing Tick Chance" (uptime × 4× on that slice). */
-  const gift5xTickContribution = rawTicksPerHour * tickMult * 4 * gift5xTickUptimeFraction;
+  /** Extra effective ticks from Gift basic reward "5× Fishing Tick Chance" (uptime × 4× on that slice). Gift +25% does not apply to Sushi ticks. */
+  const nonSushiRawTicksPerHour = Math.max(0, rawTicksPerHour - giftSushiTicksPerHour);
+  const gift5xTickContribution = nonSushiRawTicksPerHour * tickMult * 4 * gift5xTickUptimeFraction;
   /** Total effective fishing ticks per hour (base×mult + Gift 5× contribution). Used for display. */
   const totalEffectiveTicksPerHour = rawTicksPerHour * tickMult + gift5xTickContribution;
 
@@ -3129,6 +3139,48 @@ export function Fishing() {
                 </table>
               </div>
             </Collapsible>
+            <div className="fishingDivineRelicRow" style={{ marginTop: 8, padding: "6px 10px", display: "flex", alignItems: "center", gap: 10, flexWrap: "nowrap", border: "1px solid var(--border, #e2e8f0)", borderRadius: 6, backgroundColor: "var(--panel-bg, rgba(248,250,252,0.6))" }}>
+              <img src={RELICS_ICON_URL} alt="" width={22} height={22} style={{ objectFit: "contain", flexShrink: 0 }} />
+              <span style={{ fontWeight: 600, flexShrink: 0 }}>Divine Relic (5× tick)</span>
+              <Tooltip
+                content={{
+                  title: "Divine Relic",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Each point gives +2% 5× tick chance. This is the base 5× chance that applies to all tick sources.",
+                        "The Gift basic reward (+25% 5× chance) applies to Base, Angler, Lootbug ticks but not to Sushi.",
+                        "Sushi uses only this base (relic) 5× chance.",
+                      ],
+                    },
+                  ],
+                }}
+                label="?"
+              />
+              <div className="btnRow" style={{ gap: 4, flexShrink: 0 }}>
+                <button
+                  type="button"
+                  className="btn btnSecondary"
+                  onClick={() => setState((s) => ({ ...s, divineRelic5xPoints: Math.max(0, s.divineRelic5xPoints - 1) }))}
+                  disabled={state.divineRelic5xPoints <= 0}
+                  aria-label="Decrease"
+                >
+                  −
+                </button>
+                <span className="mono" style={{ minWidth: 26, textAlign: "center" }}>{state.divineRelic5xPoints}</span>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setState((s) => ({ ...s, divineRelic5xPoints: Math.min(50, s.divineRelic5xPoints + 1) }))}
+                  disabled={state.divineRelic5xPoints >= 50}
+                  aria-label="Increase"
+                >
+                  +
+                </button>
+              </div>
+              <span className="mono" style={{ opacity: 0.9, flexShrink: 0 }}>→ +{state.divineRelic5xPoints * 2}% 5× tick chance</span>
+            </div>
           </div>
         </Collapsible>
 

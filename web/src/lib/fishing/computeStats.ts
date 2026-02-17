@@ -54,6 +54,8 @@ export interface SkillTreeOptions {
   fishCardTier?: Partial<Record<string, number>>;
   /** Legendary fish found (0–6) for Completionist Gatekeeper. */
   legendaryFishFound?: number;
+  /** Divine Relic points: each point gives +2% 5× tick chance (base; applies to all sources; Sushi does not get Gift's +25% on top). */
+  relic5xPoints?: number;
 }
 
 /**
@@ -145,7 +147,7 @@ export function computeFishingStatsFromLevels(
     0.35 * u("triple_tick_chance") +
     0.4 * e("enhance_triple_tick_chance") +
     1 * skill("lets_pick_up_the_pace");
-  const five_tick_chance_pct = 0;
+  const five_tick_chance_pct = 2 * Math.max(0, Math.floor(options?.relic5xPoints ?? 0));
 
   // Shiny / Super Shiny chances (%): shiny_fish_chance +0.5% per level; super_shiny_chance +1% per level; tiny notice +0.5% (enhance). Skill: With This Fish I Summon +0.1% shiny per fish card per level; Completionist +1% super shiny per level per legendary.
   const shiny_fish_chance_pct =

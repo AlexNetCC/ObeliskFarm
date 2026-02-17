@@ -306,12 +306,15 @@ export function ArchSim() {
   const [gemFragNextRunning, setGemFragNextRunning] = useState(false);
   const [gemFragNextProgress, setGemFragNextProgress] = useState<string | null>(null);
   const [gemFragNextResults, setGemFragNextResults] = useState<Array<{
-    key: ArchGemUpgradeKey;
+    source: "gem" | "card" | "skill";
+    key: string;
     displayName: string;
     meanFrags: number;
     growthPct: number;
-    cost: number;
+    cost: number | undefined;
     perCost: number;
+    allFragmentsGrowthPct: number;
+    perCostAllFragments: number;
     significant: boolean;
   }> | null>(null);
   const gemFragNextCancelRef = useRef(false);
@@ -2115,7 +2118,7 @@ export function ArchSim() {
     const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
-    type GemFragResult = { source: "gem" | "card" | "skill"; key: string; displayName: string; meanFrags: number; growthPct: number; cost: number | undefined; perCost: number; significant: boolean };
+    type GemFragResult = { source: "gem" | "card" | "skill"; key: string; displayName: string; meanFrags: number; growthPct: number; cost: number | undefined; perCost: number; allFragmentsGrowthPct: number; perCostAllFragments: number; significant: boolean };
     const results: GemFragResult[] = [];
     try {
       setGemFragNextProgress(`Which Gem/Card/Skill Tree Upgrade next to maximize Fragment gains (${targetFrag}): Baseline…`);
@@ -2127,9 +2130,11 @@ export function ArchSim() {
         payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag },
       });
       const baseFragSamples = (baseOut as { target_frag_samples?: number[] }).target_frag_samples ?? [];
+      const baseTotalSamples = (baseOut as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
       const baseStatsRes = baseFragSamples.length > 0 ? sampleStats(baseFragSamples) : { mean: 0, std: 0, min: 0, max: 0 };
       const baseMeanFrags = baseStatsRes.mean;
       const baseStd = baseStatsRes.std;
+      const baseMeanAllFrags = baseTotalSamples.length > 0 ? sampleStats(baseTotalSamples).mean : 0;
 
       let idx = 0;
       for (let i = 0; i < eligibleGems.length; i += 1) {
@@ -2151,16 +2156,20 @@ export function ArchSim() {
           payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 40000 + idx, targetFrag },
         });
         const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
+        const totalSamples = (out as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
         const varStats = fragSamples.length > 0 ? sampleStats(fragSamples) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanAllFrags = totalSamples.length > 0 ? sampleStats(totalSamples).mean : 0;
         const meanFrags = varStats.mean;
         const growthPct = baseMeanFrags > 0 ? ((meanFrags - baseMeanFrags) / baseMeanFrags) * 100 : 0;
+        const allFragmentsGrowthPct = baseMeanAllFrags > 0 ? ((meanAllFrags - baseMeanAllFrags) / baseMeanAllFrags) * 100 : 0;
         const perCost = cost > 0 ? growthPct / cost : 0;
+        const perCostAllFragments = cost > 0 ? allFragmentsGrowthPct / cost : 0;
         const seBase = baseStd / Math.sqrt(N_SIMS);
         const seVar = varStats.std / Math.sqrt(N_SIMS);
         const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
         const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
         const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ source: "gem", key, displayName, meanFrags, growthPct, cost, perCost, significant });
+        results.push({ source: "gem", key, displayName, meanFrags, growthPct, cost, perCost, allFragmentsGrowthPct, perCostAllFragments, significant });
       }
       for (let i = 0; i < eligibleCards.length; i += 1) {
         if (gemFragNextCancelRef.current) break;
@@ -2180,16 +2189,20 @@ export function ArchSim() {
           payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 50000 + idx, targetFrag },
         });
         const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
+        const totalSamples = (out as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
         const varStats = fragSamples.length > 0 ? sampleStats(fragSamples) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanAllFrags = totalSamples.length > 0 ? sampleStats(totalSamples).mean : 0;
         const meanFrags = varStats.mean;
         const growthPct = baseMeanFrags > 0 ? ((meanFrags - baseMeanFrags) / baseMeanFrags) * 100 : 0;
+        const allFragmentsGrowthPct = baseMeanAllFrags > 0 ? ((meanAllFrags - baseMeanAllFrags) / baseMeanAllFrags) * 100 : 0;
         const perCost = cost > 0 ? growthPct / cost : 0;
+        const perCostAllFragments = cost > 0 ? allFragmentsGrowthPct / cost : 0;
         const seBase = baseStd / Math.sqrt(N_SIMS);
         const seVar = varStats.std / Math.sqrt(N_SIMS);
         const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
         const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
         const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ source: "card", key, displayName, meanFrags, growthPct, cost, perCost, significant });
+        results.push({ source: "card", key, displayName, meanFrags, growthPct, cost, perCost, allFragmentsGrowthPct, perCostAllFragments, significant });
       }
       for (let i = 0; i < eligibleSkills.length; i += 1) {
         if (gemFragNextCancelRef.current) break;
@@ -2208,15 +2221,18 @@ export function ArchSim() {
           payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 60000 + idx, targetFrag },
         });
         const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
+        const totalSamples = (out as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
         const varStats = fragSamples.length > 0 ? sampleStats(fragSamples) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanAllFrags = totalSamples.length > 0 ? sampleStats(totalSamples).mean : 0;
         const meanFrags = varStats.mean;
         const growthPct = baseMeanFrags > 0 ? ((meanFrags - baseMeanFrags) / baseMeanFrags) * 100 : 0;
+        const allFragmentsGrowthPct = baseMeanAllFrags > 0 ? ((meanAllFrags - baseMeanAllFrags) / baseMeanAllFrags) * 100 : 0;
         const seBase = baseStd / Math.sqrt(N_SIMS);
         const seVar = varStats.std / Math.sqrt(N_SIMS);
         const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
         const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
         const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ source: "skill", key, displayName, meanFrags, growthPct, cost: undefined, perCost: 0, significant });
+        results.push({ source: "skill", key, displayName, meanFrags, growthPct, cost: undefined, perCost: 0, allFragmentsGrowthPct, perCostAllFragments: 0, significant });
       }
       results.sort((a, b) => b.growthPct - a.growthPct);
       setGemFragNextResults(results);
@@ -3727,22 +3743,27 @@ export function ArchSim() {
                       ) : null}
                       {gemFragNextResults && gemFragNextResults.length > 0 ? (() => {
                         const rs = gemFragNextResults;
-                        const minFrags = Math.min(...rs.map((r) => r.meanFrags));
-                        const maxFrags = Math.max(...rs.map((r) => r.meanFrags));
                         const minGrowth = Math.min(...rs.map((r) => r.growthPct));
                         const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
-                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
+                        const minAllGrowth = Math.min(...rs.map((r) => r.allFragmentsGrowthPct));
+                        const maxAllGrowth = Math.max(...rs.map((r) => r.allFragmentsGrowthPct));
                         const scale = 1000;
+                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
+                        const perCostAllVals = rs.map((r) => r.perCostAllFragments).filter((v): v is number => Number.isFinite(v) && v >= 0);
                         const scaledPerCost = perCostVals.map((v) => v * scale);
+                        const scaledPerCostAll = perCostAllVals.map((v) => v * scale);
                         const minPerCost = scaledPerCost.length > 0 ? Math.min(...scaledPerCost) : 0;
                         const maxPerCost = scaledPerCost.length > 0 ? Math.max(...scaledPerCost) : 0;
+                        const minPerCostAll = scaledPerCostAll.length > 0 ? Math.min(...scaledPerCostAll) : 0;
+                        const maxPerCostAll = scaledPerCostAll.length > 0 ? Math.max(...scaledPerCostAll) : 0;
                         const heatPct = (v: number, lo: number, hi: number) =>
                           hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
                         const targetFragLabel = (fragmentLogEntries.find((e) => e.id === (gemFragNextRefId ?? fragmentLogEntries[0]?.id))?.mc?.targetFrag ?? "target").toUpperCase();
+                        const costEfficTitle = "Cost efficiency: (+%) per gem × 1000";
                         let rowNum = 0;
                         return (
                           <div className="small">
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next upgrade (by {targetFragLabel}/run +%):</div>
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next upgrade (by {targetFragLabel}/run +% and all fragments/run +%):</div>
                             <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                               <span style={{ color: "hsl(120, 75%, 35%)", textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9)", fontWeight: 600 }}>GREEN = GOOD</span>
                               <span title="95% confidence">* = not statistically significant</span>
@@ -3753,10 +3774,11 @@ export function ArchSim() {
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Type</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Option</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>{targetFragLabel}/run</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>{targetFragLabel}/run (+%)</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }} title={costEfficTitle}>Cost effic.</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>all fragments/run (+%)</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }} title={costEfficTitle}>Cost effic.</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Gems</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="(+%) per gem × 1000">(+%)/gem ×1000</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3768,23 +3790,30 @@ export function ArchSim() {
                                       <td style={{ paddingRight: 12 }}>{r.source === "gem" ? "Gem" : r.source === "card" ? "Card" : "Skill"}</td>
                                       <td style={{ paddingRight: 12 }}>{r.displayName}</td>
                                       <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.meanFrags, minFrags, maxFrags)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
-                                          {!r.significant ? "*" : r.meanFrags.toFixed(3)}
-                                        </span>
-                                      </td>
-                                      <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
                                           {!r.significant ? "*" : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
                                         </span>
                                       </td>
-                                      <td className="num">{r.cost != null ? r.cost : "—"}</td>
                                       <td className="num">
                                         {r.cost != null && r.cost > 0 ? (
-                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCost * scale, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4 }}>{!r.significant || r.perCost < 0 ? "*" : (r.perCost * scale).toFixed(3)}</span>
+                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCost * scale, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4 }} title={costEfficTitle}>{!r.significant || r.perCost < 0 ? "*" : (r.perCost * scale).toFixed(3)}</span>
                                         ) : (
                                           "—"
                                         )}
                                       </td>
+                                      <td className="num">
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.allFragmentsGrowthPct, minAllGrowth, maxAllGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
+                                          {!r.significant ? "*" : `${r.allFragmentsGrowthPct >= 0 ? "+" : ""}${r.allFragmentsGrowthPct.toFixed(2)}%`}
+                                        </span>
+                                      </td>
+                                      <td className="num">
+                                        {r.cost != null && r.cost > 0 ? (
+                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCostAllFragments * scale, minPerCostAll, maxPerCostAll)), padding: "2px 6px", borderRadius: 4 }} title={costEfficTitle}>{!r.significant ? "*" : (r.perCostAllFragments * scale).toFixed(3)}</span>
+                                        ) : (
+                                          "—"
+                                        )}
+                                      </td>
+                                      <td className="num">{r.cost != null ? r.cost : "—"}</td>
                                     </tr>
                                   );
                                 })}

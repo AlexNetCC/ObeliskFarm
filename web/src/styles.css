@@ -956,21 +956,21 @@ body {
 }
 
 .mcTypePill_stage {
-  background: rgba(46, 125, 50, 0.10);
-  border-color: rgba(46, 125, 50, 0.28);
-  color: rgba(46, 125, 50, 0.95);
+  background: rgba(210, 160, 0, 0.14);
+  border-color: rgba(210, 160, 0, 0.35);
+  color: rgba(140, 100, 0, 0.98);
 }
 
 .mcTypePill_XP {
-  background: rgba(103, 58, 183, 0.10);
-  border-color: rgba(103, 58, 183, 0.28);
-  color: rgba(103, 58, 183, 0.95);
+  background: rgba(46, 125, 50, 0.12);
+  border-color: rgba(46, 125, 50, 0.32);
+  color: rgba(30, 90, 40, 0.98);
 }
 
 .mcTypePill_frag {
-  background: rgba(245, 124, 0, 0.10);
-  border-color: rgba(245, 124, 0, 0.28);
-  color: rgba(245, 124, 0, 0.95);
+  background: rgba(147, 112, 219, 0.14);
+  border-color: rgba(147, 112, 219, 0.38);
+  color: rgba(88, 55, 140, 0.98);
 }
 
 .mcLogButtons {
