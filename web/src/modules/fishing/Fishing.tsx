@@ -306,6 +306,7 @@ type TotalFishOptions = {
 /**
  * Total fish per hour for given levels and dock assignment (same formula as Fishing gains list).
  * Used to compute marginal % gain from +1 level by comparing total with hypothetical levels.
+ * When extraTicksPerHour is passed (Angler + Lootbug + Gift Sushi), fills use base + extra so the total matches the displayed gains list and marginal % is correct.
  */
 function computeTotalFishPerHour(
   upgradeLevels: Partial<Record<FishingUpgradeId, number>>,
@@ -314,6 +315,7 @@ function computeTotalFishPerHour(
   activeDockId: DockId,
   elixir3xFishingExternal: { uptimeFraction: number },
   skillOptions?: TotalFishOptions,
+  extraTicksPerHour: number = 0,
 ): number {
   const stats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOptions);
   const s = stats.shiny_fish_chance_pct / 100;
@@ -337,9 +339,10 @@ function computeTotalFishPerHour(
     const n = dronesPerDock[set.dockId] ?? 0;
     const powerOnThisDock = rod + n * stats.drone_base_power;
     const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+    const fillsPerHour = dockFillsPerHour + extraTicksPerHour / dock.baseTicksNeeded;
     for (const f of set.fish) {
       total +=
-        dockFillsPerHour *
+        fillsPerHour *
         expectedRollsPerFill *
         expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
         stats.fish_income_multi *
@@ -1436,15 +1439,15 @@ export function Fishing() {
     return { heatMin: Math.min(...vals), heatMax: Math.max(...vals) };
   }, [visibleGainsRows]);
 
-  /** +% gains = (total fish/h with +1 level − current total) / current total × 100. Computed from actual Fishing gains. Also next-level effect string (e.g. 10→12) for name cell. */
+  /** +% gains = (total fish/h with +1 level − current total) / current total × 100. Computed from actual Fishing gains. Also next-level effect string (e.g. 10→12) for name cell. Use same skill options as main stats so effect strings (e.g. tick reduction) match "Your stats". */
   const { upgradeMarginalPct, enhanceMarginalPct, upgradeNextEffect, enhanceNextEffect } = useMemo(() => {
-    const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
     const skillOpts = {
       skillTreeLevels: state.skillTreeLevels,
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
       fishingRodCardTier: state.fishingRodCardTier,
     };
+    const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOpts);
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
@@ -1452,6 +1455,7 @@ export function Fishing() {
       state.activeDockId,
       elixir3xFishingExternal,
       skillOpts,
+      extraTicksPerHour,
     );
     const upgradeMap = new Map<FishingUpgradeId, number | null>();
     const upgradeEffectMap = new Map<FishingUpgradeId, string | null>();
@@ -1465,7 +1469,7 @@ export function Fishing() {
         continue;
       }
       const newLevels = { ...upgradeLevels, [def.id]: lvl + 1 };
-      const nextStats = computeFishingStatsFromLevels(newLevels, enhanceLevels);
+      const nextStats = computeFishingStatsFromLevels(newLevels, enhanceLevels, skillOpts);
       // Drone cap upgrades: assume the extra drone(s) are assigned to the Fisher (active dock) for +% gains.
       const extraDronesOnFisher =
         def.id === "fishing_drone" ? 1 : def.id === "fishing_drone_2" ? 2 : 0;
@@ -1483,6 +1487,7 @@ export function Fishing() {
         state.activeDockId,
         elixir3xFishingExternal,
         skillOpts,
+        extraTicksPerHour,
       );
       upgradeMap.set(
         def.id,
@@ -1507,7 +1512,7 @@ export function Fishing() {
         continue;
       }
       const newLevels = { ...enhanceLevels, [def.id]: lvl + 1 };
-      const nextStats = computeFishingStatsFromLevels(upgradeLevels, newLevels);
+      const nextStats = computeFishingStatsFromLevels(upgradeLevels, newLevels, skillOpts);
       // Drone cap enhancements: assume the extra drone(s) are assigned to the Fisher (active dock) for +% gains.
       const extraDronesOnFisher =
         def.id === "enhance_fishing_drone" ? 1 : def.id === "enhance_fishing_drone_3" ? 3 : 0;
@@ -1525,6 +1530,7 @@ export function Fishing() {
         state.activeDockId,
         elixir3xFishingExternal,
         skillOpts,
+        extraTicksPerHour,
       );
       enhanceMap.set(
         def.id,
@@ -1548,6 +1554,7 @@ export function Fishing() {
     state.legendaryFishFound,
     state.fishingRodCardTier,
     elixir3xFishingExternal,
+    extraTicksPerHour,
     availableT1Upgrades,
     availableT2Upgrades,
     availableT1Enhancements,
@@ -1647,6 +1654,7 @@ export function Fishing() {
       state.activeDockId,
       elixir3xFishingExternal,
       skillOpts,
+      extraTicksPerHour,
     );
     const marginalMap = new Map<FishingSkillId, number | null>();
     const breakdownMap = new Map<FishingSkillId, Array<{ label: string; pct: number }>>();
@@ -1676,6 +1684,7 @@ export function Fishing() {
         state.activeDockId,
         elixir3xFishingExternal,
         { ...skillOpts, skillTreeLevels: newSkillLevels },
+        extraTicksPerHour,
       );
       let marginalPct =
         currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
@@ -1695,6 +1704,7 @@ export function Fishing() {
           state.activeDockId,
           elixir3xFishingExternal,
           { ...skillOpts, skillTreeLevels: newSkillLevels },
+          extraTicksPerHour,
         );
         const pctFromStats = ((totalSameDrones - currentTotal) / currentTotal) * 100;
         const pctFromDrones = ((newTotal - totalSameDrones) / currentTotal) * 100;
@@ -1806,6 +1816,7 @@ export function Fishing() {
     state.fishingRodCardTier,
     effectiveRodPower,
     elixir3xFishingExternal,
+    extraTicksPerHour,
     gemEvGemsPerHour,
   ]);
 
@@ -1932,7 +1943,7 @@ export function Fishing() {
               Fishing gains (by fish)
               <span style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
                 <span className="mono fishingTotalRainbow" style={{ fontSize: "1.45em" }}>
-                  {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}/h
+                  {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}/h
                 </span>
               </span>
             </span>
@@ -2022,7 +2033,7 @@ export function Fishing() {
                         {isActive
                           ? fishPerHour.toLocaleString(undefined, {
                               maximumFractionDigits: 2,
-                              minimumFractionDigits: 0,
+                              minimumFractionDigits: 2,
                             })
                           : "—"}
                         /h
