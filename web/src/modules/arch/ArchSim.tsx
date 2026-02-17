@@ -74,6 +74,8 @@ type McLogEntry = {
     fragmentsPerRunTotal: number;
     xpPerHour: number;
     fragmentsPerHour: number;
+    /** Average attacks (hits) per run. Present for MC runs; older saved logs may not have it. */
+    attacksPerRun?: number;
     /** Fragments per hour by type (common, rare, epic, legendary, mythic). Present when MC final sims included per-type data. */
     fragmentsPerHourByType?: Record<string, number>;
     /** Block time distribution (MC only). Time share % per block type, destroyed/run, avg hits/block. */
@@ -1100,6 +1102,7 @@ export function ArchSim() {
         let sumXp = 0;
         let sumTotalFrags = 0;
         let sumDur = 0;
+        let sumHits = 0;
         let sampleCount = 0;
         const sumFragsByType: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
         const FRAG_TYPES_STAGE = ["common", "rare", "epic", "legendary", "mythic"] as const;
@@ -1125,6 +1128,7 @@ export function ArchSim() {
               const maxs: number[] = out.max_stage_samples ?? [];
               const floors: number[] = out.floors_cleared_samples ?? [];
               const totals: number[] = out.total_fragments_samples ?? [];
+              const hits: number[] = (out as { total_hits_samples?: number[] }).total_hits_samples ?? [];
               const targ: number[] = out.target_frag_samples ?? [];
               const runFragsByType = (out as { run_fragments_by_type?: Record<string, number[]> }).run_fragments_by_type ?? {};
               for (let i = 0; i < dur.length; i += 1) {
@@ -1138,6 +1142,7 @@ export function ArchSim() {
                 sumXp += Number(xp[i] ?? 0);
                 sumFloors += Number(floors[i] ?? 0);
                 sumTotalFrags += Number(totals[i] ?? 0);
+                sumHits += Number(hits[i] ?? 0);
                 for (const k of FRAG_TYPES_STAGE) sumFragsByType[k] += Number(runFragsByType[k]?.[i] ?? 0);
                 sampleCount += 1;
               }
@@ -1176,6 +1181,7 @@ export function ArchSim() {
         const avgXp = sampleCount > 0 ? sumXp / sampleCount : 0;
         const avgTotalFrags = sampleCount > 0 ? sumTotalFrags / sampleCount : 0;
         const avgDur = sampleCount > 0 ? sumDur / sampleCount : 1;
+        const avgAttacksPerRun = sampleCount > 0 ? sumHits / sampleCount : 0;
         let xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
         let fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
         const fragmentsPerHourByType: Record<string, number> = {};
@@ -1224,6 +1230,7 @@ export function ArchSim() {
             fragmentsPerRunTotal: avgTotalFrags,
             xpPerHour,
             fragmentsPerHour,
+            attacksPerRun: avgAttacksPerRun,
             fragmentsPerHourByType,
             blockBreakdown: blockBreakdownEarly,
           },
@@ -1475,6 +1482,7 @@ export function ArchSim() {
       let sumXp = 0;
       let sumTotalFrags = 0;
       let sumDur = 0;
+      let sumHits = 0;
       let sampleCount = 0;
       const sumFragsByTypeRef: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
       const FRAG_TYPES_REF = ["common", "rare", "epic", "legendary", "mythic"] as const;
@@ -1501,6 +1509,7 @@ export function ArchSim() {
             const maxs: number[] = out.max_stage_samples ?? [];
             const floors: number[] = out.floors_cleared_samples ?? [];
             const totals: number[] = out.total_fragments_samples ?? [];
+            const hits: number[] = (out as { total_hits_samples?: number[] }).total_hits_samples ?? [];
             const targ: number[] = out.target_frag_samples ?? [];
             const runFragsByType = (out as { run_fragments_by_type?: Record<string, number[]> }).run_fragments_by_type ?? {};
             for (let i = 0; i < dur.length; i += 1) {
@@ -1514,6 +1523,7 @@ export function ArchSim() {
               sumXp += Number(xp[i] ?? 0);
               sumFloors += Number(floors[i] ?? 0);
               sumTotalFrags += Number(totals[i] ?? 0);
+              sumHits += Number(hits[i] ?? 0);
               for (const k of FRAG_TYPES_REF) sumFragsByTypeRef[k] += Number(runFragsByType[k]?.[i] ?? 0);
               sampleCount += 1;
             }
@@ -1564,6 +1574,7 @@ export function ArchSim() {
       const avgXp = sampleCount > 0 ? sumXp / sampleCount : 0;
       const avgTotalFrags = sampleCount > 0 ? sumTotalFrags / sampleCount : 0;
       const avgDur = sampleCount > 0 ? sumDur / sampleCount : 1;
+      const avgAttacksPerRun = sampleCount > 0 ? sumHits / sampleCount : 0;
       let xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
       let fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
       const fragmentsPerHourByTypeRef: Record<string, number> = {};
@@ -1611,6 +1622,7 @@ export function ArchSim() {
           fragmentsPerRunTotal: avgTotalFrags,
           xpPerHour,
           fragmentsPerHour,
+          attacksPerRun: avgAttacksPerRun,
           fragmentsPerHourByType: fragmentsPerHourByTypeRef,
           blockBreakdown,
         },
@@ -4545,19 +4557,21 @@ export function ArchSim() {
             <div className="modalBody">
               <div className="kv">
                 <kbd>Goal stage</kbd>
-                <div className="mono">{openLog.build.goalStage}</div>
+                <div className="mono">{Number(openLog.build.goalStage).toFixed(1)}</div>
                 <kbd>Unlocked</kbd>
-                <div className="mono">{openLog.build.unlockedStage}</div>
+                <div className="mono">{Number(openLog.build.unlockedStage).toFixed(1)}</div>
                 <kbd>Arch level</kbd>
-                <div className="mono">{openLog.build.archLevel}</div>
+                <div className="mono">{Number(openLog.build.archLevel).toFixed(1)}</div>
                 <kbd>Floors/run</kbd>
-                <div className="mono">{openLog.metrics.floorsPerRun.toFixed(3)}</div>
+                <div className="mono">{openLog.metrics.floorsPerRun.toFixed(1)}</div>
                 <kbd>XP/run</kbd>
-                <div className="mono">{openLog.metrics.xpPerRun.toFixed(3)}</div>
+                <div className="mono">{openLog.metrics.xpPerRun.toFixed(1)}</div>
                 <kbd>XP/h</kbd>
-                <div className="mono">{Math.round(openLog.metrics.xpPerHour)}</div>
+                <div className="mono">{openLog.metrics.xpPerHour.toFixed(1)}</div>
                 <kbd>Frag/h</kbd>
                 <div className="mono">{openLog.metrics.fragmentsPerHour.toFixed(1)}</div>
+                <kbd>Attacks/run</kbd>
+                <div className="mono">{openLog.metrics.attacksPerRun != null ? Number(openLog.metrics.attacksPerRun).toFixed(1) : "—"}</div>
                 {(() => {
                   // fragmentsPerHourByType is optional; narrow once so TS is happy inside .map()
                   const byType = openLog.metrics.fragmentsPerHourByType;

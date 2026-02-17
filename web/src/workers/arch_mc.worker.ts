@@ -39,6 +39,7 @@ function runStageLite(payload: any) {
   const xp_per_run_samples: number[] = [];
   const total_fragments_samples: number[] = [];
   const run_duration_seconds_samples: number[] = [];
+  const total_hits_samples: number[] = [];
   const target_frag_samples: number[] = [];
   const tfrag = payload.targetFrag ? String(payload.targetFrag) : null;
   const FRAG_TYPES = ["common", "rare", "epic", "legendary", "mythic"] as const;
@@ -57,6 +58,7 @@ function runStageLite(payload: any) {
     xp_per_run_samples.push(Number(r.xp_per_run ?? 0));
     total_fragments_samples.push(Number(r.total_fragments ?? 0));
     run_duration_seconds_samples.push(Number(r.run_duration_seconds ?? 1));
+    total_hits_samples.push(Number(r.total_hits ?? 0));
     if (tfrag) target_frag_samples.push(Number(r.fragments?.[tfrag] ?? 0));
     for (const k of FRAG_TYPES) run_fragments_by_type[k].push(Number(r.fragments?.[k] ?? 0));
     const stam: Record<number, number> | undefined = r.stamina_at_end_of_stage;
@@ -85,6 +87,7 @@ function runStageLite(payload: any) {
     xp_per_run_samples,
     total_fragments_samples,
     run_duration_seconds_samples,
+    total_hits_samples,
     target_frag_samples: tfrag ? target_frag_samples : null,
     run_fragments_by_type,
     stamina_at_stage_sum: Object.keys(stamina_at_stage_sum).length > 0 ? stamina_at_stage_sum : undefined,

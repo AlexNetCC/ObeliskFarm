@@ -75,13 +75,13 @@ export function getPrestigeWaveRequirement(prestige: number): number {
   return (prestige + 1) * 5;
 }
 
-/** True if this upgrade only adds atk/crit/critDmg (no HP, block, or speed). Used to skip damage when user already has enough atk for target wave. */
+/** True if this upgrade only adds atk/crit/critDmg (no HP, block, speed, or enemy debuffs). Used to skip damage when user already has enough atk for target wave. */
 export function isDamageOnlyUpgrade(tier: 1 | 2 | 3 | 4, idx: number): boolean {
   const damageOnly: Record<number, number[]> = {
     1: [0, 5],   // +1 Attack Damage; +1% Crit / +0.10 Crit Damage
     2: [],       // (T2.4 is atk+atkSpeed – keep for speed)
     3: [0, 2],   // +2 Attack Damage; +1% Crit Chance
-    4: [2],      // +0.10 Crit Damage / -0.10 Enemy Crit Damage
+    4: [],       // T4.2 (+0.10 Crit Dmg / -0.10 Enemy Crit Dmg) has survival value → not skipped
   };
   return (damageOnly[tier]?.includes(idx)) === true;
 }
