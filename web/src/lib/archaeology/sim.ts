@@ -183,12 +183,18 @@ export function getTotalStats(build: ArchBuild): ArchStats {
   if ((frag.fragment_gain_mult ?? 0) > 0) fragment_mult *= frag.fragment_gain_mult ?? 1.0;
 
   const all_mod_bonus = luckPts * (SKILL_BONUSES.luck.all_mod_chance ?? 0) + (frag.all_mod_chance ?? 0);
-  const mod_chance_skill_bonus = frag.mod_chance_skill ?? 0;
+  // Skill-buff "Mod Ch." adds per stat point × buff level (e.g. 10 AGI × 5 lvl × 0.02% = +1% for Agility Skill Buff).
+  const agiSkillBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["agi_skill_buff"] ?? 0));
+  const perSkillBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["per_skill_buff"] ?? 0));
+  const intSkillBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["int_skill_buff"] ?? 0));
+  const mod_from_agi_buff = agiPts * agiSkillBuffLvl * Number(FRAGMENT_UPGRADES.agi_skill_buff?.mod_chance_skill ?? 0);
+  const mod_from_per_buff = perPts * perSkillBuffLvl * Number(FRAGMENT_UPGRADES.per_skill_buff?.mod_chance_skill ?? 0);
+  const mod_from_int_buff = intPts * intSkillBuffLvl * Number(FRAGMENT_UPGRADES.int_skill_buff?.mod_chance_skill ?? 0);
 
-  const exp_mod_chance = intPts * (SKILL_BONUSES.intellect.exp_mod_chance ?? 0) + all_mod_bonus + mod_chance_skill_bonus + gem_xp * (GEM_UPGRADE_BONUSES.xp.exp_mod_chance ?? 0) + (frag.exp_mod_chance ?? 0);
-  const loot_mod_chance = perPts * (SKILL_BONUSES.perception.loot_mod_chance ?? 0) + all_mod_bonus + mod_chance_skill_bonus + gem_fragment * (GEM_UPGRADE_BONUSES.fragment.loot_mod_chance ?? 0);
-  const speed_mod_chance = agiPts * (SKILL_BONUSES.agility.speed_mod_chance ?? 0) + all_mod_bonus + mod_chance_skill_bonus;
-  const stamina_mod_chance = all_mod_bonus + mod_chance_skill_bonus + gem_stamina * (GEM_UPGRADE_BONUSES.stamina.stamina_mod_chance ?? 0) + (frag.stamina_mod_chance ?? 0);
+  const exp_mod_chance = intPts * (SKILL_BONUSES.intellect.exp_mod_chance ?? 0) + mod_from_int_buff + all_mod_bonus + gem_xp * (GEM_UPGRADE_BONUSES.xp.exp_mod_chance ?? 0) + (frag.exp_mod_chance ?? 0);
+  const loot_mod_chance = perPts * (SKILL_BONUSES.perception.loot_mod_chance ?? 0) + mod_from_per_buff + all_mod_bonus + gem_fragment * (GEM_UPGRADE_BONUSES.fragment.loot_mod_chance ?? 0);
+  const speed_mod_chance = agiPts * (SKILL_BONUSES.agility.speed_mod_chance ?? 0) + mod_from_agi_buff + all_mod_bonus;
+  const stamina_mod_chance = all_mod_bonus + mod_from_agi_buff + gem_stamina * (GEM_UPGRADE_BONUSES.stamina.stamina_mod_chance ?? 0) + (frag.stamina_mod_chance ?? 0);
 
   const arch_xp_bonus_total = frag.arch_xp_bonus ?? 0;
   const arch_xp_mult = 1.0 + arch_xp_bonus_total;

@@ -2583,10 +2583,10 @@ export function Fishing() {
                   <div className="fishingRow fishingRowInline">
                     <div className="fishingLabelLeft">
                       <img src={upgradeIconUrl("Fishing_Rod_Power.png")} alt="" className="iconSmall" style={{ width: 18, height: 18, objectFit: "contain" }} />
-                      <span className="fishingLabelName">Fishing rod power</span>
+                      <span className="fishingLabelName">Fishing Rod Power</span>
                       <Tooltip
                         content={{
-                          title: "Fishing rod power",
+                          title: "Fishing Rod Power",
                           sections: [
                             {
                               heading: "Formula",
@@ -2605,63 +2605,63 @@ export function Fishing() {
                     </span>
                   </div>
                   <StatRow
-                    label="Fishing drone cap"
+                    label="Fishing Drone Cap"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Capacity.png")}
                     value={stats.fishing_drone_cap}
                     decimals={2}
                     suffix=""
                   />
                   <StatRow
-                    label="Drone base power"
+                    label="Drone Base Power"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
                     value={stats.drone_base_power}
                     decimals={2}
                     suffix=""
                   />
                   <StatRow
-                    label="Drone power multiplier"
+                    label="Drone Power Multi"
                     iconUrl={upgradeIconUrl("Drone_Power_Multiplier.png")}
                     value={stats.drone_power_multiplier}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Fish income multiplier (×)"
+                    label="Fish Income Multi"
                     iconUrl={upgradeIconUrl("Fish_Income_Multiplier.png")}
                     value={stats.fish_income_multi}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Fishing tick reduction (s)"
+                    label="Fishing Tick Reduc"
                     iconUrl={upgradeIconUrl("Fishing_Tick_Reduction.png")}
                     value={stats.fishing_tick_reduction}
                     decimals={1}
                     suffix="s"
                   />
                   <StatRow
-                    label="Double tick chance"
+                    label="Double Tick Chance"
                     iconUrl={upgradeIconUrl("Double_Fish_Tick_Chance.png")}
                     value={stats.double_tick_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Triple tick chance"
+                    label="Triple Tick Chance"
                     iconUrl={upgradeIconUrl("Triple_Fish_Tick_Chance.png")}
                     value={stats.triple_tick_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="5× tick chance"
+                    label="5× Tick Chance"
                     iconUrl={upgradeIconUrl("5x_Fish_Tick_Chance.png")}
                     value={stats.five_tick_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Token gain multiplier"
+                    label="Token Gain Multi"
                     iconUrl={upgradeIconUrl("Fish_Token_Gain_Multiplier.png")}
                     value={stats.token_gain_multi}
                     decimals={2}
@@ -2670,48 +2670,48 @@ export function Fishing() {
                 </div>
                 <div className="fishingStatsCol">
                   <StatRow
-                    label="Notice fish requirement"
+                    label="Notice Fish Req"
                     value={stats.notice_fish_req}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Shiny fish chance"
+                    label="Shiny Fish Chance"
                     iconUrl={upgradeIconUrl("Shiny_Fish_Chance.png")}
                     value={stats.shiny_fish_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Super shiny chance"
+                    label="Super Shiny Chance"
                     iconUrl={upgradeIconUrl("Super_Shiny_Fish_Chance.png")}
                     value={stats.super_shiny_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Tiny notice chance"
+                    label="Tiny Notice Chance"
                     iconUrl={upgradeIconUrl("Tiny_Notice_Chance.png")}
                     value={stats.tiny_notice_chance_pct}
                     decimals={2}
                     suffix="%"
                   />
                   <StatRow
-                    label="Tier 2 dock power"
+                    label="Tier 2 Dock Power"
                     iconUrl={upgradeIconUrl("Tier_2_Dock_Power.png")}
                     value={stats.tier2_dock_power_mult}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Shiny multiplier"
+                    label="Shiny Multiplier"
                     iconUrl={upgradeIconUrl("Shiny_Multiplier.png")}
                     value={stats.shiny_multiplier}
                     decimals={2}
                     suffix="×"
                   />
                   <StatRow
-                    label="Super shiny multiplier"
+                    label="Super Shiny Multi"
                     iconUrl={upgradeIconUrl("Super_Shiny_Multiplier.png")}
                     value={stats.super_shiny_multiplier}
                     decimals={2}

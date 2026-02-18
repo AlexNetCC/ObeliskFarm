@@ -503,6 +503,13 @@ export function ArchSim() {
           heading: "Why it’s optional",
           lines: ["If you only care about the optimizers, you can ignore this section."],
         },
+        {
+          heading: "Match with in-game",
+          lines: [
+            "Formulas are reverse-engineered; some values may differ from in-game (e.g. armor pen, exp/loot mod chance, xp/fragment gain).",
+            "If your same build shows different numbers in-game, the game may use different formulas or the sim may be outdated.",
+          ],
+        },
       ],
     }),
     [],
@@ -3047,30 +3054,32 @@ export function ArchSim() {
               );
             })()}
             <div className="kv" style={{ background: "var(--tier1)" }}>
-              <kbd>XP gain</kbd>
-              <div className="mono">{stats.xp_gain_total.toFixed(3)}x</div>
-              <kbd>Fragment gain</kbd>
-              <div className="mono">{stats.fragment_mult.toFixed(3)}x</div>
               <kbd>Damage</kbd>
               <div className="mono">{formatInt(stats.total_damage)}</div>
-              <kbd>Armor pen</kbd>
+              <kbd>Armor Penetration</kbd>
               <div className="mono">{formatInt(stats.armor_pen)}</div>
-              <kbd>Stamina</kbd>
+              <kbd>Max Stamina</kbd>
               <div className="mono">{formatInt(stats.max_stamina)}</div>
-              <kbd>Crit</kbd>
+              <kbd>Crit Chance</kbd>
               <div className="mono">{formatPct(stats.crit_chance, 2)}</div>
-              <kbd>Crit dmg</kbd>
+              <kbd>Crit Damage</kbd>
               <div className="mono">{stats.crit_damage.toFixed(3)}x</div>
-              <kbd>Super crit</kbd>
+              <kbd>Super Crit Chance</kbd>
               <div className="mono">{formatPct(stats.super_crit_chance, 2)}</div>
-              <kbd>Super crit mult</kbd>
+              <kbd>Super Crit Damage</kbd>
               <div className="mono">{stats.super_crit_dmg_mult.toFixed(3)}x</div>
-              <kbd>Ultra crit</kbd>
+              <kbd>Ultra Crit Chance</kbd>
               <div className="mono">{formatPct(stats.ultra_crit_chance, 2)}</div>
-              <kbd>Ultra crit mult</kbd>
+              <kbd>Ultra Crit Damage</kbd>
               <div className="mono">{stats.ultra_crit_dmg_mult.toFixed(3)}x</div>
-              <kbd>One-hit</kbd>
+              <kbd>One-Hit-KO Chance</kbd>
               <div className="mono">{formatPct(stats.one_hit_chance, 3)}</div>
+              <kbd>Ability Instacharge</kbd>
+              <div className="mono">{formatPct(stats.ability_instacharge, 2)}</div>
+              <kbd>Exp Gain</kbd>
+              <div className="mono">{stats.xp_gain_total.toFixed(3)}x</div>
+              <kbd>Fragment Gain</kbd>
+              <div className="mono">{stats.fragment_mult.toFixed(3)}x</div>
             </div>
 
             <div className="sectionTitle">Mods</div>
@@ -3081,24 +3090,24 @@ export function ArchSim() {
               Speed Mod: when multiple blocks trigger it, <strong>duration</strong> adds (more hits at 2× speed); speed stays 2×. Flurry: 2× speed for 5 <strong>seconds</strong> (fixed). Speed Mod and Flurry <strong>stack multiplicatively</strong> (2× × 2× = 4× when both active).
             </div>
             <div className="kv" style={{ background: "var(--tier1)" }}>
-              <kbd>Exp mod chance</kbd>
+              <kbd>EXP Mod Chance</kbd>
               <div className="mono">{formatPct(stats.exp_mod_chance, 2)}</div>
-              <kbd>Exp mod mult (avg)</kbd>
+              <kbd>EXP Mod Gain</kbd>
               <div className="mono">{stats.exp_mod_gain.toFixed(2)}x</div>
 
-              <kbd>Loot mod chance</kbd>
+              <kbd>Loot Mod Chance</kbd>
               <div className="mono">{formatPct(stats.loot_mod_chance, 2)}</div>
-              <kbd>Loot mod mult (avg)</kbd>
+              <kbd>Loot Mod Gain</kbd>
               <div className="mono">{stats.loot_mod_multiplier.toFixed(2)}x</div>
 
-              <kbd>Speed mod chance</kbd>
+              <kbd>Speed Mod Chance</kbd>
               <div className="mono">{formatPct(stats.speed_mod_chance, 2)}</div>
-              <kbd>Speed mod gain</kbd>
+              <kbd>Speed Mod Gain</kbd>
               <div className="mono">{stats.speed_mod_gain.toFixed(1)}</div>
 
-              <kbd>Stamina mod chance</kbd>
+              <kbd>Stamina Mod Chance</kbd>
               <div className="mono">{formatPct(stats.stamina_mod_chance, 2)}</div>
-              <kbd>Stamina mod gain (avg)</kbd>
+              <kbd>Stamina Mod Gain</kbd>
               <div className="mono">{stats.stamina_mod_gain.toFixed(1)}</div>
             </div>
           </Collapsible>

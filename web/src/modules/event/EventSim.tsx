@@ -1555,7 +1555,7 @@ export function EventSim() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {prestigeReachMcResult[PRESTIGE_REACH_HOURS.length - 1]!.probability <= PRESTIGE_REACH_SIGNIFICANT ? (
                             <div className="mono" style={{ color: "var(--muted)" }}>
-                              {useTargetWaveGoal ? "Not even 8 hours farming will yield target wave!" : "Not even 8 hours farming will yield next Prestige!"}
+                              {useTargetWaveGoal ? "Not even 8 hours farming will beat target wave!" : "Not even 8 hours farming will yield next Prestige!"}
                             </div>
                           ) : null}
                           {PRESTIGE_REACH_HOURS.map((h, i) => {
