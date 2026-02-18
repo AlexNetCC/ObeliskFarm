@@ -28,6 +28,8 @@ export type ArchBuild = {
   quakeEnabled: boolean;
   avadaKedaEnabled: boolean;
   blockBonkerEnabled: boolean;
+  /** When true, all MC runs start with speed mod effectively always active (for late-game when you have more procs than you consume). */
+  permanentSpeedModEnabled: boolean;
 };
 
 export type ArchStats = {

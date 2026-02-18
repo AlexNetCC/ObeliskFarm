@@ -27,6 +27,7 @@ type Msg =
         cardCfg: CardConfig | null;
         seed: number;
         targetFrag?: string | null;
+        initialSpeedModHits?: number | null;
       };
     };
 
@@ -51,7 +52,10 @@ function runStageLite(payload: any) {
   const stamina_at_stage_by_run: number[][] = [];
 
   for (let i = 0; i < Math.max(0, Math.trunc(payload.n_sims)); i += 1) {
-    const r: any = sim.simulateRun(payload.stats, payload.starting_floor, { ...payload.options, return_block_metrics: false }, payload.cardCfg);
+    const runOpts = { ...payload.options, return_block_metrics: false } as any;
+    if (payload.initialSpeedModHits != null && Number.isFinite(payload.initialSpeedModHits))
+      runOpts.initialSpeedModHits = Math.max(0, Math.trunc(payload.initialSpeedModHits));
+    const r: any = sim.simulateRun(payload.stats, payload.starting_floor, runOpts, payload.cardCfg);
     const maxStage = Number(r.max_stage_reached ?? 0);
     max_stage_samples.push(maxStage);
     floors_cleared_samples.push(Number(r.floors_cleared ?? 0));

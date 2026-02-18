@@ -6,6 +6,9 @@ import { mulberry32, randUniform } from "./prng";
 
 // Ported from ObeliskGemEV/archaeology/monte_carlo_crit.py (adapted for web + tiered cards).
 
+/** Initial speed-mod hits when "permanent speed mod" is enabled (runs start with speed mod effectively always on). */
+export const PERMANENT_SPEED_MOD_INITIAL_HITS = 1_000_000;
+
 export type McBlockBreakdown = {
   by_type: Record<
     string,
@@ -39,6 +42,8 @@ export type McRunOptions = {
   flurry_enabled: boolean;
   quake_enabled: boolean;
   return_block_metrics: boolean;
+  /** When set, each run starts with this many speed-mod hits remaining (e.g. permanent speed mod). */
+  initialSpeedModHits?: number;
 };
 
 type EnrageState = { charges_remaining: number; cooldown: number };
@@ -239,7 +244,7 @@ export class MonteCarloArchaeologySimulator {
     options: McRunOptions,
     cardCfg: CardConfig | null,
   ): number | McRunMetrics {
-    const { use_crit, enrage_enabled, flurry_enabled, quake_enabled, return_block_metrics } = options;
+    const { use_crit, enrage_enabled, flurry_enabled, quake_enabled, return_block_metrics, initialSpeedModHits } = options;
 
     const max_stamina = Number(stats.max_stamina ?? 0);
     let stamina_remaining = max_stamina;
@@ -273,7 +278,10 @@ export class MonteCarloArchaeologySimulator {
 
     const speed_mod_chance = Number(stats.speed_mod_chance ?? 0);
     const speed_mod_gain = Number(stats.speed_mod_gain ?? 10);
-    let speed_mod_hits_remaining = Math.max(0, Math.trunc(this.persistent_speed_mod_hits_remaining ?? 0));
+    let speed_mod_hits_remaining =
+      initialSpeedModHits != null
+        ? Math.max(0, Math.trunc(initialSpeedModHits))
+        : Math.max(0, Math.trunc(this.persistent_speed_mod_hits_remaining ?? 0));
     let speed_mod_hits_consumed = 0;
 
     const misc_card_level = Number(stats.misc_card_level ?? 0);

@@ -9,6 +9,7 @@ import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES } from 
 import { BLOCK_TYPES, getBlockData, getCardGemCost } from "../../lib/archaeology/blockStats";
 import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
 import { getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
+import { PERMANENT_SPEED_MOD_INITIAL_HITS } from "../../lib/archaeology/mc/monteCarlo";
 import type { ArchBuild, ArchGemUpgradeKey, BlockTier, BlockType, CardLevel, Skill } from "../../lib/archaeology/types";
 
 const STORAGE_KEY = "obeliskfarm:web:archaeology_save.json:v1";
@@ -184,6 +185,7 @@ function defaultBuild(): ArchBuild {
     quakeEnabled: true,
     avadaKedaEnabled: false,
     blockBonkerEnabled: false,
+    permanentSpeedModEnabled: false,
   };
 }
 
@@ -1157,7 +1159,7 @@ export function ArchSim() {
           const t = pool
             .run({
               type: "stageLite",
-              payload: { stats: bestStats, starting_floor: 1, n_sims: n, options, cardCfg, seed, targetFrag: mode === "frag" ? targetFrag : null },
+              payload: { stats: bestStats, starting_floor: 1, n_sims: n, options, cardCfg, seed, targetFrag: mode === "frag" ? targetFrag : null, initialSpeedModHits: build.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
             })
             .then((out) => {
               const dur: number[] = out.run_duration_seconds_samples ?? [];
@@ -1581,7 +1583,7 @@ export function ArchSim() {
         const t = pool
           .run({
             type: "stageLite",
-            payload: { stats: bestStats, starting_floor: 1, n_sims: n, options, cardCfg, seed, targetFrag: mode === "frag" ? targetFrag : null },
+            payload: { stats: bestStats, starting_floor: 1, n_sims: n, options, cardCfg, seed, targetFrag: mode === "frag" ? targetFrag : null, initialSpeedModHits: build.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
           })
           .then((out) => {
             const dur: number[] = out.run_duration_seconds_samples ?? [];
@@ -1884,7 +1886,7 @@ export function ArchSim() {
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
       const baseOut = await pool.run({
         type: "stageLite",
-        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
       });
       const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
       const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -1906,7 +1908,7 @@ export function ArchSim() {
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + i + 1, targetFrag: null },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + i + 1, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
         const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -1989,7 +1991,7 @@ export function ArchSim() {
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
       const baseOut = await pool.run({
         type: "stageLite",
-        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
       });
       const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
       const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -2010,7 +2012,7 @@ export function ArchSim() {
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 10000 + i, targetFrag: null },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 10000 + i, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
         const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -2094,7 +2096,7 @@ export function ArchSim() {
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
       const baseOut = await pool.run({
         type: "stageLite",
-        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
       });
       const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
       const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -2116,7 +2118,7 @@ export function ArchSim() {
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 20000 + i, targetFrag: null },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 20000 + i, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
         const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -2206,7 +2208,7 @@ export function ArchSim() {
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
       const baseOut = await pool.run({
         type: "stageLite",
-        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag },
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
       });
       const baseFragSamples = (baseOut as { target_frag_samples?: number[] }).target_frag_samples ?? [];
       const baseTotalSamples = (baseOut as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
@@ -2232,7 +2234,7 @@ export function ArchSim() {
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 40000 + idx, targetFrag },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 40000 + idx, targetFrag, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
         const totalSamples = (out as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
@@ -2265,7 +2267,7 @@ export function ArchSim() {
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 50000 + idx, targetFrag },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 50000 + idx, targetFrag, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
         const totalSamples = (out as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
@@ -2297,7 +2299,7 @@ export function ArchSim() {
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 60000 + idx, targetFrag },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 60000 + idx, targetFrag, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
         const totalSamples = (out as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
@@ -2366,7 +2368,7 @@ export function ArchSim() {
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
       const baseOut = await pool.run({
         type: "stageLite",
-        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null },
+        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
       });
       const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
       const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -2387,7 +2389,7 @@ export function ArchSim() {
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 30000 + i, targetFrag: null },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 30000 + i, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
         const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
@@ -2906,6 +2908,25 @@ export function ArchSim() {
               Open Simulation
             </button>
           </span>
+          <label className="archToggleRow" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
+            <input
+              type="checkbox"
+              checked={build.permanentSpeedModEnabled ?? false}
+              onChange={(e) => setBuild((s) => ({ ...s, permanentSpeedModEnabled: e.target.checked }))}
+              aria-describedby="arch-permanent-speed-mod-desc"
+            />
+            <span id="arch-permanent-speed-mod-desc">Permanent Speed Mod</span>
+            <Tooltip
+              content={{
+                title: "Permanent Speed Mod",
+                lines: [
+                  "When on, every simulation run starts with speed mod effectively always active (2× attack speed).",
+                  "Use this when you have so many speed mod procs that you never run out in practice.",
+                ],
+              }}
+              label="?"
+            />
+          </label>
           <button
             className={resetAllArmed ? "btn btnDanger" : "btn btnSecondary"}
             type="button"
