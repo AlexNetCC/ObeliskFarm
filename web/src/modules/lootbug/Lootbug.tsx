@@ -651,25 +651,31 @@ export function Lootbug() {
     return (lootbugFishing12TicksProcsPerHour / ticksWithoutLootbug) * 100;
   }, [lootbugFishing12TicksProcsPerHour]);
 
-  /** +% Star gains from Lootbug's 2× Star (gem buff portion only). Baseline = star mult without this part; uses Stargazing total when available. */
+  /** +% Star gains from Lootbug's 2× Star (gem buff portion only). Baseline = star mult without this part; uses Stargazing total when available. Capped at 60 min/h (100% uptime) to match Stargazing. */
   const lootbug2xStarGemGainsPct = useMemo(() => {
     if (lootbug2xStarGemMinPerHour <= 0) return null;
     const sg = loadJson<{ total2xStarMinPerHour?: number }>("obeliskfarm:web:stargazing_external.json");
     const total2x = typeof sg?.total2xStarMinPerHour === "number" ? sg.total2xStarMinPerHour : 0;
     const other2x = Math.max(0, total2x - lootbug2xStarGemMinPerHour);
-    const baselineMult = 1 + other2x / 60;
-    const pct = (lootbug2xStarGemMinPerHour / 60 / baselineMult) * 100;
+    const baselineUptime = Math.min(1, other2x / 60);
+    const withLootbugUptime = Math.min(1, (other2x + lootbug2xStarGemMinPerHour) / 60);
+    const baselineMult = 1 + baselineUptime;
+    const multWith = 1 + withLootbugUptime;
+    const pct = baselineMult > 0 ? ((multWith - baselineMult) / baselineMult) * 100 : 0;
     return pct;
   }, [lootbug2xStarGemMinPerHour]);
 
-  /** +% Star gains from Lootbug's 2× Star (free buff portion only). Baseline = star mult without this part; uses Stargazing total when available. */
+  /** +% Star gains from Lootbug's 2× Star (free buff portion only). Baseline = star mult without this part; uses Stargazing total when available. Capped at 60 min/h (100% uptime) to match Stargazing. */
   const lootbug2xStarFreeGainsPct = useMemo(() => {
     if (lootbug2xStarFreeMinPerHour <= 0) return null;
     const sg = loadJson<{ total2xStarMinPerHour?: number }>("obeliskfarm:web:stargazing_external.json");
     const total2x = typeof sg?.total2xStarMinPerHour === "number" ? sg.total2xStarMinPerHour : 0;
     const other2x = Math.max(0, total2x - lootbug2xStarFreeMinPerHour);
-    const baselineMult = 1 + other2x / 60;
-    const pct = (lootbug2xStarFreeMinPerHour / 60 / baselineMult) * 100;
+    const baselineUptime = Math.min(1, other2x / 60);
+    const withLootbugUptime = Math.min(1, (other2x + lootbug2xStarFreeMinPerHour) / 60);
+    const baselineMult = 1 + baselineUptime;
+    const multWith = 1 + withLootbugUptime;
+    const pct = baselineMult > 0 ? ((multWith - baselineMult) / baselineMult) * 100 : 0;
     return pct;
   }, [lootbug2xStarFreeMinPerHour]);
 
@@ -947,6 +953,7 @@ export function Lootbug() {
                             lines: [
                               "Increase in star gains from Lootbug's 2× Star Spawn Rate free buff (2 min). Gem buff part is under Gem buffs.",
                               "Baseline = star mult without this free portion. Open Stargazing once to sync.",
+                              "The value is capped at 60 min/h (100% uptime), same as Stargazing.",
                             ],
                           },
                         ],
@@ -1035,6 +1042,7 @@ export function Lootbug() {
                             lines: [
                               "Increase in star gains from Lootbug's 2× Star Spawn Rate gem buff (10 min when bought, or Golden Lootbug). Free buff part is under Free buffs.",
                               "Baseline = star mult without this gem portion. Open Stargazing once to sync.",
+                              "The value is capped at 60 min/h (100% uptime), same as Stargazing.",
                             ],
                           },
                         ],

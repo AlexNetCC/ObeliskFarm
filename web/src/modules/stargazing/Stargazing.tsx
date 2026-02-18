@@ -858,6 +858,7 @@ export function Stargazing() {
                           heading: "Combined min/h",
                           lines: [
                             "Buff uptime per hour from Elixir (Drone), Lootbug (free + gem; Golden Lootbug), and Founder Supply Drop. Same buff; durations add (e.g. 3 + 5 + 2 = 10 min/h → 1/6 uptime). That uptime multiplies star gain.",
+                            "The value used in calculations is capped at 60 min/h (100% uptime).",
                           ],
                         },
                       ],

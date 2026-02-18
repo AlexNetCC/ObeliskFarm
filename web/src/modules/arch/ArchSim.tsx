@@ -74,6 +74,14 @@ type McLogEntry = {
     fragmentsPerRunTotal: number;
     xpPerHour: number;
     fragmentsPerHour: number;
+    /** Std dev of floors/run (final sims). Present when MC computed it. */
+    floorsPerRunStd?: number;
+    /** Std dev of XP/run (final sims). Present when MC computed it. */
+    xpPerRunStd?: number;
+    /** Std dev of XP/h (final sims, per-run). Present when MC computed it. */
+    xpPerHourStd?: number;
+    /** Std dev of Frag/h (final sims, per-run). Present when MC computed it. */
+    fragmentsPerHourStd?: number;
     /** Average attacks (hits) per run. Present for MC runs; older saved logs may not have it. */
     attacksPerRun?: number;
     /** Std dev of attacks per run. Present when MC computed it. */
@@ -1113,12 +1121,18 @@ export function ArchSim() {
 
         const objectiveSamples: number[] = [];
         let sumFloors = 0;
+        let sumFloorsSq = 0;
         let sumXp = 0;
+        let sumXpSq = 0;
         let sumTotalFrags = 0;
         let sumDur = 0;
         let sumDurSq = 0;
         let sumHits = 0;
         let sumHitsSq = 0;
+        let sumXph = 0;
+        let sumXphSq = 0;
+        let sumFph = 0;
+        let sumFphSq = 0;
         let sampleCount = 0;
         const sumFragsByType: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
         const FRAG_TYPES_STAGE = ["common", "rare", "epic", "legendary", "mythic"] as const;
@@ -1156,9 +1170,20 @@ export function ArchSim() {
 
                 sumDur += d;
                 sumDurSq += d * d;
-                sumXp += Number(xp[i] ?? 0);
-                sumFloors += Number(floors[i] ?? 0);
-                sumTotalFrags += Number(totals[i] ?? 0);
+                const xpVal = Number(xp[i] ?? 0);
+                const flVal = Number(floors[i] ?? 0);
+                const totVal = Number(totals[i] ?? 0);
+                sumXp += xpVal;
+                sumXpSq += xpVal * xpVal;
+                sumFloors += flVal;
+                sumFloorsSq += flVal * flVal;
+                sumTotalFrags += totVal;
+                const xph = xpVal * runsPerHour;
+                const fph = totVal * runsPerHour;
+                sumXph += xph;
+                sumXphSq += xph * xph;
+                sumFph += fph;
+                sumFphSq += fph * fph;
                 const h = Number(hits[i] ?? 0);
                 sumHits += h;
                 sumHitsSq += h * h;
@@ -1205,6 +1230,17 @@ export function ArchSim() {
         const durationSecondsStd = sampleCount > 1 ? Math.sqrt(varianceDur) : undefined;
         const varianceHits = sampleCount > 1 ? Math.max(0, sumHitsSq / sampleCount - avgAttacksPerRun * avgAttacksPerRun) : 0;
         const attacksPerRunStd = sampleCount > 1 ? Math.sqrt(varianceHits) : undefined;
+        const meanFloors = sampleCount > 0 ? sumFloors / sampleCount : 0;
+        const varianceFloors = sampleCount > 1 ? Math.max(0, sumFloorsSq / sampleCount - meanFloors * meanFloors) : 0;
+        const floorsPerRunStd = sampleCount > 1 ? Math.sqrt(varianceFloors) : undefined;
+        const varianceXp = sampleCount > 1 ? Math.max(0, sumXpSq / sampleCount - avgXp * avgXp) : 0;
+        const xpPerRunStd = sampleCount > 1 ? Math.sqrt(varianceXp) : undefined;
+        const meanXph = sampleCount > 0 ? sumXph / sampleCount : 0;
+        const varianceXph = sampleCount > 1 ? Math.max(0, sumXphSq / sampleCount - meanXph * meanXph) : 0;
+        const xpPerHourStd = sampleCount > 1 ? Math.sqrt(varianceXph) : undefined;
+        const meanFph = sampleCount > 0 ? sumFph / sampleCount : 0;
+        const varianceFph = sampleCount > 1 ? Math.max(0, sumFphSq / sampleCount - meanFph * meanFph) : 0;
+        const fragmentsPerHourStd = sampleCount > 1 ? Math.sqrt(varianceFph) : undefined;
         let xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
         let fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
         const fragmentsPerHourByType: Record<string, number> = {};
@@ -1254,6 +1290,10 @@ export function ArchSim() {
             fragmentsPerRunTotal: avgTotalFrags,
             xpPerHour,
             fragmentsPerHour,
+            floorsPerRunStd,
+            xpPerRunStd,
+            xpPerHourStd,
+            fragmentsPerHourStd,
             attacksPerRun: avgAttacksPerRun,
             attacksPerRunStd,
             fragmentsPerHourByType,
@@ -1504,12 +1544,18 @@ export function ArchSim() {
 
       const objectiveSamples: number[] = [];
       let sumFloors = 0;
+      let sumFloorsSq = 0;
       let sumXp = 0;
+      let sumXpSq = 0;
       let sumTotalFrags = 0;
       let sumDur = 0;
       let sumDurSq = 0;
       let sumHits = 0;
       let sumHitsSq = 0;
+      let sumXph = 0;
+      let sumXphSq = 0;
+      let sumFph = 0;
+      let sumFphSq = 0;
       let sampleCount = 0;
       const sumFragsByTypeRef: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
       const FRAG_TYPES_REF = ["common", "rare", "epic", "legendary", "mythic"] as const;
@@ -1548,9 +1594,20 @@ export function ArchSim() {
 
               sumDur += d;
               sumDurSq += d * d;
-              sumXp += Number(xp[i] ?? 0);
-              sumFloors += Number(floors[i] ?? 0);
-              sumTotalFrags += Number(totals[i] ?? 0);
+              const xpVal = Number(xp[i] ?? 0);
+              const flVal = Number(floors[i] ?? 0);
+              const totVal = Number(totals[i] ?? 0);
+              sumXp += xpVal;
+              sumXpSq += xpVal * xpVal;
+              sumFloors += flVal;
+              sumFloorsSq += flVal * flVal;
+              sumTotalFrags += totVal;
+              const xph = xpVal * runsPerHour;
+              const fph = totVal * runsPerHour;
+              sumXph += xph;
+              sumXphSq += xph * xph;
+              sumFph += fph;
+              sumFphSq += fph * fph;
               const h = Number(hits[i] ?? 0);
               sumHits += h;
               sumHitsSq += h * h;
@@ -1609,6 +1666,17 @@ export function ArchSim() {
       const durationSecondsStdRef = sampleCount > 1 ? Math.sqrt(varianceDurRef) : undefined;
       const varianceHitsRef = sampleCount > 1 ? Math.max(0, sumHitsSq / sampleCount - avgAttacksPerRun * avgAttacksPerRun) : 0;
       const attacksPerRunStdRef = sampleCount > 1 ? Math.sqrt(varianceHitsRef) : undefined;
+      const meanFloorsRef = sampleCount > 0 ? sumFloors / sampleCount : 0;
+      const varianceFloorsRef = sampleCount > 1 ? Math.max(0, sumFloorsSq / sampleCount - meanFloorsRef * meanFloorsRef) : 0;
+      const floorsPerRunStdRef = sampleCount > 1 ? Math.sqrt(varianceFloorsRef) : undefined;
+      const varianceXpRef = sampleCount > 1 ? Math.max(0, sumXpSq / sampleCount - avgXp * avgXp) : 0;
+      const xpPerRunStdRef = sampleCount > 1 ? Math.sqrt(varianceXpRef) : undefined;
+      const meanXphRef = sampleCount > 0 ? sumXph / sampleCount : 0;
+      const varianceXphRef = sampleCount > 1 ? Math.max(0, sumXphSq / sampleCount - meanXphRef * meanXphRef) : 0;
+      const xpPerHourStdRef = sampleCount > 1 ? Math.sqrt(varianceXphRef) : undefined;
+      const meanFphRef = sampleCount > 0 ? sumFph / sampleCount : 0;
+      const varianceFphRef = sampleCount > 1 ? Math.max(0, sumFphSq / sampleCount - meanFphRef * meanFphRef) : 0;
+      const fragmentsPerHourStdRef = sampleCount > 1 ? Math.sqrt(varianceFphRef) : undefined;
       let xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
       let fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
       const fragmentsPerHourByTypeRef: Record<string, number> = {};
@@ -1657,6 +1725,10 @@ export function ArchSim() {
           fragmentsPerRunTotal: avgTotalFrags,
           xpPerHour,
           fragmentsPerHour,
+          floorsPerRunStd: floorsPerRunStdRef,
+          xpPerRunStd: xpPerRunStdRef,
+          xpPerHourStd: xpPerHourStdRef,
+          fragmentsPerHourStd: fragmentsPerHourStdRef,
           attacksPerRun: avgAttacksPerRun,
           attacksPerRunStd: attacksPerRunStdRef,
           fragmentsPerHourByType: fragmentsPerHourByTypeRef,
@@ -4463,7 +4535,7 @@ export function ArchSim() {
                     </div>
                   </div>
 
-                  <div className="mcCompareSection" style={{ marginTop: 16 }}>
+                  <div className="mcCompareSection" style={{ marginTop: 16, display: "none" }}>
                     <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                       <input
                         type="checkbox"
@@ -4696,6 +4768,11 @@ export function ArchSim() {
               </div>
             </div>
             <div className="modalBody">
+              {openLog.mc ? (
+                <p className="small" style={{ marginBottom: 8, opacity: 0.9 }}>
+                  Mean and SD below are from the final sims (N≈3000) of the winning build (top1), not from all candidates.
+                </p>
+              ) : null}
               <div className="kv">
                 <kbd>Goal stage</kbd>
                 <div className="mono">{Number(openLog.build.goalStage).toFixed(1)}</div>
@@ -4704,13 +4781,29 @@ export function ArchSim() {
                 <kbd>Arch level</kbd>
                 <div className="mono">{Number(openLog.build.archLevel).toFixed(1)}</div>
                 <kbd>Floors/run</kbd>
-                <div className="mono">{openLog.metrics.floorsPerRun.toFixed(1)}</div>
+                <div className="mono">
+                  {openLog.metrics.floorsPerRunStd != null
+                    ? `${openLog.metrics.floorsPerRun.toFixed(1)} ± ${openLog.metrics.floorsPerRunStd.toFixed(1)}`
+                    : openLog.metrics.floorsPerRun.toFixed(1)}
+                </div>
                 <kbd>XP/run</kbd>
-                <div className="mono">{openLog.metrics.xpPerRun.toFixed(1)}</div>
+                <div className="mono">
+                  {openLog.metrics.xpPerRunStd != null
+                    ? `${openLog.metrics.xpPerRun.toFixed(1)} ± ${openLog.metrics.xpPerRunStd.toFixed(1)}`
+                    : openLog.metrics.xpPerRun.toFixed(1)}
+                </div>
                 <kbd>XP/h</kbd>
-                <div className="mono">{openLog.metrics.xpPerHour.toFixed(1)}</div>
+                <div className="mono">
+                  {openLog.metrics.xpPerHourStd != null
+                    ? `${openLog.metrics.xpPerHour.toFixed(1)} ± ${openLog.metrics.xpPerHourStd.toFixed(1)}`
+                    : openLog.metrics.xpPerHour.toFixed(1)}
+                </div>
                 <kbd>Frag/h</kbd>
-                <div className="mono">{openLog.metrics.fragmentsPerHour.toFixed(1)}</div>
+                <div className="mono">
+                  {openLog.metrics.fragmentsPerHourStd != null
+                    ? `${openLog.metrics.fragmentsPerHour.toFixed(1)} ± ${openLog.metrics.fragmentsPerHourStd.toFixed(1)}`
+                    : openLog.metrics.fragmentsPerHour.toFixed(1)}
+                </div>
                 <kbd>Attacks/run</kbd>
                 <div className="mono">
                   {openLog.metrics.attacksPerRun != null
@@ -4893,82 +4986,84 @@ export function ArchSim() {
                         className="panel"
                         style={{
                           background: "var(--tier2)",
-                          padding: 16,
+                          padding: 10,
                           borderRadius: 10,
-                          maxWidth: 360,
+                          maxWidth: 320,
                           boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                          <div className="mono" style={{ fontWeight: 900, fontSize: 14 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <div className="mono" style={{ fontWeight: 900, fontSize: 13 }}>
                             Avg stamina at end of stage
                           </div>
                           <button type="button" className="btn btnSecondary" onClick={() => { setStaminaOverviewOpen(false); setStaminaOverviewStage(null); }}>
                             Close
                           </button>
                         </div>
-                        <div className="small" style={{ marginBottom: 10, color: "var(--muted)" }}>
+                        <div className="small" style={{ marginBottom: 6, color: "var(--muted)" }}>
                           {staminaOverviewStage != null && openLog.mc.staminaAtStageByRun?.length && openLog.mc.objectiveSamples?.length
                             ? `Runs that reached stage ${staminaOverviewStage}: average stamina remaining at end of each stage.`
                             : "Over all runs that reached each stage: average stamina remaining when that stage was completed."}
                         </div>
-                        <table className="mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                          <thead>
-                            <tr style={{ borderBottom: "1px solid rgba(15,23,42,0.2)" }}>
-                              <th style={{ textAlign: "left", padding: "6px 8px" }}>Stage</th>
-                              <th style={{ textAlign: "right", padding: "6px 8px" }}>Avg stamina left ± SD</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(() => {
-                              const byRun = openLog.mc.staminaAtStageByRun;
-                              const maxStages = openLog.mc.objectiveSamples ?? [];
-                              const filterStage = staminaOverviewStage ?? null;
-                              if (filterStage != null && byRun?.length && maxStages.length === byRun.length) {
-                                const runIndices = maxStages.map((ms, i) => (Number(ms) >= filterStage ? i : -1)).filter((i) => i >= 0);
-                                const stages = Array.from({ length: filterStage }, (_, i) => i + 1);
+                        <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid rgba(15,23,42,0.12)", borderRadius: 6 }}>
+                          <table className="mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                            <thead style={{ position: "sticky", top: 0, background: "var(--tier2)", zIndex: 1 }}>
+                              <tr style={{ borderBottom: "1px solid rgba(15,23,42,0.2)" }}>
+                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Stage</th>
+                                <th style={{ textAlign: "right", padding: "4px 6px" }}>Avg stamina left ± SD</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const byRun = openLog.mc.staminaAtStageByRun;
+                                const maxStages = openLog.mc.objectiveSamples ?? [];
+                                const filterStage = staminaOverviewStage ?? null;
+                                if (filterStage != null && byRun?.length && maxStages.length === byRun.length) {
+                                  const runIndices = maxStages.map((ms, i) => (Number(ms) >= filterStage ? i : -1)).filter((i) => i >= 0);
+                                  const stages = Array.from({ length: filterStage }, (_, i) => i + 1);
+                                  return stages.map((s) => {
+                                    const values = runIndices
+                                      .filter((i) => (byRun[i]?.length ?? 0) >= s)
+                                      .map((i) => Number(byRun[i]![s - 1]));
+                                    const n = values.length;
+                                    if (n === 0) return <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}><td style={{ padding: "4px 6px" }}>{s}</td><td style={{ textAlign: "right", padding: "4px 6px" }}>—</td></tr>;
+                                    const mean = values.reduce((a, b) => a + b, 0) / n;
+                                    const sd = n > 1 ? Math.sqrt(Math.max(0, values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1))) : null;
+                                    const sdStr = sd != null && Number.isFinite(sd) ? (sd < 10 ? sd.toFixed(1) : formatInt(Math.round(sd))) : "";
+                                    return (
+                                      <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                                        <td style={{ padding: "4px 6px" }}>{s}</td>
+                                        <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                                          {sdStr ? `${formatInt(Math.round(mean))} ± ${sdStr}` : formatInt(Math.round(mean))}
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                }
+                                const avg = openLog.mc.avgStaminaAtEndOfStage ?? {};
+                                const std = openLog.mc.stdStaminaAtEndOfStage ?? {};
+                                const samples = openLog.mc.objectiveSamples ?? [];
+                                const maxStage = samples.length ? Math.max(0, ...samples.map((x) => Number(x))) : 0;
+                                const stages = Array.from({ length: Math.max(0, maxStage - 1) }, (_, i) => i + 1);
                                 return stages.map((s) => {
-                                  const values = runIndices
-                                    .filter((i) => (byRun[i]?.length ?? 0) >= s)
-                                    .map((i) => Number(byRun[i]![s - 1]));
-                                  const n = values.length;
-                                  if (n === 0) return <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}><td style={{ padding: "6px 8px" }}>{s}</td><td style={{ textAlign: "right", padding: "6px 8px" }}>—</td></tr>;
-                                  const mean = values.reduce((a, b) => a + b, 0) / n;
-                                  const sd = n > 1 ? Math.sqrt(Math.max(0, values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1))) : null;
+                                  const m = avg[s] ?? 0;
+                                  const sd = std[s];
                                   const sdStr = sd != null && Number.isFinite(sd) ? (sd < 10 ? sd.toFixed(1) : formatInt(Math.round(sd))) : "";
                                   return (
                                     <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
-                                      <td style={{ padding: "6px 8px" }}>{s}</td>
-                                      <td style={{ textAlign: "right", padding: "6px 8px" }}>
-                                        {sdStr ? `${formatInt(Math.round(mean))} ± ${sdStr}` : formatInt(Math.round(mean))}
+                                      <td style={{ padding: "4px 6px" }}>{s}</td>
+                                      <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                                        {sdStr ? `${formatInt(Math.round(m))} ± ${sdStr}` : formatInt(Math.round(m))}
                                       </td>
                                     </tr>
                                   );
                                 });
-                              }
-                              const avg = openLog.mc.avgStaminaAtEndOfStage ?? {};
-                              const std = openLog.mc.stdStaminaAtEndOfStage ?? {};
-                              const samples = openLog.mc.objectiveSamples ?? [];
-                              const maxStage = samples.length ? Math.max(0, ...samples.map((x) => Number(x))) : 0;
-                              const stages = Array.from({ length: Math.max(0, maxStage - 1) }, (_, i) => i + 1);
-                              return stages.map((s) => {
-                                const m = avg[s] ?? 0;
-                                const sd = std[s];
-                                const sdStr = sd != null && Number.isFinite(sd) ? (sd < 10 ? sd.toFixed(1) : formatInt(Math.round(sd))) : "";
-                                return (
-                                  <tr key={s} style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
-                                    <td style={{ padding: "6px 8px" }}>{s}</td>
-                                    <td style={{ textAlign: "right", padding: "6px 8px" }}>
-                                      {sdStr ? `${formatInt(Math.round(m))} ± ${sdStr}` : formatInt(Math.round(m))}
-                                    </td>
-                                  </tr>
-                                );
-                              });
-                            })()}
-                          </tbody>
-                        </table>
-                        <p className="small" style={{ marginTop: 10, color: "var(--muted)" }}>
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="small" style={{ marginTop: 6, color: "var(--muted)" }}>
                           End of max stage = 0 (run ended there).
                         </p>
                       </div>
