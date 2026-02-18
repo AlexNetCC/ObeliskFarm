@@ -733,35 +733,36 @@ body {
 }
 
 .mcCardXp {
-  border-color: rgba(103, 58, 183, 0.28);
-  box-shadow: 0 0 0 3px rgba(103, 58, 183, 0.07);
+  border-color: rgba(184, 134, 11, 0.28);
+  box-shadow: 0 0 0 3px rgba(184, 134, 11, 0.07);
   background: repeating-linear-gradient(
       135deg,
-      rgba(103, 58, 183, 0.006),
-      rgba(103, 58, 183, 0.006) 10px,
+      rgba(184, 134, 11, 0.006),
+      rgba(184, 134, 11, 0.006) 10px,
       rgba(255, 255, 255, 0.998) 10px,
       rgba(255, 255, 255, 0.998) 22px
     );
 }
 
 .mcCardXp::before {
-  background: rgba(103, 58, 183, 0.55);
+  background: rgba(184, 134, 11, 0.55);
 }
 
 .mcCardFrag {
-  border-color: rgba(245, 124, 0, 0.30);
-  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.08);
+  /* Fragment tier palette: epic */
+  border-color: rgba(153, 50, 204, 0.28);
+  box-shadow: 0 0 0 3px rgba(153, 50, 204, 0.07);
   background: repeating-linear-gradient(
       45deg,
-      rgba(245, 124, 0, 0.006),
-      rgba(245, 124, 0, 0.006) 10px,
+      rgba(153, 50, 204, 0.006),
+      rgba(153, 50, 204, 0.006) 10px,
       rgba(255, 255, 255, 0.998) 10px,
       rgba(255, 255, 255, 0.998) 22px
     );
 }
 
 .mcCardFrag::before {
-  background: rgba(245, 124, 0, 0.60);
+  background: rgba(153, 50, 204, 0.55);
 }
 
 .fragToggleRow {
@@ -779,9 +780,7 @@ body {
 }
 
 .fragToggleActive {
-  border-color: rgba(245, 124, 0, 0.55) !important;
-  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.16), 0 0 22px rgba(245, 124, 0, 0.16);
-  background: rgba(245, 124, 0, 0.08) !important;
+  /* Tier color set via inline style from BLOCK_COLORS in ArchSim */
   color: rgba(15, 23, 42, 0.92) !important;
 }
 

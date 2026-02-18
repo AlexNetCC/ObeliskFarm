@@ -4522,11 +4522,21 @@ export function ArchSim() {
                                       ? "sprites/archaeology/fragmentlegendary.png"
                                       : "sprites/archaeology/fragmentmythic.png";
                             const active = mcSettings.targetFrag === t;
+                            const tierColor = BLOCK_COLORS[t];
                             return (
                               <button
                                 key={t}
                                 type="button"
                                 className={`btn btnSecondary fragToggle ${active ? "fragToggleActive" : ""}`}
+                                style={
+                                  active && tierColor
+                                    ? {
+                                        borderColor: `${tierColor}99`,
+                                        boxShadow: `0 0 0 3px ${tierColor}29, 0 0 22px ${tierColor}29`,
+                                        background: `${tierColor}14`,
+                                      }
+                                    : undefined
+                                }
                                 disabled={mcRunning}
                                 onClick={() => setMcSettings((s) => ({ ...s, targetFrag: t }))}
                                 title={`Target: ${t.toUpperCase()}`}
