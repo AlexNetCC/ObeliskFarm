@@ -24,9 +24,9 @@ export interface ComputedFishingStats {
   five_tick_chance_pct: number;
   token_gain_multi: number;
   notice_fish_req: number;
-  /** Shiny Fish Chance (%). Shiny = crit-like; multiplier applies (base 3×). */
+  /** Shiny Fish Chance (%). Shiny = crit-like; multiplier applies (base 5×). */
   shiny_fish_chance_pct: number;
-  /** Super Shiny Chance (%). Only rolls when catch is already shiny; base mult 2×. */
+  /** Super Shiny Chance (%). Only rolls when catch is already shiny; base mult 3×. */
   super_shiny_chance_pct: number;
   /** Tiny Notice Chance (%). Notice asks for 90% less fish. */
   tiny_notice_chance_pct: number;
@@ -76,18 +76,17 @@ export function computeFishingStatsFromLevels(
   const boat_level = u("upgrade_boat");
   const t2_boat_level = u("upgrade_t2_boat");
 
-  // Fishing Rod: base 10, ×1.16 per level. Rod Multiplier +0.04x (upgrade), +0.05x (enhance). Skill: Motley School +10% per level.
+  // Fishing Rod: base 10, ×1.16 per level. Three separate rod multis: upgrade +0.04x, enhance +0.05x, Motley School +10% per level.
   // Game rounds rodBase before applying multipliers (matches in-game display). Fishing Rod card is separate; applied in UI.
   const ROD_POWER_BASE = 10;
   const rodBase = Math.round(ROD_POWER_BASE * Math.pow(1.16, u("fishing_rod")));
   const rodMultiUpgrade = 1 + 0.04 * u("rod_multiplier");
   const rodMultiEnhance = 1 + 0.05 * e("enhance_rod_multiplier");
-  const rodMultiSkill = 1 + 0.1 * skill("motley_school");
-  const fishing_rod_power = rodBase * rodMultiUpgrade * rodMultiEnhance * rodMultiSkill;
+  const rodMultiMotleySchool = 1 + 0.1 * skill("motley_school");
+  const fishing_rod_power = rodBase * rodMultiUpgrade * rodMultiEnhance * rodMultiMotleySchool;
 
-  // Fish Income Multiplier: upgrade and enhance are multiplicative; skills additive. +0.03x (upgrade), +0.05x (enhance).
-  // Skill: Fishing With Friends +3% per level; With This Fish I Summon +1% per fish card per level.
-  // Game: (1 + 0.03*upgrade) × (1 + 0.05*enhance) + skill bonuses (matches in-game display).
+  // Fish Income Multiplier: four separate multis (upgrade, With This Fish, enhance, Fishing With Friends).
+  // (1 + 0.03×upgrade) × (1 + 0.01×With This Fish×cards) × (1 + 0.05×enhance) × (1 + 0.03×Fishing With Friends).
   const effectiveFishCardCount =
     (options?.fishCardTier &&
       Object.values(options.fishCardTier).reduce<number>(
@@ -95,12 +94,11 @@ export function computeFishingStatsFromLevels(
         0,
       )) ??
     0;
-  const fish_income_multi_base =
-    (1 + 0.03 * u("fish_multiplier")) * (1 + 0.05 * e("enhance_fish_multiplier"));
   const fish_income_multi =
-    fish_income_multi_base +
-    0.03 * skill("fishing_with_friends") +
-    0.01 * skill("with_this_fish_i_summon_two_more_fish") * effectiveFishCardCount;
+    (1 + 0.03 * u("fish_multiplier")) *
+    (1 + 0.01 * skill("with_this_fish_i_summon_two_more_fish") * effectiveFishCardCount) *
+    (1 + 0.05 * e("enhance_fish_multiplier")) *
+    (1 + 0.03 * skill("fishing_with_friends"));
 
   // Tick reduction: each level reduces tick by 0.5s. Base 60s. Skill: Let's Pick Up The Pace -2s per level.
   const fishing_tick_reduction =
@@ -165,13 +163,13 @@ export function computeFishingStatsFromLevels(
     0.05 * e("enhance_tier2_dock_power") +
     0.03 * skill("completionist_gatekeeper") * legendary;
 
-  // Shiny Multiplier: base 3× (wiki), +0.05x (T2 upgrade), +0.05x (enhance).
+  // Shiny Multiplier: base 5×, +0.05x (T2 upgrade), +0.05x (enhance).
   const shiny_multiplier =
-    3 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
+    5 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
 
-  // Super Shiny Multiplier: base 2× (wiki; only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance).
+  // Super Shiny Multiplier: base 3× (only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance).
   const super_shiny_multiplier =
-    2 +
+    3 +
     0.08 * u("poly_card_multi") +
     0.15 * e("enhance_super_shiny_multi");
 

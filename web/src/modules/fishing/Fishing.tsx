@@ -538,8 +538,8 @@ const statsTooltip = {
     {
       heading: "Shiny and super shiny",
       lines: [
-        "Shiny works like a crit: a chance to multiply the catch (base 3×).",
-        "Super shiny only rolls when the catch is already shiny; base multiplier 2× on top.",
+        "Shiny works like a crit: a chance to multiply the catch (base 5×).",
+        "Super shiny only rolls when the catch is already shiny; base multiplier 3× on top.",
       ],
     },
     {
@@ -1160,6 +1160,14 @@ export function Fishing() {
     if (state.showDisabledFishGrayed) return fishingGainsRows;
     return fishingGainsRows.filter((r) => r.hasPower);
   }, [fishingGainsRows, state.showDisabledFishGrayed]);
+
+  /** Any fish card in Card (ungilded) state, regardless of dock power. Used for "no un-gilded" banner. */
+  const hasUngildedFishCard = useMemo(() => {
+    const ids = new Set(fishingGainsRows.map((r) => r.fish.id));
+    return [...ids].some((id) => (state.fishCardTier[id] ?? 0) === 1);
+  }, [fishingGainsRows, state.fishCardTier]);
+
+  const hasUngildedRodCard = (state.fishingRodCardTier ?? 0) === 1;
 
   /** Angler breakdown for Drone: base = fish without Angler (base ticks + Lootbug + Gift Sushi), full = with Angler. So extra % = Angler gain as % of fish without Angler. */
   const anglerBreakdownForDrone = useMemo(() => {
@@ -3523,12 +3531,15 @@ export function Fishing() {
                 </thead>
                 <tbody>
                   {[
-                    ...visibleGainsRows
-                      .filter((r) => r.hasPower && r.fishPerHour > 0 && (state.fishCardTier[r.fish.id] ?? 0) === 1)
+                    ...fishingGainsRows
+                      .filter((r) => (state.fishCardTier[r.fish.id] ?? 0) === 1)
                       .map((row) => ({
                         type: "fish" as const,
-                        id: row.fish.id,
-                        effic: (state.useGemIncomeForCostEffic ? fishCardGildCostEffic.get(row.fish.id) : fishCardGildCostEfficGemAbs.get(row.fish.id)) ?? 0,
+                        id: `${row.dockId}-${row.fish.id}`,
+                        effic:
+                          row.hasPower && row.fishPerHour > 0
+                            ? (state.useGemIncomeForCostEffic ? fishCardGildCostEffic.get(row.fish.id) : fishCardGildCostEfficGemAbs.get(row.fish.id)) ?? 0
+                            : -1,
                         row,
                       })),
                     ...((state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) != null
@@ -3539,6 +3550,7 @@ export function Fishing() {
                     .map((entry) => {
                       if (entry.type === "fish") {
                         const row = entry.row!;
+                        const canCalculate = row.hasPower && row.fishPerHour > 0;
                         const marginalPct = fishCardGildMarginalPct.get(row.fish.id) ?? 0;
                         const costEffic = state.useGemIncomeForCostEffic ? fishCardGildCostEffic.get(row.fish.id) ?? null : fishCardGildCostEfficGemAbs.get(row.fish.id) ?? null;
                         const gems = getFishCardGildGemCost(row.fish.id);
@@ -3550,37 +3562,45 @@ export function Fishing() {
                             ? (costEffic - heatMin) / (heatMax - heatMin)
                             : 0.5;
                         return (
-                          <tr key={row.fish.id} className="fishingUpgradeRow">
+                          <tr key={entry.id} className="fishingUpgradeRow">
                             <td className="fishingUpgradeTdName">
                               <img src={fishIconUrl(row.fish.iconFile ?? "Gem.png")} alt="" className="fishingUpgradeIcon" />
                               <span className="fishingUpgradeName">{row.fish.name}</span>
                             </td>
-                            <td className="fishingUpgradeTdCostEffic">
-                              {costEffic != null ? (
-                                <span
-                                  style={{
-                                    backgroundColor: heatmapColor(heatT),
-                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                    padding: "2px 6px",
-                                    borderRadius: 4,
-                                  }}
-                                >
-                                  {costEffic.toFixed(2)}
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                            <td className="fishingUpgradeTdCost">
-                              <span className="fishingUpgradeCostBox">
-                                <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                                <span className="mono">{gems.toLocaleString()}</span>
-                              </span>
-                            </td>
-                            <td className="fishingUpgradeTdTime">
-                              {gems > 0 && gemEvGemsPerHour > 0 ? formatHoursToHhMin(gems / gemEvGemsPerHour) : "—"}
-                            </td>
-                            <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
+                            {canCalculate ? (
+                              <>
+                                <td className="fishingUpgradeTdCostEffic">
+                                  {costEffic != null ? (
+                                    <span
+                                      style={{
+                                        backgroundColor: heatmapColor(heatT),
+                                        color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                      }}
+                                    >
+                                      {costEffic.toFixed(2)}
+                                    </span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                                <td className="fishingUpgradeTdCost">
+                                  <span className="fishingUpgradeCostBox">
+                                    <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
+                                    <span className="mono">{gems.toLocaleString()}</span>
+                                  </span>
+                                </td>
+                                <td className="fishingUpgradeTdTime">
+                                  {gems > 0 && gemEvGemsPerHour > 0 ? formatHoursToHhMin(gems / gemEvGemsPerHour) : "—"}
+                                </td>
+                                <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
+                              </>
+                            ) : (
+                              <td colSpan={4} className="fishingUpgradeTdCostEffic" style={{ color: "var(--error, #b91c1c)", fontWeight: 500 }}>
+                                Only calculated when power on {row.dockName}.
+                              </td>
+                            )}
                           </tr>
                         );
                       }
@@ -3627,7 +3647,7 @@ export function Fishing() {
                 </tbody>
               </table>
             </div>
-            {visibleGainsRows.filter((r) => r.hasPower && (state.fishCardTier[r.fish.id] ?? 0) === 1).length === 0 && (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) == null ? (
+            {!hasUngildedFishCard && !hasUngildedRodCard && (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) == null ? (
               <div className="small" style={{ padding: 8, opacity: 0.85 }}>You currently have no un-gilded Fish cards and no un-gilded Fishing Rod Power Card.</div>
             ) : null}
           </Collapsible>
