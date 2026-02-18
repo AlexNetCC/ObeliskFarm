@@ -971,7 +971,7 @@ export function Fishing() {
               title: "Gift Sushi",
               lines: [
                 "Freebie: Statue of Soprano (freebie gift chance). Founder/Supply: supply drop (1/1234 rare per drop, 10 gifts).",
-                "Includes double/triple/5× tick mult.",
+                "Includes double/triple tick mult, but not the 5× tick multi from Gift's 5× tick buff.",
               ],
             },
           }
@@ -2513,7 +2513,7 @@ export function Fishing() {
                       <div className="modalWindow fishingTickChartModal" onMouseDown={(e) => e.stopPropagation()}>
                         <div className="modalHeader fishingTickChartModalHeader">
                           <div id="fishing-tick-chart-modal-title" className="mono" style={{ fontWeight: 900 }}>
-                            Effective Fishing Ticks breakdown
+                            Effective Fishing Ticks per hour breakdown
                           </div>
                           <button className="btn btnSecondary" type="button" onClick={() => setTickChartOpen(false)}>
                             Close

@@ -16,7 +16,7 @@ import "./modules/overnight/overnight.css";
 type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight" | "about";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 /** Obelisk level for “tested up to” in About and README. Update README when this changes. */
-const OB_LEVEL = 44;
+const OB_LEVEL = 46;
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
