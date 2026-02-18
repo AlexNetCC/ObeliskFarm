@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import { formatInt, formatTime } from "../../lib/format";
 import { loadJson, saveJson } from "../../lib/storage";
-import { COSTS, GEM_UPGRADE_NAMES, getPrestigeWaveRequirement, getRewardMilestoneDisplayLabel, getNextRewardMilestoneAfterPrestige, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES } from "../../lib/event/constants";
+import { COSTS, GEM_UPGRADE_NAMES, getPrestigeWaveRequirement, getRewardMilestoneDisplayLabel, getNextRewardMilestoneAfterPrestige, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES, TARGET_WAVE_OPTIONS, clampToTargetWaveOption, type TargetWaveOption } from "../../lib/event/constants";
 import {
   canAllocateUpgrade,
   copyState,
@@ -13,7 +13,7 @@ import {
   type UpgradeState,
 } from "../../lib/event/optimizer";
 import { monteCarloOptimizeGuided, estimateReachProbabilityGivenState, type MCOptimizationResult, type PrestigeReachMcResult } from "../../lib/event/monteCarloOptimizer";
-import { applyUpgrades, calculateMaterials, getGemMaxLevel, runFullSimulation, runFullSimulationWithHpPerWave, type HpPerWaveRow } from "../../lib/event/simulation";
+import { applyUpgrades, calculateMaterials, getEnemyHpAtWave, getGemMaxLevel, runFullSimulation, runFullSimulationWithHpPerWave, type HpPerWaveRow } from "../../lib/event/simulation";
 import { mulberry32 } from "../../lib/rng";
 import { assetUrl } from "../../lib/assets";
 import { currencyIconFilename, gemUpgradeIconFilename, upgradeIconFilename } from "../../lib/event/icons";
@@ -198,11 +198,11 @@ export function EventSim() {
       waveBandStep: 0,
       useRewardMilestones: true,
       targetWaveOverride: saved?.targetWaveOverride ?? saved?.targetPrestigeOverride ?? false,
-      targetWave: clampInt(
-        saved?.targetWave ?? (saved?.targetPrestige != null ? getPrestigeWaveRequirement(saved.targetPrestige) : 200),
-        0,
-        99999,
-      ),
+      targetWave: (() => {
+        const raw = saved?.targetWave ?? (saved?.targetPrestige != null ? getPrestigeWaveRequirement(saved.targetPrestige) : 200);
+        const w = clampInt(raw, 0, 99999);
+        return clampToTargetWaveOption(w);
+      })(),
       devOnlyMcTuning: false,
       comparisonMethods: ["default", "multiStart3"],
       comparisonReplicates: 3,
@@ -344,11 +344,13 @@ export function EventSim() {
     return ([1, 2, 3, 4] as const).reduce((acc, tier) => acc + ui.upgrades.levels[tier].reduce((a, b) => a + b, 0), 0);
   }, [ui.upgrades]);
 
-  const currentPlayerStats = useMemo(() => {
+  const currentSimStats = useMemo(() => {
     const prestige = clampInt(ui.prestige, 0, 999);
     const gemLevels = (ui.upgrades.gemLevels ?? [0, 0, 0, 0]) as unknown as [number, number, number, number];
-    return applyUpgrades(ui.upgrades.levels as unknown as Record<number, number[]>, prestige, gemLevels).player;
+    return applyUpgrades(ui.upgrades.levels as unknown as Record<number, number[]>, prestige, gemLevels);
   }, [ui.prestige, ui.upgrades]);
+  const currentPlayerStats = currentSimStats.player;
+  const currentEnemyStats = currentSimStats.enemy;
 
   function ensureWorker() {
     if (workerRef.current) return;
@@ -962,19 +964,26 @@ export function EventSim() {
                 <span>Override simulation with target wave goal</span>
               </label>
               {ui.targetWaveOverride && (
-                <div className="kv kvCompact" style={{ marginTop: 6 }}>
-                  <kbd>Target Wave</kbd>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={99999}
-                    value={ui.targetWave}
-                    onChange={(e) => {
-                      const v = parseNumber(e.target.value);
-                      setUi((s) => ({ ...s, targetWave: clampInt(v, 0, 99999) }));
-                    }}
-                  />
+                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div className="kv kvCompact">
+                    <kbd>Target Wave</kbd>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {TARGET_WAVE_OPTIONS.map((w) => (
+                        <button
+                          key={w}
+                          type="button"
+                          className={ui.targetWave === w ? "eventTargetWaveActive" : ""}
+                          onClick={() => setUi((s) => ({ ...s, targetWave: w as TargetWaveOption }))}
+                        >
+                          Wave {w}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="kv kvCompact">
+                    <span>Enemy HP at wave {ui.targetWave}</span>
+                    <span className="mono">{formatInt(getEnemyHpAtWave(currentEnemyStats, ui.targetWave))}</span>
+                  </div>
                 </div>
               )}
               <Tooltip

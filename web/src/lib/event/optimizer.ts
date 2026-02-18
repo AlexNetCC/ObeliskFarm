@@ -1,6 +1,6 @@
 // Ported (trimmed) from ObeliskGemEV/event/optimizer.py
 
-import { CAP_UPGRADES, COSTS, MAX_LEVELS, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES, getPrestigeWaveRequirement, isDamageOnlyUpgrade } from "./constants";
+import { CAP_UPGRADES, COSTS, MAX_LEVELS, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES, getPrestigeWaveRequirement, isDamageOnlyUpgrade, isPureCritUpgrade } from "./constants";
 import { createBaseEnemyStats, type EnemyStats, type PlayerStats } from "./stats";
 import { applyUpgrades, calculateBreakpointEfficiency, calculateDamageBreakpoints, getEnemyHpAtWave, runFullSimulation } from "./simulation";
 import { mulberry32 } from "../rng";
@@ -197,11 +197,14 @@ export function greedyOptimize(args: {
         const nextCost = Math.round(baseCost * 1.25 ** currentLevel);
         if (nextCost > remaining[tier]) continue;
 
-        if (requiredAtk != null && requiredAtk > 0 && isDamageOnlyUpgrade(tier, idx)) {
-          const testState = copyState(state);
-          testState.levels[tier][idx] = currentLevel + 1;
-          const { player: pAfter } = applyUpgrades(testState.levels, prestige, testState.gemLevels);
-          if (pAfter.atk > requiredAtk) continue;
+        if (requiredAtk != null && requiredAtk > 0) {
+          if (isPureCritUpgrade(tier, idx) && currentLevel >= 1) continue;
+          if (isDamageOnlyUpgrade(tier, idx)) {
+            const testState = copyState(state);
+            testState.levels[tier][idx] = currentLevel + 1;
+            const { player: pAfter } = applyUpgrades(testState.levels, prestige, testState.gemLevels);
+            if (pAfter.atk > requiredAtk) continue;
+          }
         }
 
         let effectiveScore = priority;

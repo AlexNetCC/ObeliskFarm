@@ -1,6 +1,6 @@
 // Ported from ObeliskGemEV/event/monte_carlo_optimizer.py (guided single-core MC).
 
-import { COSTS, getPrestigeWaveRequirement, getRewardBand, isDamageOnlyUpgrade } from "./constants";
+import { COSTS, getPrestigeWaveRequirement, getRewardBand, isDamageOnlyUpgrade, isPureCritUpgrade, TARGET_WAVE_ATK_BUFFER } from "./constants";
 import { applyUpgrades, runFullSimulation, calculateMaterials, getEnemyHpAtWave } from "./simulation";
 import { createBaseEnemyStats, type EnemyStats, type PlayerStats } from "./stats";
 import { greedyOptimize, type Budget, type UpgradeState, copyState, createEmptyState, getMaxLevelWithCaps, isUpgradeUnlocked, canAllocateUpgrade } from "./optimizer";
@@ -92,11 +92,14 @@ function buildCandidateState(args: {
       const nextCost = Math.round(baseCost * 1.25 ** currentLevel);
       if (nextCost > remaining[a.tier]) continue;
 
-      if (requiredAtk != null && requiredAtk > 0 && isDamageOnlyUpgrade(a.tier, a.idx)) {
-        const testState = copyState(state);
-        testState.levels[a.tier][a.idx] = currentLevel + 1;
-        const { player } = applyUpgrades(testState.levels, prestige, testState.gemLevels);
-        if (player.atk > requiredAtk) continue;
+      if (requiredAtk != null && requiredAtk > 0) {
+        if (isPureCritUpgrade(a.tier, a.idx) && currentLevel >= 1) continue;
+        if (isDamageOnlyUpgrade(a.tier, a.idx)) {
+          const testState = copyState(state);
+          testState.levels[a.tier][a.idx] = currentLevel + 1;
+          const { player } = applyUpgrades(testState.levels, prestige, testState.gemLevels);
+          if (player.atk > requiredAtk) continue;
+        }
       }
 
       const prio = tierPriorityScore[a.tier]?.[a.idx] ?? 10;
@@ -265,7 +268,10 @@ export function monteCarloOptimizeGuided(args: {
 
   const initialState = initialStateArg ? copyState(initialStateArg) : createEmptyState();
   const { enemy: enemyBase } = applyUpgrades(initialState.levels, prestige, initialState.gemLevels);
-  const requiredAtk = targetWave != null ? getEnemyHpAtWave(enemyBase, targetWave) : null;
+  const requiredAtk =
+    targetWave != null
+      ? Math.ceil(getEnemyHpAtWave(enemyBase, targetWave) * TARGET_WAVE_ATK_BUFFER)
+      : null;
 
   const nCandidates = Math.max(1, Math.trunc(numRuns));
   const runs = Math.max(1, Math.trunc(eventRunsPerCombination));

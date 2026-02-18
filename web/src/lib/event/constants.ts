@@ -75,6 +75,25 @@ export function getPrestigeWaveRequirement(prestige: number): number {
   return (prestige + 1) * 5;
 }
 
+/** Target wave options for min-max mode (150, 200, 250). User picks one; sim uses it for enemy HP threshold. */
+export const TARGET_WAVE_OPTIONS = [150, 200, 250] as const;
+export type TargetWaveOption = (typeof TARGET_WAVE_OPTIONS)[number];
+
+/** Clamp wave to nearest allowed target (150, 200, 250). */
+export function clampToTargetWaveOption(wave: number): TargetWaveOption {
+  if (wave <= 175) return 150;
+  if (wave <= 225) return 200;
+  return 250;
+}
+
+/** Multiplier for required atk in target-wave mode (enemy HP at wave × this = requiredAtk). Slightly above 1 so MC runs reliably reach the target wave. */
+export const TARGET_WAVE_ATK_BUFFER = 1.05;
+
+/** True if this upgrade only adds crit/critDmg (no atk, HP, block, speed, or enemy debuffs). In target-wave mode these are never suggested. */
+export function isPureCritUpgrade(tier: 1 | 2 | 3 | 4, idx: number): boolean {
+  return (tier === 1 && idx === 5) || (tier === 3 && idx === 2);
+}
+
 /** True if this upgrade only adds atk/crit/critDmg (no HP, block, speed, or enemy debuffs). Used to skip damage when user already has enough atk for target wave. */
 export function isDamageOnlyUpgrade(tier: 1 | 2 | 3 | 4, idx: number): boolean {
   const damageOnly: Record<number, number[]> = {
