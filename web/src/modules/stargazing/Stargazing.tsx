@@ -436,20 +436,7 @@ export function Stargazing() {
     };
   }, [starburstToggleRefresh]);
 
-  /** For Offline Gains: no external buffs (game is closed; Lootbug, Founder, Elixir, Starburst do not apply). */
-  const droneBuffsOffline = useMemo(() => ({
-    total2xStarMinPerHour: 0,
-    total2xUptimeFraction: 0,
-    drone3xSuperUptimeFraction: 0,
-    founderSupplyDropAutoCatch100MinPerHour: 0,
-    founderOnlyAutoCatch100MinPerHour: 0,
-    starburstTripleStarChancePct: 0,
-    starburstStarSpawnRateUptimeFraction: 0,
-    starburstStarSpawnRatePct: 0,
-    starburstAutoCatch100MinPerHour: 0,
-  }), []);
-
-  /** For Online AFK: only Elixir (no Lootbug, no Founder, no Starburst). */
+  /** For Online AFK and Offline Gains: only Elixir (no Lootbug, no Founder, no Starburst). Elixir Drone buffs apply when the client is offline. */
   const droneBuffsOnlineAfk = useMemo(() => {
     const sg = loadJson<{
       elixir2xStarMinPerHour?: number;
@@ -469,6 +456,9 @@ export function Stargazing() {
       starburstAutoCatch100MinPerHour: 0,
     };
   }, [starburstToggleRefresh]);
+
+  /** Offline gains use same drone buff set as Online AFK (Elixir only). */
+  const droneBuffsOffline = droneBuffsOnlineAfk;
 
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
@@ -739,7 +729,7 @@ export function Stargazing() {
       lines: [
         "— When the game gives offline gains: auto-catch × 0.85. The game applies this factor when you are offline.",
         "— Spoon strat is not applied (you cannot spoon when the device is off).",
-        "— No external buffs (Lootbug, Founder, Elixir Drone, Starburst do not apply when the game is closed).",
+        "— Elixir Drone buffs apply when offline. From the Drone module only Elixir is added; Lootbug, Founder, and Starburst from Drone do not apply when the game is closed. Your stats below are used for Offline too (e.g. Starburst there counts).",
       ],
     }),
     [],

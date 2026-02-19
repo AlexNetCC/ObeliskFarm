@@ -322,7 +322,7 @@ export function OvernightGains() {
 
   const bombsParams = external.bombsParams;
 
-  /** When offline (screen off): no Elixir Drone buff (10× = 0) and no Elixir fuel cost. */
+  /** Elixir Drone buffs apply when the client is offline; included by default. Checkbox allows assuming no Elixir overnight (10× = 0, no Elixir fuel cost). */
   const effectiveDrone10x = state.offlineNoElixirBuff ? 0 : external.drone10x;
   const effectiveDroneFuel = state.offlineNoElixirBuff ? Math.max(0, external.droneFuel - external.elixirFuel) : external.droneFuel;
 
@@ -389,7 +389,7 @@ export function OvernightGains() {
         heading: "Auto-Bomber",
         lines: [
           "Uses bomb params from Bombs module (recharge times, Free Bomb Chance, Gem chance, Card level). Same gains as Bombs Raw Gem Bombs.",
-          "No Cherry/Battery/D20 effect. 10× Bomb Recharge: only Drone (drones run offline). Lootbug 10× does not accumulate while you sleep.",
+          "No Cherry/Battery/D20 effect. 10× Bomb Recharge: from Drone (Elixir Drone buffs apply when the client is offline). Lootbug 10× does not accumulate while you sleep.",
         ],
       },
       {
@@ -526,14 +526,14 @@ export function OvernightGains() {
                   checked={state.offlineNoElixirBuff}
                   onChange={(e) => setState((s) => ({ ...s, offlineNoElixirBuff: e.target.checked }))}
                 />
-                <span>Offline Gains = No Elixir Drone buff</span>
+                <span>Assume no Elixir when offline</span>
               </label>
               <Tooltip
                 content={{
-                  title: "Offline Gains",
+                  title: "Elixir Drone overnight",
                   lines: [
-                    "When checked: fully offline (screen off). You do not get the Elixir Drone 10× Bomb Recharge buff.",
-                    "You also do not spend Elixir fuel, so that cost is excluded from overnight.",
+                    "Elixir Drone buffs (e.g. 10× Bomb Recharge) apply when the client is offline. They are included in the calculation by default.",
+                    "Check this box only if you want to assume no Elixir overnight: 10× = 0 and Elixir fuel cost excluded.",
                   ],
                 }}
                 label="?"

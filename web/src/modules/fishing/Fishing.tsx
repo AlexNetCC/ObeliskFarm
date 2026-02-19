@@ -1311,7 +1311,7 @@ export function Fishing() {
     saveJson(FISHING_EXTERNAL_KEY, ext);
   }, [effectiveTickSec, rawTicksPerHour, tickMult, visibleGainsRows, anglerBreakdownForDrone, anglerTicksPerHour]);
 
-  /** Run MC: simulate each fill → tick mult (2×/3×/5×) → catch attempt per fish; record total and per-fish. */
+  /** Run MC: simulate each fill → tick mult (2×/3×/5×) → catch attempt per fish → shiny/super-shiny rolled per fish; record total and per-fish. */
   function runFishingMc() {
     const hours = state.mcHours;
     const runs = state.mcRuns;
@@ -1336,6 +1336,11 @@ export function Fishing() {
       }));
       docksWithPower.push({ dockId: set.dockId, dockName: dock.name, fillsPerHour, fish });
     }
+    const s = stats.shiny_fish_chance_pct / 100;
+    const s2 = stats.super_shiny_chance_pct / 100;
+    const shinyMult = stats.shiny_multiplier;
+    const superShinyMult = stats.super_shiny_multiplier;
+    const fishIncomeMulti = stats.fish_income_multi;
     setMcState((s) => ({ ...s, running: true, samples: null, samplesPerFish: null }));
     window.setTimeout(() => {
       const rng = mulberry32((Date.now() & 0x7fffffff) >>> 0);
@@ -1356,11 +1361,18 @@ export function Fishing() {
             const mult5x = rng() < fivePct ? 5 : 1;
             const rolls = multDouble * multTriple * mult5x;
             for (let r = 0; r < rolls; r++) {
-              for (const { fish: fDef, ECR, totalMulti } of fishList) {
+              for (const { fish: fDef, ECR } of fishList) {
                 const g = Math.floor(ECR);
                 const frac = ECR - g;
                 const raw = g + (rng() < frac ? 1 : 0);
-                const count = raw * totalMulti;
+                const cardMulti = getCardMulti(fDef.id);
+                let shinySum = 0;
+                for (let _ = 0; _ < raw; _++) {
+                  const isShiny = rng() < s;
+                  const isSuperShiny = isShiny && rng() < s2;
+                  shinySum += isSuperShiny ? shinyMult * superShinyMult : isShiny ? shinyMult : 1;
+                }
+                const count = shinySum * fishIncomeMulti * cardMulti;
                 runPerFish[fDef.id] = (runPerFish[fDef.id] ?? 0) + count;
                 total += count;
               }
@@ -2110,7 +2122,7 @@ export function Fishing() {
             <Collapsible id="fishing-mc" title="Variance (MC simulation)" defaultExpanded={false}>
               <div className="fishingMcSection">
                 <p className="small" style={{ marginBottom: 8 }}>
-                  Simulate each catch attempt: every fill → 2×/3×/5× tick mult → catch per fish. EV above is the average; variance can be high.
+                  Simulate each fill → 2×/3×/5× tick mult → catch per fish → shiny/super-shiny rolled per fish (same as in-game). EV above is the average; variance can be high.
                 </p>
                 <div className="fishingMcInputRow">
                     <label className="fishingMcLabel">
