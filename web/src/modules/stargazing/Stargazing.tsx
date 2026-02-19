@@ -88,6 +88,11 @@ function getW3FloorsMult(selectedCardId: string): number {
 /** 2× Star Spawn Rate buff icon (Elixir/Lootbug/Founder). */
 const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spawn_Rate_Buff.png";
 
+/** Starfruit: All Star Multi +30%, Star Supernova Chance +10%, 140s. */
+const ICON_STARFRUIT = "https://static.wikitide.net/shminerwiki/d/db/Starfruit.png";
+/** Ice Cream: Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140s. */
+const ICON_ICE_CREAM = "https://static.wikitide.net/shminerwiki/5/5d/Ice_Cream.png";
+
 /** Star card ids that have sprites in sprites/stargazing (from main Python/assets). */
 const STAR_CARD_IDS = [
   "aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio",
@@ -114,6 +119,8 @@ type SavedStateV1 = {
   ctrl_f_stars_enabled: boolean;
   spoon_strat?: boolean;
   catch_manually?: boolean;
+  starfruit?: boolean;
+  ice_cream?: boolean;
   star_cards?: Partial<StarCardsState>;
 };
 
@@ -351,18 +358,22 @@ export function Stargazing() {
     const ctrl_f_stars_enabled = saved?.ctrl_f_stars_enabled ?? false;
     const spoon_strat = saved?.spoon_strat ?? false;
     const catch_manually = saved?.catch_manually ?? false;
+    const starfruit = saved?.starfruit ?? false;
+    const ice_cream = saved?.ice_cream ?? false;
     const star_cards: StarCardsState = {
       ...defaultStarCards(),
       ...(saved?.star_cards ?? {}),
       selected_card_for_results: saved?.star_cards?.selected_card_for_results ?? "aries",
     };
-    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, star_cards };
+    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, starfruit, ice_cream, star_cards };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
   const [ctrlF, setCtrlF] = useState<boolean>(initial.ctrl_f_stars_enabled);
   const [spoonStrat, setSpoonStrat] = useState<boolean>(initial.spoon_strat);
   const [catchManually, setCatchManually] = useState<boolean>(initial.catch_manually ?? false);
+  const [starfruit, setStarfruit] = useState<boolean>(initial.starfruit ?? false);
+  const [iceCream, setIceCream] = useState<boolean>(initial.ice_cream ?? false);
   const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
   const [resetArmed, setResetArmed] = useState(false);
 
@@ -377,11 +388,11 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, star_cards: starCards };
+      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, starfruit, ice_cream: iceCream, star_cards: starCards };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF, spoonStrat, catchManually, starCards]);
+  }, [ui, ctrlF, spoonStrat, catchManually, starfruit, iceCream, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -476,7 +487,7 @@ export function Stargazing() {
     const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderAutoCatchMin) + founderAutoCatchMin) / 60;
     const tripleStarBasePct = clamp(ui.triple_star_chance, 0, 100);
     const triple_star_chance = Math.min(1, (tripleStarBasePct + droneBuffs.starburstTripleStarChancePct) / 100);
-    return {
+    const s: PlayerStats = {
       floor_clears_per_hour,
       star_spawn_rate_mult,
       auto_catch_chance,
@@ -501,7 +512,13 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, spoonStrat, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
+    if (starfruit) {
+      s.all_star_mult *= 1.3;
+      s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
+    }
+    if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
+    return s;
+  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst (no Lootbug, no Founder). */
   const statsOnlineAfk = useMemo<PlayerStats>(() => {
@@ -516,7 +533,7 @@ export function Stargazing() {
     const founderAutoCatchMin = Math.min(60, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour);
     const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderAutoCatchMin) + founderAutoCatchMin) / 60;
     const triple_star_chance = Math.min(1, (clamp(ui.triple_star_chance, 0, 100) + droneBuffsOnlineAfk.starburstTripleStarChancePct) / 100);
-    return {
+    const s: PlayerStats = {
       floor_clears_per_hour,
       star_spawn_rate_mult,
       auto_catch_chance,
@@ -541,7 +558,13 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, spoonStrat, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
+    if (starfruit) {
+      s.all_star_mult *= 1.3;
+      s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
+    }
+    if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
+    return s;
+  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Offline Gains: no spoon strat, no external buffs (Lootbug, Founder, Elixir, Starburst off). */
   const statsOffline = useMemo<PlayerStats>(() => {
@@ -555,7 +578,7 @@ export function Stargazing() {
     const founderAutoCatchMin = Math.min(60, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour);
     const auto_catch_chance = (autoCatchBase * Math.max(0, 60 - founderAutoCatchMin) + founderAutoCatchMin) / 60;
     const triple_star_chance = Math.min(1, (clamp(ui.triple_star_chance, 0, 100) + droneBuffsOffline.starburstTripleStarChancePct) / 100);
-    return {
+    const s: PlayerStats = {
       floor_clears_per_hour,
       star_spawn_rate_mult,
       auto_catch_chance,
@@ -580,7 +603,13 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-  }, [ui, ctrlF, w3FloorsMult, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
+    if (starfruit) {
+      s.all_star_mult *= 1.3;
+      s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
+    }
+    if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
+    return s;
+  }, [ui, ctrlF, starfruit, iceCream, w3FloorsMult, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
 
   /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
   const statsWithoutStarburst = useMemo<PlayerStats>(() => {
@@ -801,6 +830,24 @@ export function Stargazing() {
                   onChange={(e) => setSpoonStrat(e.target.checked)}
                 />
                 <span>Spoon Strat / Holding finger (+20% floor clears, online only)</span>
+              </label>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={starfruit}
+                  onChange={(e) => setStarfruit(e.target.checked)}
+                />
+                <img src={ICON_STARFRUIT} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
+                <span>Starfruit (All Star Multi +30%, Star Supernova Chance +10%, 140s)</span>
+              </label>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={iceCream}
+                  onChange={(e) => setIceCream(e.target.checked)}
+                />
+                <img src={ICON_ICE_CREAM} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
+                <span>Ice Cream (Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140s)</span>
               </label>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
