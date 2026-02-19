@@ -387,7 +387,7 @@ export function ArchSim() {
           lines: [
             "Max stage: primary = avg max stage, secondary = fragments/hour, tertiary = XP/hour.",
             "XP/hour: primary = XP/hour, secondary = fragments/hour, tertiary = avg max stage.",
-            "Fragments/hour: primary = target fragment/h, secondary = next-smaller fragment/h, tertiary = next-smaller (e.g. Epic → Rare → Common).",
+            "Fragments/hour: primary = target fragment/h. Secondary = next-smaller fragment/h (or next-higher if none, e.g. Common → Rare). Tertiary = next-higher (or over-next-higher if no smaller, e.g. Common → Epic).",
           ],
         },
         {
@@ -926,6 +926,15 @@ export function ArchSim() {
     const combosMult = mcSettings.devTuning ? clampInt(Number(mcSettings.combosMult ?? 1), 1, 50) : 1;
     const targetFrag = mcSettings.targetFrag;
     const FRAG_ORDER: readonly BlockType[] = ["common", "rare", "epic", "legendary", "mythic"];
+    /** For frag mode tie-break: secondary = next-smaller (or next-higher if none); tertiary = next-higher (or over-next-higher if no smaller). */
+    function getFragTieBreakFragments(target: BlockType): { secFrag: BlockType | null; terFrag: BlockType | null } {
+      const L = FRAG_ORDER.length;
+      const idx = FRAG_ORDER.indexOf(target);
+      if (idx < 0) return { secFrag: null, terFrag: null };
+      const secFrag = idx > 0 ? FRAG_ORDER[idx - 1]! : (idx + 1 < L ? FRAG_ORDER[idx + 1]! : null);
+      const terFrag = idx > 0 ? (idx + 1 < L ? FRAG_ORDER[idx + 1]! : null) : (idx + 2 < L ? FRAG_ORDER[idx + 2]! : null);
+      return { secFrag, terFrag };
+    }
 
     const caps: Record<Skill, number> = {
       strength: Math.min(archLevel, getSkillPointCap(build, "strength")),
@@ -974,9 +983,9 @@ export function ArchSim() {
           const n = out.n ?? 0;
           const byType = out.frag_per_hour_by_type ?? {};
           const stdByType = (out as { std_by_type?: Record<string, number> }).std_by_type ?? {};
-          const idx = FRAG_ORDER.indexOf(targetFrag);
-          const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
-          const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+          const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
+          const secondary = secFrag != null ? (byType[secFrag] ?? 0) : null;
+          const tertiary = terFrag != null ? (byType[terFrag] ?? 0) : null;
           scores.push({
             dist,
             primary: out.avg_frag_per_hour ?? 0,
@@ -984,8 +993,8 @@ export function ArchSim() {
             tertiary: tertiary ?? null,
             primaryStd: out.std_frag_per_hour,
             primaryN: n,
-            secondaryStd: idx > 0 ? stdByType[FRAG_ORDER[idx - 1]] : undefined,
-            tertiaryStd: idx > 1 ? stdByType[FRAG_ORDER[idx - 2]] : undefined,
+            secondaryStd: secFrag != null ? stdByType[secFrag] : undefined,
+            tertiaryStd: terFrag != null ? stdByType[terFrag] : undefined,
           });
         } else {
           const out = await pool.run({
@@ -994,9 +1003,9 @@ export function ArchSim() {
           });
           const fragPerH = Number(out.avg_frag_per_hour ?? 0);
           const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
-          const idx = FRAG_ORDER.indexOf(targetFrag);
-          const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
-          const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+          const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
+          const secondary = secFrag != null ? (byType[secFrag] ?? 0) : null;
+          const tertiary = terFrag != null ? (byType[terFrag] ?? 0) : null;
           scores.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
         }
         return;
@@ -1085,9 +1094,9 @@ export function ArchSim() {
         const tail = hasTertiary ? "tie-break by secondary then tertiary" : hasSecondary ? "tie-break by secondary" : "tie-break (lexicographic)";
         winnerReason = `primary tied → ${tail}`;
       } else if (tiedAtPrimary > 1 && mode === "frag") {
-        const idx = FRAG_ORDER.indexOf(targetFrag);
-        const secLabel = idx > 0 ? FRAG_ORDER[idx - 1].toUpperCase() : null;
-        const terLabel = idx > 1 ? FRAG_ORDER[idx - 2].toUpperCase() : null;
+        const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
+        const secLabel = secFrag != null ? secFrag.toUpperCase() : null;
+        const terLabel = terFrag != null ? terFrag.toUpperCase() : null;
         const tail =
           hasTertiary && secLabel && terLabel
             ? `tie-break by ${secLabel}/h then ${terLabel}/h`
@@ -1401,9 +1410,9 @@ export function ArchSim() {
                   const n = out.n ?? 0;
                   const byType = out.frag_per_hour_by_type ?? {};
                   const stdByType = (out as { std_by_type?: Record<string, number> }).std_by_type ?? {};
-                  const idx = FRAG_ORDER.indexOf(targetFrag);
-                  const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
-                  const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+                  const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
+                  const secondary = secFrag != null ? (byType[secFrag] ?? 0) : null;
+                  const tertiary = terFrag != null ? (byType[terFrag] ?? 0) : null;
                   refined.push({
                     dist,
                     primary: out.avg_frag_per_hour ?? 0,
@@ -1411,8 +1420,8 @@ export function ArchSim() {
                     tertiary: tertiary ?? null,
                     primaryStd: out.std_frag_per_hour,
                     primaryN: n,
-                    secondaryStd: idx > 0 ? stdByType[FRAG_ORDER[idx - 1]] : undefined,
-                    tertiaryStd: idx > 1 ? stdByType[FRAG_ORDER[idx - 2]] : undefined,
+                    secondaryStd: secFrag != null ? stdByType[secFrag] : undefined,
+                    tertiaryStd: terFrag != null ? stdByType[terFrag] : undefined,
                   });
                 } else {
                   const out = await pool.run({
@@ -1421,9 +1430,9 @@ export function ArchSim() {
                   });
                   const fragPerH = Number(out.avg_frag_per_hour ?? 0);
                   const byType = (out as { frag_per_hour_by_type?: Record<string, number> }).frag_per_hour_by_type ?? {};
-                  const idx = FRAG_ORDER.indexOf(targetFrag);
-                  const secondary = idx > 0 ? (byType[FRAG_ORDER[idx - 1]] ?? 0) : null;
-                  const tertiary = idx > 1 ? (byType[FRAG_ORDER[idx - 2]] ?? 0) : null;
+                  const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
+                  const secondary = secFrag != null ? (byType[secFrag] ?? 0) : null;
+                  const tertiary = terFrag != null ? (byType[terFrag] ?? 0) : null;
                   refined.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
                 }
                 return;
@@ -1515,7 +1524,21 @@ export function ArchSim() {
         const primaryMetric = mode === "stage" ? "avg_max_stage" : mode === "XP" ? "xp_per_hour" : "frag_per_hour";
         let winnerReason = "highest primary score";
         if (tiedAtPrimary > 1) {
-          const tail = hasTertiary ? "tie-break by secondary then tertiary" : hasSecondary ? "tie-break by secondary" : "tie-break (lexicographic)";
+          const tail =
+            mode === "frag"
+              ? (() => {
+                  const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
+                  const secLabel = secFrag != null ? secFrag.toUpperCase() : null;
+                  const terLabel = terFrag != null ? terFrag.toUpperCase() : null;
+                  if (hasTertiary && secLabel && terLabel) return `tie-break by ${secLabel}/h then ${terLabel}/h`;
+                  if (hasSecondary && secLabel) return `tie-break by ${secLabel}/h`;
+                  return "tie-break (lexicographic)";
+                })()
+              : hasTertiary
+                ? "tie-break by secondary then tertiary"
+                : hasSecondary
+                  ? "tie-break by secondary"
+                  : "tie-break (lexicographic)";
           winnerReason = `primary not significantly different (α=0.05) → ${tail}`;
         }
         const top3 = topCands.slice(0, 3).map((c, i) => ({
@@ -2693,6 +2716,9 @@ export function ArchSim() {
           : tb.mode === "frag" && tb.targetFrag
             ? (() => {
                 const idx = FRAG_ORDER_BAR.indexOf(tb.targetFrag);
+                const L = FRAG_ORDER_BAR.length;
+                const secFrag = idx > 0 ? FRAG_ORDER_BAR[idx - 1]! : (idx + 1 < L ? FRAG_ORDER_BAR[idx + 1]! : null);
+                const terFrag = idx > 0 ? (idx + 1 < L ? FRAG_ORDER_BAR[idx + 1]! : null) : (idx + 2 < L ? FRAG_ORDER_BAR[idx + 2]! : null);
                 const arr: Series[] = [
                   {
                     key: "primary",
@@ -2703,26 +2729,24 @@ export function ArchSim() {
                     fragType: tb.targetFrag,
                   },
                 ];
-                if (idx > 0) {
-                  const sec = FRAG_ORDER_BAR[idx - 1];
+                if (secFrag != null) {
                   arr.push({
                     key: "secondary",
-                    label: `${sec.toUpperCase()}/h`,
+                    label: `${secFrag.toUpperCase()}/h`,
                     barClass: "tbBarFrag",
                     valueFmt: (v) => v.toFixed(2),
                     get: (r) => Number(r.secondary ?? 0),
-                    fragType: sec,
+                    fragType: secFrag,
                   });
                 }
-                if (idx > 1) {
-                  const ter = FRAG_ORDER_BAR[idx - 2];
+                if (terFrag != null) {
                   arr.push({
                     key: "tertiary",
-                    label: `${ter.toUpperCase()}/h`,
+                    label: `${terFrag.toUpperCase()}/h`,
                     barClass: "tbBarFrag",
                     valueFmt: (v) => v.toFixed(2),
                     get: (r) => Number(r.tertiary ?? 0),
-                    fragType: ter,
+                    fragType: terFrag,
                   });
                 }
                 return arr;
