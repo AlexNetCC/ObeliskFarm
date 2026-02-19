@@ -2666,8 +2666,8 @@ export function Fishing() {
                   <StatRow
                     label="Drone Base Power"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
-                    value={stats.drone_base_power}
-                    decimals={2}
+                    value={stats.drone_base_power_base}
+                    decimals={0}
                     suffix=""
                   />
                   <StatRow

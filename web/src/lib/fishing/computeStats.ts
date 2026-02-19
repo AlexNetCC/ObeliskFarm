@@ -12,6 +12,8 @@ export interface ComputedFishingStats {
   fishing_rod_power: number;
   fishing_drone_cap: number;
   drone_base_power: number;
+  /** Base power before multiplier (3 + Drone Base Power upgrade; rounded). For display "Drone Base Power" only. */
+  drone_base_power_base: number;
   /** Multiplier on Drone Base Power (from drone_multiplier + enhance). */
   drone_power_multiplier: number;
   fish_income_multi: number;
@@ -118,6 +120,7 @@ export function computeFishingStatsFromLevels(
     0.02 * skill("completionist_gatekeeper") * legendary;
   const drone_power_multiplier = droneMultiUpgrade * droneMultiEnhance * droneMultiSkill;
   const drone_base_power = droneBase * drone_power_multiplier;
+  const drone_base_power_base = droneBase;
 
   // Fishing Drone Cap: base 0, then from upgrades (+1 per fishing_drone, +2 per fishing_drone_2) and enhancements (+1 per enhance_fishing_drone, +3 per enhance_fishing_drone_3); then Drone Cloner 1.05x. Skill: Fishing With Friends +5, Motley School +5 per level.
   const capFromUpgradesAndEnhancements =
@@ -185,6 +188,7 @@ export function computeFishingStatsFromLevels(
     fishing_rod_power,
     fishing_drone_cap,
     drone_base_power,
+    drone_base_power_base,
     drone_power_multiplier,
     fish_income_multi,
     fishing_tick_reduction,
