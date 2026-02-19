@@ -982,10 +982,6 @@ export function Fishing() {
             value: giftSushiTicksPerHour * tickMult,
             color: TICK_CHART_ROW_COLORS.giftSushi,
             icon: <GiftIcon />,
-            subtitle:
-              giftPerHourTotal > 0
-                ? `Gifts/h: ${giftPerHourTotal.toFixed(2)}${giftPerHourFreebie > 0 || giftPerHourFounder > 0 ? ` (Freebie: ${giftPerHourFreebie.toFixed(2)}, Founder: ${giftPerHourFounder.toFixed(2)})` : ""}`
-                : undefined,
             tooltip: {
               title: "Gift Sushi",
               lines: [
@@ -3858,7 +3854,7 @@ export function Fishing() {
                           <div className="small" style={{ marginTop: 4, opacity: 0.9 }}>
                             Your Cards:{" "}
                             <span className="mono">
-                              {Object.values(state.fishCardTier ?? {}).reduce(
+                              {Object.values(state.fishCardTier ?? {}).reduce<number>(
                                 (sum, t) => sum + (t === 1 ? 1 : t === 2 ? 2 : t === 3 ? 3 : 0),
                                 0,
                               )}

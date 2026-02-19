@@ -495,6 +495,10 @@ export function GemEv() {
       chaosTotemImpact?: number;
       stonksChestsPerHour?: number;
       game_speed_multiplier?: number;
+      giftItemChestsPerHour?: number;
+      giftRelicChestsPerHour?: number;
+      freebieRelicChestsPerHour?: number;
+      stonksRelicChestsPerHour?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     if (typeof external.gemBombGemsPerHourFromBombs !== "number") {
       ext.gemBomb10xImpact = gemBomb10xImpact;
