@@ -76,6 +76,10 @@ type SavedState = {
   legendaryFishFound?: number;
   /** Divine Relic points: +2% 5× tick chance per point (applies to all gains; Sushi does not get Gift +25%). */
   divineRelic5xPoints?: number;
+  /** Variance (MC) simulation: hours to simulate. Default 8. */
+  mcHours?: number;
+  /** Variance (MC) simulation: number of runs. Default 10000. */
+  mcRuns?: number;
 };
 
 /** Single persisted state (same pattern as Drone: one state, lazy load, save on change). */
@@ -96,6 +100,10 @@ type FishingState = {
   legendaryFishFound: number;
   /** Divine Relic points: +2% 5× tick chance per point. */
   divineRelic5xPoints: number;
+  /** Variance (MC) simulation: hours to simulate. Default 8. */
+  mcHours: number;
+  /** Variance (MC) simulation: number of runs. Default 10000. */
+  mcRuns: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
@@ -675,7 +683,9 @@ export function Fishing() {
     const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
     const fishingRodCardTier = clamp(Math.trunc(Number(saved?.fishingRodCardTier ?? 0)), 0, 3) as FishCardTier;
     const divineRelic5xPoints = clamp(Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)), 0, 50);
-    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints };
+    const mcHours = clamp(Number(saved?.mcHours ?? 8), 0.1, 720);
+    const mcRuns = clamp(Math.trunc(Number(saved?.mcRuns ?? 10000)), 1000, 100000);
+    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints, mcHours, mcRuns };
   });
 
   useEffect(() => {
@@ -683,12 +693,10 @@ export function Fishing() {
   }, [state]);
 
   const [mcState, setMcState] = useState<{
-    hours: number;
-    runs: number;
     samples: number[] | null;
     samplesPerFish: Record<string, number[]> | null;
     running: boolean;
-  }>({ hours: 24, runs: 10000, samples: null, samplesPerFish: null, running: false });
+  }>({ samples: null, samplesPerFish: null, running: false });
 
   const [sushiMcState, setSushiMcState] = useState<{
     samples: number[] | null;
@@ -887,6 +895,8 @@ export function Fishing() {
     let giftSushiPerHour = 0;
     let giftSushiFreebiePerHour = 0;
     let giftSushiFounderPerHour = 0;
+    let giftPerHourFreebie = 0;
+    let giftPerHourFounder = 0;
     let gift5xTickUptimeFraction = 0;
     if (fishingUnlocked) {
       const gemevSave = loadJson<{ params?: Partial<GameParameters>; statue_soprano_level?: number }>(GEMEV_STORAGE_KEY);
@@ -899,10 +909,12 @@ export function Fishing() {
       const bySource = calculateGiftSushiPerHourBySource(params);
       giftSushiFreebiePerHour = Math.max(0, bySource.freebie);
       giftSushiFounderPerHour = Math.max(0, bySource.founder);
+      giftPerHourFreebie = Math.max(0, bySource.giftPerHourFreebie ?? 0);
+      giftPerHourFounder = Math.max(0, bySource.giftPerHourFounder ?? 0);
       gift5xTickUptimeFraction = calculateGift5xTickUptimeFraction(params);
     }
 
-    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour, giftSushiFreebiePerHour, giftSushiFounderPerHour, gift5xTickUptimeFraction };
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour, giftSushiFreebiePerHour, giftSushiFounderPerHour, giftPerHourFreebie, giftPerHourFounder, gift5xTickUptimeFraction };
   })();
   const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
   const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
@@ -914,6 +926,9 @@ export function Fishing() {
   const giftSushiPerHour = fishingExternalData.giftSushiPerHour;
   const giftSushiFreebiePerHour = fishingExternalData.giftSushiFreebiePerHour ?? 0;
   const giftSushiFounderPerHour = fishingExternalData.giftSushiFounderPerHour ?? 0;
+  const giftPerHourFreebie = fishingExternalData.giftPerHourFreebie ?? 0;
+  const giftPerHourFounder = fishingExternalData.giftPerHourFounder ?? 0;
+  const giftPerHourTotal = giftPerHourFreebie + giftPerHourFounder;
   const gift5xTickUptimeFraction = fishingExternalData.gift5xTickUptimeFraction ?? 0;
   /** Angler fuel buff: +X% Legendary Fish Chance during buff uptime. Effective base = 150k × (1 − bonus% × uptime). */
   const effectiveLegendaryCatchBase = Math.max(1, LEGENDARY_CATCH_BASE * (1 - (anglerLegendaryBonusPct / 100) * anglerBuffUptimeFraction));
@@ -955,7 +970,7 @@ export function Fishing() {
   const tickChartRows = useMemo(() => {
     if (anglerTicksPerHour <= 0 && lootbugFishing12TicksProcsPerHour <= 0 && giftSushiTicksPerHour <= 0 && gift5xTickContribution <= 0 && tickMult <= 1) return [];
     const baseVal = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) * tickMult;
-    type Row = { key: string; label: string; value: number; color: string; icon?: ReactNode; tooltip: { title: string; lines: string[] } | null };
+    type Row = { key: string; label: string; value: number; color: string; icon?: ReactNode; subtitle?: string; tooltip: { title: string; lines: string[] } | null };
     const rows: (Row | null)[] = [
       { key: "base", label: "Base", value: baseVal, color: TICK_CHART_ROW_COLORS.base, tooltip: null },
       anglerTicksPerHour > 0 ? { key: "angler", label: "Angler Drone", value: anglerTicksPerHour * tickMult, color: TICK_CHART_ROW_COLORS.angler, tooltip: null } : null,
@@ -967,12 +982,19 @@ export function Fishing() {
             value: giftSushiTicksPerHour * tickMult,
             color: TICK_CHART_ROW_COLORS.giftSushi,
             icon: <GiftIcon />,
+            subtitle:
+              giftPerHourTotal > 0
+                ? `Gifts/h: ${giftPerHourTotal.toFixed(2)}${giftPerHourFreebie > 0 || giftPerHourFounder > 0 ? ` (Freebie: ${giftPerHourFreebie.toFixed(2)}, Founder: ${giftPerHourFounder.toFixed(2)})` : ""}`
+                : undefined,
             tooltip: {
               title: "Gift Sushi",
               lines: [
                 "Freebie: Statue of Soprano (freebie gift chance). Founder/Supply: supply drop (1/1234 rare per drop, 10 gifts).",
+                giftPerHourTotal > 0
+                  ? `Gifts/h: ${giftPerHourTotal.toFixed(2)} (Freebie: ${giftPerHourFreebie.toFixed(2)}, Founder: ${giftPerHourFounder.toFixed(2)}).`
+                  : "",
                 "Includes double/triple tick mult, but not the 5× tick multi from Gift's 5× tick buff.",
-              ],
+              ].filter(Boolean),
             },
           }
         : null,
@@ -1002,6 +1024,9 @@ export function Fishing() {
     lootbugFishing12TicksProcsPerHour,
     giftSushiTicksPerHour,
     gift5xTickContribution,
+    giftPerHourTotal,
+    giftPerHourFreebie,
+    giftPerHourFounder,
   ]);
 
   const fishingGainsRows = useMemo(() => {
@@ -1292,7 +1317,8 @@ export function Fishing() {
 
   /** Run MC: simulate each fill → tick mult (2×/3×/5×) → catch attempt per fish; record total and per-fish. */
   function runFishingMc() {
-    const { hours, runs } = mcState;
+    const hours = state.mcHours;
+    const runs = state.mcRuns;
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const doublePct = stats.double_tick_chance_pct / 100;
     const triplePct = stats.triple_tick_chance_pct / 100;
@@ -2091,7 +2117,7 @@ export function Fishing() {
                   Simulate each catch attempt: every fill → 2×/3×/5× tick mult → catch per fish. EV above is the average; variance can be high.
                 </p>
                 <div className="fishingMcInputRow">
-                  <label className="fishingMcLabel">
+                    <label className="fishingMcLabel">
                     {typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("de") ? "Stunden" : "Hours"}
                     <input
                       type="number"
@@ -2100,10 +2126,10 @@ export function Fishing() {
                       max={720}
                       step={0.5}
                       className="fishingMcInput"
-                      value={mcState.hours}
+                      value={state.mcHours}
                       onChange={(e) => {
                         const v = parseFloat(e.target.value);
-                        if (Number.isFinite(v)) setMcState((s) => ({ ...s, hours: Math.max(0.1, Math.min(720, v)) }));
+                        if (Number.isFinite(v)) setState((s) => ({ ...s, mcHours: Math.max(0.1, Math.min(720, v)) }));
                       }}
                       disabled={mcState.running}
                       aria-label="Simulation hours"
@@ -2117,10 +2143,10 @@ export function Fishing() {
                       max={100000}
                       step={1000}
                       className="fishingMcInput"
-                      value={mcState.runs}
+                      value={state.mcRuns}
                       onChange={(e) => {
                         const v = parseInt(e.target.value, 10);
-                        if (Number.isFinite(v)) setMcState((s) => ({ ...s, runs: Math.max(1000, Math.min(100000, v)) }));
+                        if (Number.isFinite(v)) setState((s) => ({ ...s, mcRuns: Math.max(1000, Math.min(100000, v)) }));
                       }}
                       disabled={mcState.running}
                       aria-label="MC runs"
@@ -2140,7 +2166,7 @@ export function Fishing() {
                 {mcState.samples && mcState.samples.length > 0 && (
                   <div className="fishingMcResults">
                     <div className="fishingMcResultsTitle">
-                      Total fish over the next {mcState.hours} h (N={mcState.samples.length.toLocaleString()})
+                      Total fish over the next {state.mcHours} h (N={mcState.samples.length.toLocaleString()})
                     </div>
                     {(() => {
                       const s = mcState.samples;
@@ -2150,7 +2176,7 @@ export function Fishing() {
                       const med = s[Math.floor(0.5 * s.length)] ?? 0;
                       const p75 = s[Math.floor(0.75 * s.length)] ?? 0;
                       const p90 = s[Math.floor(0.9 * s.length)] ?? 0;
-                      const evTotal = visibleGainsRows.reduce((sum, r) => sum + (r.hasPower ? r.fishPerHour * mcState.hours : 0), 0);
+                      const evTotal = visibleGainsRows.reduce((sum, r) => sum + (r.hasPower ? r.fishPerHour * state.mcHours : 0), 0);
                       const bins = 14;
                       const lo = s[0] ?? 0;
                       const hi = s[s.length - 1] ?? 0;
@@ -2282,9 +2308,8 @@ export function Fishing() {
               <img src="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png" alt="" className="fishingSushiIcon" aria-hidden />
               <span className="fishingSectionTitle">Sushi</span>
             </div>
-            <p className="small" style={{ marginBottom: 4, opacity: 0.85 }}>Sushi gives <span className="mono">{ticksPerSushi}</span> fishing ticks.</p>
-            <p className="small" style={{ marginBottom: 8, opacity: 0.85 }}>
-              Effective Fishing Ticks: <span className="mono">{(ticksPerSushi * tickMult).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
+            <p className="small" style={{ marginBottom: 4, opacity: 0.85 }}>
+              Sushi gives <span className="mono">{ticksPerSushi}</span> fishing ticks. Effective: <span className="mono">{(ticksPerSushi * tickMult).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
               <Tooltip
                 content={{
                   title: "Effective Fishing Ticks",
@@ -2308,6 +2333,18 @@ export function Fishing() {
                         "Average EV (fish per Sushi) and the MC simulation both use effective ticks: fish per hour is already based on effective ticks, so the per-Sushi EV reflects this value.",
                       ],
                     },
+                  ],
+                }}
+                label="?"
+              />
+            </p>
+            <p className="small" style={{ marginBottom: 8, opacity: 0.85 }}>
+              Sushi per hour: <span className="mono">{giftSushiPerHour.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
+              <Tooltip
+                content={{
+                  title: "Sushi per hour",
+                  lines: [
+                    <>Sushi from Gifts per hour. Value comes from <strong>Gem EV Calculator</strong> (Gifts/h); open <strong>Gem EV Calculator</strong> to refresh. EV (fish per Sushi) uses the same formula as Average EV below.</>,
                   ],
                 }}
                 label="?"
@@ -2530,8 +2567,15 @@ export function Fishing() {
                                 return (
                                   <div key={row.key} className="fishingTickContribRow">
                                     <div className="fishingTickContribLabel">
-                                      {row.icon ?? null}
-                                      <span>{row.label}</span>
+                                      <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                          {row.icon ?? null}
+                                          <span>{row.label}</span>
+                                        </span>
+                                        {row.subtitle ? (
+                                          <span className="small" style={{ opacity: 0.9, fontSize: "11px" }}>{row.subtitle}</span>
+                                        ) : null}
+                                      </span>
                                     </div>
                                     <div className="fishingTickContribBarTrack">
                                       <div
@@ -3810,6 +3854,17 @@ export function Fishing() {
                             </button>
                           ) : null}
                         </div>
+                        {def.id === "with_this_fish_i_summon_two_more_fish" ? (
+                          <div className="small" style={{ marginTop: 4, opacity: 0.9 }}>
+                            Your Cards:{" "}
+                            <span className="mono">
+                              {Object.values(state.fishCardTier ?? {}).reduce(
+                                (sum, t) => sum + (t === 1 ? 1 : t === 2 ? 2 : t === 3 ? 3 : 0),
+                                0,
+                              )}
+                            </span>
+                          </div>
+                        ) : null}
                       </td>
                       <td className="fishingUpgradeTdCostEffic">
                         {costEffic != null ? (

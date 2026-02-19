@@ -97,6 +97,18 @@
   background: rgba(120, 80, 180, 0.8);
 }
 
+.itemsChestsBarRelicGem {
+  background: rgba(0, 130, 140, 0.8);
+}
+
+.itemsChestsBarGift {
+  background: rgba(0, 160, 170, 0.88);
+}
+
+.itemsChestsBarFreebie {
+  background: rgba(180, 140, 30, 0.85);
+}
+
 .itemsChestsBarLegend {
   display: flex;
   flex-wrap: wrap;
@@ -138,6 +150,23 @@
 
 .itemsChestsBarLegendSwatch.itemsChestsBarFounder {
   background: rgba(120, 80, 180, 0.8);
+}
+
+.itemsChestsBarLegendSwatch.itemsChestsBarRelicGem {
+  background: rgba(0, 130, 140, 0.8);
+}
+
+.itemsChestsBarLegendSwatch.itemsChestsBarGift {
+  background: rgba(0, 160, 170, 0.88);
+}
+
+.itemsChestsBarLegendSwatch.itemsChestsBarFreebie {
+  background: rgba(180, 140, 30, 0.85);
+}
+
+.itemsMuted {
+  color: var(--text-muted, rgba(100, 116, 139, 0.9));
+  font-style: italic;
 }
 
 .itemsChestsPerGiftCollapsible .collapseTitle {

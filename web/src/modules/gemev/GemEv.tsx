@@ -9,16 +9,21 @@ import {
   calculateChargeMagnetGemsPerHour,
   calculateEvBreakdown,
   calculateFreebieChestsPerHour,
+  calculateFreebieRelicChestsPerHour,
   calculateFreebiesPerHour,
   calculateGemBombGemsPerHour,
   calculateGiftEvBreakdown,
   calculateGiftEvPerGift,
   calculateGiftSushiPerHour,
+  calculateGiftSushiPerHourBySource,
   calculateStatueSopranoGiftsPerHour,
   calculateStonksChestsPerHour,
+  calculateStonksRelicChestsPerHour,
   calculateTotalEvPerHour,
   defaultGameParameters,
   getEffectiveFreebieTimerMinutes,
+  getExpectedItemChestsPerGift,
+  getExpectedRelicChestsPerGift,
   getFounderSupplyDropPerHour,
   getGameSpeedMultiplier,
   type GameParameters,
@@ -318,6 +323,8 @@ export function GemEv() {
     p.skill_shard_chance = clamp(p.skill_shard_chance, 0, 1);
     p.jackpot_chance = clamp(p.jackpot_chance, 0, 1);
     p.instant_refresh_chance = clamp(p.instant_refresh_chance, 0, 1);
+    p.freebie_relic_chance = clamp(p.freebie_relic_chance ?? 0, 0, 1);
+    p.freebie_bonus_relic_chance = clamp(p.freebie_bonus_relic_chance ?? 0, 0, 1);
     p.free_bomb_chance = clamp(p.free_bomb_chance, 0, 0.99);
     p.gem_bomb_gem_chance = clamp(p.gem_bomb_gem_chance, 0, 1);
     p.cherry_bomb_triple_charge_chance = clamp(p.cherry_bomb_triple_charge_chance, 0, 1);
@@ -388,6 +395,35 @@ export function GemEv() {
   const giftEv = useMemo(() => calculateGiftEvPerGift(effectiveParams), [effectiveParams]);
   const giftBreakdown = useMemo(() => calculateGiftEvBreakdown(effectiveParams), [effectiveParams]);
   const statueSopranoGiftsPerHour = useMemo(() => calculateStatueSopranoGiftsPerHour(effectiveParams), [effectiveParams]);
+  /** Total Gifts/h from Soprano (freebie) + Founder supply drop. Shown in Results when > 0. */
+  const totalGiftsPerHour = useMemo(() => {
+    const bySource = calculateGiftSushiPerHourBySource(effectiveParams);
+    return bySource.giftPerHourFreebie + bySource.giftPerHourFounder;
+  }, [effectiveParams]);
+
+  /** Item Chests per hour from Gifts. Written to external for Items module (Gift bar segment). */
+  const giftItemChestsPerHour = useMemo(
+    () => totalGiftsPerHour * getExpectedItemChestsPerGift(effectiveParams),
+    [totalGiftsPerHour, effectiveParams],
+  );
+
+  /** Relic Chests per hour from Gifts (basic outcomes 10–15 and 3–5 per gift). Written to external for Items module. */
+  const giftRelicChestsPerHour = useMemo(
+    () => totalGiftsPerHour * getExpectedRelicChestsPerGift(effectiveParams),
+    [totalGiftsPerHour, effectiveParams],
+  );
+
+  /** Relic Chests per hour from Stonks (base 10 per proc). Written to external for Items module. */
+  const stonksRelicChestsPerHour = useMemo(() => {
+    if (!stonksEnabled) return 0;
+    return calculateStonksRelicChestsPerHour(effectiveParams);
+  }, [stonksEnabled, effectiveParams]);
+
+  /** Relic Chests per hour from Freebie (Construct): Relic Chance + Bonus Relic Chance per claim; jackpot = 10; refresh same as Item Chests. Written to external for Items module. */
+  const freebieRelicChestsPerHour = useMemo(
+    () => calculateFreebieRelicChestsPerHour(effectiveParams),
+    [effectiveParams],
+  );
 
   const gemBomb10xImpact = useMemo(() => {
     const without10x = calculateGemBombGemsPerHour({ ...effectiveParams, bomb_recharge_10x_min_per_hour: 0 });
@@ -415,23 +451,25 @@ export function GemEv() {
 
   const founderSupplyDrop = useMemo(() => getFounderSupplyDropPerHour(effectiveParams), [effectiveParams]);
 
-  /** Charge Magnet impact: from Items (external) when set, else computed here. Includes founder supply drop chests; founder share is moved to Founder bar. */
+  /** Charge Magnet impact: from Items (external) when set, else computed here. Includes founder supply drop and Gift chests; founder share is moved to Founder bar. */
   const chargeMagnetImpactResolved = useMemo(() => {
-    const ext = loadJson<{ chargeMagnetImpact?: number; lootbugItemChestsPerHour?: number; founderSupplyDropItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
+    const ext = loadJson<{ chargeMagnetImpact?: number; lootbugItemChestsPerHour?: number; giftItemChestsPerHour?: number; founderSupplyDropItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
     if (typeof ext?.chargeMagnetImpact === "number") return ext.chargeMagnetImpact;
     const founderChests = ext?.founderSupplyDropItemChestsPerHour ?? founderSupplyDrop.itemChestsPerHour;
-    const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0) + founderChests;
+    const giftChests = ext?.giftItemChestsPerHour ?? giftItemChestsPerHour;
+    const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0) + giftChests + founderChests;
     const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
     const chargeMagnetsPerHour = chestsPerHour * itemsPerChest * 0.026;
     const valuePerMagnet = calculateChargeMagnetGemsPerHour(effectiveParams, 20);
     return chargeMagnetsPerHour * valuePerMagnet;
-  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour]);
+  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour, giftItemChestsPerHour, founderSupplyDrop.itemChestsPerHour]);
 
   /** Founder supply drop item chests → Charge Magnet + Chaos Totem value. Shown in Founder bar; excluded from Gem Bomb bar. */
   const { founderSupplyDropItemsGemValue, chargeMagnetForChart, chaosTotemForChart } = useMemo(() => {
-    const ext = loadJson<{ lootbugItemChestsPerHour?: number; founderSupplyDropItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
+    const ext = loadJson<{ lootbugItemChestsPerHour?: number; giftItemChestsPerHour?: number; founderSupplyDropItemChestsPerHour?: number; itemsPerChest?: number }>(GEMEV_EXTERNAL_KEY);
     const founderChests = ext?.founderSupplyDropItemChestsPerHour ?? founderSupplyDrop.itemChestsPerHour;
-    const totalChests = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0) + founderChests;
+    const giftChests = ext?.giftItemChestsPerHour ?? giftItemChestsPerHour;
+    const totalChests = freebieChestsPerHour + stonksChestsPerHour + (ext?.lootbugItemChestsPerHour ?? 0) + giftChests + founderChests;
     const itemsPerChest = typeof ext?.itemsPerChest === "number" ? ext.itemsPerChest : 1;
     const valuePerMagnet = calculateChargeMagnetGemsPerHour(effectiveParams, 20);
     const founderChargeMagnetPart = founderChests * itemsPerChest * 0.026 * valuePerMagnet;
@@ -442,7 +480,7 @@ export function GemEv() {
       chargeMagnetForChart: Math.max(0, chargeMagnetImpactResolved - founderChargeMagnetPart),
       chaosTotemForChart: Math.max(0, chaosTotemImpactForChart - founderChaosTotemPart),
     };
-  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, chargeMagnetImpactResolved, chaosTotemImpactForChart]);
+  }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour, giftItemChestsPerHour, founderSupplyDrop.itemChestsPerHour, chargeMagnetImpactResolved, chaosTotemImpactForChart]);
 
   useEffect(() => {
     const ext = loadJson<{
@@ -471,8 +509,12 @@ export function GemEv() {
     ext.stonksChestsPerHour = stonksChestsPerHour;
     ext.founderSupplyDropItemChestsPerHour = founderSupplyDrop.itemChestsPerHour;
     ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
+    ext.giftItemChestsPerHour = giftItemChestsPerHour;
+    ext.giftRelicChestsPerHour = giftRelicChestsPerHour;
+    ext.freebieRelicChestsPerHour = freebieRelicChestsPerHour;
+    ext.stonksRelicChestsPerHour = stonksRelicChestsPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, external.gemBombGemsPerHourFromBombs, external.chaosTotem100FromBombs]);
+  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, giftItemChestsPerHour, giftRelicChestsPerHour, freebieRelicChestsPerHour, stonksRelicChestsPerHour, external.gemBombGemsPerHourFromBombs, external.chaosTotem100FromBombs]);
 
   const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
   useEffect(() => {
@@ -579,17 +621,6 @@ export function GemEv() {
               <div className="mono" style={{ fontWeight: 900 }}>
                 {fmt1(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
               </div>
-              {statueSopranoLevel >= 1 ? (
-                <>
-                  <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
-                    Gifts/h
-                  </kbd>
-                  <div className="mono" style={{ fontWeight: 700 }}>
-                    {fmt1(statueSopranoGiftsPerHour)}
-                  </div>
-                </>
-              ) : null}
               <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
                 Gift-EV
@@ -610,6 +641,17 @@ export function GemEv() {
               <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 <span style={{ fontWeight: 900 }}>{fmt1(giftEv)} Gems per Gift</span>
               </div>
+              {totalGiftsPerHour > 0 ? (
+                <>
+                  <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
+                    Gifts/h
+                  </kbd>
+                  <div className="mono" style={{ fontWeight: 700 }}>
+                    {Number.isFinite(totalGiftsPerHour) ? totalGiftsPerHour.toFixed(2) : "—"}
+                  </div>
+                </>
+              ) : null}
             </div>
 
             <div className="btnRow" style={{ marginTop: 12, alignItems: "center" }}>
@@ -1023,6 +1065,51 @@ export function GemEv() {
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+              </Collapsible>
+
+              <Collapsible
+                id="gemev-relic-chests-freebie"
+                title="Relic Chests (Freebie)"
+                defaultExpanded={false}
+                headerRight={
+                  <Tooltip
+                    content={{
+                      title: "Relic Chests from Freebie",
+                      sections: [
+                        { heading: "Source", lines: ["Same freebie/refresh as Item Chests. One claim can hit both Relic Chance and Bonus Relic Chance (best case 2 relics)."] },
+                        { heading: "Jackpot", lines: ["Jackpot roll gives 10 relics. Same jackpot chance and rolls as Freebie Gems."] },
+                      ],
+                    }}
+                    label="?"
+                  />
+                }
+              >
+                <div className="gemEvSectionBody" style={{ paddingTop: 4 }}>
+                  <div className="gemEvCardRow" style={{ gap: 8 }}>
+                    <Stepper
+                      label="Relic Chance (%)"
+                      value={(params.freebie_relic_chance ?? 0) * 100}
+                      onChange={(v) => setParams((s) => ({ ...s, freebie_relic_chance: v / 100 }))}
+                      step={1}
+                      min={0}
+                      max={100}
+                      decimals={1}
+                    />
+                    <Stepper
+                      label="Bonus Relic Chance (%)"
+                      value={(params.freebie_bonus_relic_chance ?? 0) * 100}
+                      onChange={(v) => setParams((s) => ({ ...s, freebie_bonus_relic_chance: v / 100 }))}
+                      step={1}
+                      min={0}
+                      max={100}
+                      decimals={1}
+                    />
+                  </div>
+                  <div className="gemEvRow" style={{ marginTop: 4 }}>
+                    <span className="mono small">→ Relic Chests/h (Freebie)</span>
+                    <span className="mono small">{freebieRelicChestsPerHour.toFixed(2)}</span>
                   </div>
                 </div>
               </Collapsible>

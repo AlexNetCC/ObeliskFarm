@@ -2775,7 +2775,7 @@ export function Drone() {
                         background: "rgba(255, 248, 220, 0.35)",
                       }}
                     >
-                      <span className="droneLabel">Legendary fish: buff gives</span>
+                      <span className="droneLabel">More Legendary Fish from Angler Drone</span>
                       <span className="droneStepperValue mono">
                         +{anglerFishingData.legendaryPctIncrease.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
                       </span>

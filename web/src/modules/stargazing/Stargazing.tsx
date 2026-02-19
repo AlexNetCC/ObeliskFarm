@@ -9,15 +9,19 @@ import { StargazingCalculator, type PlayerStats } from "../../lib/stargazing/cal
 /** Horizontal bar chart for one of Stars or Super Stars: label, bar (width = % of total), value. */
 function StatsContribChart(props: {
   title: string;
+  titleIcon?: React.ReactNode;
   total: number;
   rows: { label: string; value: number; color: string }[];
   fmt: (x: number) => string;
 }) {
-  const { title, total, rows, fmt } = props;
+  const { title, titleIcon, total, rows, fmt } = props;
   const maxVal = Math.max(...rows.map((r) => r.value), 1);
   return (
     <div className="sgStatsContribBlock">
-      <div className="sgStatsContribTitle">{title}</div>
+      <div className="sgStatsContribTitle" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {title}
+        {titleIcon ?? null}
+      </div>
       <div className="sgStatsContribBars" role="img" aria-label={`${title} contributions bar chart`}>
         {rows.map(({ label, value, color }) => {
           const pct = total > 0 ? (value / total) * 100 : 0;
@@ -1368,12 +1372,6 @@ export function Stargazing() {
           <div className="modalWindow sgStatsChartModal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="modalHeader">
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <Sprite
-                  paths={[`sprites/stargazing/${starCards.selected_card_for_results.charAt(0).toUpperCase() + starCards.selected_card_for_results.slice(1)}.png`]}
-                  alt={starCards.selected_card_for_results.charAt(0).toUpperCase() + starCards.selected_card_for_results.slice(1)}
-                  className="icon"
-                  label={`sprites/stargazing/${starCards.selected_card_for_results}.png`}
-                />
                 <div>
                   <div className="mono" style={{ fontWeight: 900 }}>Stats Contributions</div>
                   <div className="small">Share of Stars and Super Stars gains per stat (online rates).</div>
@@ -1386,6 +1384,14 @@ export function Stargazing() {
             <div className="modalBody">
               <StatsContribChart
                 title="Stars"
+                titleIcon={
+                  <Sprite
+                    paths={[`sprites/stargazing/${starCards.selected_card_for_results.charAt(0).toUpperCase() + starCards.selected_card_for_results.slice(1)}.png`]}
+                    alt=""
+                    className="icon"
+                    label={`sprites/stargazing/${starCards.selected_card_for_results}.png`}
+                  />
+                }
                 total={summary.stars_per_hour_online}
                 rows={[
                   { label: "Double Star", value: starContributions.doubleStar, color: "#fff59d" },

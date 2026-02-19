@@ -3,18 +3,16 @@ import "./items.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { loadJson, saveJson } from "../../lib/storage";
-import { calculateChargeMagnetGemsPerHour, calculateGemBombGemsPerHour, calculateLuckyMultiplier, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateChargeMagnetGemsPerHour, calculateGemBombGemsPerHour, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const BOMBS_STORAGE_KEY = "obeliskfarm:web:bombs_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
+const RELIC_CHEST_ICON = "https://static.wikitide.net/shminerwiki/6/6d/Relic_Chest.png";
 const CHARGE_MAGNET_ICON = "https://static.wikitide.net/shminerwiki/f/fc/Charge_Magnet.png";
 const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
-
-/** Base: one of 12 Gift outcomes is "25–40 Item Chests" (avg 32.5). Lucky multiplier (3×/50× rolls) applied. */
-const CHESTS_PER_GIFT_BASE = 32.5 / 12;
 
 /** Charge Magnet obtain chance from Item Chests (%), from wiki. Not user input. */
 const CHARGE_MAGNET_OBTAIN_CHANCE_PCT = 2.6;
@@ -99,12 +97,19 @@ export function Items() {
   })();
 
 
-  /** Chests per hour = freebie + stonks + Lootbug "+1 Item Chest" + Founder Supply Drop (2 chests per drop). */
+  /** Chests per hour = freebie + stonks + Lootbug "+1 Item Chest" + Gift + Founder Supply Drop (2 chests per drop). */
   const ext = loadJson<{
     freebiesPerHour?: number;
     freebieChestsPerHour?: number;
     stonksChestsPerHour?: number;
     lootbugItemChestsPerHour?: number;
+    giftItemChestsPerHour?: number;
+    lootbugRelicChestsPerHour?: number;
+    lootbugRelicChestsPerHourFree?: number;
+    lootbugRelicChestsPerHourGem?: number;
+    giftRelicChestsPerHour?: number;
+    freebieRelicChestsPerHour?: number;
+    stonksRelicChestsPerHour?: number;
     founderSupplyDropItemChestsPerHour?: number;
     chaosTotemImpact?: number;
     chaosTotem100FromBombs?: boolean;
@@ -117,11 +122,23 @@ export function Items() {
     typeof ext?.freebieChestsPerHour === "number" ? ext.freebieChestsPerHour : (typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0);
   const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
   const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
+  const giftItemChestsPerHour = typeof ext?.giftItemChestsPerHour === "number" ? ext.giftItemChestsPerHour : 0;
   const founderSupplyDropItemChestsPerHour = typeof ext?.founderSupplyDropItemChestsPerHour === "number" ? ext.founderSupplyDropItemChestsPerHour : 0;
-  const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour + founderSupplyDropItemChestsPerHour;
+  const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour + giftItemChestsPerHour + founderSupplyDropItemChestsPerHour;
 
-  /** Expected chests per Gift: base (1/12 × 32.5) × Lucky multiplier (3×/50× rolls). FYI only. */
-  const expectedChestsPerGift = CHESTS_PER_GIFT_BASE * calculateLuckyMultiplier();
+  /** Relic chests per hour: Lootbug (free + gem "+1 Relic Chest" when purchased) + Gifts + Freebie (Construct) + Founder Supply Drop (1 relic chest per drop). Open Gem EV and Lootbug to refresh. */
+  const lootbugRelicChestsPerHourFree = typeof ext?.lootbugRelicChestsPerHourFree === "number" ? ext.lootbugRelicChestsPerHourFree : 0;
+  const lootbugRelicChestsPerHourGem = typeof ext?.lootbugRelicChestsPerHourGem === "number" ? ext.lootbugRelicChestsPerHourGem : 0;
+  const lootbugRelicChestsPerHour = typeof ext?.lootbugRelicChestsPerHour === "number" ? ext.lootbugRelicChestsPerHour : lootbugRelicChestsPerHourFree + lootbugRelicChestsPerHourGem;
+  const giftRelicChestsPerHour = typeof ext?.giftRelicChestsPerHour === "number" ? ext.giftRelicChestsPerHour : 0;
+  const freebieRelicChestsPerHour = typeof ext?.freebieRelicChestsPerHour === "number" ? ext.freebieRelicChestsPerHour : 0;
+  const stonksRelicChestsPerHour = typeof ext?.stonksRelicChestsPerHour === "number" ? ext.stonksRelicChestsPerHour : 0;
+  /** Founder Supply Drop: 1 relic chest per drop; item chests = 2 per drop, so relic/h = itemChests/h ÷ 2. */
+  const founderRelicChestsPerHour = founderSupplyDropItemChestsPerHour / 2;
+  const relicChestsPerHour = lootbugRelicChestsPerHour + giftRelicChestsPerHour + freebieRelicChestsPerHour + stonksRelicChestsPerHour + founderRelicChestsPerHour;
+  /** In-game, one Relic Chest always gives 1 relic. */
+  const relicsPerChest = 1;
+  const relicsPerHourFromChests = relicsPerChest * relicChestsPerHour;
 
   const itemsPerHourFromChests = state.itemsPerChest * chestsPerHour;
 
@@ -236,7 +253,7 @@ export function Items() {
       <div className="itemsChestsBlock">
         <div className="itemsBlockHeader">
           <img src={CHEST_ICON} alt="" className="itemsItemIcon" aria-hidden />
-          <h3 className="itemsBlockTitle">Chests</h3>
+          <h3 className="itemsBlockTitle">Item Chests</h3>
         </div>
         <div className="itemsSection">
           <div className="itemsRow">
@@ -272,6 +289,7 @@ export function Items() {
                           "Freebies: effective chests from freebie rolls (1 roll = 1 chest, jackpot = 5 chests, refresh = +1 chest).",
                           "Stonks: when enabled in Gem EV, chests from stonks procs.",
                           "Lootbug: free buff \"+1 Item Chest\" per hour.",
+                          "Gift: expected item chests from Gifts (one of 12 outcomes, Obelisk and Lucky mult).",
                           "Open Gem EV and Lootbug to refresh.",
                         ],
                       },
@@ -314,6 +332,15 @@ export function Items() {
                       }}
                       title={`Lootbug: ${lootbugItemChestsPerHour.toFixed(2)}/h`}
                     />
+                    {giftItemChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarGift"
+                        style={{
+                          width: `${(giftItemChestsPerHour / chestsPerHour) * 100}%`,
+                        }}
+                        title={`Gift: ${giftItemChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
                     {founderSupplyDropItemChestsPerHour > 0 ? (
                       <div
                         className="itemsChestsBarSeg itemsChestsBarFounder"
@@ -341,6 +368,12 @@ export function Items() {
                   <span className="itemsChestsBarLegendSwatch itemsChestsBarLootbug" />
                   Lootbug
                 </span>
+                {giftItemChestsPerHour > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarGift" />
+                    Gift
+                  </span>
+                ) : null}
                 {founderSupplyDropItemChestsPerHour > 0 ? (
                   <span className="itemsChestsBarLegendItem">
                     <span className="itemsChestsBarLegendSwatch itemsChestsBarFounder" />
@@ -390,20 +423,124 @@ export function Items() {
               )}
             </span>
           </div>
+        </div>
+      </div>
+
+      <div className="itemsChestsBlock">
+        <div className="itemsBlockHeader">
+          <img src={RELIC_CHEST_ICON} alt="" className="itemsItemIcon" aria-hidden />
+          <h3 className="itemsBlockTitle">Relic Chests</h3>
+        </div>
+        <div className="itemsSection">
           <div className="itemsRow">
             <span className="itemsLabel">
-              Expected chests per Gift (FYI)
+              Relics per chest
               <Tooltip
                 content={{
-                  title: "Expected chests per Gift",
-                  lines: [
-                    "One of 12 base Gift outcomes is \"25–40 Item Chests\" (avg 32.5). Base: 32.5 ÷ 12.",
-                    "Lucky multiplier (1/20 for 3×, 1/2500 for 50×) applied to quantities. FYI only.",
-                  ],
+                  title: "Relics per chest",
+                  lines: ["Always 1 in-game. One Relic Chest yields one relic when opened."],
                 }}
               />
             </span>
-            <span className="itemsValue mono itemsChestsPerGiftValue">{expectedChestsPerGift.toFixed(2)}</span>
+            <span className="itemsValue mono">1</span>
+          </div>
+          <div className="itemsChestsBarBlock">
+            <div className="itemsChestsBarWrap">
+              <div className="itemsChestsBarBg">
+                {relicChestsPerHour > 0 ? (
+                  <>
+                    {freebieRelicChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarFreebies"
+                        style={{ width: `${(freebieRelicChestsPerHour / relicChestsPerHour) * 100}%` }}
+                        title={`Freebie: ${freebieRelicChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                    {stonksRelicChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarStonks"
+                        style={{ width: `${(stonksRelicChestsPerHour / relicChestsPerHour) * 100}%` }}
+                        title={`Stonks: ${stonksRelicChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                    {lootbugRelicChestsPerHourFree > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarLootbug"
+                        style={{ width: `${(lootbugRelicChestsPerHourFree / relicChestsPerHour) * 100}%` }}
+                        title={`Lootbug (free): ${lootbugRelicChestsPerHourFree.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                    {lootbugRelicChestsPerHourGem > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarRelicGem"
+                        style={{ width: `${(lootbugRelicChestsPerHourGem / relicChestsPerHour) * 100}%` }}
+                        title={`Lootbug (gem): ${lootbugRelicChestsPerHourGem.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                    {giftRelicChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarGift"
+                        style={{ width: `${(giftRelicChestsPerHour / relicChestsPerHour) * 100}%` }}
+                        title={`Gift: ${giftRelicChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                    {founderRelicChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarFounder"
+                        style={{ width: `${(founderRelicChestsPerHour / relicChestsPerHour) * 100}%` }}
+                        title={`Founder Supply Drop: ${founderRelicChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+              <div className="itemsChestsBarLegend">
+                <span className="itemsChestsBarLegendItem">
+                  <span className="itemsChestsBarLegendSwatch itemsChestsBarFreebies" />
+                  Freebie
+                  {freebieRelicChestsPerHour <= 0 ? (
+                    <span className="itemsMuted" style={{ marginLeft: 4 }}>(0 – set Relic Chance in Gem EV → Construct)</span>
+                  ) : null}
+                </span>
+                {stonksRelicChestsPerHour > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarStonks" />
+                    Stonks
+                  </span>
+                ) : null}
+                {lootbugRelicChestsPerHourFree > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarLootbug" />
+                    Lootbug (free)
+                  </span>
+                ) : null}
+                {lootbugRelicChestsPerHourGem > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarRelicGem" />
+                    Lootbug (gem)
+                  </span>
+                ) : null}
+                {giftRelicChestsPerHour > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarGift" />
+                    Gift
+                  </span>
+                ) : null}
+                {founderRelicChestsPerHour > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarFounder" />
+                    Founder Supply Drop
+                  </span>
+                ) : null}
+                {relicChestsPerHour <= 0 ? (
+                  <span className="itemsChestsBarLegendItem itemsMuted">Open Gem EV and Lootbug to sync.</span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <div className="itemsRow">
+            <span className="itemsLabel">Relics per hour (from chests)</span>
+            <span className="itemsValue mono itemsPerHourGlow">{relicsPerHourFromChests.toFixed(2)}</span>
           </div>
         </div>
       </div>

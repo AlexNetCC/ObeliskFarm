@@ -959,15 +959,15 @@ body {
 }
 
 .mcTypePill_stage {
-  background: rgba(210, 160, 0, 0.14);
-  border-color: rgba(210, 160, 0, 0.35);
-  color: rgba(140, 100, 0, 0.98);
-}
-
-.mcTypePill_XP {
   background: rgba(46, 125, 50, 0.12);
   border-color: rgba(46, 125, 50, 0.32);
   color: rgba(30, 90, 40, 0.98);
+}
+
+.mcTypePill_XP {
+  background: rgba(210, 160, 0, 0.14);
+  border-color: rgba(210, 160, 0, 0.35);
+  color: rgba(140, 100, 0, 0.98);
 }
 
 .mcTypePill_frag {

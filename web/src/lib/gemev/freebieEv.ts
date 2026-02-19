@@ -38,6 +38,10 @@ export type GameParameters = {
   // Refresh
   instant_refresh_chance: number; // 0..1
 
+  /** Relic Chests from freebie (Construct): chance per normal roll, bonus chance per normal roll (best case 2). Jackpot = 10 relics. Same freebie/refresh as Item Chests. */
+  freebie_relic_chance?: number; // 0..1
+  freebie_bonus_relic_chance?: number; // 0..1
+
   // Founder supply drop (VIP Lounge tiers 1..12)
   vip_lounge_level: number; // 1..12
   founder_gems_base: number; // fixed 10.0 in desktop
@@ -344,6 +348,21 @@ export function calculateFreebieChestsPerHour(params: GameParameters): number {
   return freebiesPerHour * expectedRolls * refreshMult;
 }
 
+/** Expected Relic Chests per hour from freebie (Construct). Normal roll: Relic Chance + Bonus Relic Chance (best case 2). Jackpot = 10 relics. Refresh same as Item Chests. */
+export function calculateFreebieRelicChestsPerHour(params: GameParameters): number {
+  const relicChance = clamp01(params.freebie_relic_chance ?? 0);
+  const bonusChance = clamp01(params.freebie_bonus_relic_chance ?? 0);
+  if (relicChance <= 0 && bonusChance <= 0) return 0;
+  const freebiesPerHour = calculateFreebiesPerHour(params);
+  const refreshMult = calculateRefreshMultiplier(params);
+  const normalRolls = 1.0;
+  const jackpotRolls = clampPositive(params.jackpot_rolls, 5);
+  const pJackpot = clamp01(params.jackpot_chance);
+  const expectedRelicPerClaim =
+    (1 - pJackpot) * normalRolls * (relicChance + bonusChance) + pJackpot * jackpotRolls * 10;
+  return freebiesPerHour * refreshMult * expectedRelicPerClaim;
+}
+
 export function calculateGemsBasePerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const claim = clampPositive(params.freebie_claim_percentage, 100.0) / 100.0; // Claim % only affects gems_base bar
@@ -375,6 +394,9 @@ export function calculateStonksEvPerHour(params: GameParameters): number {
 /** Expected Item Chests per hour from stonks procs. In-game: base stonks 20 chests; super/ultra same base per proc, each tier uses its multiplier. */
 const STONKS_CHESTS_BASE = 20;
 
+/** Base relic chests per stonks proc (in-game: 10). Same formula as item chests but with 10 instead of 20. */
+const STONKS_RELIC_CHESTS_BASE = 10;
+
 /** Refresh: instant refresh gives extra rolls per hour (more stonks chances), same as stonks gems. Stonks has no jackpot (procs on first roll per claim). */
 export function calculateStonksChestsPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
@@ -394,6 +416,27 @@ export function calculateStonksChestsPerHour(params: GameParameters): number {
   const uptime = Math.max(0, Math.min(1, params.chain_bomber_buff_uptime_fraction ?? 0));
   const chainBomberMult = 1 + (bonusPct / 100) * uptime;
   return (baseChests + superChests + ultraChests) * allMult * chainBomberMult;
+}
+
+/** Expected Relic Chests per hour from stonks procs. In-game: base 10 relic chests per stonks proc; super/ultra same base, each tier uses its multiplier. */
+export function calculateStonksRelicChestsPerHour(params: GameParameters): number {
+  const freebiesPerHour = calculateFreebiesPerHour(params);
+  const refreshMult = calculateRefreshMultiplier(params);
+  const sc = clamp01(params.stonks_chance);
+  const ssc = clamp01(params.super_stonks_chance ?? 0);
+  const usc = clamp01(params.ultra_stonks_chance ?? 0);
+  const stonksMult = clampPositive(params.stonks_multiplier ?? 1.0, 0);
+  const superMult = clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
+  const ultraMult = clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
+  const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
+  const effectiveRate = freebiesPerHour * refreshMult;
+  const baseRelics = effectiveRate * sc * STONKS_RELIC_CHESTS_BASE * stonksMult;
+  const superRelics = effectiveRate * sc * ssc * STONKS_RELIC_CHESTS_BASE * superMult;
+  const ultraRelics = effectiveRate * sc * ssc * usc * STONKS_RELIC_CHESTS_BASE * ultraMult;
+  const bonusPct = params.chain_bomber_golden_floor_bonus_pct ?? 0;
+  const uptime = Math.max(0, Math.min(1, params.chain_bomber_buff_uptime_fraction ?? 0));
+  const chainBomberMult = 1 + (bonusPct / 100) * uptime;
+  return (baseRelics + superRelics + ultraRelics) * allMult * chainBomberMult;
 }
 
 export function calculateSkillShardsEvPerHour(params: GameParameters): number {
@@ -435,6 +478,28 @@ export function convertTimeBoostToGemEquivalent(params: GameParameters, minutes2
   const expectedRolls = calculateExpectedRollsPerClaim(params);
   const refreshMult = calculateRefreshMultiplier(params);
   return additionalFreebies * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
+}
+
+/** Expected Item Chests per Gift. One of 12 basic outcomes is "25–40 Item Chests" (avg 32.5). Obelisk and Lucky multipliers apply. */
+export function getExpectedItemChestsPerGift(params: GameParameters): number {
+  const obelisk = clampPositive(params.obelisk_level ?? 0, 0);
+  const probBasicRoll = getBasicRollProbability(obelisk);
+  const obeliskMult = calculateObeliskMultiplier(params);
+  const luckyMult = calculateLuckyMultiplier();
+  const chancePerItem = 1 / 12;
+  const itemChestsAvg = 32.5;
+  return probBasicRoll * chancePerItem * itemChestsAvg * obeliskMult * luckyMult;
+}
+
+/** Expected Relic Chests per Gift from basic outcomes. Two of 12 basic outcomes: 10–15 Relic Chests (avg 12.5) and 3–5 Relic Chests (avg 4). Lucky multiplier applies to quantities. */
+export function getExpectedRelicChestsPerGift(params: GameParameters): number {
+  const obelisk = clampPositive(params.obelisk_level ?? 0, 0);
+  const probBasicRoll = getBasicRollProbability(obelisk);
+  const luckyMult = calculateLuckyMultiplier();
+  const chancePerItem = 1 / 12;
+  const avg10_15 = 12.5;
+  const avg3_5 = 4;
+  return probBasicRoll * chancePerItem * (avg10_15 + avg3_5) * luckyMult;
 }
 
 /** Probability that no rare wins (so the gift gives a basic-roll outcome). Same p array as computeRareRollWinProbs. */
@@ -661,10 +726,14 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   } as unknown as Record<string, number>;
 }
 
-/** Sushi per hour from gifts, split by source (Freebie = Statue of Soprano, Founder = supply drop). */
+/** Sushi per hour from gifts, split by source (Freebie = Statue of Soprano, Founder = supply drop). Also raw gifts per hour by source. */
 export interface GiftSushiPerHourBySource {
   freebie: number;
   founder: number;
+  /** Gifts per hour from Statue of Soprano (freebie). */
+  giftPerHourFreebie: number;
+  /** Gifts per hour from Founder supply drop. */
+  giftPerHourFounder: number;
 }
 
 export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftSushiPerHourBySource {
@@ -702,6 +771,8 @@ export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftS
   return {
     freebie: freebieGiftsPerHour * sushiPerGift,
     founder: founderGiftsPerHour * sushiPerGift,
+    giftPerHourFreebie: freebieGiftsPerHour,
+    giftPerHourFounder: founderGiftsPerHour,
   };
 }
 

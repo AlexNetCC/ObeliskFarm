@@ -428,6 +428,25 @@ export function Lootbug() {
 
   const goldenPct = clamp(state.goldenChancePct, 0, 100) / 100;
 
+  /** Free buff "+1 Relic Chest" per hour (× loot multiplier); written to external for Items module. */
+  const lootbugRelicChestsPerHourFree = useMemo(() => {
+    const buff = FREE_BUFFS.find((b) => b.name === "+1 Relic Chest");
+    if (!buff || totalFreeWeight <= 0) return 0;
+    const procsPerHour = (lootbugsPerHour * getWeight(buff)) / totalFreeWeight;
+    return procsPerHour * lootMultiplier;
+  }, [lootbugsPerHour, totalFreeWeight, lootMultiplier]);
+
+  /** Gem buff "+1 Relic Chest" per hour only when the buff is purchased (checked in Gem Buffs). Golden chance is not counted here. Written to external for Items module. */
+  const lootbugRelicChestsPerHourGem = useMemo(() => {
+    if (!buyGemBuffsSet.has("+1 Relic Chest")) return 0;
+    const buff = GEM_BUFFS.find((b) => b.name === "+1 Relic Chest");
+    if (!buff || totalGemWeightAll <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
+    return perHour * lootMultiplier;
+  }, [lootbugsPerHour, totalGemWeightAll, buyGemBuffsSet, lootMultiplier]);
+
+  const lootbugRelicChestsPerHour = lootbugRelicChestsPerHourFree + lootbugRelicChestsPerHourGem;
+
   /** 2× Star Spawn Rate from Lootbug: free (2 min) + gem (10 min). Gem part: full if "2x Star Spawn Rate" is bought, else only golden occurrence. Written to external for Drone overlap incl. Lootbug. Loot multiplier extends buff duration. */
   const lootbug2xStarMinPerHour = useMemo(() => {
     if (gameSpeed <= 0) return 0;
@@ -602,6 +621,9 @@ export function Lootbug() {
       lootbugBomb10xMinPerHour?: number;
       droneBomb10xMinPerHour?: number;
       lootbugItemChestsPerHour?: number;
+      lootbugRelicChestsPerHour?: number;
+      lootbugRelicChestsPerHourFree?: number;
+      lootbugRelicChestsPerHourGem?: number;
       bombBearLootbugGemsEvPerHour?: number;
       lootbugGemsPerHour?: number;
       lootbugNet10xGemEvPerHour?: number;
@@ -616,6 +638,9 @@ export function Lootbug() {
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
     ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
+    ext.lootbugRelicChestsPerHour = lootbugRelicChestsPerHour;
+    ext.lootbugRelicChestsPerHourFree = lootbugRelicChestsPerHourFree;
+    ext.lootbugRelicChestsPerHourGem = lootbugRelicChestsPerHourGem;
     ext.bombBearLootbugGemsEvPerHour = bombBearLootbugGemsEvPerHour;
     ext.lootbugGemsPerHour = gemsPerHour;
     ext.lootbugNet10xGemEvPerHour = net10xGemEvPerHour;
@@ -628,7 +653,7 @@ export function Lootbug() {
     ext.lootbugChestGemEvPerHour = lootbugChestGemEvPerHour;
     ext.lootbugTotalGemCostPerHour = totalGemCostPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
