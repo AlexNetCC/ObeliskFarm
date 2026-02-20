@@ -1883,7 +1883,7 @@ export function Fishing() {
     gemEvGemsPerHour,
   ]);
 
-  /** Fish card gild (Card → Gilded): marginal % and cost efficiency (time-based and gem-absolute). */
+  /** Fish card gild (Card → Gilded): marginal % and cost efficiency (time-based and gem-absolute). Includes With This Fish I Summon bonus (effective fish card count +1 → more Fish Multi and Shiny Chance). */
   const { fishCardGildMarginalPct, fishCardGildCostEffic, fishCardGildCostEfficGemAbs, fishingRodCardGildMarginalPct, fishingRodCardGildCostEffic, fishingRodCardGildCostEfficGemAbs, costEfficHeatMinFishCard, costEfficHeatMaxFishCard, costEfficHeatMinFishCardGemAbs, costEfficHeatMaxFishCardGemAbs } = useMemo(() => {
     const total = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).reduce((s, r) => s + r.fishPerHour, 0);
     const marginalMap = new Map<string, number>();
@@ -1897,12 +1897,30 @@ export function Fishing() {
     if (total <= 0) {
       return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishCardGildCostEfficGemAbs: efficMapGemAbs, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, fishingRodCardGildCostEfficGemAbs: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1, costEfficHeatMinFishCardGemAbs: 0, costEfficHeatMaxFishCardGemAbs: 1 };
     }
-    const cardToGildedDelta = 2 / 1.5 - 1; // Card 1.5× → Gilded 2×
+    const cardToGildedRatio = 2 / 1.5; // Card 1.5× → Gilded 2×
+    const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints };
     for (const row of visibleGainsRows) {
       if (!row.hasPower || row.fishPerHour <= 0) continue;
       const tier = (state.fishCardTier[row.fish.id] ?? 0) as FishCardTier;
       if (tier !== 1) continue;
-      const marginalPct = (row.fishPerHour * cardToGildedDelta / total) * 100;
+      const totalAfterDirect = total - row.fishPerHour + row.fishPerHour * cardToGildedRatio;
+      let marginalPct: number;
+      const withThisFishLevel = (state.skillTreeLevels ?? {})["with_this_fish_i_summon_two_more_fish"] ?? 0;
+      if (withThisFishLevel > 0) {
+        const hypotheticalTier = { ...state.fishCardTier, [row.fish.id]: 2 };
+        const newStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, { ...skillOptsBase, fishCardTier: hypotheticalTier });
+        const sNew = newStats.shiny_fish_chance_pct / 100;
+        const s2New = newStats.super_shiny_chance_pct / 100;
+        const newExpectedShinyMulti =
+          (1 - sNew) * 1 +
+          sNew * (1 - s2New) * newStats.shiny_multiplier +
+          sNew * s2New * newStats.shiny_multiplier * newStats.super_shiny_multiplier;
+        const skillFactor = (newStats.fish_income_multi / stats.fish_income_multi) * (newExpectedShinyMulti / expectedShinyMulti);
+        const newTotal = totalAfterDirect * skillFactor;
+        marginalPct = ((newTotal - total) / total) * 100;
+      } else {
+        marginalPct = ((totalAfterDirect - total) / total) * 100;
+      }
       marginalMap.set(row.fish.id, marginalPct);
       const gems = getFishCardGildGemCost(row.fish.id);
       if (gems > 0) {
@@ -1937,7 +1955,7 @@ export function Fishing() {
       costEfficHeatMinFishCardGemAbs: efficValsGemAbs.length ? Math.min(...efficValsGemAbs) : 0,
       costEfficHeatMaxFishCardGemAbs: efficValsGemAbs.length ? Math.max(...efficValsGemAbs) : 1,
     };
-  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, totalFishPerHourWithRodPoly, gemEvGemsPerHour]);
+  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, state.skillTreeLevels, state.legendaryFishFound, state.divineRelic5xPoints, upgradeLevels, enhanceLevels, stats.fish_income_multi, stats.shiny_multiplier, stats.super_shiny_multiplier, stats.super_shiny_chance_pct, expectedShinyMulti, totalFishPerHourWithRodPoly, gemEvGemsPerHour]);
 
   /** Unified cost-efficiency heatmap. Time-based (useGemIncome) or gem-absolute (separate heatmap for gem items). */
   const { costEfficHeatMinGlobal, costEfficHeatMaxGlobal, costEfficHeatMinGemAbsGlobal, costEfficHeatMaxGemAbsGlobal } = useMemo(() => {
