@@ -377,13 +377,14 @@ function computeTotalFishPerHour(
   return total;
 }
 
-/** Same formula as computeTotalFishPerHour but from precomputed stats (for skill breakdown). */
+/** Same formula as computeTotalFishPerHour but from precomputed stats (for skill breakdown). Includes extraTicksPerHour so breakdown totals match main total. */
 function computeTotalFishPerHourFromStats(
   stats: ComputedFishingStats,
   dronesPerDock: Record<DockId, number>,
   activeDockId: DockId,
   elixir3xFishingExternal: { uptimeFraction: number },
   effectiveRodPowerOverride?: number,
+  extraTicksPerHour: number = 0,
 ): number {
   const s = stats.shiny_fish_chance_pct / 100;
   const s2 = stats.super_shiny_chance_pct / 100;
@@ -405,9 +406,10 @@ function computeTotalFishPerHourFromStats(
     const n = dronesPerDock[set.dockId] ?? 0;
     const powerOnThisDock = rod + n * stats.drone_base_power;
     const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
+    const fillsPerHour = dockFillsPerHour + extraTicksPerHour / dock.baseTicksNeeded;
     for (const f of set.fish) {
       total +=
-        dockFillsPerHour *
+        fillsPerHour *
         expectedRollsPerFill *
         expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
         stats.fish_income_multi *
@@ -1813,9 +1815,9 @@ export function Fishing() {
           triple_tick_chance_pct: currentStats.triple_tick_chance_pct,
           five_tick_chance_pct: currentStats.five_tick_chance_pct,
         };
-        const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
-        const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
-        const totalAllNew = computeTotalFishPerHourFromStats(newStats, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
+        const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
+        const totalAllNew = computeTotalFishPerHourFromStats(newStats, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
         breakdownMap.set(def.id, [
           { label: "Tick -2s", pct: ((totalTickOnly - currentTotal) / currentTotal) * 100 },
           { label: "Double +2%", pct: ((totalDoubleOnly - totalTickOnly) / currentTotal) * 100 },
@@ -1833,8 +1835,8 @@ export function Fishing() {
           ...newStats,
           fish_income_multi: currentStats.fish_income_multi,
         };
-        const totalFishMultiOnly = computeTotalFishPerHourFromStats(statsFishMultiOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
-        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalFishMultiOnly = computeTotalFishPerHourFromStats(statsFishMultiOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
         breakdownMap.set(def.id, [
           { label: "Fish mult +1%/card", pct: ((totalFishMultiOnly - currentTotal) / currentTotal) * 100 },
           { label: "Shiny +0.1%/card", pct: ((totalShinyOnly - currentTotal) / currentTotal) * 100 },
@@ -1858,9 +1860,9 @@ export function Fishing() {
           drone_base_power: currentStats.drone_base_power,
           tier2_dock_power_mult: currentStats.tier2_dock_power_mult,
         };
-        const totalDroneOnly = computeTotalFishPerHourFromStats(statsDroneOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
-        const totalT2Only = computeTotalFishPerHourFromStats(statsT2Only, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
-        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower);
+        const totalDroneOnly = computeTotalFishPerHourFromStats(statsDroneOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
+        const totalT2Only = computeTotalFishPerHourFromStats(statsT2Only, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour);
         breakdownMap.set(def.id, [
           { label: "T2 dock +3%", pct: ((totalT2Only - currentTotal) / currentTotal) * 100 },
           { label: "Drone power +2%", pct: ((totalDroneOnly - currentTotal) / currentTotal) * 100 },
@@ -3954,7 +3956,7 @@ export function Fishing() {
                           (() => {
                             const breakdown = skillMarginalBreakdown.get(def.id);
                             const totalPct = breakdown?.reduce((s, b) => s + b.pct, 0) ?? 0;
-                            const hasBreakdown = breakdown?.length && totalPct > 0;
+                            const hasBreakdown = (breakdown?.length ?? 0) > 0 && totalPct > 0;
                             const excludeFromHeatmap = isFriendshipEnded;
                             const heatTExcl = excludeFromHeatmap ? 0.5 : heatT;
                             return (
@@ -3964,7 +3966,7 @@ export function Fishing() {
                                     <div className="fishingCostEfficPopTitle">Share of marginal gain (sum 100%)</div>
                                     {breakdown!.map((b, i) => (
                                       <span key={i} className="fishingCostEfficPopLine">
-                                        {b.label}: {((b.pct / totalPct) * 100).toFixed(1)}%
+                                        {b.label}: {totalPct > 0 ? ((b.pct / totalPct) * 100).toFixed(1) : "0"}%
                                       </span>
                                     ))}
                                   </div>
