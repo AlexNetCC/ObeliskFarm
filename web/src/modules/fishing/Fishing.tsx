@@ -155,10 +155,16 @@ function GiftIcon() {
 
 /** Notice Fish Req -10% per level = 1/0.9 − 1 ≈ +11.1% effective gains when notice farming. */
 const FRIENDSHIP_ENDED_NOTICE_MARGINAL_PCT = (1 / 0.9 - 1) * 100;
-/** Token Multiplier +5% per level: effective gain when tokens are used for fish/cards. Fish/h does not change. */
-const TOKEN_MULTIPLIER_EFFECTIVE_PCT_PER_LEVEL = 5;
-/** Tiny Notice Chance +0.5% per level; Tiny = 90% less fish (10× value) → expected mult 1 + 0.005×9 = +4.5% per level when notice farming. */
-const TINY_NOTICE_EFFECTIVE_PCT_PER_LEVEL = 0.5 * 9;
+/** Token Multiplier: +0.05 per level (1.05, 1.10, …). Marginal gain = relative to current mult, e.g. 1.05→1.10 = 0.05/1.05 ≈ 4.76%. */
+function tokenMultiplierMarginalPct(currentLevel: number): number {
+  const currentMult = 1 + 0.05 * currentLevel;
+  return (0.05 / currentMult) * 100;
+}
+/** Tiny Notice: +0.5% chance per level; Tiny = 10× value. Expected mult = 1 + chance×9. Marginal = relative to current mult. */
+function tinyNoticeMarginalPct(currentLevel: number): number {
+  const currentMult = 1 + currentLevel * 0.005 * 9;
+  return (0.005 * 9 / currentMult) * 100;
+}
 
 
 function parseNumber(raw: string): number | null {
@@ -298,15 +304,15 @@ function formatEnhanceNextEffect(
     case "enhance_shiny_multiplier":
       return `${current.shiny_multiplier.toFixed(2)}→${next.shiny_multiplier.toFixed(2)}`;
     case "enhance_double_tick_chance":
-      return "→+0.5%";
+      return `${current.double_tick_chance_pct.toFixed(1)}%→${next.double_tick_chance_pct.toFixed(1)}%`;
     case "enhance_triple_tick_chance":
-      return "→+0.4%";
+      return `${current.triple_tick_chance_pct.toFixed(1)}%→${next.triple_tick_chance_pct.toFixed(1)}%`;
     case "enhance_tier2_dock_power":
       return "→+0.05×";
     case "enhance_super_shiny_multi":
       return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
     case "enhance_tiny_notice_chance":
-      return "→+0.5%";
+      return `${current.tiny_notice_chance_pct.toFixed(1)}%→${next.tiny_notice_chance_pct.toFixed(1)}%`;
     default:
       return null;
   }
@@ -1601,10 +1607,10 @@ export function Fishing() {
       );
       let marginalPct = currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
       if (def.id === "enhance_token_multiplier" && (marginalPct == null || marginalPct < 0.1)) {
-        marginalPct = TOKEN_MULTIPLIER_EFFECTIVE_PCT_PER_LEVEL;
+        marginalPct = tokenMultiplierMarginalPct(lvl);
       }
       if (def.id === "enhance_tiny_notice_chance" && (marginalPct == null || marginalPct < 0.1)) {
-        marginalPct = TINY_NOTICE_EFFECTIVE_PCT_PER_LEVEL;
+        marginalPct = tinyNoticeMarginalPct(lvl);
       }
       enhanceMap.set(def.id, marginalPct);
       enhanceEffectMap.set(def.id, formatEnhanceNextEffect(def.id, currentStats, nextStats));
@@ -3344,9 +3350,8 @@ export function Fishing() {
                                         {
                                           heading: "Indirect gains",
                                           lines: [
-                                            "Token Multiplier +5% per level increases token gain, not fish per hour directly.",
-                                            "If you use tokens for fish cards or other fish-related gains, this is effectively +5% per level.",
-                                            "Cost efficiency value is shown but excluded from the heatmap (indirect gain).",
+                                            "Token Multiplier adds +0.05 per level (1.05x, 1.10x, …). The shown % is the marginal gain for the next level (e.g. 1.05→1.10 is 0.05/1.05 ≈ 4.76%).",
+                                            "If you use tokens for fish-related gains, this is the effective relative gain. Cost efficiency shown but excluded from heatmap.",
                                           ],
                                         },
                                       ],
@@ -3362,7 +3367,7 @@ export function Fishing() {
                                           heading: "Indirect gains",
                                           lines: [
                                             "Tiny is an attribute a Notice can have: it costs 90% less fish.",
-                                            "Tiny Notice Chance +0.5% per level: when you get a Tiny (90% less fish), it is 10× value. Expected gain = +4.5% per level when notice farming.",
+                                            "Tiny Notice Chance +0.5% per level; Tiny = 10× value. The shown % is the marginal gain for the next level (relative to current expected mult; first level ≈ 4.5%, then slightly less).",
                                             "Fish/h does not change; the gain is in cheaper notices. Cost efficiency excluded from heatmap.",
                                           ],
                                         },
