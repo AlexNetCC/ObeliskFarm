@@ -155,6 +155,10 @@ function GiftIcon() {
 
 /** Notice Fish Req -10% per level = 1/0.9 − 1 ≈ +11.1% effective gains when notice farming. */
 const FRIENDSHIP_ENDED_NOTICE_MARGINAL_PCT = (1 / 0.9 - 1) * 100;
+/** Token Multiplier +5% per level: effective gain when tokens are used for fish/cards. Fish/h does not change. */
+const TOKEN_MULTIPLIER_EFFECTIVE_PCT_PER_LEVEL = 5;
+/** Tiny Notice Chance +0.5% per level; Tiny = 90% less fish (10× value) → expected mult 1 + 0.005×9 = +4.5% per level when notice farming. */
+const TINY_NOTICE_EFFECTIVE_PCT_PER_LEVEL = 0.5 * 9;
 
 
 function parseNumber(raw: string): number | null {
@@ -1595,10 +1599,14 @@ export function Fishing() {
         skillOpts,
         extraTicksPerHour,
       );
-      enhanceMap.set(
-        def.id,
-        currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null,
-      );
+      let marginalPct = currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
+      if (def.id === "enhance_token_multiplier" && (marginalPct == null || marginalPct < 0.1)) {
+        marginalPct = TOKEN_MULTIPLIER_EFFECTIVE_PCT_PER_LEVEL;
+      }
+      if (def.id === "enhance_tiny_notice_chance" && (marginalPct == null || marginalPct < 0.1)) {
+        marginalPct = TINY_NOTICE_EFFECTIVE_PCT_PER_LEVEL;
+      }
+      enhanceMap.set(def.id, marginalPct);
       enhanceEffectMap.set(def.id, formatEnhanceNextEffect(def.id, currentStats, nextStats));
     }
     return {
@@ -1671,6 +1679,7 @@ export function Fishing() {
       return t1 ?? t2;
     };
     for (const def of [...availableT1Enhancements, ...availableT2Enhancements]) {
+      if (def.id === "enhance_token_multiplier" || def.id === "enhance_tiny_notice_chance") continue;
       const costs = enhanceCosts(def);
       const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
       const lvl = Math.max(0, Math.min(maxLvl, enhanceLevels[def.id] ?? 0));
@@ -1855,7 +1864,7 @@ export function Fishing() {
 
       const costForNext = def.costs[lvl] ?? 0;
       const gemsForNext = costForNext * GEMS_PER_SKILL_POINT;
-      if (marginalPct != null && gemsForNext > 0) {
+      if (def.id !== "friendship_ended_tier1" && marginalPct != null && gemsForNext > 0) {
         if (gemEvGemsPerHour > 0) efficVals.push(marginalPct / (gemsForNext / gemEvGemsPerHour));
         efficValsGemAbs.push((marginalPct / gemsForNext) * 100);
       }
@@ -3325,7 +3334,44 @@ export function Fishing() {
                           <td className="fishingUpgradeTdName">
                             <img src={enhanceIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
                             <div className="fishingUpgradeNameBlock">
-                              <span className="fishingUpgradeName">{def.name}</span>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                <span className="fishingUpgradeName">{def.name}</span>
+                                {def.id === "enhance_token_multiplier" ? (
+                                  <Tooltip
+                                    content={{
+                                      title: "Effective fish gain",
+                                      sections: [
+                                        {
+                                          heading: "Indirect gains",
+                                          lines: [
+                                            "Token Multiplier +5% per level increases token gain, not fish per hour directly.",
+                                            "If you use tokens for fish cards or other fish-related gains, this is effectively +5% per level.",
+                                            "Cost efficiency value is shown but excluded from the heatmap (indirect gain).",
+                                          ],
+                                        },
+                                      ],
+                                    }}
+                                    label="?"
+                                  />
+                                ) : def.id === "enhance_tiny_notice_chance" ? (
+                                  <Tooltip
+                                    content={{
+                                      title: "Effective fish gain (notice farming)",
+                                      sections: [
+                                        {
+                                          heading: "Indirect gains",
+                                          lines: [
+                                            "Tiny is an attribute a Notice can have: it costs 90% less fish.",
+                                            "Tiny Notice Chance +0.5% per level: when you get a Tiny (90% less fish), it is 10× value. Expected gain = +4.5% per level when notice farming.",
+                                            "Fish/h does not change; the gain is in cheaper notices. Cost efficiency excluded from heatmap.",
+                                          ],
+                                        },
+                                      ],
+                                    }}
+                                    label="?"
+                                  />
+                                ) : null}
+                              </span>
                               {nextEffect != null ? <span className="fishingUpgradeNextEffect">{nextEffect}</span> : null}
                             </div>
                           </td>
@@ -3365,19 +3411,24 @@ export function Fishing() {
                                   const costEffic = state.useGemIncomeForCostEffic
                                     ? marginalPct / (nextCostEntry.gems / gemEvGemsPerHour)
                                     : (marginalPct / nextCostEntry.gems) * 100;
+                                  const excludeFromHeatmap = def.id === "enhance_token_multiplier" || def.id === "enhance_tiny_notice_chance";
                                   const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
                                     ? { min: costEfficHeatMinGlobal, max: costEfficHeatMaxGlobal }
                                     : { min: costEfficHeatMinGemAbsGlobal, max: costEfficHeatMaxGemAbsGlobal };
-                                  const heatT = heatMax > heatMin ? (costEffic - heatMin) / (heatMax - heatMin) : 0.5;
-                                  const rateColor = heatmapColor(heatT);
+                                  const heatT = !excludeFromHeatmap && heatMax > heatMin ? (costEffic - heatMin) / (heatMax - heatMin) : 0.5;
+                                  const rateColor = excludeFromHeatmap ? "transparent" : heatmapColor(heatT);
                                   return (
                                     <span
-                                      style={{
-                                        backgroundColor: rateColor,
-                                        color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                      }}
+                                      style={
+                                        excludeFromHeatmap
+                                          ? undefined
+                                          : {
+                                              backgroundColor: rateColor,
+                                              color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                              padding: "2px 6px",
+                                              borderRadius: 4,
+                                            }
+                                      }
                                     >
                                       {costEffic.toFixed(2)}
                                     </span>
@@ -3840,6 +3891,7 @@ export function Fishing() {
                                         "Notice Fish Req -10% means you need 10% less fish per notice.",
                                         "For notice farming this equals 1/0.9 ≈ +11.1% effective gains per level.",
                                         "Fish/h does not change; the gain is in completing notices faster.",
+                                        "Cost efficiency value is shown but excluded from the heatmap (indirect gain).",
                                       ],
                                     },
                                   ],
@@ -3898,6 +3950,8 @@ export function Fishing() {
                             const breakdown = skillMarginalBreakdown.get(def.id);
                             const totalPct = breakdown?.reduce((s, b) => s + b.pct, 0) ?? 0;
                             const hasBreakdown = breakdown?.length && totalPct > 0;
+                            const excludeFromHeatmap = isFriendshipEnded;
+                            const heatTExcl = excludeFromHeatmap ? 0.5 : heatT;
                             return (
                               <span className="fishingCostEfficWrap">
                                 {hasBreakdown ? (
@@ -3911,12 +3965,16 @@ export function Fishing() {
                                   </div>
                                 ) : null}
                                 <span
-                                  style={{
-                                    backgroundColor: heatmapColor(heatT),
-                                    color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                    padding: "2px 6px",
-                                    borderRadius: 4,
-                                  }}
+                                  style={
+                                    excludeFromHeatmap
+                                      ? undefined
+                                      : {
+                                          backgroundColor: heatmapColor(heatTExcl),
+                                          color: heatTExcl > 0.5 ? "#0a0a0a" : "#fff",
+                                          padding: "2px 6px",
+                                          borderRadius: 4,
+                                        }
+                                  }
                                 >
                                   {costEffic.toFixed(2)}
                                 </span>
