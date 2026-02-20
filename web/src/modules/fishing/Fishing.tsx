@@ -1974,21 +1974,28 @@ export function Fishing() {
     };
   }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, state.skillTreeLevels, state.legendaryFishFound, state.divineRelic5xPoints, upgradeLevels, enhanceLevels, stats.fish_income_multi, stats.shiny_multiplier, stats.super_shiny_multiplier, stats.super_shiny_chance_pct, expectedShinyMulti, totalFishPerHourWithRodPoly, gemEvGemsPerHour]);
 
-  /** Unified cost-efficiency heatmap. Time-based (useGemIncome) or gem-absolute (separate heatmap for gem items). */
+  /** Unified cost-efficiency heatmap. Min/max over all sections with data. Highest value gets green (t=1), lowest red (t=0). Empty sections excluded; when only one value, scale so it is green. */
   const { costEfficHeatMinGlobal, costEfficHeatMaxGlobal, costEfficHeatMinGemAbsGlobal, costEfficHeatMaxGemAbsGlobal } = useMemo(() => {
-    const timeMins = [costEfficHeatMin, costEfficHeatMinEnhance, costEfficHeatMinSkill, costEfficHeatMinFishCard];
-    const timeMaxs = [costEfficHeatMax, costEfficHeatMaxEnhance, costEfficHeatMaxSkill, costEfficHeatMaxFishCard];
-    const gemAbsMins = [costEfficHeatMinEnhanceGemAbs, costEfficHeatMinSkillGemAbs, costEfficHeatMinFishCardGemAbs];
-    const gemAbsMaxs = [costEfficHeatMaxEnhanceGemAbs, costEfficHeatMaxSkillGemAbs, costEfficHeatMaxFishCardGemAbs];
-    const timeMin = Math.min(...timeMins);
-    const timeMax = Math.max(...timeMaxs);
-    const gemAbsMin = Math.min(...gemAbsMins);
-    const gemAbsMax = Math.max(...gemAbsMaxs);
+    const timeRanges = [
+      { min: costEfficHeatMin, max: costEfficHeatMax },
+      { min: costEfficHeatMinEnhance, max: costEfficHeatMaxEnhance },
+      { min: costEfficHeatMinSkill, max: costEfficHeatMaxSkill },
+      { min: costEfficHeatMinFishCard, max: costEfficHeatMaxFishCard },
+    ].filter((r) => r.max >= r.min);
+    const gemAbsRanges = [
+      { min: costEfficHeatMinEnhanceGemAbs, max: costEfficHeatMaxEnhanceGemAbs },
+      { min: costEfficHeatMinSkillGemAbs, max: costEfficHeatMaxSkillGemAbs },
+      { min: costEfficHeatMinFishCardGemAbs, max: costEfficHeatMaxFishCardGemAbs },
+    ].filter((r) => r.max >= r.min);
+    const timeMin = timeRanges.length ? Math.min(...timeRanges.map((r) => r.min)) : 0;
+    const timeMax = timeRanges.length ? Math.max(...timeRanges.map((r) => r.max)) : 1;
+    const gemAbsMin = gemAbsRanges.length ? Math.min(...gemAbsRanges.map((r) => r.min)) : 0;
+    const gemAbsMax = gemAbsRanges.length ? Math.max(...gemAbsRanges.map((r) => r.max)) : 1;
     return {
-      costEfficHeatMinGlobal: timeMin,
-      costEfficHeatMaxGlobal: timeMax > timeMin ? timeMax : timeMin + 1,
-      costEfficHeatMinGemAbsGlobal: gemAbsMin,
-      costEfficHeatMaxGemAbsGlobal: gemAbsMax > gemAbsMin ? gemAbsMax : gemAbsMin + 1,
+      costEfficHeatMinGlobal: timeMax > timeMin ? timeMin : timeMax - 1,
+      costEfficHeatMaxGlobal: timeMax,
+      costEfficHeatMinGemAbsGlobal: gemAbsMax > gemAbsMin ? gemAbsMin : gemAbsMax - 1,
+      costEfficHeatMaxGemAbsGlobal: gemAbsMax,
     };
   }, [
     costEfficHeatMin,
@@ -3014,9 +3021,12 @@ export function Fishing() {
                         hoursToNext > 0
                           ? (() => {
                               const costEffic = marginalPct / hoursToNext;
+                              const useUpgradeScale = !state.useGemIncomeForCostEffic;
+                              const heatMinU = useUpgradeScale ? costEfficHeatMin : costEfficHeatMinGlobal;
+                              const heatMaxU = useUpgradeScale ? costEfficHeatMax : costEfficHeatMaxGlobal;
                               const heatT =
-                                costEfficHeatMaxGlobal > costEfficHeatMinGlobal
-                                  ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
+                                heatMaxU > heatMinU
+                                  ? (costEffic - heatMinU) / (heatMaxU - heatMinU)
                                   : 0.5;
                               const rateColor = heatmapColor(heatT);
                               return (
@@ -3179,9 +3189,12 @@ export function Fishing() {
                         hoursToNext > 0
                           ? (() => {
                               const costEffic = marginalPct / hoursToNext;
+                              const useUpgradeScale = !state.useGemIncomeForCostEffic;
+                              const heatMinU = useUpgradeScale ? costEfficHeatMin : costEfficHeatMinGlobal;
+                              const heatMaxU = useUpgradeScale ? costEfficHeatMax : costEfficHeatMaxGlobal;
                               const heatT =
-                                costEfficHeatMaxGlobal > costEfficHeatMinGlobal
-                                  ? (costEffic - costEfficHeatMinGlobal) / (costEfficHeatMaxGlobal - costEfficHeatMinGlobal)
+                                heatMaxU > heatMinU
+                                  ? (costEffic - heatMinU) / (heatMaxU - heatMinU)
                                   : 0.5;
                               const rateColor = heatmapColor(heatT);
                               return (
@@ -3567,19 +3580,24 @@ export function Fishing() {
                                   const costEffic = state.useGemIncomeForCostEffic
                                     ? marginalPct / (nextCostEntry.gems / gemEvGemsPerHour)
                                     : (marginalPct / nextCostEntry.gems) * 100;
+                                  const excludeFromHeatmap = def.id === "enhance_token_multiplier" || def.id === "enhance_tiny_notice_chance";
                                   const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
                                     ? { min: costEfficHeatMinGlobal, max: costEfficHeatMaxGlobal }
                                     : { min: costEfficHeatMinGemAbsGlobal, max: costEfficHeatMaxGemAbsGlobal };
-                                  const heatT = heatMax > heatMin ? (costEffic - heatMin) / (heatMax - heatMin) : 0.5;
-                                  const rateColor = heatmapColor(heatT);
+                                  const heatT = !excludeFromHeatmap && heatMax > heatMin ? (costEffic - heatMin) / (heatMax - heatMin) : 0.5;
+                                  const rateColor = excludeFromHeatmap ? "transparent" : heatmapColor(heatT);
                                   return (
                                     <span
-                                      style={{
-                                        backgroundColor: rateColor,
-                                        color: heatT > 0.5 ? "#0a0a0a" : "#fff",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                      }}
+                                      style={
+                                        excludeFromHeatmap
+                                          ? undefined
+                                          : {
+                                              backgroundColor: rateColor,
+                                              color: heatT > 0.5 ? "#0a0a0a" : "#fff",
+                                              padding: "2px 6px",
+                                              borderRadius: 4,
+                                            }
+                                      }
                                     >
                                       {costEffic.toFixed(2)}
                                     </span>
