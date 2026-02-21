@@ -60,10 +60,16 @@ export interface SkillTreeOptions {
   legendaryFishFound?: number;
   /** Divine Relic points: each point gives +2% 5× tick chance (base; applies to all sources; Sushi does not get Gift's +25% on top). */
   relic5xPoints?: number;
+  /** Pets: Mr Nibbles level. +0.03× Shiny Fish Multi per level (own mult), +1% Triple Tick Chance per level (flat). */
+  mrNibblesLevel?: number;
+  /** Pets: Mr Nibbles Quest rank. Tier 2 Dock Power +5% per rank (own mult: 1 + 0.05×rank). */
+  mrNibblesQuestRank?: number;
   /** Archaeology: Poseidon Idol level. +0.25 base fishing drone power per level (adds to base 3). */
   poseidonIdolLevel?: number;
   /** Archaeology: Tethys Idol level. Each point: Tier 2 dock power +0.05%, Drone power multi +0.05%, Super shiny multi +0.05% (each separate mult). */
   tethysIdolLevel?: number;
+  /** Archaeology: Astraeus Idol level. +0.03% double tick chance per level (flat, added on top of existing). */
+  astraeusIdolLevel?: number;
   /** Upgrades: Fishing Drone Power (World 3). +0.1 base drone power per level (adds to base before mult). */
   droneBasePowerWorld3Upgrade?: number;
   /** Workshop: Fishing Drone Power (World 3). +0.02x multiplier per level (own mult). */
@@ -74,6 +80,8 @@ export interface SkillTreeOptions {
   fishersBundle?: boolean;
   /** Construct: Statue Craftmanship. At most one. Gilded = Fish Income ×1.25, Platinized = Fish Income ×1.40 (own mult each). */
   constructStatue?: "none" | "gilded" | "platinized";
+  /** Stargazing: Cetus level. +2% Fish Income per level (own mult: 1 + 0.02×level). */
+  cetusLevel?: number;
 }
 
 /**
@@ -119,8 +127,10 @@ export function computeFishingStatsFromLevels(
     (1 + 0.03 * skill("fishing_with_friends"));
   const constructMult =
     options?.constructStatue === "gilded" ? 1.25 : options?.constructStatue === "platinized" ? 1.4 : 1;
+  const cetusLevel = Math.max(0, Math.floor(options?.cetusLevel ?? 0));
+  const cetusFishIncomeMult = 1 + 0.02 * cetusLevel;
   const fish_income_multi =
-    fishIncomeBase * (options?.legendaryHaulerBundle ? 1.1 : 1) * constructMult;
+    fishIncomeBase * (options?.legendaryHaulerBundle ? 1.1 : 1) * constructMult * cetusFishIncomeMult;
 
   // Tick reduction: each level reduces tick by 0.5s. Base 60s. Skill: Let's Pick Up The Pace -2s per level.
   const fishing_tick_reduction =
@@ -168,16 +178,20 @@ export function computeFishingStatsFromLevels(
   // Notice fish requirement: no upgrade source in game; use 1. Skill: Friendship Ended -10% per level (mult 0.9^level).
   const notice_fish_req = Math.max(0.01, 1 * Math.pow(0.9, skill("friendship_ended_tier1")));
 
-  // Tick chances (%): double +0.5% (upgrade), +0.5% (enhance); triple +0.35% (upgrade), +0.4% (enhance). Skill: Let's Pick Up The Pace +2% double, +1% triple per level.
+  // Tick chances (%): double +0.5% (upgrade), +0.5% (enhance); triple +0.35% (upgrade), +0.4% (enhance). Skill: Let's Pick Up The Pace +2% double, +1% triple per level. Archaeology: Astraeus Idol +0.03% double (flat).
+  const astraeusIdol = Math.max(0, Math.floor(options?.astraeusIdolLevel ?? 0));
   const double_tick_chance_pct =
     0.5 * u("double_tick_chance") +
     0.5 * e("enhance_double_tick_chance") +
-    2 * skill("lets_pick_up_the_pace");
+    2 * skill("lets_pick_up_the_pace") +
+    0.03 * astraeusIdol;
+  const mrNibblesLevel = Math.max(0, Math.floor(options?.mrNibblesLevel ?? 0));
   const triple_tick_chance_pct =
     0.35 * u("triple_tick_chance") +
     0.4 * e("enhance_triple_tick_chance") +
     1 * skill("lets_pick_up_the_pace") +
-    (options?.fishersBundle ? 10 : 0);
+    (options?.fishersBundle ? 10 : 0) +
+    1 * mrNibblesLevel;
   const five_tick_chance_pct = 2 * Math.max(0, Math.floor(options?.relic5xPoints ?? 0)) + (options?.legendaryHaulerBundle ? 3 : 0);
 
   // Shiny / Super Shiny chances (%): shiny_fish_chance +0.5% per level; super_shiny_chance +1% per level; tiny notice +0.5% (enhance). Skill: With This Fish I Summon +0.1% shiny per fish card per level; Completionist +1% super shiny per level per legendary.
@@ -194,11 +208,13 @@ export function computeFishingStatsFromLevels(
     0.05 * u("tier2_dock_power") +
     0.05 * e("enhance_tier2_dock_power") +
     0.03 * skill("completionist_gatekeeper") * legendary;
-  const tier2_dock_power_mult = tier2DockBase * (1 + 0.0005 * tethysIdol) * (options?.legendaryHaulerBundle ? 1.1 : 1);
+  const mrNibblesQuestRank = Math.max(0, Math.floor(options?.mrNibblesQuestRank ?? 0));
+  const tier2_dock_power_mult =
+    tier2DockBase * (1 + 0.0005 * tethysIdol) * (options?.legendaryHaulerBundle ? 1.1 : 1) * (1 + 0.05 * mrNibblesQuestRank);
 
-  // Shiny Multiplier: base 5×, +0.05x (T2 upgrade), +0.05x (enhance).
-  const shiny_multiplier =
-    5 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
+  // Shiny Multiplier: base 5×, +0.05x (T2 upgrade), +0.05x (enhance). Pets: Mr Nibbles +0.03× per level (own mult).
+  const shinyBase = 5 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
+  const shiny_multiplier = shinyBase * (1 + 0.03 * mrNibblesLevel);
 
   // Super Shiny Multiplier: base 3× (only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance). Tethys Idol +0.05% per level (global, all docks).
   const superShinyBase = 3 +

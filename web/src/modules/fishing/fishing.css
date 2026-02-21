@@ -128,10 +128,16 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  width: 72px;
+  gap: 4px;
+  width: 88px;
   flex-shrink: 0;
   justify-self: center;
+}
+.fishingStepperPlusBtn {
+  padding: 3px 8px;
+  min-width: 28px;
+  font-size: 14px;
+  line-height: 1;
 }
 .fishingStepperLevelInput {
   width: 4ch;
