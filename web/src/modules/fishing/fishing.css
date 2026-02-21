@@ -167,6 +167,43 @@
   justify-self: end;
 }
 
+.fishingInfernalRow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 6px 0;
+}
+.fishingInfernalRow .fishingStepperNameBlock {
+  min-width: 0;
+}
+.fishingInfernalInputs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fishingInfernalLabel {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+}
+.fishingInfernalInput {
+  width: 4.5ch;
+  min-width: 4.5ch;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  box-sizing: border-box;
+}
+.fishingInfernalRow .fishingStepperEffect {
+  justify-self: end;
+}
+
 .fishingSectionHeader {
   display: flex;
   align-items: center;

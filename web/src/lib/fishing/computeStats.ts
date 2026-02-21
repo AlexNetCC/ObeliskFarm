@@ -74,14 +74,26 @@ export interface SkillTreeOptions {
   droneBasePowerWorld3Upgrade?: number;
   /** Workshop: Fishing Drone Power (World 3). +0.02x multiplier per level (own mult). */
   fishingDroneBasePowerWorld3?: number;
+  /** Cards: Infernal Mr Nibbles. +X% 5× tick chance per level (flat); X and level are user inputs. */
+  infernalMrNibblesPct?: number;
+  infernalMrNibblesLevel?: number;
+  /** Cards: Infernal Angler Drone Card. +X% Tier 2 Dock Power per level; X and level are user inputs. */
+  infernalAnglerDronePct?: number;
+  infernalAnglerDroneLevel?: number;
   /** Store: Legendary Hauler Bundle. +3% 5× tick chance (flat), Fish Income ×1.10 (own mult), Tier 2 Dock Power ×1.10 (own mult). */
   legendaryHaulerBundle?: boolean;
   /** Store: Fisher's Bundle. +10% triple tick chance (flat). */
   fishersBundle?: boolean;
+  /** Store: Angler's Bundle. +6% Tiny Notice Chance (flat). */
+  anglerBundle?: boolean;
+  /** Divine Challenge Coin: each level gives Shiny Fish Multiplier +10% (own mult). */
+  divineChallengeCoinLevel?: number;
   /** Construct: Statue Craftmanship. At most one. Gilded = Fish Income ×1.25, Platinized = Fish Income ×1.40 (own mult each). */
   constructStatue?: "none" | "gilded" | "platinized";
   /** Stargazing: Cetus level. +2% Fish Income per level (own mult: 1 + 0.02×level). */
   cetusLevel?: number;
+  /** Stargazing: Black Hole Bonus. Tier 2 Dock Power +25% (own mult). */
+  blackHoleBonus?: boolean;
 }
 
 /**
@@ -192,7 +204,12 @@ export function computeFishingStatsFromLevels(
     1 * skill("lets_pick_up_the_pace") +
     (options?.fishersBundle ? 10 : 0) +
     1 * mrNibblesLevel;
-  const five_tick_chance_pct = 2 * Math.max(0, Math.floor(options?.relic5xPoints ?? 0)) + (options?.legendaryHaulerBundle ? 3 : 0);
+  const infernalPct = Math.max(0, Number(options?.infernalMrNibblesPct ?? 0));
+  const infernalLvl = Math.max(0, Math.floor(options?.infernalMrNibblesLevel ?? 0));
+  const five_tick_chance_pct =
+    2 * Math.max(0, Math.floor(options?.relic5xPoints ?? 0)) +
+    (options?.legendaryHaulerBundle ? 3 : 0) +
+    infernalPct * infernalLvl;
 
   // Shiny / Super Shiny chances (%): shiny_fish_chance +0.5% per level; super_shiny_chance +1% per level; tiny notice +0.5% (enhance). Skill: With This Fish I Summon +0.1% shiny per fish card per level; Completionist +1% super shiny per level per legendary.
   const shiny_fish_chance_pct =
@@ -201,7 +218,7 @@ export function computeFishingStatsFromLevels(
   const super_shiny_chance_pct =
     1 * u("super_shiny_chance") +
     1 * skill("completionist_gatekeeper") * legendary;
-  const tiny_notice_chance_pct = 0.5 * e("enhance_tiny_notice_chance");
+  const tiny_notice_chance_pct = 0.5 * e("enhance_tiny_notice_chance") + (options?.anglerBundle ? 6 : 0);
 
   // Tier 2 Dock Power: multiplier on power on T2 docks only; +0.05x (upgrade), +0.05x (enhance). Skill: Completionist Gatekeeper +3% per level per legendary. Tethys Idol +0.05% per level (T2 docks only).
   const tier2DockBase = 1 +
@@ -209,12 +226,20 @@ export function computeFishingStatsFromLevels(
     0.05 * e("enhance_tier2_dock_power") +
     0.03 * skill("completionist_gatekeeper") * legendary;
   const mrNibblesQuestRank = Math.max(0, Math.floor(options?.mrNibblesQuestRank ?? 0));
+  const infernalAnglerPct = Math.max(0, Number(options?.infernalAnglerDronePct ?? 0));
+  const infernalAnglerLvl = Math.max(0, Math.floor(options?.infernalAnglerDroneLevel ?? 0));
   const tier2_dock_power_mult =
-    tier2DockBase * (1 + 0.0005 * tethysIdol) * (options?.legendaryHaulerBundle ? 1.1 : 1) * (1 + 0.05 * mrNibblesQuestRank);
+    tier2DockBase *
+    (1 + 0.0005 * tethysIdol) *
+    (options?.legendaryHaulerBundle ? 1.1 : 1) *
+    (1 + 0.05 * mrNibblesQuestRank) *
+    (1 + (infernalAnglerPct * infernalAnglerLvl) / 100) *
+    (options?.blackHoleBonus ? 1.25 : 1);
 
-  // Shiny Multiplier: base 5×, +0.05x (T2 upgrade), +0.05x (enhance). Pets: Mr Nibbles +0.03× per level (own mult).
+  // Shiny Multiplier: base 5×, +0.05x (T2 upgrade), +0.05x (enhance). Pets: Mr Nibbles +0.03× per level (own mult). Divine Challenge Coin: +10% per level (own mult).
   const shinyBase = 5 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
-  const shiny_multiplier = shinyBase * (1 + 0.03 * mrNibblesLevel);
+  const divineChallengeCoinLevel = Math.max(0, Math.floor(options?.divineChallengeCoinLevel ?? 0));
+  const shiny_multiplier = shinyBase * (1 + 0.03 * mrNibblesLevel) * (1 + 0.1 * divineChallengeCoinLevel);
 
   // Super Shiny Multiplier: base 3× (only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance). Tethys Idol +0.05% per level (global, all docks).
   const superShinyBase = 3 +
