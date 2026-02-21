@@ -561,7 +561,7 @@ function StepperRow(props: {
   min: number;
   max: number;
   onChange: (v: number) => void;
-  tooltipContent?: { title: string; sections?: { heading: string; lines: string[] }[] };
+  tooltipContent?: import("../../components/Tooltip").TooltipContent;
   effectText?: ReactNode;
 }) {
   const { label, iconUrl, value, min, max, onChange, tooltipContent, effectText } = props;

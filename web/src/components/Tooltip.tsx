@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-type TooltipLine = string | ReactNode;
+export type TooltipLine = string | ReactNode;
 
-type TooltipContent =
+export type TooltipContent =
   | {
       title: string;
       lines: TooltipLine[];
