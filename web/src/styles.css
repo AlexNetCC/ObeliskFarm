@@ -56,6 +56,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    gap: 8px;
   }
   .topNavBrand {
     flex: 1;
@@ -96,30 +97,24 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    gap: 8px;
   }
   .topNavBrand {
     flex: 0 0 auto;
-    min-width: 0;
-  }
-  .topNavSpacer {
-    flex: 1;
     min-width: 0;
   }
   .topNavMinimize {
     flex-shrink: 0;
   }
   .topNavButtons {
-    width: 100%;
+    flex: 0 1 auto;
+    min-width: 0;
   }
   .topNavToggle {
     display: none;
   }
 }
 
-.topNavSpacer {
-  flex: 1;
-  min-width: 0;
-}
 .topNavMinimize {
   display: inline-flex;
   align-items: center;
@@ -177,6 +172,10 @@ body {
   font-size: 0.95rem;
 }
 
+.topNavBrandText {
+  flex: 0 0 auto;
+}
+
 .topNavTitle {
   font-weight: 900;
   letter-spacing: 0.2px;
@@ -188,18 +187,13 @@ body {
 }
 
 .topNavButtons {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 18px 12px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-@media (min-width: 740px) {
-  .topNavButtons {
-    grid-template-columns: 1fr 1fr;
-  }
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 6px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .navTile {

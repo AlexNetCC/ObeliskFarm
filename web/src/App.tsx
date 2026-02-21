@@ -133,32 +133,21 @@ export function App() {
       <div className={`topNav ${navExpanded ? "navExpanded" : ""} ${headerMinimized ? "headerMinimized" : ""}`}>
         <div className="topNavBrand">
           <Sprite path="sprites/common/gem.png" alt="ObeliskFarm" className="icon" />
-          <div>
+          <div className="topNavBrandText">
             <div className="topNavTitle">ObeliskFarm (Web)</div>
             {!headerMinimized ? <div className="topNavSubtitle">Choose a module.</div> : null}
           </div>
+          <button
+            type="button"
+            className={`navTile navTileAbout ${active === "about" ? "navTileActive" : ""}`}
+            onClick={() => setActive("about")}
+          >
+            <span className="navEmoji" aria-hidden="true">
+              ℹ️
+            </span>
+            <span className="navTileLabel">About this tool</span>
+          </button>
         </div>
-        <div className="topNavSpacer" aria-hidden="true" />
-        <button
-          type="button"
-          className="topNavMinimize"
-          onClick={() => setHeaderMinimized((v) => !v)}
-          aria-pressed={headerMinimized}
-          aria-expanded={!headerMinimized}
-          aria-label={headerMinimized ? "Expand menu" : "Collapse menu"}
-          title={headerMinimized ? "Expand menu (show module tiles)" : "Collapse menu (more space for content)"}
-        >
-          {headerMinimized ? "Maximize Menu" : "Minimize Menu"}
-        </button>
-        <button
-          type="button"
-          className="topNavToggle"
-          onClick={() => setNavExpanded((v) => !v)}
-          aria-expanded={navExpanded}
-          aria-label={navExpanded ? "Close menu" : "Open menu"}
-        >
-          {navExpanded ? "✕" : "☰"}
-        </button>
         <div className="topNavButtons">
           {modules.map((m) => (
             <button
@@ -186,18 +175,27 @@ export function App() {
               </span>
             </button>
           ))}
-
-          <button
-            type="button"
-            className={`navTile navTileAbout ${active === "about" ? "navTileActive" : ""}`}
-            onClick={() => setActive("about")}
-          >
-            <span className="navEmoji" aria-hidden="true">
-              ℹ️
-            </span>
-            <span className="navTileLabel">About this tool</span>
-          </button>
         </div>
+        <button
+          type="button"
+          className="topNavMinimize"
+          onClick={() => setHeaderMinimized((v) => !v)}
+          aria-pressed={headerMinimized}
+          aria-expanded={!headerMinimized}
+          aria-label={headerMinimized ? "Expand menu" : "Collapse menu"}
+          title={headerMinimized ? "Expand menu (show module tiles)" : "Collapse menu (more space for content)"}
+        >
+          {headerMinimized ? "Maximize Menu" : "Minimize Menu"}
+        </button>
+        <button
+          type="button"
+          className="topNavToggle"
+          onClick={() => setNavExpanded((v) => !v)}
+          aria-expanded={navExpanded}
+          aria-label={navExpanded ? "Close menu" : "Open menu"}
+        >
+          {navExpanded ? "✕" : "☰"}
+        </button>
       </div>
 
       {active === "about" ? (
