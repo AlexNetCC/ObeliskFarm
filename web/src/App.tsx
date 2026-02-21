@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { assetUrl } from "./lib/assets";
 import { Tooltip } from "./components/Tooltip";
 import { loadJson, saveJson } from "./lib/storage";
@@ -18,6 +18,12 @@ const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 /** Obelisk level for “tested up to” in About and README. Update README when this changes. */
 const OB_LEVEL = 46;
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
+const SHOW_BACKUP_KEY = "obeliskfarm:web:about_show_backup";
+const BACKUP_INTERVAL_MIN_KEY = "obeliskfarm:web:backup_interval_min";
+const BACKUP_PREFIX = "obeliskfarm:web:";
+const DEFAULT_BACKUP_INTERVAL_MIN = 10;
+const MIN_BACKUP_INTERVAL_MIN = 0.5;
+const MAX_BACKUP_INTERVAL_MIN = 120;
 
 function Sprite(props: { path: string; alt: string; className?: string }) {
   const src = props.path.startsWith("http://") || props.path.startsWith("https://") ? props.path : assetUrl(props.path);
@@ -41,9 +47,69 @@ export function App() {
   const [active, setActive] = useState<ModuleId>("event");
   const [navExpanded, setNavExpanded] = useState(false);
   const [headerMinimized, setHeaderMinimized] = useState(() => loadJson<boolean>(HEADER_MINIMIZED_KEY) ?? false);
+  const [showBackup, setShowBackup] = useState(() => loadJson<boolean>(SHOW_BACKUP_KEY) ?? false);
+  const [backupIntervalMin, setBackupIntervalMin] = useState(() => {
+    const v = loadJson<number>(BACKUP_INTERVAL_MIN_KEY);
+    if (typeof v === "number" && v >= MIN_BACKUP_INTERVAL_MIN && v <= MAX_BACKUP_INTERVAL_MIN) return v;
+    return DEFAULT_BACKUP_INTERVAL_MIN;
+  });
+  const [restoreMessage, setRestoreMessage] = useState<"idle" | "ok" | "error">("idle");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     saveJson(HEADER_MINIMIZED_KEY, headerMinimized);
   }, [headerMinimized]);
+  useEffect(() => {
+    saveJson(SHOW_BACKUP_KEY, showBackup);
+  }, [showBackup]);
+  useEffect(() => {
+    saveJson(BACKUP_INTERVAL_MIN_KEY, backupIntervalMin);
+  }, [backupIntervalMin]);
+
+  const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRestoreMessage("idle");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const raw = reader.result as string;
+        const data = JSON.parse(raw) as Record<string, string>;
+        let count = 0;
+        for (const [key, value] of Object.entries(data)) {
+          if (key.startsWith(BACKUP_PREFIX) && typeof value === "string") {
+            localStorage.setItem(key, value);
+            count++;
+          }
+        }
+        setRestoreMessage(count > 0 ? "ok" : "error");
+      } catch {
+        setRestoreMessage("error");
+      }
+    };
+    reader.onerror = () => setRestoreMessage("error");
+    reader.readAsText(file, "utf8");
+    e.target.value = "";
+  };
+
+  // Dev only: backup localStorage to web/backups/ at configured interval
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const ms = Math.max(MIN_BACKUP_INTERVAL_MIN * 60 * 1000, Math.min(MAX_BACKUP_INTERVAL_MIN * 60 * 1000, backupIntervalMin * 60 * 1000));
+    const backup = () => {
+      const snapshot: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("obeliskfarm:web:")) snapshot[key] = localStorage.getItem(key) ?? "";
+      }
+      fetch("/api/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(snapshot),
+      }).catch(() => {});
+    };
+    const id = setInterval(backup, ms);
+    return () => clearInterval(id);
+  }, [backupIntervalMin]);
 
   const modules = useMemo(
     () =>
@@ -156,6 +222,79 @@ export function App() {
           <a className="aboutCta" href={SUPPORT_URL} target="_blank" rel="noreferrer noopener">
             Support me on Buy Me a Coffee
           </a>
+
+          <div className="aboutBackupToggle">
+            <input
+              type="checkbox"
+              id="about-show-backup"
+              checked={showBackup}
+              onChange={(e) => setShowBackup(e.target.checked)}
+              className="aboutBackupCheckbox"
+            />
+            <label htmlFor="about-show-backup" className="aboutBackupToggleLabel">
+              Backup & restore
+            </label>
+          </div>
+          {showBackup && (
+            <div className="aboutBackup">
+              <div className="aboutBackupIntervalRow">
+                <label htmlFor="about-backup-interval" className="aboutBackupIntervalLabel">
+                  Auto-save backup every
+                </label>
+                <input
+                  id="about-backup-interval"
+                  type="number"
+                  inputMode="decimal"
+                  min={MIN_BACKUP_INTERVAL_MIN}
+                  max={MAX_BACKUP_INTERVAL_MIN}
+                  step={0.5}
+                  value={backupIntervalMin}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(",", ".");
+                    const n = Number.parseFloat(raw);
+                    if (!Number.isFinite(n)) return;
+                    const clamped = Math.max(MIN_BACKUP_INTERVAL_MIN, Math.min(MAX_BACKUP_INTERVAL_MIN, n));
+                    setBackupIntervalMin(clamped);
+                  }}
+                  className="aboutBackupIntervalInput mono"
+                />
+                <span className="aboutBackupIntervalSuffix">minutes</span>
+              </div>
+              <p className="aboutText aboutBackupIntervalHint">
+                When running locally (e.g. <code>npm run dev</code>), a backup file is saved at this interval.
+              </p>
+              <p className="aboutText aboutBackupFolder">
+                Backup folder: <code className="mono">web/backups/</code> (relative to project root).
+              </p>
+              <h3 className="aboutSubtitle">Restore backup</h3>
+              <p className="aboutText">
+                Choose a backup file (e.g. from <code>web/backups/</code>). After restore, reload the page to apply.
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                aria-label="Choose backup file"
+                className="aboutFileInput"
+                onChange={handleRestoreBackup}
+              />
+              <button
+                type="button"
+                className="aboutCta aboutCtaSecondary"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Choose backup file
+              </button>
+              {restoreMessage === "ok" && (
+                <p className="aboutText aboutRestoreOk">
+                  Restored. <button type="button" className="aboutReloadBtn" onClick={() => window.location.reload()}>Reload page</button> to apply.
+                </p>
+              )}
+              {restoreMessage === "error" && (
+                <p className="aboutText aboutRestoreError">Could not restore (invalid file or no obeliskfarm keys).</p>
+              )}
+            </div>
+          )}
         </div>
       ) : active === "gemev" ? (
         <GemEv />

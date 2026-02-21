@@ -27,6 +27,7 @@ desktop.ini
 
 # Project specific
 *.log
+web/backups/
 *.ico
 ObeliskGemEV/save/
 REDDIT_POST.md

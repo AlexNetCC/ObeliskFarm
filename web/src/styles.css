@@ -1282,6 +1282,134 @@ a:hover {
   box-shadow: 0 6px 18px rgba(245, 166, 35, 0.5);
 }
 
+.aboutBackupToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.aboutBackupCheckbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #64748b;
+  cursor: pointer;
+}
+
+.aboutBackupToggleLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+  cursor: pointer;
+}
+
+.aboutBackup {
+  margin-top: 12px;
+  padding: 12px 0 0;
+}
+
+.aboutBackupIntervalRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-bottom: 4px;
+}
+
+.aboutBackupIntervalLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.aboutBackupIntervalInput {
+  width: 4em;
+  padding: 4px 6px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 6px;
+}
+
+.aboutBackupIntervalSuffix {
+  font-size: 14px;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.aboutBackupIntervalHint {
+  margin-top: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.aboutBackupFolder {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.aboutBackupFolder code {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  padding: 1px 4px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+}
+
+.aboutSubtitle {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.aboutFileInput {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.aboutCtaSecondary {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  box-shadow: 0 4px 14px rgba(71, 85, 105, 0.3);
+  cursor: pointer;
+}
+
+.aboutRestoreOk {
+  margin-top: 8px;
+  color: #15803d;
+}
+
+.aboutRestoreError {
+  margin-top: 8px;
+  color: #b91c1c;
+}
+
+.aboutReloadBtn {
+  margin-left: 4px;
+  padding: 2px 8px;
+  font-size: inherit;
+  font-weight: 700;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.aboutReloadBtn:hover {
+  background: #fff;
+}
+
 .aboutObWrap {
   display: flex;
   flex-direction: column;
