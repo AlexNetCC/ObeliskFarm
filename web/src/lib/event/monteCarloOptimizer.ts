@@ -1,6 +1,6 @@
 // Ported from ObeliskGemEV/event/monte_carlo_optimizer.py (guided single-core MC).
 
-import { COSTS, getPrestigeWaveRequirement, getRewardBand, isDamageOnlyUpgrade, isPureCritUpgrade, TARGET_WAVE_ATK_BUFFER } from "./constants";
+import { COSTS, getPrestigeWaveRequirement, getRewardBand, getPrestigeAtkMultiplier, getMaxPrestigeAtkMultiplier, isDamageOnlyUpgrade, isPureCritUpgrade, TARGET_WAVE_ATK_BUFFER } from "./constants";
 import { applyUpgrades, runFullSimulation, calculateMaterials, getEnemyHpAtWave } from "./simulation";
 import { createBaseEnemyStats, type EnemyStats, type PlayerStats } from "./stats";
 import { greedyOptimize, type Budget, type UpgradeState, copyState, createEmptyState, getMaxLevelWithCaps, isUpgradeUnlocked, canAllocateUpgrade } from "./optimizer";
@@ -98,7 +98,11 @@ function buildCandidateState(args: {
           const testState = copyState(state);
           testState.levels[a.tier][a.idx] = currentLevel + 1;
           const { player } = applyUpgrades(testState.levels, prestige, testState.gemLevels);
-          if (player.atk > requiredAtk) continue;
+          const gem0 = (testState.gemLevels ?? [0, 0, 0, 0])[0] ?? 0;
+          const currentMult = getPrestigeAtkMultiplier(testState.levels, prestige, gem0);
+          const maxMult = getMaxPrestigeAtkMultiplier(prestige, gem0);
+          const effectiveCap = requiredAtk * (currentMult / maxMult);
+          if (player.atk > effectiveCap) continue;
         }
       }
 

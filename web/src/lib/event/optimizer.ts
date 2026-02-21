@@ -1,6 +1,6 @@
 // Ported (trimmed) from ObeliskGemEV/event/optimizer.py
 
-import { CAP_UPGRADES, COSTS, MAX_LEVELS, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES, getPrestigeWaveRequirement, isDamageOnlyUpgrade, isPureCritUpgrade } from "./constants";
+import { CAP_UPGRADES, COSTS, MAX_LEVELS, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES, getPrestigeWaveRequirement, getPrestigeAtkMultiplier, getMaxPrestigeAtkMultiplier, isDamageOnlyUpgrade, isPureCritUpgrade } from "./constants";
 import { createBaseEnemyStats, type EnemyStats, type PlayerStats } from "./stats";
 import { applyUpgrades, calculateBreakpointEfficiency, calculateDamageBreakpoints, getEnemyHpAtWave, runFullSimulation } from "./simulation";
 import { mulberry32 } from "../rng";
@@ -203,7 +203,11 @@ export function greedyOptimize(args: {
             const testState = copyState(state);
             testState.levels[tier][idx] = currentLevel + 1;
             const { player: pAfter } = applyUpgrades(testState.levels, prestige, testState.gemLevels);
-            if (pAfter.atk > requiredAtk) continue;
+            const gem0 = (testState.gemLevels ?? [0, 0, 0, 0])[0] ?? 0;
+            const currentMult = getPrestigeAtkMultiplier(testState.levels, prestige, gem0);
+            const maxMult = getMaxPrestigeAtkMultiplier(prestige, gem0);
+            const effectiveCap = requiredAtk * (currentMult / maxMult);
+            if (pAfter.atk > effectiveCap) continue;
           }
         }
 

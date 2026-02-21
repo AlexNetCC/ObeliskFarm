@@ -80,8 +80,6 @@ type SavedState = {
   mcHours?: number;
   /** Variance (MC) simulation: number of runs. Default 10000. */
   mcRuns?: number;
-  diverseFishingUpgradePct?: number;
-  fishingPetPlaceholder?: boolean;
   /** Pets: Mr Nibbles level. */
   mrNibblesLevel?: number;
   /** Pets: Mr Nibbles Quest rank. */
@@ -123,10 +121,6 @@ type FishingState = {
   mcHours: number;
   /** Variance (MC) simulation: number of runs. Default 10000. */
   mcRuns: number;
-  /** Placeholder: diverse fishing upgrade (%). Not yet used in formulas. */
-  diverseFishingUpgradePct: number;
-  /** Placeholder: fishing pet enabled. Not yet used in formulas. */
-  fishingPetPlaceholder: boolean;
   /** Pets: Mr Nibbles level. +0.03× Shiny Multi per level (own mult), +1% Triple Tick Chance per level (flat). */
   mrNibblesLevel: number;
   /** Pets: Mr Nibbles Quest rank. Tier 2 Dock Power +5% per rank (own mult). */
@@ -830,8 +824,6 @@ export function Fishing() {
     const divineRelic5xPoints = clamp(Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)), 0, 50);
     const mcHours = clamp(Number(saved?.mcHours ?? 8), 0.1, 720);
     const mcRuns = clamp(Math.trunc(Number(saved?.mcRuns ?? 10000)), 1000, 100000);
-    const diverseFishingUpgradePct = clamp(Number(saved?.diverseFishingUpgradePct ?? 0), 0, 100);
-    const fishingPetPlaceholder = Boolean(saved?.fishingPetPlaceholder ?? false);
     const rawMrLvl = Number(saved?.mrNibblesLevel ?? 0);
     const mrNibblesLevel = Number.isFinite(rawMrLvl) ? Math.max(0, Math.trunc(rawMrLvl)) : 0;
     const rawMrQuest = Number(saved?.mrNibblesQuestRank ?? 0);
@@ -848,7 +840,7 @@ export function Fishing() {
       constructStatueRaw === "gilded" || constructStatueRaw === "platinized" ? constructStatueRaw : "none";
     const cetusLevel = Math.max(0, Math.trunc(Number(saved?.cetusLevel ?? 0)));
     const droneBasePowerWorld3Upgrade = Math.max(0, Math.trunc(Number(saved?.droneBasePowerWorld3Upgrade ?? 0)));
-    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints, mcHours, mcRuns, diverseFishingUpgradePct, fishingPetPlaceholder, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, constructStatue, cetusLevel };
+    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, constructStatue, cetusLevel };
   });
 
   useEffect(() => {
@@ -2245,24 +2237,6 @@ export function Fishing() {
               <div className="fishingBlockHeader">
                 <span className="fishingBlockHeaderTitle">Pets</span>
               </div>
-              <div className="fishingCheckboxRow">
-                <img
-                  src="https://static.wikitide.net/shminerwiki/2/20/Axolotl_Skin.png"
-                  alt=""
-                  className="fishingBlockIcon"
-                  aria-hidden
-                />
-                <input
-                  id="fishing-pet-placeholder"
-                  type="checkbox"
-                  className="fishingCheckbox"
-                  checked={state.fishingPetPlaceholder}
-                  onChange={(e) => setState((prev) => ({ ...prev, fishingPetPlaceholder: e.target.checked }))}
-                />
-                <label htmlFor="fishing-pet-placeholder" className="fishingBlockLabel">
-                  Fishing Pet (placeholder)
-                </label>
-              </div>
               <StepperRow
                 label="Mr Nibbles"
                 iconUrl="https://static.wikitide.net/shminerwiki/thumb/2/22/Mr_Nibbles_Default.png/36px-Mr_Nibbles_Default.png"
@@ -2631,15 +2605,6 @@ export function Fishing() {
                   ],
                 }}
                 effectText={`→ +${(state.droneBasePowerWorld3Upgrade * 0.1).toFixed(2)} base drone power`}
-              />
-              <StepperRow
-                label="Diverse upgrade"
-                iconUrl={FISHING_UPGRADES_ICON}
-                value={Math.round(state.diverseFishingUpgradePct)}
-                min={0}
-                max={100}
-                onChange={(n) => setState((prev) => ({ ...prev, diverseFishingUpgradePct: clamp(n, 0, 100) }))}
-                effectText={`→ ${Math.round(state.diverseFishingUpgradePct)}%`}
               />
             </div>
           </div>

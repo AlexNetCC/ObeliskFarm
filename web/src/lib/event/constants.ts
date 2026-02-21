@@ -89,6 +89,29 @@ export function clampToTargetWaveOption(wave: number): TargetWaveOption {
 /** Multiplier for required atk in target-wave mode (enemy HP at wave × this = requiredAtk). Slightly above 1 so MC runs reliably reach the target wave. */
 export const TARGET_WAVE_ATK_BUFFER = 1.05;
 
+/** Base prestige bonus scale (from stats). */
+const PRESTIGE_BONUS_SCALE_BASE = 0.1;
+/** Assumed max prestige bonus scale when capping raw atk (high prestige builds; 0.8 ~ 35× at prestige 43 so builds with 35×+ don't overshoot). */
+const PRESTIGE_BONUS_SCALE_MAX = 0.8;
+
+/** ATK multiplier from prestige + gem damage. levels: tier -> idx -> level (1-based tier). */
+export function getPrestigeAtkMultiplier(
+  levels: Record<number, number[]>,
+  prestige: number,
+  gemDamageLevel: number,
+): number {
+  const scale =
+    PRESTIGE_BONUS_SCALE_BASE +
+    (levels[1]?.[8] ?? 0) * 0.01 +
+    (levels[2]?.[6] ?? 0) * 0.02;
+  return (1 + scale * prestige) * (1 + 0.1 * gemDamageLevel);
+}
+
+/** Max possible ATK multiplier for this prestige (assumes max T1.8 + T2.7). Used to cap raw atk in target-wave mode. */
+export function getMaxPrestigeAtkMultiplier(prestige: number, gemDamageLevel: number): number {
+  return (1 + PRESTIGE_BONUS_SCALE_MAX * prestige) * (1 + 0.1 * gemDamageLevel);
+}
+
 /** True if this upgrade only adds crit/critDmg (no atk, HP, block, speed, or enemy debuffs). In target-wave mode these are never suggested. */
 export function isPureCritUpgrade(tier: 1 | 2 | 3 | 4, idx: number): boolean {
   return (tier === 1 && idx === 5) || (tier === 3 && idx === 2);
