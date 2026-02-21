@@ -80,6 +80,18 @@ type SavedState = {
   mcHours?: number;
   /** Variance (MC) simulation: number of runs. Default 10000. */
   mcRuns?: number;
+  diverseFishingUpgradePct?: number;
+  fishingPetPlaceholder?: boolean;
+  poseidonIdolLevel?: number;
+  tethysIdolLevel?: number;
+  fishingDroneBasePowerWorld3?: number;
+  workshopSushiTicksWorld3?: number;
+  legendaryHaulerBundle?: boolean;
+  fishersBundle?: boolean;
+  /** Construct: Statue Craftmanship. At most one: gilded (×1.25) or platinized (×1.40) fish income. */
+  constructStatue?: "none" | "gilded" | "platinized";
+  /** Upgrades: Fishing Drone Power (World 3). +0.1 base drone power per level. */
+  droneBasePowerWorld3Upgrade?: number;
 };
 
 /** Single persisted state (same pattern as Drone: one state, lazy load, save on change). */
@@ -104,6 +116,26 @@ type FishingState = {
   mcHours: number;
   /** Variance (MC) simulation: number of runs. Default 10000. */
   mcRuns: number;
+  /** Placeholder: diverse fishing upgrade (%). Not yet used in formulas. */
+  diverseFishingUpgradePct: number;
+  /** Placeholder: fishing pet enabled. Not yet used in formulas. */
+  fishingPetPlaceholder: boolean;
+  /** Archaeology: Poseidon Idol level. +0.25 base drone power per level. */
+  poseidonIdolLevel: number;
+  /** Archaeology: Tethys Idol level. Tier 2 +0.05%, Drone multi +0.05%, Super shiny multi +0.05% per level. */
+  tethysIdolLevel: number;
+  /** Upgrades: Fishing Drone Power (World 3). +0.1 base drone power per level. */
+  droneBasePowerWorld3Upgrade: number;
+  /** Workshop: Fishing Drone Power (World 3). +0.02x multiplier per level. */
+  fishingDroneBasePowerWorld3: number;
+  /** Workshop: Sushi Fishing Ticks (World 3). +1 extra sushi tick per hour per level. */
+  workshopSushiTicksWorld3: number;
+  /** Store: Legendary Hauler Bundle. +3% 5× tick, Fish Income ×1.10, T2 Dock Power ×1.10. */
+  legendaryHaulerBundle: boolean;
+  /** Store: Fisher's Bundle. +10% triple tick chance. */
+  fishersBundle: boolean;
+  /** Construct: Statue Craftmanship. At most one: gilded (×1.25 fish income) or platinized (×1.40). */
+  constructStatue: "none" | "gilded" | "platinized";
 };
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
@@ -132,6 +164,9 @@ const RELICS_ICON_URL = "https://static.wikitide.net/shminerwiki/4/45/Divine_Rel
 
 /** Gem icon for enhancement costs (wiki File:Gem.png). */
 const GEM_ICON_URL = fishIconUrl("Gem.png");
+
+/** Icon for Diverse Fishing Upgrades section (same as Drone Upgrades). */
+const FISHING_UPGRADES_ICON = "https://static.wikitide.net/shminerwiki/4/4b/Upgrades_Button.png";
 
 /** Skill point icon for Skill Tree costs (24px from wiki). */
 const SKILL_POINT_ICON_URL = "https://static.wikitide.net/shminerwiki/thumb/5/51/Skill_Point.png/24px-Skill_Point.png";
@@ -362,7 +397,10 @@ function computeTotalFishPerHour(
     const dock = DOCKS.find((d) => d.id === set.dockId)!;
     const rod = activeDockId === set.dockId ? baseRod : 0;
     const n = dronesPerDock[set.dockId] ?? 0;
-    const powerOnThisDock = rod + n * stats.drone_base_power;
+    const isT2 = dock.tier === 2;
+    const powerOnThisDock = isT2
+      ? (rod + n * stats.drone_base_power) * stats.tier2_dock_power_mult
+      : rod + n * stats.drone_base_power;
     const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
     const fillsPerHour = dockFillsPerHour + extraTicksPerHour / dock.baseTicksNeeded;
     for (const f of set.fish) {
@@ -404,7 +442,10 @@ function computeTotalFishPerHourFromStats(
     const dock = DOCKS.find((d) => d.id === set.dockId)!;
     const rod = activeDockId === set.dockId ? rodForActive : 0;
     const n = dronesPerDock[set.dockId] ?? 0;
-    const powerOnThisDock = rod + n * stats.drone_base_power;
+    const isT2 = dock.tier === 2;
+    const powerOnThisDock = isT2
+      ? (rod + n * stats.drone_base_power) * stats.tier2_dock_power_mult
+      : rod + n * stats.drone_base_power;
     const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
     const fillsPerHour = dockFillsPerHour + extraTicksPerHour / dock.baseTicksNeeded;
     for (const f of set.fish) {
@@ -499,6 +540,74 @@ function NumberRow(props: {
         </div>
         <span className="mono fishingRowValue">{displayValue}{suffix}</span>
       </div>
+    </div>
+  );
+}
+
+/** Row with icon + label, editable level (no cap shown), optional effect text. No buttons – type the number. */
+function StepperRow(props: {
+  label: string;
+  iconUrl?: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  tooltipContent?: { title: string; sections?: { heading: string; lines: string[] }[] };
+  effectText?: ReactNode;
+}) {
+  const { label, iconUrl, value, min, max, onChange, tooltipContent, effectText } = props;
+  const [focused, setFocused] = useState(false);
+  const [raw, setRaw] = useState(() => String(value));
+
+  useEffect(() => {
+    if (!focused) setRaw(String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    setFocused(false);
+    const parsed = parseInt(raw.trim().replaceAll(",", "."), 10);
+    if (!Number.isFinite(parsed)) {
+      setRaw(String(value));
+      return;
+    }
+    const clamped = clamp(Math.floor(parsed), min, max);
+    onChange(clamped);
+    setRaw(String(clamped));
+  };
+
+  return (
+    <div className="fishingStepperRow">
+      <div className="fishingStepperNameBlock">
+        {iconUrl ? (
+          <img src={iconUrl} alt="" className="fishingUpgradeIcon" aria-hidden />
+        ) : null}
+        <div className="fishingStepperLabelBlock">
+          <span className="fishingStepperRowLabel">{label}</span>
+          {tooltipContent ? (
+            <Tooltip content={tooltipContent} label="?" />
+          ) : null}
+        </div>
+      </div>
+      <div className="fishingStepperLvlBlock">
+        <span className="fishingUpgradeLevelLabel">lvl</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          className="input mono fishingStepperLevelInput"
+          value={focused ? raw : String(value)}
+          onChange={(e) => setRaw(e.target.value)}
+          onFocus={() => {
+            setFocused(true);
+            setRaw(String(value));
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          aria-label={`Level for ${label}`}
+        />
+      </div>
+      {effectText != null ? <span className="mono fishingStepperEffect">{effectText}</span> : null}
     </div>
   );
 }
@@ -697,7 +806,19 @@ export function Fishing() {
     const divineRelic5xPoints = clamp(Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)), 0, 50);
     const mcHours = clamp(Number(saved?.mcHours ?? 8), 0.1, 720);
     const mcRuns = clamp(Math.trunc(Number(saved?.mcRuns ?? 10000)), 1000, 100000);
-    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints, mcHours, mcRuns };
+    const diverseFishingUpgradePct = clamp(Number(saved?.diverseFishingUpgradePct ?? 0), 0, 100);
+    const fishingPetPlaceholder = Boolean(saved?.fishingPetPlaceholder ?? false);
+    const poseidonIdolLevel = clamp(Math.trunc(Number(saved?.poseidonIdolLevel ?? 0)), 0, 20);
+    const tethysIdolLevel = clamp(Math.trunc(Number(saved?.tethysIdolLevel ?? 0)), 0, 20);
+    const fishingDroneBasePowerWorld3 = clamp(Math.trunc(Number(saved?.fishingDroneBasePowerWorld3 ?? 0)), 0, 99);
+    const workshopSushiTicksWorld3 = clamp(Math.trunc(Number(saved?.workshopSushiTicksWorld3 ?? 0)), 0, 99);
+    const legendaryHaulerBundle = Boolean(saved?.legendaryHaulerBundle ?? false);
+    const fishersBundle = Boolean(saved?.fishersBundle ?? false);
+    const constructStatueRaw = saved?.constructStatue;
+    const constructStatue =
+      constructStatueRaw === "gilded" || constructStatueRaw === "platinized" ? constructStatueRaw : "none";
+    const droneBasePowerWorld3Upgrade = Math.max(0, Math.trunc(Number(saved?.droneBasePowerWorld3Upgrade ?? 0)));
+    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints, mcHours, mcRuns, diverseFishingUpgradePct, fishingPetPlaceholder, poseidonIdolLevel, tethysIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, constructStatue };
   });
 
   useEffect(() => {
@@ -733,6 +854,13 @@ export function Fishing() {
     fishCardTier: state.fishCardTier,
     legendaryFishFound: state.legendaryFishFound,
     relic5xPoints: state.divineRelic5xPoints,
+    poseidonIdolLevel: state.poseidonIdolLevel,
+    tethysIdolLevel: state.tethysIdolLevel,
+    droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+    fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+    legendaryHaulerBundle: state.legendaryHaulerBundle,
+    fishersBundle: state.fishersBundle,
+    constructStatue: state.constructStatue,
   };
   const stats: ComputedFishingStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillTreeOptions);
   /** Rod power: base (from lib, unrounded) × Fishing Rod card mult (1× / 1.02× / 1.05× / 1.10×). Round only once at the end. */
@@ -856,10 +984,14 @@ export function Fishing() {
     });
   }
 
-  /** Power on a dock: rod only on the dock you're fishing at (active); else 0. Plus drones on this dock. */
+  /** Power on a dock: rod only on active dock; plus drones. On T2 docks applies tier2_dock_power_mult. Tethys drone multi is global (in drone_base_power). */
   function powerForDock(dockId: DockId): number {
+    const dock = DOCKS.find((d) => d.id === dockId)!;
     const rod = state.activeDockId === dockId ? effectiveRodPower : 0;
     const n = state.dronesPerDock[dockId] ?? 0;
+    if (dock.tier === 2) {
+      return (rod + n * stats.drone_base_power) * stats.tier2_dock_power_mult;
+    }
     return rod + n * stats.drone_base_power;
   }
 
@@ -955,7 +1087,7 @@ export function Fishing() {
   const giftSushiTicksPerHour = giftSushiPerHour * ticksPerSushiForGift;
   const giftSushiFreebieTicksPerHour = giftSushiFreebiePerHour * ticksPerSushiForGift;
   const giftSushiFounderTicksPerHour = giftSushiFounderPerHour * ticksPerSushiForGift;
-  const extraTicksPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour;
+  const extraTicksPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour + (state.workshopSushiTicksWorld3 ?? 0);
   /** Raw tick-bar units per hour (before double/triple/5× mult). Used for Sushi correspondence. */
   const rawTicksPerHour = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) + extraTicksPerHour;
   /** Double/triple/5× tick chance: mult (2×, 3×, 5×) from stats, multiplied together. Applies to Base, Angler, Lootbug, Gift Sushi. */
@@ -978,7 +1110,7 @@ export function Fishing() {
     gift5x: "#1565c0",
   };
 
-  /** Rows for the effective-ticks breakdown bar chart (modal). Only when there is something to show. */
+  /** Rows for the effective-ticks breakdown bar chart (modal). Only when there is something to show. Workshop Sushi (W3) is shown in the Sushi section, not here. */
   const tickChartRows = useMemo(() => {
     if (anglerTicksPerHour <= 0 && lootbugFishing12TicksProcsPerHour <= 0 && giftSushiTicksPerHour <= 0 && gift5xTickContribution <= 0 && tickMult <= 1) return [];
     const baseVal = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) * tickMult;
@@ -1040,7 +1172,14 @@ export function Fishing() {
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rod = effectiveRodPower;
-    const dronePower = stats.drone_base_power;
+
+    function powerForSet(dockId: DockId, rodHere: number, dronesHere: number): number {
+      const dock = DOCKS.find((d) => d.id === dockId)!;
+      if (dock.tier === 2) {
+        return (rodHere + dronesHere * stats.drone_base_power) * stats.tier2_dock_power_mult;
+      }
+      return rodHere + dronesHere * stats.drone_base_power;
+    }
 
     /** Legendary rows (first group, always at top). One per dock. Eligible when all fish Poly + last fish 100%+ catch. */
     const legendaryRows: Array<{
@@ -1060,7 +1199,7 @@ export function Fishing() {
       const dock = DOCKS.find((d) => d.id === leg.dockId)!;
       const rodHere = state.activeDockId === leg.dockId ? rod : 0;
       const dronesHere = state.dronesPerDock[leg.dockId] ?? 0;
-      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const powerOnThisDock = powerForSet(leg.dockId, rodHere, dronesHere);
       const allPoly = set.fish.every((f) => (state.fishCardTier[f.id] ?? 0) === 3);
       const lastFish = set.fish[set.fish.length - 1]!;
       const lastCatchPct = catchChancePercent(powerOnThisDock, lastFish.powerRating);
@@ -1088,7 +1227,7 @@ export function Fishing() {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const rodHere = state.activeDockId === set.dockId ? rod : 0;
       const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
-      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const powerOnThisDock = powerForSet(set.dockId, rodHere, dronesHere);
       const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
       const fillsPerHour = dockFillsPerHour + extraTicksPerHour / dock.baseTicksNeeded;
       const doublePct = stats.double_tick_chance_pct / 100;
@@ -1130,6 +1269,7 @@ export function Fishing() {
     expectedShinyMulti,
     effectiveRodPower,
     stats.drone_base_power,
+    stats.tier2_dock_power_mult,
     stats.fish_income_multi,
     stats.double_tick_chance_pct,
     stats.triple_tick_chance_pct,
@@ -1145,14 +1285,15 @@ export function Fishing() {
     if (state.fishingRodCardTier !== 1) return 0;
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rodPoly = Math.round(stats.fishing_rod_power * 1.1);
-    const dronePower = stats.drone_base_power;
     const sets = AQUARIUM.filter((set) => dockIds.has(set.dockId));
     let total = 0;
     for (const set of sets) {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const rodHere = state.activeDockId === set.dockId ? rodPoly : 0;
       const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
-      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const powerOnThisDock = dock.tier === 2
+        ? (rodHere + dronesHere * stats.drone_base_power) * stats.tier2_dock_power_mult
+        : rodHere + dronesHere * stats.drone_base_power;
       if (powerOnThisDock <= 0) continue;
       const dockFillsPerHour = 3600 / (dock.baseTicksNeeded * effectiveTickSec);
       const fillsPerHour = dockFillsPerHour + extraTicksPerHour / dock.baseTicksNeeded;
@@ -1178,6 +1319,7 @@ export function Fishing() {
     expectedShinyMulti,
     stats.fishing_rod_power,
     stats.drone_base_power,
+    stats.tier2_dock_power_mult,
     stats.fish_income_multi,
     stats.double_tick_chance_pct,
     stats.triple_tick_chance_pct,
@@ -1206,7 +1348,11 @@ export function Fishing() {
   const anglerBreakdownForDrone = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
     const rod = effectiveRodPower;
-    const dronePower = stats.drone_base_power;
+    const powerOnDock = (dockId: DockId, rodHere: number, dronesHere: number) => {
+      const dock = DOCKS.find((d) => d.id === dockId)!;
+      if (dock.tier === 2) return (rodHere + dronesHere * stats.drone_base_power) * stats.tier2_dock_power_mult;
+      return rodHere + dronesHere * stats.drone_base_power;
+    };
     const doublePct = stats.double_tick_chance_pct / 100;
     const triplePct = stats.triple_tick_chance_pct / 100;
     const fivePct = stats.five_tick_chance_pct / 100;
@@ -1230,7 +1376,7 @@ export function Fishing() {
       const dock = DOCKS.find((d) => d.id === leg.dockId)!;
       const rodHere = state.activeDockId === leg.dockId ? rod : 0;
       const dronesHere = state.dronesPerDock[leg.dockId] ?? 0;
-      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const powerOnThisDock = powerOnDock(leg.dockId, rodHere, dronesHere);
       const allPoly = set.fish.every((f) => (state.fishCardTier[f.id] ?? 0) === 3);
       const lastFish = set.fish[set.fish.length - 1]!;
       const lastCatchPct = catchChancePercent(powerOnThisDock, lastFish.powerRating);
@@ -1254,7 +1400,7 @@ export function Fishing() {
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const rodHere = state.activeDockId === set.dockId ? rod : 0;
       const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
-      const powerOnThisDock = rodHere + dronesHere * dronePower;
+      const powerOnThisDock = powerOnDock(set.dockId, rodHere, dronesHere);
       const fillsWithoutAngler = ticksWithoutAngler / dock.baseTicksNeeded;
       const fillsWithAngler = fillsWithoutAngler + anglerTicksPerHour / dock.baseTicksNeeded;
       for (const f of set.fish) {
@@ -1286,6 +1432,7 @@ export function Fishing() {
     effectiveTickSec,
     effectiveRodPower,
     stats.drone_base_power,
+    stats.tier2_dock_power_mult,
     stats.double_tick_chance_pct,
     stats.triple_tick_chance_pct,
     stats.five_tick_chance_pct,
@@ -1521,6 +1668,13 @@ export function Fishing() {
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
       fishingRodCardTier: state.fishingRodCardTier,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      constructStatue: state.constructStatue,
     };
     const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOpts);
     const currentTotal = computeTotalFishPerHour(
@@ -1725,6 +1879,13 @@ export function Fishing() {
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
       fishingRodCardTier: state.fishingRodCardTier,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      constructStatue: state.constructStatue,
     };
     const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOpts);
     const currentTotal = computeTotalFishPerHour(
@@ -1915,7 +2076,7 @@ export function Fishing() {
       return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishCardGildCostEfficGemAbs: efficMapGemAbs, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, fishingRodCardGildCostEfficGemAbs: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1, costEfficHeatMinFishCardGemAbs: 0, costEfficHeatMaxFishCardGemAbs: 1 };
     }
     const cardToGildedRatio = 2 / 1.5; // Card 1.5× → Gilded 2×
-    const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints };
+    const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints, poseidonIdolLevel: state.poseidonIdolLevel, tethysIdolLevel: state.tethysIdolLevel, droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3, legendaryHaulerBundle: state.legendaryHaulerBundle, fishersBundle: state.fishersBundle, constructStatue: state.constructStatue };
     for (const row of visibleGainsRows) {
       if (!row.hasPower || row.fishPerHour <= 0) continue;
       const tier = (state.fishCardTier[row.fish.id] ?? 0) as FishCardTier;
@@ -2040,6 +2201,321 @@ export function Fishing() {
       </div>
 
       <div className="fishingLayoutGrid">
+        <Collapsible id="fishing-diverse-upgrades" title="Diverse Fishing Upgrades" defaultExpanded={false}>
+          <div className="fishingDiverseSection">
+            <div className="fishingUpgradesBlock" style={{ marginTop: 0 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Pets</span>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/2/20/Axolotl_Skin.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-pet-placeholder"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.fishingPetPlaceholder}
+                  onChange={(e) => setState((prev) => ({ ...prev, fishingPetPlaceholder: e.target.checked }))}
+                />
+                <label htmlFor="fishing-pet-placeholder" className="fishingBlockLabel">
+                  Fishing Pet (placeholder)
+                </label>
+              </div>
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Archaeology</span>
+              </div>
+              <StepperRow
+                label="Poseidon Idol"
+                iconUrl="https://static.wikitide.net/shminerwiki/4/43/Poseidon.png"
+                value={state.poseidonIdolLevel}
+                min={0}
+                max={20}
+                onChange={(n) => setState((prev) => ({ ...prev, poseidonIdolLevel: clamp(n, 0, 20) }))}
+                effectText={`→ +${(state.poseidonIdolLevel * 0.25).toFixed(2)} base drone power`}
+              />
+              <StepperRow
+                label="Tethys Idol"
+                iconUrl="https://static.wikitide.net/shminerwiki/0/0b/Tethys.png"
+                value={state.tethysIdolLevel}
+                min={0}
+                max={20}
+                onChange={(n) => setState((prev) => ({ ...prev, tethysIdolLevel: clamp(n, 0, 20) }))}
+                tooltipContent={{
+                  title: "Tethys Idol",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Each point: Tier 2 dock power +0.05% (T2 docks only), Drone power multi +0.05%, Super shiny multi +0.05%.",
+                        "Drone and super shiny multis apply to all docks. Tier 2 dock power applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={
+                  <>
+                    → T2 Dock power +{(state.tethysIdolLevel * 0.05).toFixed(2)}%;
+                    <br />
+                    drone & super shiny +{(state.tethysIdolLevel * 0.05).toFixed(2)}% (all docks)
+                  </>
+                }
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Relics</span>
+              </div>
+              <StepperRow
+                label="Divine Relic (5× tick)"
+                iconUrl={RELICS_ICON_URL}
+                value={state.divineRelic5xPoints}
+                min={0}
+                max={50}
+                onChange={(n) => setState((prev) => ({ ...prev, divineRelic5xPoints: clamp(n, 0, 50) }))}
+                tooltipContent={{
+                  title: "Divine Relic",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Each point gives +2% 5× tick chance. This is the base 5× chance that applies to all tick sources.",
+                        "The Gift basic reward (+25% 5× chance) applies to Base, Angler, Lootbug ticks but not to Sushi.",
+                        "Sushi uses only this base (relic) 5× chance.",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={`→ +${state.divineRelic5xPoints * 2}% 5× tick chance`}
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Construct</span>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/c/ce/10_Statue_Craftmanship_Gilded.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-construct-gilded"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.constructStatue === "gilded"}
+                  onChange={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      constructStatue: prev.constructStatue === "gilded" ? "none" : "gilded",
+                    }))
+                  }
+                />
+                <label htmlFor="fishing-construct-gilded" className="fishingBlockLabel">
+                  Statue of Craftmanship Gilded — Fish Income ×1.25
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Statue of Craftmanship Gilded",
+                    lines: ["Construct: Fish Income Multi ×1.25 (own multiplier). Only one statue tier can be active."],
+                  }}
+                  label="?"
+                />
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/a/ac/10_Statue_Craftmanship_Platinized.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-construct-platinized"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.constructStatue === "platinized"}
+                  onChange={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      constructStatue: prev.constructStatue === "platinized" ? "none" : "platinized",
+                    }))
+                  }
+                />
+                <label htmlFor="fishing-construct-platinized" className="fishingBlockLabel">
+                  Statue of Craftmanship Platinized — Fish Income ×1.40
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Statue of Craftmanship Platinized",
+                    lines: ["Construct: Fish Income Multi ×1.40 (own multiplier). Only one statue tier can be active."],
+                  }}
+                  label="?"
+                />
+              </div>
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Store</span>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/0/04/Polychromepotency_vp.png/60px-Polychromepotency_vp.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-store-polychrome-potency"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.valuePackPotencyPoly}
+                  onChange={(e) => setState((prev) => ({ ...prev, valuePackPotencyPoly: e.target.checked }))}
+                />
+                <label htmlFor="fishing-store-polychrome-potency" className="fishingBlockLabel">
+                  Polychrome Potency Bundle (fish poly ×1.15)
+                </label>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/1/1a/Legendaryhauler_vp.png/60px-Legendaryhauler_vp.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-store-legendary-hauler"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.legendaryHaulerBundle}
+                  onChange={(e) => setState((prev) => ({ ...prev, legendaryHaulerBundle: e.target.checked }))}
+                />
+                <label htmlFor="fishing-store-legendary-hauler" className="fishingBlockLabel">
+                  Legendary Hauler Bundle
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Legendary Hauler Bundle",
+                    sections: [
+                      {
+                        heading: "Effect",
+                        lines: [
+                          "5× Fishing Tick Chance +3% (flat on top of existing 5× chance).",
+                          "Fish Income Multi ×1.10 (own multiplier).",
+                          "Tier 2 Dock Power ×1.10 (own multiplier).",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/b/bf/Fishingbundle_vp.png/60px-Fishingbundle_vp.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-store-fishers-bundle"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.fishersBundle}
+                  onChange={(e) => setState((prev) => ({ ...prev, fishersBundle: e.target.checked }))}
+                />
+                <label htmlFor="fishing-store-fishers-bundle" className="fishingBlockLabel">
+                  Fisher&apos;s Bundle
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Fisher's Bundle",
+                    sections: [
+                      {
+                        heading: "Effect",
+                        lines: [
+                          "+10% Triple Fishing Tick Chance (flat on top of existing 3× chance).",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Workshop</span>
+              </div>
+              <StepperRow
+                label="Fishing Drone Power (World 3)"
+                iconUrl="https://static.wikitide.net/shminerwiki/f/f0/Drone_Power_Multiplier.png"
+                value={state.fishingDroneBasePowerWorld3}
+                min={0}
+                max={99}
+                onChange={(n) => setState((prev) => ({ ...prev, fishingDroneBasePowerWorld3: clamp(n, 0, 99) }))}
+                effectText={`→ +${(state.fishingDroneBasePowerWorld3 * 0.02).toFixed(2)}× multi`}
+              />
+              <StepperRow
+                label="Sushi Fishing Ticks (World 3)"
+                iconUrl="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png"
+                value={state.workshopSushiTicksWorld3}
+                min={0}
+                max={99}
+                onChange={(n) => setState((prev) => ({ ...prev, workshopSushiTicksWorld3: clamp(n, 0, 99) }))}
+                effectText={`→ +${state.workshopSushiTicksWorld3} sushi ticks/h`}
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <img src={FISHING_UPGRADES_ICON} alt="" className="fishingBlockHeaderIcon" aria-hidden />
+                <span className="fishingBlockHeaderTitle">Upgrades</span>
+              </div>
+              <StepperRow
+                label="Fishing Drone Power (World 3)"
+                iconUrl="https://static.wikitide.net/shminerwiki/2/21/Fishing_Drone_Base_Power.png"
+                value={state.droneBasePowerWorld3Upgrade}
+                min={0}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, droneBasePowerWorld3Upgrade: Math.max(0, n) }))}
+                tooltipContent={{
+                  title: "Fishing Drone Power (World 3)",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Diverse Upgrades: +0.1 base drone power per level. Adds to drone base before multipliers (same formula as main Drone Base Power upgrade).",
+                        "Workshop has a separate World 3 upgrade: +0.02× multiplier per level.",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={`→ +${(state.droneBasePowerWorld3Upgrade * 0.1).toFixed(2)} base drone power`}
+              />
+              <StepperRow
+                label="Diverse upgrade"
+                iconUrl={FISHING_UPGRADES_ICON}
+                value={Math.round(state.diverseFishingUpgradePct)}
+                min={0}
+                max={100}
+                onChange={(n) => setState((prev) => ({ ...prev, diverseFishingUpgradePct: clamp(n, 0, 100) }))}
+                effectText={`→ ${Math.round(state.diverseFishingUpgradePct)}%`}
+              />
+            </div>
+          </div>
+        </Collapsible>
+
         <Collapsible
           id="fishing-gains"
           className="fishingGainsCollapsible"
@@ -2360,6 +2836,24 @@ export function Fishing() {
             </div>
             <p className="small" style={{ marginBottom: 4, opacity: 0.85 }}>
               Sushi gives <span className="mono">{ticksPerSushi}</span> fishing ticks. Effective: <span className="mono">{(ticksPerSushi * tickMult).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
+              {((state.workshopSushiTicksWorld3 ?? 0) > 0) ? (
+                <>
+                  {" "}
+                  <span style={{ whiteSpace: "nowrap" }}>
+                    Workshop (W3): +<span className="mono">{state.workshopSushiTicksWorld3}</span> ticks/h
+                    <Tooltip
+                      content={{
+                        title: "Workshop Sushi (World 3)",
+                        lines: [
+                          "Diverse Fishing Upgrades → Workshop: Sushi Fishing Ticks (World 3).",
+                          "+1 sushi tick/h per level (0–99). Included in raw and effective ticks per hour above.",
+                        ],
+                      }}
+                      label="?"
+                    />
+                  </span>
+                </>
+              ) : null}
               <Tooltip
                 content={{
                   title: "Effective Fishing Ticks",
@@ -2575,8 +3069,8 @@ export function Fishing() {
                   content={{
                     title: "Effective fishing ticks per hour",
                     lines: [
-                      "(Base + Angler + Lootbug + Gift Sushi) × double/triple/5× tick mult, plus Gift 5× Tick (basic reward uptime).",
-                      "Base ticks (3600 ÷ effective tick sec, incl. Elixir 3×) + Angler + Lootbug + Gift Sushi (Statue + Founder) + Gift 5× Tick buff.",
+                      "(Base + Angler + Lootbug + Gift Sushi + Workshop Sushi W3) × double/triple/5× tick mult, plus Gift 5× Tick (basic reward uptime).",
+                      "Base ticks (3600 ÷ effective tick sec, incl. Elixir 3×) + Angler + Lootbug + Gift Sushi + Workshop Sushi (Diverse Upgrades) + Gift 5× Tick buff.",
                       "Values from Drone, Lootbug, Gem EV. Open those modules to refresh.",
                     ],
                   }}
@@ -2709,7 +3203,7 @@ export function Fishing() {
                     label="Drone Base Power"
                     iconUrl={upgradeIconUrl("Fishing_Drone_Base_Power.png")}
                     value={stats.drone_base_power_base}
-                    decimals={0}
+                    decimals={2}
                     suffix=""
                   />
                   <StatRow
@@ -3247,48 +3741,6 @@ export function Fishing() {
                 </table>
               </div>
             </Collapsible>
-            <div className="fishingDivineRelicRow" style={{ marginTop: 8, padding: "6px 10px", display: "flex", alignItems: "center", gap: 10, flexWrap: "nowrap", border: "1px solid var(--border, #e2e8f0)", borderRadius: 6, backgroundColor: "var(--panel-bg, rgba(248,250,252,0.6))" }}>
-              <img src={RELICS_ICON_URL} alt="" width={22} height={22} style={{ objectFit: "contain", flexShrink: 0 }} />
-              <span style={{ fontWeight: 600, flexShrink: 0 }}>Divine Relic (5× tick)</span>
-              <Tooltip
-                content={{
-                  title: "Divine Relic",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Each point gives +2% 5× tick chance. This is the base 5× chance that applies to all tick sources.",
-                        "The Gift basic reward (+25% 5× chance) applies to Base, Angler, Lootbug ticks but not to Sushi.",
-                        "Sushi uses only this base (relic) 5× chance.",
-                      ],
-                    },
-                  ],
-                }}
-                label="?"
-              />
-              <div className="btnRow" style={{ gap: 4, flexShrink: 0 }}>
-                <button
-                  type="button"
-                  className="btn btnSecondary"
-                  onClick={() => setState((s) => ({ ...s, divineRelic5xPoints: Math.max(0, s.divineRelic5xPoints - 1) }))}
-                  disabled={state.divineRelic5xPoints <= 0}
-                  aria-label="Decrease"
-                >
-                  −
-                </button>
-                <span className="mono" style={{ minWidth: 26, textAlign: "center" }}>{state.divineRelic5xPoints}</span>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setState((s) => ({ ...s, divineRelic5xPoints: Math.min(50, s.divineRelic5xPoints + 1) }))}
-                  disabled={state.divineRelic5xPoints >= 50}
-                  aria-label="Increase"
-                >
-                  +
-                </button>
-              </div>
-              <span className="mono" style={{ opacity: 0.9, flexShrink: 0 }}>→ +{state.divineRelic5xPoints * 2}% 5× tick chance</span>
-            </div>
           </div>
         </Collapsible>
 
@@ -3636,16 +4088,6 @@ export function Fishing() {
         </Collapsible>
 
         <Collapsible id="fishing-fish-cards" title="Fish Cards" defaultExpanded={false}>
-          <div className="fishingFishCardsValuePack" style={{ marginBottom: 10 }}>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={state.valuePackPotencyPoly}
-                onChange={(e) => setState((prev) => ({ ...prev, valuePackPotencyPoly: e.target.checked }))}
-              />
-              Polychrome Potency Bundle (fish poly ×1.15)
-            </label>
-          </div>
           <Collapsible id="fishing-fish-card-gild-effic" title="How much do fish gains improve when I gild my cards?" defaultExpanded={true} className="fishingFishCardGildEffic">
             <div className="small" style={{ marginBottom: 8 }}>
               Cost efficiency = marginal % per hour to earn gem cost (uses Gem EV Calculator total). Fish cards: Card → Gilded (gems). Fishing Rod Power: Card → Poly, 1500 gems. Open Gem EV to sync.

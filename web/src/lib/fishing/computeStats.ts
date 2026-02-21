@@ -12,8 +12,10 @@ export interface ComputedFishingStats {
   fishing_rod_power: number;
   fishing_drone_cap: number;
   drone_base_power: number;
-  /** Base power before multiplier (3 + Drone Base Power upgrade; rounded). For display "Drone Base Power" only. */
+  /** Raw base before multiplier (unrounded; used for gains). For display "Drone Base Power". */
   drone_base_power_base: number;
+  /** Rounded base (game-style display only). */
+  drone_base_power_base_rounded: number;
   /** Multiplier on Drone Base Power (from drone_multiplier + enhance). */
   drone_power_multiplier: number;
   fish_income_multi: number;
@@ -58,6 +60,20 @@ export interface SkillTreeOptions {
   legendaryFishFound?: number;
   /** Divine Relic points: each point gives +2% 5× tick chance (base; applies to all sources; Sushi does not get Gift's +25% on top). */
   relic5xPoints?: number;
+  /** Archaeology: Poseidon Idol level. +0.25 base fishing drone power per level (adds to base 3). */
+  poseidonIdolLevel?: number;
+  /** Archaeology: Tethys Idol level. Each point: Tier 2 dock power +0.05%, Drone power multi +0.05%, Super shiny multi +0.05% (each separate mult). */
+  tethysIdolLevel?: number;
+  /** Upgrades: Fishing Drone Power (World 3). +0.1 base drone power per level (adds to base before mult). */
+  droneBasePowerWorld3Upgrade?: number;
+  /** Workshop: Fishing Drone Power (World 3). +0.02x multiplier per level (own mult). */
+  fishingDroneBasePowerWorld3?: number;
+  /** Store: Legendary Hauler Bundle. +3% 5× tick chance (flat), Fish Income ×1.10 (own mult), Tier 2 Dock Power ×1.10 (own mult). */
+  legendaryHaulerBundle?: boolean;
+  /** Store: Fisher's Bundle. +10% triple tick chance (flat). */
+  fishersBundle?: boolean;
+  /** Construct: Statue Craftmanship. At most one. Gilded = Fish Income ×1.25, Platinized = Fish Income ×1.40 (own mult each). */
+  constructStatue?: "none" | "gilded" | "platinized";
 }
 
 /**
@@ -96,11 +112,15 @@ export function computeFishingStatsFromLevels(
         0,
       )) ??
     0;
-  const fish_income_multi =
+  const fishIncomeBase =
     (1 + 0.03 * u("fish_multiplier")) *
     (1 + 0.01 * skill("with_this_fish_i_summon_two_more_fish") * effectiveFishCardCount) *
     (1 + 0.05 * e("enhance_fish_multiplier")) *
     (1 + 0.03 * skill("fishing_with_friends"));
+  const constructMult =
+    options?.constructStatue === "gilded" ? 1.25 : options?.constructStatue === "platinized" ? 1.4 : 1;
+  const fish_income_multi =
+    fishIncomeBase * (options?.legendaryHaulerBundle ? 1.1 : 1) * constructMult;
 
   // Tick reduction: each level reduces tick by 0.5s. Base 60s. Skill: Let's Pick Up The Pace -2s per level.
   const fishing_tick_reduction =
@@ -108,8 +128,11 @@ export function computeFishingStatsFromLevels(
     0.5 * e("enhance_tick_speed") -
     2 * skill("lets_pick_up_the_pace");
 
-  // Drone Base Power: base 3, +0.25 per level. Game rounds base before multipliers (like rod). Drone Power Multiplier +0.06x (upgrade), +0.08x (enhance). Skill: Fishing With Friends +10% per level; Completionist Gatekeeper +2% per level per legendary (0–6).
-  const droneBaseRaw = 3 + 0.25 * u("drone_base_power");
+  // Drone Base Power: base 3, +0.25 per level (upgrade), +0.25 per Poseidon Idol (Archaeology), +0.1 per level Diverse Upgrades "Fishing Drone Power (World 3)". Game may round base for display; for gains we use the raw base (no rounding). Drone Power Multiplier: +0.06x (upgrade), +0.08x (enhance), Skill, Workshop World 3 +0.02x per level (own mult), Tethys Idol +0.05% per level (global, all docks).
+  const poseidonIdol = Math.max(0, Math.floor(options?.poseidonIdolLevel ?? 0));
+  const droneBasePowerWorld3Upgrade = Math.max(0, Math.floor(options?.droneBasePowerWorld3Upgrade ?? 0));
+  const droneBaseRaw =
+    3 + 0.25 * u("drone_base_power") + 0.25 * poseidonIdol + 0.1 * droneBasePowerWorld3Upgrade;
   const droneBase = Math.round(droneBaseRaw);
   const droneMultiUpgrade = 1 + 0.06 * u("drone_multiplier");
   const droneMultiEnhance = 1 + 0.08 * e("enhance_drone_multiplier");
@@ -118,9 +141,15 @@ export function computeFishingStatsFromLevels(
     1 +
     0.1 * skill("fishing_with_friends") +
     0.02 * skill("completionist_gatekeeper") * legendary;
-  const drone_power_multiplier = droneMultiUpgrade * droneMultiEnhance * droneMultiSkill;
-  const drone_base_power = droneBase * drone_power_multiplier;
-  const drone_base_power_base = droneBase;
+  const workshopDroneMultiWorld3 = 1 + 0.02 * Math.max(0, Math.floor(options?.fishingDroneBasePowerWorld3 ?? 0));
+  const tethysIdol = Math.max(0, Math.floor(options?.tethysIdolLevel ?? 0));
+  const tethysDroneMult = 1 + 0.0005 * tethysIdol; // +0.05% per level; applies to all docks
+  const drone_power_multiplier = droneMultiUpgrade * droneMultiEnhance * droneMultiSkill * workshopDroneMultiWorld3 * tethysDroneMult;
+  /** Used for gains: raw base (no rounding) so e.g. 3.25 gives more power than 3. */
+  const drone_base_power = droneBaseRaw * drone_power_multiplier;
+  /** Raw base (unrounded) for display and gains. */
+  const drone_base_power_base = droneBaseRaw;
+  const drone_base_power_base_rounded = droneBase;
 
   // Fishing Drone Cap: base 0, then from upgrades (+1 per fishing_drone, +2 per fishing_drone_2) and enhancements (+1 per enhance_fishing_drone, +3 per enhance_fishing_drone_3); then Drone Cloner 1.05x. Skill: Fishing With Friends +5, Motley School +5 per level.
   const capFromUpgradesAndEnhancements =
@@ -147,8 +176,9 @@ export function computeFishingStatsFromLevels(
   const triple_tick_chance_pct =
     0.35 * u("triple_tick_chance") +
     0.4 * e("enhance_triple_tick_chance") +
-    1 * skill("lets_pick_up_the_pace");
-  const five_tick_chance_pct = 2 * Math.max(0, Math.floor(options?.relic5xPoints ?? 0));
+    1 * skill("lets_pick_up_the_pace") +
+    (options?.fishersBundle ? 10 : 0);
+  const five_tick_chance_pct = 2 * Math.max(0, Math.floor(options?.relic5xPoints ?? 0)) + (options?.legendaryHaulerBundle ? 3 : 0);
 
   // Shiny / Super Shiny chances (%): shiny_fish_chance +0.5% per level; super_shiny_chance +1% per level; tiny notice +0.5% (enhance). Skill: With This Fish I Summon +0.1% shiny per fish card per level; Completionist +1% super shiny per level per legendary.
   const shiny_fish_chance_pct =
@@ -159,22 +189,22 @@ export function computeFishingStatsFromLevels(
     1 * skill("completionist_gatekeeper") * legendary;
   const tiny_notice_chance_pct = 0.5 * e("enhance_tiny_notice_chance");
 
-  // Tier 2 Dock Power: multiplier on power on T2 docks; +0.05x (upgrade), +0.05x (enhance). Skill: Completionist Gatekeeper +3% per level per legendary.
-  const tier2_dock_power_mult =
-    1 +
+  // Tier 2 Dock Power: multiplier on power on T2 docks only; +0.05x (upgrade), +0.05x (enhance). Skill: Completionist Gatekeeper +3% per level per legendary. Tethys Idol +0.05% per level (T2 docks only).
+  const tier2DockBase = 1 +
     0.05 * u("tier2_dock_power") +
     0.05 * e("enhance_tier2_dock_power") +
     0.03 * skill("completionist_gatekeeper") * legendary;
+  const tier2_dock_power_mult = tier2DockBase * (1 + 0.0005 * tethysIdol) * (options?.legendaryHaulerBundle ? 1.1 : 1);
 
   // Shiny Multiplier: base 5×, +0.05x (T2 upgrade), +0.05x (enhance).
   const shiny_multiplier =
     5 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
 
-  // Super Shiny Multiplier: base 3× (only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance).
-  const super_shiny_multiplier =
-    3 +
+  // Super Shiny Multiplier: base 3× (only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance). Tethys Idol +0.05% per level (global, all docks).
+  const superShinyBase = 3 +
     0.08 * u("poly_card_multi") +
     0.15 * e("enhance_super_shiny_multi");
+  const super_shiny_multiplier = superShinyBase * (1 + 0.0005 * tethysIdol);
 
   // Poly card gain multi: applies to fish card gains (Card 1.5×, Gilded 2×). Polychrome Potency Bundle fish poly ×1.15 in UI.
   const poly_card_gain_multi =
@@ -189,6 +219,7 @@ export function computeFishingStatsFromLevels(
     fishing_drone_cap,
     drone_base_power,
     drone_base_power_base,
+    drone_base_power_base_rounded,
     drone_power_multiplier,
     fish_income_multi,
     fishing_tick_reduction,
