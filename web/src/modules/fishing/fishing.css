@@ -129,10 +129,11 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  width: 88px;
+  width: 116px;
   flex-shrink: 0;
   justify-self: center;
 }
+.fishingStepperMinusBtn,
 .fishingStepperPlusBtn {
   padding: 3px 8px;
   min-width: 28px;
@@ -1189,6 +1190,20 @@
 @keyframes fishingGildEfficShimmer {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
+}
+
+/* Diverse Fishing Upgrades: dark red glow for mysterious endgame */
+.collapseWrap.fishingDiverseEndgame {
+  border: 1px solid rgba(127, 29, 29, 0.5);
+  border-radius: 10px;
+  box-shadow:
+    0 0 20px rgba(127, 29, 29, 0.25),
+    0 0 40px rgba(88, 28, 28, 0.15),
+    inset 0 0 0 1px rgba(185, 28, 28, 0.08);
+}
+.collapseWrap.fishingDiverseEndgame .collapseHeader {
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.12), rgba(69, 10, 10, 0.08));
+  border-bottom: 1px solid rgba(127, 29, 29, 0.2);
 }
 
 .fishingCardTierRow {

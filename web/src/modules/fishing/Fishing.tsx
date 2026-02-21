@@ -598,6 +598,15 @@ function StepperRow(props: {
         </div>
       </div>
       <div className="fishingStepperLvlBlock">
+        <button
+          type="button"
+          className="btn fishingStepperMinusBtn"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+          aria-label="Decrease by 1"
+        >
+          −
+        </button>
         <span className="fishingUpgradeLevelLabel">lvl</span>
         <input
           type="text"
@@ -2231,384 +2240,6 @@ export function Fishing() {
       </div>
 
       <div className="fishingLayoutGrid">
-        <Collapsible id="fishing-diverse-upgrades" title="Diverse Fishing Upgrades" defaultExpanded={false}>
-          <div className="fishingDiverseSection">
-            <div className="fishingUpgradesBlock" style={{ marginTop: 0 }}>
-              <div className="fishingBlockHeader">
-                <span className="fishingBlockHeaderTitle">Pets</span>
-              </div>
-              <StepperRow
-                label="Mr Nibbles"
-                iconUrl="https://static.wikitide.net/shminerwiki/thumb/2/22/Mr_Nibbles_Default.png/36px-Mr_Nibbles_Default.png"
-                value={state.mrNibblesLevel}
-                min={0}
-                max={999}
-                onChange={(n) => setState((prev) => ({ ...prev, mrNibblesLevel: Math.max(0, n) }))}
-                tooltipContent={{
-                  title: "Mr Nibbles",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Pets: per level — Shiny Fish Multi +0.03× (own multiplier), Triple Tick Chance +1% (flat).",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={
-                  <>
-                    → Shiny ×{(1 + 0.03 * state.mrNibblesLevel).toFixed(2)}; triple tick +{state.mrNibblesLevel}%
-                  </>
-                }
-              />
-              <StepperRow
-                label="Mr Nibbles Quest"
-                iconUrl="https://static.wikitide.net/shminerwiki/thumb/f/fa/Mr_Nibbles_Quest.png/36px-Mr_Nibbles_Quest.png"
-                value={state.mrNibblesQuestRank}
-                min={0}
-                max={999}
-                onChange={(n) => setState((prev) => ({ ...prev, mrNibblesQuestRank: Math.max(0, n) }))}
-                tooltipContent={{
-                  title: "Mr Nibbles Quest",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Pets: Tier 2 Dock Power +5% per rank (own multiplier). Applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={`→ T2 Dock Power ×${(1 + 0.05 * state.mrNibblesQuestRank).toFixed(2)} (+${state.mrNibblesQuestRank * 5}%)`}
-              />
-            </div>
-
-            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
-              <div className="fishingBlockHeader">
-                <span className="fishingBlockHeaderTitle">Archaeology</span>
-              </div>
-              <StepperRow
-                label="Poseidon Idol"
-                iconUrl="https://static.wikitide.net/shminerwiki/4/43/Poseidon.png"
-                value={state.poseidonIdolLevel}
-                min={0}
-                max={20}
-                onChange={(n) => setState((prev) => ({ ...prev, poseidonIdolLevel: clamp(n, 0, 20) }))}
-                effectText={`→ +${(state.poseidonIdolLevel * 0.25).toFixed(2)} base drone power`}
-              />
-              <StepperRow
-                label="Tethys Idol"
-                iconUrl="https://static.wikitide.net/shminerwiki/0/0b/Tethys.png"
-                value={state.tethysIdolLevel}
-                min={0}
-                max={20}
-                onChange={(n) => setState((prev) => ({ ...prev, tethysIdolLevel: clamp(n, 0, 20) }))}
-                tooltipContent={{
-                  title: "Tethys Idol",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Each point: Tier 2 dock power +0.05% (T2 docks only), Drone power multi +0.05%, Super shiny multi +0.05%.",
-                        "Drone and super shiny multis apply to all docks. Tier 2 dock power applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={
-                  <>
-                    → T2 Dock power +{(state.tethysIdolLevel * 0.05).toFixed(2)}%;
-                    <br />
-                    drone & super shiny +{(state.tethysIdolLevel * 0.05).toFixed(2)}% 
-                  </>
-                }
-              />
-              <StepperRow
-                label="Astraeus Idol"
-                iconUrl="https://static.wikitide.net/shminerwiki/9/93/Astraeus.png"
-                value={state.astraeusIdolLevel}
-                min={0}
-                max={999}
-                onChange={(n) => setState((prev) => ({ ...prev, astraeusIdolLevel: Math.max(0, n) }))}
-                tooltipContent={{
-                  title: "Astraeus Idol",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Archaeology: +0.03% Fishing double tick chance per level (flat, added on top of existing double tick chance).",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={`→ +${(state.astraeusIdolLevel * 0.03).toFixed(2)}% double tick chance`}
-              />
-            </div>
-
-            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
-              <div className="fishingBlockHeader">
-                <span className="fishingBlockHeaderTitle">Relics</span>
-              </div>
-              <StepperRow
-                label="Divine Relic (5× tick)"
-                iconUrl={RELICS_ICON_URL}
-                value={state.divineRelic5xPoints}
-                min={0}
-                max={50}
-                onChange={(n) => setState((prev) => ({ ...prev, divineRelic5xPoints: clamp(n, 0, 50) }))}
-                tooltipContent={{
-                  title: "Divine Relic",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Each point gives +2% 5× tick chance. This is the base 5× chance that applies to all tick sources.",
-                        "The Gift basic reward (+25% 5× chance) applies to Base, Angler, Lootbug ticks but not to Sushi.",
-                        "Sushi uses only this base (relic) 5× chance.",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={`→ +${state.divineRelic5xPoints * 2}% 5× tick chance`}
-              />
-            </div>
-
-            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
-              <div className="fishingBlockHeader">
-                <span className="fishingBlockHeaderTitle">Construct</span>
-              </div>
-              <div className="fishingCheckboxRow">
-                <img
-                  src="https://static.wikitide.net/shminerwiki/c/ce/10_Statue_Craftmanship_Gilded.png"
-                  alt=""
-                  className="fishingBlockIcon"
-                  aria-hidden
-                />
-                <input
-                  id="fishing-construct-gilded"
-                  type="checkbox"
-                  className="fishingCheckbox"
-                  checked={state.constructStatue === "gilded"}
-                  onChange={() =>
-                    setState((prev) => ({
-                      ...prev,
-                      constructStatue: prev.constructStatue === "gilded" ? "none" : "gilded",
-                    }))
-                  }
-                />
-                <label htmlFor="fishing-construct-gilded" className="fishingBlockLabel">
-                  Statue of Craftmanship Gilded — Fish Income ×1.25
-                </label>
-                <Tooltip
-                  content={{
-                    title: "Statue of Craftmanship Gilded",
-                    lines: ["Construct: Fish Income Multi ×1.25 (own multiplier). Only one statue tier can be active."],
-                  }}
-                  label="?"
-                />
-              </div>
-              <div className="fishingCheckboxRow">
-                <img
-                  src="https://static.wikitide.net/shminerwiki/a/ac/10_Statue_Craftmanship_Platinized.png"
-                  alt=""
-                  className="fishingBlockIcon"
-                  aria-hidden
-                />
-                <input
-                  id="fishing-construct-platinized"
-                  type="checkbox"
-                  className="fishingCheckbox"
-                  checked={state.constructStatue === "platinized"}
-                  onChange={() =>
-                    setState((prev) => ({
-                      ...prev,
-                      constructStatue: prev.constructStatue === "platinized" ? "none" : "platinized",
-                    }))
-                  }
-                />
-                <label htmlFor="fishing-construct-platinized" className="fishingBlockLabel">
-                  Statue of Craftmanship Platinized — Fish Income ×1.40
-                </label>
-                <Tooltip
-                  content={{
-                    title: "Statue of Craftmanship Platinized",
-                    lines: ["Construct: Fish Income Multi ×1.40 (own multiplier). Only one statue tier can be active."],
-                  }}
-                  label="?"
-                />
-              </div>
-            </div>
-
-            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
-              <div className="fishingBlockHeader">
-                <span className="fishingBlockHeaderTitle">Stargazing</span>
-              </div>
-              <StepperRow
-                label="Cetus"
-                iconUrl="https://static.wikitide.net/shminerwiki/6/69/Cetus.png"
-                value={state.cetusLevel}
-                min={0}
-                max={999}
-                onChange={(n) => setState((prev) => ({ ...prev, cetusLevel: Math.max(0, n) }))}
-                tooltipContent={{
-                  title: "Cetus",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Stargazing: +2% Fish Income per level (own multiplier).",
-                        "Formula: Fish Income × (1 + 0.02 × level). Stacks with other fish income multis.",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={`→ Fish Income ×${(1 + 0.02 * state.cetusLevel).toFixed(2)} (+${state.cetusLevel * 2}%)`}
-              />
-            </div>
-
-            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
-              <div className="fishingBlockHeader">
-                <span className="fishingBlockHeaderTitle">Store</span>
-              </div>
-              <div className="fishingCheckboxRow">
-                <img
-                  src="https://static.wikitide.net/shminerwiki/thumb/0/04/Polychromepotency_vp.png/60px-Polychromepotency_vp.png"
-                  alt=""
-                  className="fishingBlockIcon"
-                  aria-hidden
-                />
-                <input
-                  id="fishing-store-polychrome-potency"
-                  type="checkbox"
-                  className="fishingCheckbox"
-                  checked={state.valuePackPotencyPoly}
-                  onChange={(e) => setState((prev) => ({ ...prev, valuePackPotencyPoly: e.target.checked }))}
-                />
-                <label htmlFor="fishing-store-polychrome-potency" className="fishingBlockLabel">
-                  Polychrome Potency Bundle (fish poly ×1.15)
-                </label>
-              </div>
-              <div className="fishingCheckboxRow">
-                <img
-                  src="https://static.wikitide.net/shminerwiki/thumb/1/1a/Legendaryhauler_vp.png/60px-Legendaryhauler_vp.png"
-                  alt=""
-                  className="fishingBlockIcon"
-                  aria-hidden
-                />
-                <input
-                  id="fishing-store-legendary-hauler"
-                  type="checkbox"
-                  className="fishingCheckbox"
-                  checked={state.legendaryHaulerBundle}
-                  onChange={(e) => setState((prev) => ({ ...prev, legendaryHaulerBundle: e.target.checked }))}
-                />
-                <label htmlFor="fishing-store-legendary-hauler" className="fishingBlockLabel">
-                  Legendary Hauler Bundle
-                </label>
-                <Tooltip
-                  content={{
-                    title: "Legendary Hauler Bundle",
-                    sections: [
-                      {
-                        heading: "Effect",
-                        lines: [
-                          "5× Fishing Tick Chance +3% (flat on top of existing 5× chance).",
-                          "Fish Income Multi ×1.10 (own multiplier).",
-                          "Tier 2 Dock Power ×1.10 (own multiplier).",
-                        ],
-                      },
-                    ],
-                  }}
-                  label="?"
-                />
-              </div>
-              <div className="fishingCheckboxRow">
-                <img
-                  src="https://static.wikitide.net/shminerwiki/thumb/b/bf/Fishingbundle_vp.png/60px-Fishingbundle_vp.png"
-                  alt=""
-                  className="fishingBlockIcon"
-                  aria-hidden
-                />
-                <input
-                  id="fishing-store-fishers-bundle"
-                  type="checkbox"
-                  className="fishingCheckbox"
-                  checked={state.fishersBundle}
-                  onChange={(e) => setState((prev) => ({ ...prev, fishersBundle: e.target.checked }))}
-                />
-                <label htmlFor="fishing-store-fishers-bundle" className="fishingBlockLabel">
-                  Fisher&apos;s Bundle
-                </label>
-                <Tooltip
-                  content={{
-                    title: "Fisher's Bundle",
-                    sections: [
-                      {
-                        heading: "Effect",
-                        lines: [
-                          "+10% Triple Fishing Tick Chance (flat on top of existing 3× chance).",
-                        ],
-                      },
-                    ],
-                  }}
-                  label="?"
-                />
-              </div>
-            </div>
-
-            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
-              <div className="fishingBlockHeader">
-                <span className="fishingBlockHeaderTitle">Workshop</span>
-              </div>
-              <StepperRow
-                label="Fishing Drone Power (World 3)"
-                iconUrl="https://static.wikitide.net/shminerwiki/f/f0/Drone_Power_Multiplier.png"
-                value={state.fishingDroneBasePowerWorld3}
-                min={0}
-                max={99}
-                onChange={(n) => setState((prev) => ({ ...prev, fishingDroneBasePowerWorld3: clamp(n, 0, 99) }))}
-                effectText={`→ +${(state.fishingDroneBasePowerWorld3 * 0.02).toFixed(2)}× multi`}
-              />
-              <StepperRow
-                label="Sushi Fishing Ticks (World 3)"
-                iconUrl="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png"
-                value={state.workshopSushiTicksWorld3}
-                min={0}
-                max={99}
-                onChange={(n) => setState((prev) => ({ ...prev, workshopSushiTicksWorld3: clamp(n, 0, 99) }))}
-                effectText={`→ +${state.workshopSushiTicksWorld3} sushi ticks/h`}
-              />
-            </div>
-
-            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
-              <div className="fishingBlockHeader">
-                <img src={FISHING_UPGRADES_ICON} alt="" className="fishingBlockHeaderIcon" aria-hidden />
-                <span className="fishingBlockHeaderTitle">Upgrades</span>
-              </div>
-              <StepperRow
-                label="Fishing Drone Power (World 3)"
-                iconUrl="https://static.wikitide.net/shminerwiki/2/21/Fishing_Drone_Base_Power.png"
-                value={state.droneBasePowerWorld3Upgrade}
-                min={0}
-                max={999}
-                onChange={(n) => setState((prev) => ({ ...prev, droneBasePowerWorld3Upgrade: Math.max(0, n) }))}
-                tooltipContent={{
-                  title: "Fishing Drone Power (World 3)",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Diverse Upgrades: +0.1 base drone power per level. Adds to drone base before multipliers (same formula as main Drone Base Power upgrade).",
-                        "Workshop has a separate World 3 upgrade: +0.02× multiplier per level.",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={`→ +${(state.droneBasePowerWorld3Upgrade * 0.1).toFixed(2)} base drone power`}
-              />
-            </div>
-          </div>
-        </Collapsible>
 
         <Collapsible
           id="fishing-gains"
@@ -3499,7 +3130,7 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-upgrades" title="Available upgrades" defaultExpanded={false}>
+        <Collapsible id="fishing-upgrades" title="Available Fishing Upgrades" defaultExpanded={false}>
           <div className="fishingUpgradesPanel">
             <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={false} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
@@ -3838,7 +3469,7 @@ export function Fishing() {
           </div>
         </Collapsible>
 
-        <Collapsible id="fishing-enhancements" title="Available enhancements" defaultExpanded={false}>
+        <Collapsible id="fishing-enhancements" title="Available Fishing Enhancements" defaultExpanded={false}>
           <div className="fishingUpgradesPanel">
             <p className="fishingEnhancementsIntro">
               Enhancements cost <img src={GEM_ICON_URL} alt="gems" className="fishingGemIcon" /> gems. They do not count toward completion. See{" "}
@@ -4578,6 +4209,385 @@ export function Fishing() {
                 })}
               </tbody>
             </table>
+          </div>
+        </Collapsible>
+
+        <Collapsible id="fishing-diverse-upgrades" title="Diverse Fishing Upgrades (Mid-Late Game)" defaultExpanded={false} className="fishingDiverseEndgame">
+          <div className="fishingDiverseSection">
+            <div className="fishingUpgradesBlock" style={{ marginTop: 0 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Pets</span>
+              </div>
+              <StepperRow
+                label="Mr Nibbles"
+                iconUrl="https://static.wikitide.net/shminerwiki/thumb/2/22/Mr_Nibbles_Default.png/36px-Mr_Nibbles_Default.png"
+                value={state.mrNibblesLevel}
+                min={0}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, mrNibblesLevel: Math.max(0, n) }))}
+                tooltipContent={{
+                  title: "Mr Nibbles",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Pets: per level — Shiny Fish Multi +0.03× (own multiplier), Triple Tick Chance +1% (flat).",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={
+                  <>
+                    → Shiny ×{(1 + 0.03 * state.mrNibblesLevel).toFixed(2)}; triple tick +{state.mrNibblesLevel}%
+                  </>
+                }
+              />
+              <StepperRow
+                label="Mr Nibbles Quest"
+                iconUrl="https://static.wikitide.net/shminerwiki/thumb/f/fa/Mr_Nibbles_Quest.png/36px-Mr_Nibbles_Quest.png"
+                value={state.mrNibblesQuestRank}
+                min={0}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, mrNibblesQuestRank: Math.max(0, n) }))}
+                tooltipContent={{
+                  title: "Mr Nibbles Quest",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Pets: Tier 2 Dock Power +5% per rank (own multiplier). Applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={`→ T2 Dock Power ×${(1 + 0.05 * state.mrNibblesQuestRank).toFixed(2)} (+${state.mrNibblesQuestRank * 5}%)`}
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Archaeology</span>
+              </div>
+              <StepperRow
+                label="Poseidon Idol"
+                iconUrl="https://static.wikitide.net/shminerwiki/4/43/Poseidon.png"
+                value={state.poseidonIdolLevel}
+                min={0}
+                max={20}
+                onChange={(n) => setState((prev) => ({ ...prev, poseidonIdolLevel: clamp(n, 0, 20) }))}
+                effectText={`→ +${(state.poseidonIdolLevel * 0.25).toFixed(2)} base drone power`}
+              />
+              <StepperRow
+                label="Tethys Idol"
+                iconUrl="https://static.wikitide.net/shminerwiki/0/0b/Tethys.png"
+                value={state.tethysIdolLevel}
+                min={0}
+                max={20}
+                onChange={(n) => setState((prev) => ({ ...prev, tethysIdolLevel: clamp(n, 0, 20) }))}
+                tooltipContent={{
+                  title: "Tethys Idol",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Each point: Tier 2 dock power +0.05% (T2 docks only), Drone power multi +0.05%, Super shiny multi +0.05%.",
+                        "Drone and super shiny multis apply to all docks. Tier 2 dock power applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={
+                  <>
+                    → T2 Dock power +{(state.tethysIdolLevel * 0.05).toFixed(2)}%;
+                    <br />
+                    drone & super shiny +{(state.tethysIdolLevel * 0.05).toFixed(2)}% 
+                  </>
+                }
+              />
+              <StepperRow
+                label="Astraeus Idol"
+                iconUrl="https://static.wikitide.net/shminerwiki/9/93/Astraeus.png"
+                value={state.astraeusIdolLevel}
+                min={0}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, astraeusIdolLevel: Math.max(0, n) }))}
+                tooltipContent={{
+                  title: "Astraeus Idol",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Archaeology: +0.03% Fishing double tick chance per level (flat, added on top of existing double tick chance).",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={`→ +${(state.astraeusIdolLevel * 0.03).toFixed(2)}% double tick chance`}
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Relics</span>
+              </div>
+              <StepperRow
+                label="Divine Relic (5× tick)"
+                iconUrl={RELICS_ICON_URL}
+                value={state.divineRelic5xPoints}
+                min={0}
+                max={50}
+                onChange={(n) => setState((prev) => ({ ...prev, divineRelic5xPoints: clamp(n, 0, 50) }))}
+                tooltipContent={{
+                  title: "Divine Relic",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Each point gives +2% 5× tick chance. This is the base 5× chance that applies to all tick sources.",
+                        "The Gift basic reward (+25% 5× chance) applies to Base, Angler, Lootbug ticks but not to Sushi.",
+                        "Sushi uses only this base (relic) 5× chance.",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={`→ +${state.divineRelic5xPoints * 2}% 5× tick chance`}
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Construct</span>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/c/ce/10_Statue_Craftmanship_Gilded.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-construct-gilded"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.constructStatue === "gilded"}
+                  onChange={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      constructStatue: prev.constructStatue === "gilded" ? "none" : "gilded",
+                    }))
+                  }
+                />
+                <label htmlFor="fishing-construct-gilded" className="fishingBlockLabel">
+                  Statue of Craftmanship Gilded — Fish Income ×1.25
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Statue of Craftmanship Gilded",
+                    lines: ["Construct: Fish Income Multi ×1.25 (own multiplier). Only one statue tier can be active."],
+                  }}
+                  label="?"
+                />
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/a/ac/10_Statue_Craftmanship_Platinized.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-construct-platinized"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.constructStatue === "platinized"}
+                  onChange={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      constructStatue: prev.constructStatue === "platinized" ? "none" : "platinized",
+                    }))
+                  }
+                />
+                <label htmlFor="fishing-construct-platinized" className="fishingBlockLabel">
+                  Statue of Craftmanship Platinized — Fish Income ×1.40
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Statue of Craftmanship Platinized",
+                    lines: ["Construct: Fish Income Multi ×1.40 (own multiplier). Only one statue tier can be active."],
+                  }}
+                  label="?"
+                />
+              </div>
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Stargazing</span>
+              </div>
+              <StepperRow
+                label="Cetus"
+                iconUrl="https://static.wikitide.net/shminerwiki/6/69/Cetus.png"
+                value={state.cetusLevel}
+                min={0}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, cetusLevel: Math.max(0, n) }))}
+                tooltipContent={{
+                  title: "Cetus",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Stargazing: +2% Fish Income per level (own multiplier).",
+                        "Formula: Fish Income × (1 + 0.02 × level). Stacks with other fish income multis.",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={`→ Fish Income ×${(1 + 0.02 * state.cetusLevel).toFixed(2)} (+${state.cetusLevel * 2}%)`}
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Store</span>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/0/04/Polychromepotency_vp.png/60px-Polychromepotency_vp.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-store-polychrome-potency"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.valuePackPotencyPoly}
+                  onChange={(e) => setState((prev) => ({ ...prev, valuePackPotencyPoly: e.target.checked }))}
+                />
+                <label htmlFor="fishing-store-polychrome-potency" className="fishingBlockLabel">
+                  Polychrome Potency Bundle (fish poly ×1.15)
+                </label>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/1/1a/Legendaryhauler_vp.png/60px-Legendaryhauler_vp.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-store-legendary-hauler"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.legendaryHaulerBundle}
+                  onChange={(e) => setState((prev) => ({ ...prev, legendaryHaulerBundle: e.target.checked }))}
+                />
+                <label htmlFor="fishing-store-legendary-hauler" className="fishingBlockLabel">
+                  Legendary Hauler Bundle
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Legendary Hauler Bundle",
+                    sections: [
+                      {
+                        heading: "Effect",
+                        lines: [
+                          "5× Fishing Tick Chance +3% (flat on top of existing 5× chance).",
+                          "Fish Income Multi ×1.10 (own multiplier).",
+                          "Tier 2 Dock Power ×1.10 (own multiplier).",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
+              <div className="fishingCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/b/bf/Fishingbundle_vp.png/60px-Fishingbundle_vp.png"
+                  alt=""
+                  className="fishingBlockIcon"
+                  aria-hidden
+                />
+                <input
+                  id="fishing-store-fishers-bundle"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.fishersBundle}
+                  onChange={(e) => setState((prev) => ({ ...prev, fishersBundle: e.target.checked }))}
+                />
+                <label htmlFor="fishing-store-fishers-bundle" className="fishingBlockLabel">
+                  Fisher&apos;s Bundle
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Fisher's Bundle",
+                    sections: [
+                      {
+                        heading: "Effect",
+                        lines: [
+                          "+10% Triple Fishing Tick Chance (flat on top of existing 3× chance).",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Workshop</span>
+              </div>
+              <StepperRow
+                label="Fishing Drone Power (World 3)"
+                iconUrl="https://static.wikitide.net/shminerwiki/f/f0/Drone_Power_Multiplier.png"
+                value={state.fishingDroneBasePowerWorld3}
+                min={0}
+                max={99}
+                onChange={(n) => setState((prev) => ({ ...prev, fishingDroneBasePowerWorld3: clamp(n, 0, 99) }))}
+                effectText={`→ +${(state.fishingDroneBasePowerWorld3 * 0.02).toFixed(2)}× multi`}
+              />
+              <StepperRow
+                label="Sushi Fishing Ticks (World 3)"
+                iconUrl="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png"
+                value={state.workshopSushiTicksWorld3}
+                min={0}
+                max={99}
+                onChange={(n) => setState((prev) => ({ ...prev, workshopSushiTicksWorld3: clamp(n, 0, 99) }))}
+                effectText={`→ +${state.workshopSushiTicksWorld3} sushi ticks/h`}
+              />
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
+              <div className="fishingBlockHeader">
+                <img src={FISHING_UPGRADES_ICON} alt="" className="fishingBlockHeaderIcon" aria-hidden />
+                <span className="fishingBlockHeaderTitle">Upgrades</span>
+              </div>
+              <StepperRow
+                label="Fishing Drone Power (World 3)"
+                iconUrl="https://static.wikitide.net/shminerwiki/2/21/Fishing_Drone_Base_Power.png"
+                value={state.droneBasePowerWorld3Upgrade}
+                min={0}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, droneBasePowerWorld3Upgrade: Math.max(0, n) }))}
+                tooltipContent={{
+                  title: "Fishing Drone Power (World 3)",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Diverse Upgrades: +0.1 base drone power per level. Adds to drone base before multipliers (same formula as main Drone Base Power upgrade).",
+                        "Workshop has a separate World 3 upgrade: +0.02× multiplier per level.",
+                      ],
+                    },
+                  ],
+                }}
+                effectText={`→ +${(state.droneBasePowerWorld3Upgrade * 0.1).toFixed(2)} base drone power`}
+              />
+            </div>
           </div>
         </Collapsible>
       </div>
