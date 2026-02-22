@@ -848,6 +848,32 @@ export function GemEv() {
 
               <div className="gemEvInlineHead">
                 <span className="mono">Jackpot (Freebie)</span>
+                <Tooltip
+                  content={{
+                    title: "Jackpot (Freebie)",
+                    sections: [
+                      {
+                        heading: "Effect",
+                        lines: [
+                          "When Jackpot triggers, that claim gives 5 rolls instead of 1. More rolls = more outcomes from that single claim.",
+                        ],
+                      },
+                      {
+                        heading: "Affects",
+                        lines: [
+                          "Gems (base): 5× rolls on jackpot. Item Chests and Relic Chests from freebie: 5 chests when jackpot. Skill Shards: each roll can proc. Freebie Relic Chance: more rolls per claim.",
+                        ],
+                      },
+                      {
+                        heading: "Does not affect",
+                        lines: [
+                          "Stonks: procs only on the first roll per claim. Gifts (Statue of Soprano): one gift roll per claim, same as Stonks.",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
               </div>
               <Stepper
                 label="Jackpot Chance (%)"
@@ -863,6 +889,26 @@ export function GemEv() {
 
               <div className="gemEvInlineHead">
                 <span className="mono">Refresh (Freebie)</span>
+                <Tooltip
+                  content={{
+                    title: "Refresh (Freebie)",
+                    sections: [
+                      {
+                        heading: "Effect",
+                        lines: [
+                          "Instant Refresh Chance: when it triggers after a claim, the freebie refreshes immediately (no cooldown wait). Effectively more claims per hour.",
+                        ],
+                      },
+                      {
+                        heading: "Affects",
+                        lines: [
+                          "All freebie-based results: Gems (base), Item/Relic Chests, Stonks, Skill Shards, Gifts (Statue of Soprano), Freebie Relic Chance. Higher refresh = more claims per hour = more of everything from freebies.",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
               </div>
               <Stepper
                 label="Instant Refresh Chance (%)"
@@ -1243,7 +1289,7 @@ export function GemEv() {
         {giftChartOpen
           ? createPortal(
               <div className="modalOverlay" onMouseDown={() => setGiftChartOpen(false)} role="dialog" aria-modal="true" aria-labelledby="gift-ev-modal-title">
-                <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
+                <div className="modalWindow gemEvGiftEvChartModal" onMouseDown={(e) => e.stopPropagation()}>
                   <div className="modalHeader">
                     <div>
                       <div id="gift-ev-modal-title" className="mono" style={{ fontWeight: 900 }}>
@@ -1257,7 +1303,7 @@ export function GemEv() {
                   </div>
                   <div className="modalBody">
                     <div className="gemEvChartBlock">
-                      <GiftEvChart breakdown={giftBreakdown} />
+                      <GiftEvChart breakdown={giftBreakdown} darkTheme />
                     </div>
                   </div>
                 </div>

@@ -338,6 +338,63 @@
   border-color: rgba(255, 160, 0, 0.25);
 }
 
+/* Gift EV breakdown modal: distinct frame colors for Basic vs Rare Roll sections */
+.gemEvGiftChartBlockBasic {
+  padding: 8px 10px;
+  border: 1px solid rgba(30, 136, 229, 0.35);
+  border-radius: 10px;
+  background: rgba(227, 242, 253, 0.4);
+}
+.gemEvGiftChartBlockRare {
+  padding: 8px 10px;
+  border: 1px solid rgba(232, 168, 56, 0.45);
+  border-radius: 10px;
+  background: rgba(255, 243, 224, 0.4);
+}
+.gemEvGiftChartBlockFish {
+  padding: 8px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.95);
+}
+
+/* Gift EV modal: dark throughout, no light backgrounds */
+.gemEvGiftEvChartModal.modalWindow {
+  background: #3d4556;
+  border-color: rgba(226, 232, 240, 0.12);
+}
+.gemEvGiftEvChartModal .modalHeader {
+  background: #3d4556;
+  color: rgba(226, 232, 240, 0.95);
+  border-bottom-color: rgba(226, 232, 240, 0.12);
+}
+.gemEvGiftEvChartModal .modalHeader .mono,
+.gemEvGiftEvChartModal .modalHeader .small {
+  color: rgba(226, 232, 240, 0.9);
+}
+.gemEvGiftEvChartModal .modalBody {
+  background: #3d4556;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 0 0 12px 12px;
+}
+.gemEvGiftEvChartModal .gemEvChartBlock {
+  background: transparent;
+  border-color: rgba(226, 232, 240, 0.08);
+}
+.gemEvGiftEvChartModal .gemEvGiftChartBlockBasic {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 235, 59, 0.4);
+}
+.gemEvGiftEvChartModal .gemEvGiftChartBlockRare {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(33, 150, 243, 0.45);
+}
+.gemEvGiftEvChartModal .gemEvGiftChartBlockFish {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(226, 232, 240, 0.15);
+}
+
 /* Gift-EV: small icon button for breakdown chart */
 .giftEvChartIconBtn {
   display: inline-flex;

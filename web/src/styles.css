@@ -2072,6 +2072,7 @@ a:hover {
   box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.10);
 }
 
+/* Per workspace rules: only title and section headings bold; body text never bold. */
 .tooltipPop {
   position: fixed;
   z-index: 9999;
@@ -2086,6 +2087,7 @@ a:hover {
   overflow-wrap: break-word;
   word-break: break-word;
   text-transform: none;
+  font-weight: normal;
 }
 
 .tooltipTitle {
@@ -2106,8 +2108,10 @@ a:hover {
   margin-bottom: 3px;
 }
 
+/* Body lines: normal weight only. Per workspace rules, only title/headings are bold in tooltips. */
 .tooltipLine {
   font-size: 12px;
+  font-weight: normal;
   color: rgba(15, 23, 42, 0.78);
   line-height: 1.35;
   overflow-wrap: break-word;
