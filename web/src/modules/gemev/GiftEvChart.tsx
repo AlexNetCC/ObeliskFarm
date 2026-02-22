@@ -185,7 +185,8 @@ function GiftChartSvg(props: {
   const ticks = axisTicks(maxVal);
   const scaleX = maxVal > 0 ? plotW / maxVal : plotW;
   const gemIconUrl = assetUrl("sprites/common/gem.png");
-  const tooltipX = labelPad + 4 + 18;
+  const iconX = padL - 8 - 16 - 4;
+  const tooltipX = iconX + 8;
   const titleColor = darkTheme ? CHART_DARK.text : "rgba(71,85,105,0.85)";
   const subtitleColor = darkTheme ? CHART_DARK.textMuted : "rgba(71,85,105,0.65)";
   const svgBg = darkTheme ? CHART_DARK.bg : "#ffffff";
@@ -250,8 +251,7 @@ function GiftChartSvg(props: {
               const barEndX = padL + barW;
               const pctVal = pct(row.value, total);
               const labelY = y0 + barH / 2 + 4;
-              const iconX = labelPad + 4;
-              const labelX = padL - 8;
+              const labelStartX = labelPad + 4;
               const hasTooltip = "showTooltip" in row && row.showTooltip;
 
               return (
@@ -266,15 +266,15 @@ function GiftChartSvg(props: {
                     strokeWidth={0.8}
                     rx={2}
                   />
+                  <text x={labelStartX} y={labelY} textAnchor="start" fontSize={14} fontWeight={700} fill={labelFill}>
+                    {row.label}
+                  </text>
                   {row.icon ? <image href={row.icon} x={iconX} y={y0} width={16} height={16} /> : null}
                   {hasTooltip ? (
-                    <text x={tooltipX + 10} y={labelY} textAnchor="middle" fontSize={13} fontWeight={700} fill={textFill}>
+                    <text x={iconX + 8} y={labelY} textAnchor="middle" fontSize={13} fontWeight={700} fill={textFill}>
                       ?
                     </text>
                   ) : null}
-                  <text x={labelX} y={labelY} textAnchor="end" fontSize={14} fontWeight={700} fill={labelFill}>
-                    {row.label}
-                  </text>
                   <text
                     x={barEndX + 12}
                     y={labelY}

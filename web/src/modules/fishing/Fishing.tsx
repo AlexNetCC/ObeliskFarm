@@ -344,15 +344,15 @@ function formatUpgradeNextEffect(
     case "poly_card_multi":
       return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
     case "double_tick_chance":
-      return "→+0.5%";
+      return `${current.double_tick_chance_pct.toFixed(1)}%→${next.double_tick_chance_pct.toFixed(1)}%`;
     case "shiny_fish_chance":
-      return "→+0.5%";
+      return `${current.shiny_fish_chance_pct.toFixed(1)}%→${next.shiny_fish_chance_pct.toFixed(1)}%`;
     case "triple_tick_chance":
-      return "→+0.35%";
+      return `${current.triple_tick_chance_pct.toFixed(1)}%→${next.triple_tick_chance_pct.toFixed(1)}%`;
     case "tier2_dock_power":
-      return "→+0.05×";
+      return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
     case "super_shiny_chance":
-      return "→+1%";
+      return `${current.super_shiny_chance_pct.toFixed(1)}%→${next.super_shiny_chance_pct.toFixed(1)}%`;
     default:
       return null;
   }
@@ -385,7 +385,7 @@ function formatEnhanceNextEffect(
     case "enhance_triple_tick_chance":
       return `${current.triple_tick_chance_pct.toFixed(1)}%→${next.triple_tick_chance_pct.toFixed(1)}%`;
     case "enhance_tier2_dock_power":
-      return "→+0.05×";
+      return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
     case "enhance_super_shiny_multi":
       return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
     case "enhance_tiny_notice_chance":
@@ -5101,7 +5101,7 @@ export function Fishing() {
                 min={0}
                 max={99}
                 onChange={(n) => setState((prev) => ({ ...prev, workshopSushiTicksWorld3: clamp(n, 0, 99) }))}
-                effectText={`→ +${state.workshopSushiTicksWorld3} sushi ticks/h`}
+                effectText={`→ +${state.workshopSushiTicksWorld3} sushi ticks`}
               />
             </div>
 
