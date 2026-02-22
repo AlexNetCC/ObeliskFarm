@@ -94,6 +94,8 @@ export interface SkillTreeOptions {
   cetusLevel?: number;
   /** Stargazing: Black Hole Bonus. Tier 2 Dock Power +25% (own mult). */
   blackHoleBonus?: boolean;
+  /** Cards: Mr Nibbles Card. 0 = none, 1 = Card +1% Tiny Notice, 2 = Gilded +2%, 3 = Poly +4% (flat). */
+  mrNibblesCardTier?: number;
 }
 
 /**
@@ -218,7 +220,9 @@ export function computeFishingStatsFromLevels(
   const super_shiny_chance_pct =
     1 * u("super_shiny_chance") +
     1 * skill("completionist_gatekeeper") * legendary;
-  const tiny_notice_chance_pct = 0.5 * e("enhance_tiny_notice_chance") + (options?.anglerBundle ? 6 : 0);
+  const mrNibblesCardTier = Math.max(0, Math.min(3, Math.floor(Number(options?.mrNibblesCardTier ?? 0))));
+  const tinyNoticeFromMrNibblesCard = mrNibblesCardTier === 1 ? 1 : mrNibblesCardTier === 2 ? 2 : mrNibblesCardTier === 3 ? 4 : 0;
+  const tiny_notice_chance_pct = 0.5 * e("enhance_tiny_notice_chance") + (options?.anglerBundle ? 6 : 0) + tinyNoticeFromMrNibblesCard;
 
   // Tier 2 Dock Power: multiplier on power on T2 docks only; +0.05x (upgrade), +0.05x (enhance). Skill: Completionist Gatekeeper +3% per level per legendary. Tethys Idol +0.05% per level (T2 docks only).
   const tier2DockBase = 1 +

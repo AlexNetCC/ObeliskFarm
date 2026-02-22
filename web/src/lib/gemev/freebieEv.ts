@@ -116,6 +116,9 @@ export type GameParameters = {
   /** Chain Bomber Drone (from Drone module): +X% Golden Floor Multi during buff. When set, stonks mult is scaled by (1 + uptime × bonus/100). */
   chain_bomber_golden_floor_bonus_pct?: number;
   chain_bomber_buff_uptime_fraction?: number;
+
+  /** W3 floor debuff: −30% game speed (70% effective) while on W3 floors. Only affects freebie cooldown and bomb recharge; not supply drop or Stargazing. */
+  w3_floor_debuff?: boolean;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -184,17 +187,16 @@ const STATUE_SOPRANO_CONFIG: Record<number, { freebieGiftChance: number; freebie
   3: { freebieGiftChance: 0.01, freebie100xChance: 1 / 25000 },
 };
 
-/** Gifts per hour from Statue of Soprano (Freebie Gift Chance + 100× on freebie claims). Returns 0 when level 0. */
+/** Gifts per hour from Statue of Soprano. Gift rolls once per freebie claim (like Stonks), not per roll; jackpot does not multiply gift rolls. 1-Gift and 100-Gift are separate rolls (both can hit → max 101). */
 export function calculateStatueSopranoGiftsPerHour(params: GameParameters): number {
   const level = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
   const cfg = STATUE_SOPRANO_CONFIG[level];
   if (!cfg || (cfg.freebieGiftChance === 0 && cfg.freebie100xChance === 0)) return 0;
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const refreshMult = calculateRefreshMultiplier(params);
-  const expectedRolls = calculateExpectedRollsPerClaim(params);
-  const freebieEventsPerHour = freebiesPerHour * refreshMult * expectedRolls;
-  const expectedGiftsPerEvent = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
-  return freebieEventsPerHour * expectedGiftsPerEvent;
+  const giftRollsPerHour = freebiesPerHour * refreshMult;
+  const expectedGiftsPerClaim = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
+  return giftRollsPerHour * expectedGiftsPerClaim;
 }
 
 /** Gem EV per hour from Statue of Soprano (Freebie Gift Chance + 100× on freebie claims). Returns 0 when level 0. */
@@ -280,24 +282,30 @@ function getVIPGameSpeedBonus(params: GameParameters): number {
   return (10 + (lvl - 10)) / 100.0; // T10=10%, T11=11%, T12=12%
 }
 
-/** Game speed as (multiplier - 1) for formulas: effectiveTime = base / (1 + bonus) = base / multiplier. */
+/** Game speed as (multiplier - 1) for formulas: effectiveTime = base / (1 + bonus) = base / multiplier. Uses effective multiplier for time-affected systems (includes W3 debuff when active). Can be negative when W3 debuff is on. */
 export function getGameSpeedBonus(params: GameParameters): number {
-  const mult = "game_speed_multiplier" in params ? clampPositive(params.game_speed_multiplier, 1.0) : 1.0;
-  if (mult > 1.0) return mult - 1.0;
-  return getVIPGameSpeedBonus(params);
+  const effectiveMult = getEffectiveGameSpeedMultiplierForTime(params);
+  return effectiveMult - 1.0;
 }
 
-/** Effective game speed multiplier for display (1× = no bonus or VIP). */
+/** Effective game speed multiplier for display (1× = no bonus or VIP). Does not apply W3 floor debuff. */
 export function getGameSpeedMultiplier(params: GameParameters): number {
   const mult = "game_speed_multiplier" in params ? clampPositive(params.game_speed_multiplier, 1.0) : 1.0;
   if (mult > 1.0) return mult;
   return 1.0 + getVIPGameSpeedBonus(params);
 }
 
-/** Effective freebie timer (min): base / game speed multiplier. */
+/** Effective game speed for time-affected systems (freebie cooldown, bomb recharge). Applies W3 floor debuff (×0.7) when active. Not used for supply drop or Stargazing. */
+export function getEffectiveGameSpeedMultiplierForTime(params: GameParameters): number {
+  const base = getGameSpeedMultiplier(params);
+  const w3 = params.w3_floor_debuff === true;
+  return base * (w3 ? 0.7 : 1.0);
+}
+
+/** Effective freebie timer (min): base / effective game speed (includes W3 debuff when active). */
 export function getEffectiveFreebieTimerMinutes(params: GameParameters): number {
   const base = clampPositive(params.freebie_timer_minutes, 7.0);
-  const mult = getGameSpeedMultiplier(params);
+  const mult = getEffectiveGameSpeedMultiplierForTime(params);
   return base / mult;
 }
 
@@ -751,10 +759,9 @@ export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftS
   if (cfg && (cfg.freebieGiftChance > 0 || cfg.freebie100xChance > 0)) {
     const freebiesPerHour = calculateFreebiesPerHour(params);
     const refreshMult = calculateRefreshMultiplier(params);
-    const expectedRolls = calculateExpectedRollsPerClaim(params);
-    const freebieEventsPerHour = freebiesPerHour * refreshMult * expectedRolls;
-    const expectedGiftsPerEvent = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
-    freebieGiftsPerHour = freebieEventsPerHour * expectedGiftsPerEvent;
+    const giftRollsPerHour = freebiesPerHour * refreshMult;
+    const expectedGiftsPerClaim = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
+    freebieGiftsPerHour = giftRollsPerHour * expectedGiftsPerClaim;
   }
 
   // Founder supply drop
@@ -790,10 +797,9 @@ export function calculateGift5xTickUptimeFraction(params: GameParameters): numbe
   if (cfg && (cfg.freebieGiftChance > 0 || cfg.freebie100xChance > 0)) {
     const freebiesPerHour = calculateFreebiesPerHour(params);
     const refreshMult = calculateRefreshMultiplier(params);
-    const expectedRolls = calculateExpectedRollsPerClaim(params);
-    const freebieEventsPerHour = freebiesPerHour * refreshMult * expectedRolls;
-    const expectedGiftsPerEvent = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
-    totalGiftsPerHour += freebieEventsPerHour * expectedGiftsPerEvent;
+    const giftRollsPerHour = freebiesPerHour * refreshMult;
+    const expectedGiftsPerClaim = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
+    totalGiftsPerHour += giftRollsPerHour * expectedGiftsPerClaim;
   }
   if (params.founder_enabled) {
     const founderDropInterval = getFounderDropIntervalMinutes(params);

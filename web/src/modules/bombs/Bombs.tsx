@@ -5,7 +5,7 @@ import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
-import { calculateGemBombGemsPerHour, defaultGameParameters, getGameSpeedBonus, getGemBombGemChanceT12Bonus, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateGemBombGemsPerHour, defaultGameParameters, getEffectiveGameSpeedMultiplierForTime, getGameSpeedBonus, getGemBombGemChanceT12Bonus, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const STORAGE_KEY = "obeliskfarm:web:bombs_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
@@ -197,6 +197,7 @@ export function Bombs() {
       lootbugBomb10xMinPerHour?: number;
       droneBomb10xMinPerHour?: number;
       game_speed_multiplier?: number;
+      w3_floor_debuff?: boolean;
       chaosTotemUptimePct?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
@@ -204,8 +205,9 @@ export function Bombs() {
     const gameSpeed = typeof ext?.game_speed_multiplier === "number" && ext.game_speed_multiplier >= 1 && ext.game_speed_multiplier <= 10
       ? ext.game_speed_multiplier
       : undefined;
+    const w3_floor_debuff = Boolean(ext?.w3_floor_debuff);
     const chaosTotemUptimePct = typeof ext?.chaosTotemUptimePct === "number" ? ext.chaosTotemUptimePct : undefined;
-    return { lootbug, drone, total: lootbug + drone, game_speed_multiplier: gameSpeed, chaosTotemUptimePct };
+    return { lootbug, drone, total: lootbug + drone, game_speed_multiplier: gameSpeed, w3_floor_debuff, chaosTotemUptimePct };
   }, []); // re-read when module is shown (component remounts when switching back from Gem EV / Items / Lootbug / Drone)
 
   useEffect(() => {
@@ -218,11 +220,12 @@ export function Bombs() {
     if (typeof externalFromGemEv.game_speed_multiplier === "number") {
       p.game_speed_multiplier = externalFromGemEv.game_speed_multiplier;
     }
+    p.w3_floor_debuff = externalFromGemEv.w3_floor_debuff;
     // When 100%: recharge fields are in-game values (already /2 by Chaos Totem), so do not apply Chaos again (= 0).
     // When off: recharge fields are base; no Chaos applied here (Items may set uptime for Gem EV).
     p.chaos_totem_uptime = 0;
     return p;
-  }, [params, externalFromGemEv.total, externalFromGemEv.game_speed_multiplier, chaosTotem100Uptime]);
+  }, [params, externalFromGemEv.total, externalFromGemEv.game_speed_multiplier, externalFromGemEv.w3_floor_debuff, chaosTotem100Uptime]);
 
   const gemBombGemsPerHour = useMemo(() => calculateGemBombGemsPerHour(effectiveParams), [effectiveParams]);
   const gemBomb10xImpact = useMemo(() => {
@@ -262,14 +265,14 @@ export function Bombs() {
     saveJson(GEMEV_EXTERNAL_KEY, ext);
   }, [gemBombGemsPerHour, gemBomb10xImpact, chaosTotemImpact, chaosTotem100Uptime]);
 
-  const gameSpeedMult = typeof externalFromGemEv.game_speed_multiplier === "number" ? externalFromGemEv.game_speed_multiplier : 1.0;
+  const gameSpeedMult = useMemo(() => getEffectiveGameSpeedMultiplierForTime(effectiveParams), [effectiveParams]);
   const autoBomberStats = useMemo(() => {
     const drone10xMinPerHour = autoBomberOfflineGains ? 0 : externalFromGemEv.drone;
     const drone10xUptime = drone10xMinPerHour / 60.0;
     const bomb10xFactor = 1.0 + 9.0 * drone10xUptime;
     const chaosUptime = chaosTotem100Uptime ? 1.0 : 0.0;
     const chaosFactor = 1.0 + chaosUptime;
-    const gameSpeedBonus = getGameSpeedBonus({ ...effectiveParams, game_speed_multiplier: gameSpeedMult });
+    const gameSpeedBonus = getGameSpeedBonus(effectiveParams);
     const effGemSec = Math.max(0.01, params.gem_bomb_recharge_seconds) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
     const freeBombMult = 1.0 / (1.0 - Math.max(0, Math.min(0.99, params.free_bomb_chance)));
     const gemMult = rechargeChargeMultiplier(params.gem_bomb_recharge_card_level);
@@ -281,7 +284,7 @@ export function Bombs() {
     const gemEVPerHour = effectiveGemBombsPerHour * gemChance;
     const rechargeMinusDropped = gemBombsRechargedPerHour - gemBombsDroppedPerHour;
     return { gemBombsDroppedPerHour, gemBombsRechargedPerHour, gemEVPerHour, rechargeMinusDropped };
-  }, [effectiveParams, params.free_bomb_chance, params.gem_bomb_recharge_seconds, params.gem_bomb_recharge_card_level, params.gem_bomb_gem_chance, externalFromGemEv.drone, externalFromGemEv.game_speed_multiplier, gameSpeedMult, chaosTotem100Uptime, autoBomberOfflineGains]);
+  }, [effectiveParams, params.free_bomb_chance, params.gem_bomb_recharge_seconds, params.gem_bomb_recharge_card_level, params.gem_bomb_gem_chance, externalFromGemEv.drone, gameSpeedMult, chaosTotem100Uptime, autoBomberOfflineGains]);
 
   return (
     <div className="container">

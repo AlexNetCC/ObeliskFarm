@@ -24,6 +24,7 @@ import {
   getEffectiveFreebieTimerMinutes,
   getExpectedItemChestsPerGift,
   getExpectedRelicChestsPerGift,
+  getEffectiveGameSpeedMultiplierForTime,
   getFounderSupplyDropPerHour,
   getGameSpeedMultiplier,
   type GameParameters,
@@ -191,6 +192,7 @@ export function GemEv() {
   const [skillShardsEnabled, setSkillShardsEnabled] = useState<boolean>(initial.skill_shards_enabled);
   const [chartOpen, setChartOpen] = useState(false);
   const [giftChartOpen, setGiftChartOpen] = useState(false);
+  const [giftsPerHourChartOpen, setGiftsPerHourChartOpen] = useState(false);
   const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
   const [statueSopranoLevel, setStatueSopranoLevel] = useState<number>(initial.statue_soprano_level);
   const [lootbugNetGemsPerHour, setLootbugNetGemsPerHour] = useState(0);
@@ -349,6 +351,7 @@ export function GemEv() {
     if (mult === 1.0 && typeof gameSpeedPct === "number" && gameSpeedPct > 0)
       mult = 1.0 + clampInt(gameSpeedPct, 0, 12) / 100.0;
     p.game_speed_multiplier = clamp(Number(mult), 1.0, 10.0);
+    p.w3_floor_debuff = Boolean(p.w3_floor_debuff);
 
     p.bomb_recharge_10x_min_per_hour = external10x.total;
     // Chaos Totem: when 100% from Bombs, recharge params are in-game (already /2), so do not apply Chaos again (= 0).
@@ -395,11 +398,13 @@ export function GemEv() {
   const giftEv = useMemo(() => calculateGiftEvPerGift(effectiveParams), [effectiveParams]);
   const giftBreakdown = useMemo(() => calculateGiftEvBreakdown(effectiveParams), [effectiveParams]);
   const statueSopranoGiftsPerHour = useMemo(() => calculateStatueSopranoGiftsPerHour(effectiveParams), [effectiveParams]);
+  /** Gifts/h by source (for chart and total). */
+  const giftsPerHourBySource = useMemo(
+    () => calculateGiftSushiPerHourBySource(effectiveParams),
+    [effectiveParams],
+  );
   /** Total Gifts/h from Soprano (freebie) + Founder supply drop. Shown in Results when > 0. */
-  const totalGiftsPerHour = useMemo(() => {
-    const bySource = calculateGiftSushiPerHourBySource(effectiveParams);
-    return bySource.giftPerHourFreebie + bySource.giftPerHourFounder;
-  }, [effectiveParams]);
+  const totalGiftsPerHour = giftsPerHourBySource.giftPerHourFreebie + giftsPerHourBySource.giftPerHourFounder;
 
   /** Item Chests per hour from Gifts. Written to external for Items module (Gift bar segment). */
   const giftItemChestsPerHour = useMemo(
@@ -513,6 +518,7 @@ export function GemEv() {
     ext.stonksChestsPerHour = stonksChestsPerHour;
     ext.founderSupplyDropItemChestsPerHour = founderSupplyDrop.itemChestsPerHour;
     ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
+    ext.w3_floor_debuff = Boolean(effectiveParams.w3_floor_debuff);
     ext.giftItemChestsPerHour = giftItemChestsPerHour;
     ext.giftRelicChestsPerHour = giftRelicChestsPerHour;
     ext.freebieRelicChestsPerHour = freebieRelicChestsPerHour;
@@ -650,6 +656,19 @@ export function GemEv() {
                   <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
                     Gifts/h
+                    <button
+                      type="button"
+                      className="giftEvChartIconBtn"
+                      onClick={() => setGiftsPerHourChartOpen(true)}
+                      title="Gifts per hour by source"
+                      aria-label="Open Gifts/h by source chart"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <rect x="3" y="14" width="4" height="6" rx="1" />
+                        <rect x="10" y="10" width="4" height="10" rx="1" />
+                        <rect x="17" y="6" width="4" height="14" rx="1" />
+                      </svg>
+                    </button>
                   </kbd>
                   <div className="mono" style={{ fontWeight: 700 }}>
                     {Number.isFinite(totalGiftsPerHour) ? totalGiftsPerHour.toFixed(2) : "—"}
@@ -686,6 +705,13 @@ export function GemEv() {
                         "Game speed as × (e.g. 2× = half freebie timer). Same value as in the Stats screen (Stats button).",
                         "Decimals allowed (e.g. 2.1×). Multiplicative with freebie cooldown and all bomb recharge times (not supply drop).",
                         "1× = use VIP T10–T12; set >1 to override.",
+                      ],
+                    },
+                    {
+                      heading: "W3 floor debuff",
+                      lines: [
+                        "When active: 70% game speed on W3 floors. Affects freebie cooldown and bomb recharge only.",
+                        "Does not affect Founder supply drop or Stargazing (star gains there already account for it).",
                       ],
                     },
                   ],
@@ -731,6 +757,21 @@ export function GemEv() {
                     label="?"
                   />
                 </div>
+              </div>
+              <div className="gemEvRow" style={{ marginTop: 6, gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(params.w3_floor_debuff)}
+                    onChange={(e) => setParams((s) => ({ ...s, w3_floor_debuff: e.target.checked }))}
+                  />
+                  <span>W3 floor debuff (−30% game speed)</span>
+                </label>
+                {params.w3_floor_debuff ? (
+                  <span className="mono" style={{ opacity: 0.85 }}>
+                    Effective (freebie/bombs): {getEffectiveGameSpeedMultiplierForTime(effectiveParams).toFixed(2)}×
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1217,6 +1258,59 @@ export function GemEv() {
                   <div className="modalBody">
                     <div className="gemEvChartBlock">
                       <GiftEvChart breakdown={giftBreakdown} />
+                    </div>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+          : null}
+
+        {giftsPerHourChartOpen && totalGiftsPerHour > 0
+          ? createPortal(
+              <div className="modalOverlay" onMouseDown={() => setGiftsPerHourChartOpen(false)} role="dialog" aria-modal="true" aria-labelledby="gifts-per-hour-modal-title">
+                <div className="modalWindow gemEvGiftsPerHourChartModal" onMouseDown={(e) => e.stopPropagation()}>
+                  <div className="modalHeader">
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <div>
+                        <div id="gifts-per-hour-modal-title" className="mono" style={{ fontWeight: 900 }}>Gifts per hour by source</div>
+                        <div className="small">Share of total Gifts/h from each source (absolute and %).</div>
+                      </div>
+                    </div>
+                    <button className="btn btnSecondary" type="button" onClick={() => setGiftsPerHourChartOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+                  <div className="modalBody">
+                    <div className="gemEvGiftsContribBlock">
+                      <div className="gemEvGiftsContribTitle">Gifts/h</div>
+                      <div className="gemEvGiftsContribBars" role="img" aria-label="Gifts per hour by source bar chart">
+                        {[
+                          { label: "Statue of Soprano (freebie)", value: giftsPerHourBySource.giftPerHourFreebie, color: "#fff59d" },
+                          { label: "Founder supply drop", value: giftsPerHourBySource.giftPerHourFounder, color: "#ffeb3b" },
+                        ]
+                          .filter((r) => r.value > 0)
+                          .map(({ label, value, color }) => {
+                            const pct = totalGiftsPerHour > 0 ? (value / totalGiftsPerHour) * 100 : 0;
+                            const maxVal = Math.max(giftsPerHourBySource.giftPerHourFreebie, giftsPerHourBySource.giftPerHourFounder, 1);
+                            const widthPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
+                            return (
+                              <div key={label} className="gemEvGiftsContribRow">
+                                <span className="gemEvGiftsContribLabel">{label}</span>
+                                <div className="gemEvGiftsContribBarTrack">
+                                  <div
+                                    className="gemEvGiftsContribBarFill"
+                                    style={{ width: `${widthPct}%`, backgroundColor: color }}
+                                  />
+                                </div>
+                                <span className="mono gemEvGiftsContribValue" title={`${value.toFixed(2)}/h (${pct.toFixed(1)}%)`}>
+                                  {value.toFixed(2)}
+                                  <span className="gemEvGiftsContribPct"> ({pct.toFixed(1)}%)</span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                      </div>
                     </div>
                   </div>
                 </div>

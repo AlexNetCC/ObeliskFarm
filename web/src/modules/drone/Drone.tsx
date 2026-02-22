@@ -3,7 +3,7 @@ import "./drone.css";
 import { Tooltip } from "../../components/Tooltip";
 import { Collapsible } from "../../components/Collapsible";
 import { loadJson, saveJson } from "../../lib/storage";
-import { calculateGemBombGemsPerHour, defaultGameParameters, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateGemBombGemsPerHour, defaultGameParameters, getEffectiveGameSpeedMultiplierForTime, getGameSpeedMultiplier, type GameParameters } from "../../lib/gemev/freebieEv";
 import { FREE_BUFFS, GEM_BUFFS, getDurationMinutes, getWeight } from "../../lib/lootbug/constants";
 
 const ELIXIR_BASE_INTERVAL_SEC = 360;
@@ -100,6 +100,16 @@ const VOID_BUFF_DURATION_SEC_PER_GRADE = 9;
 const VOID_BUFF_DURATION_MAX_SEC = 360; // 6:00
 const VOID_FUEL_DURATION_BASE_SEC = 180; // 3:00
 const VOID_FUEL_DURATION_SEC_PER_GRADE = 9;
+
+/** Veinseeker Drone: +50% Golden Vein Multi / 2:40 at grade 0, +10% / +0:08 per grade. Max +250% / 5:20 (Polychrome). */
+const VEINSEEKER_GOLDEN_VEIN_PCT_BASE = 50;
+const VEINSEEKER_GOLDEN_VEIN_PCT_PER_GRADE = 10;
+const VEINSEEKER_GOLDEN_VEIN_PCT_MAX = 250;
+const VEINSEEKER_BUFF_DURATION_BASE_SEC = 160; // 2:40
+const VEINSEEKER_BUFF_DURATION_SEC_PER_GRADE = 8; // +0:08
+const VEINSEEKER_BUFF_DURATION_MAX_SEC = 320; // 5:20
+const VEINSEEKER_FUEL_DURATION_BASE_SEC = 180; // 3:00 (same pattern as Void)
+const VEINSEEKER_FUEL_DURATION_SEC_PER_GRADE = 9;
 
 /** Chain Bomber Drone: +50% Golden Floor Multi / 3:40 at grade 0, +10% / +0:11 per grade. Max +250% / 7:20 (Polychrome). Gem EV only. */
 const CHAIN_BOMBER_GOLDEN_FLOOR_PCT_BASE = 50;
@@ -219,9 +229,14 @@ type ElixirState = {
   voidDroneOn: boolean;
   voidGradeLevel: number;
   voidFueled: boolean;
+  /** Veinseeker Drone: +X% Golden Vein Multi. Grade + fuel only. */
+  veinseekerDroneOn: boolean;
+  veinseekerGradeLevel: number;
+  veinseekerFueled: boolean;
 };
 
-const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v8";
+const STORAGE_KEY = "obeliskfarm:web:drone_elixir_save.json:v9";
+const STORAGE_KEY_V8 = "obeliskfarm:web:drone_elixir_save.json:v8";
 const STORAGE_KEY_V7 = "obeliskfarm:web:drone_elixir_save.json:v7";
 const STORAGE_KEY_V6 = "obeliskfarm:web:drone_elixir_save.json:v6";
 const STORAGE_KEY_V5 = "obeliskfarm:web:drone_elixir_save.json:v5";
@@ -289,6 +304,9 @@ const DEFAULT: ElixirState = {
   voidDroneOn: false,
   voidGradeLevel: 0,
   voidFueled: false,
+  veinseekerDroneOn: false,
+  veinseekerGradeLevel: 0,
+  veinseekerFueled: false,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -524,6 +542,15 @@ function migrateFromV7(migrated: Partial<ElixirState>): Partial<ElixirState> {
   };
 }
 
+function migrateFromV8(migrated: Partial<ElixirState>): Partial<ElixirState> {
+  return {
+    ...migrated,
+    veinseekerDroneOn: typeof migrated.veinseekerDroneOn === "boolean" ? migrated.veinseekerDroneOn : DEFAULT.veinseekerDroneOn,
+    veinseekerGradeLevel: clamp(migrated.veinseekerGradeLevel ?? DEFAULT.veinseekerGradeLevel, 0, 45),
+    veinseekerFueled: typeof migrated.veinseekerFueled === "boolean" ? migrated.veinseekerFueled : DEFAULT.veinseekerFueled,
+  };
+}
+
 function migrateFromV6(migrated: Partial<ElixirState>): Partial<ElixirState> {
   return {
     ...migrated,
@@ -541,6 +568,7 @@ function migrateFromV6(migrated: Partial<ElixirState>): Partial<ElixirState> {
 export function Drone() {
   const [state, setState] = useState<ElixirState>(() => {
     const saved = loadJson<Record<string, unknown>>(STORAGE_KEY)
+      ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V8)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V7)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V6)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V5)
@@ -549,11 +577,13 @@ export function Drone() {
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V2)
       ?? loadJson<Record<string, unknown>>(STORAGE_KEY_V1);
     const migrated = saved
-      ? migrateFromV7(
+      ? migrateFromV8(
+          migrateFromV7(
           migrateFromV6(
             migrateFromV5(
               migrateFromV4(migrateFromV3(migrateFromV2(migrateFromV1(saved))))
             )
+          )
           )
         )
       : {};
@@ -594,6 +624,9 @@ export function Drone() {
     s.voidDroneOn = typeof migrated.voidDroneOn === "boolean" ? migrated.voidDroneOn : DEFAULT.voidDroneOn;
     s.voidGradeLevel = clamp(s.voidGradeLevel ?? DEFAULT.voidGradeLevel, 0, 45);
     s.voidFueled = typeof migrated.voidFueled === "boolean" ? migrated.voidFueled : DEFAULT.voidFueled;
+    s.veinseekerDroneOn = typeof migrated.veinseekerDroneOn === "boolean" ? migrated.veinseekerDroneOn : DEFAULT.veinseekerDroneOn;
+    s.veinseekerGradeLevel = clamp(s.veinseekerGradeLevel ?? DEFAULT.veinseekerGradeLevel, 0, 45);
+    s.veinseekerFueled = typeof migrated.veinseekerFueled === "boolean" ? migrated.veinseekerFueled : DEFAULT.veinseekerFueled;
     const sgExt = loadJson<{ starburstDroneOn?: boolean }>("obeliskfarm:web:stargazing_external.json");
     if (typeof sgExt?.starburstDroneOn === "boolean") s.starburstDroneOn = sgExt.starburstDroneOn;
     return s;
@@ -624,7 +657,8 @@ export function Drone() {
     const gameSpeedPct = (merged as { game_speed_pct?: number }).game_speed_pct;
     if (mult === 1.0 && typeof gameSpeedPct === "number" && gameSpeedPct > 0)
       mult = 1.0 + clampInt(gameSpeedPct, 0, 12) / 100.0;
-    return getGameSpeedMultiplier({ ...merged, game_speed_multiplier: clamp(Number(mult), 1.0, 10.0) });
+    const params: GameParameters = { ...merged, game_speed_multiplier: clamp(Number(mult), 1.0, 10.0) };
+    return getEffectiveGameSpeedMultiplierForTime(params);
   })();
   const suitLevel = clamp(Math.round(state.elixirSuitLevel), 0, 20);
   const intervalSecBase = Math.max(1, ELIXIR_BASE_INTERVAL_SEC - suitLevel * ELIXIR_SUIT_SEC_PER_LEVEL);
@@ -850,6 +884,33 @@ export function Drone() {
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [voidFuelDurationSecReal, state.voidFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
+  /** Veinseeker Drone: +50% Golden Vein Multi at grade 0, +10% per grade, max +250%. Buff duration 2:40 + 0:08 per grade, max 5:20. */
+  const veinseekerGoldenVeinPct = state.veinseekerDroneOn && state.veinseekerFueled
+    ? Math.min(VEINSEEKER_GOLDEN_VEIN_PCT_MAX, VEINSEEKER_GOLDEN_VEIN_PCT_BASE + state.veinseekerGradeLevel * VEINSEEKER_GOLDEN_VEIN_PCT_PER_GRADE)
+    : 0;
+  const veinseekerBuffDurationSec = state.veinseekerDroneOn && state.veinseekerFueled
+    ? Math.min(VEINSEEKER_BUFF_DURATION_MAX_SEC, VEINSEEKER_BUFF_DURATION_BASE_SEC + state.veinseekerGradeLevel * VEINSEEKER_BUFF_DURATION_SEC_PER_GRADE)
+    : 0;
+  const veinseekerFuelDurationFromGradeSec = VEINSEEKER_FUEL_DURATION_BASE_SEC + state.veinseekerGradeLevel * VEINSEEKER_FUEL_DURATION_SEC_PER_GRADE;
+  const veinseekerFuelDurationGameSec = Math.round(
+    veinseekerFuelDurationFromGradeSec *
+    (1 + state.fuelDurationUpgradeLevel / 100) *
+    fuelDurationWorld3Mult *
+    (state.axolotlSkin ? 1.1 : 1) *
+    (state.platinumStatueOfAppetite ? 1.15 : 1) *
+    MISC_FUEL_MULT[state.miscFuelCardTier] *
+    fuelDurationRelicMult,
+  );
+  const veinseekerFuelDurationSecReal = veinseekerFuelDurationGameSec / gameSpeedMult;
+  const veinseekerFuelGemsPerHour = useMemo(() => {
+    if (!state.veinseekerFueled || veinseekerFuelDurationSecReal <= 0) return 0;
+    const fuelsPerHour = 3600 / veinseekerFuelDurationSecReal;
+    const coal = state.fuelSaveChanceUpgradeLevel / 100;
+    const upgrade = state.upgradeFuelSaveChancePct / 100;
+    const saveChance = 1 - (1 - coal) * (1 - upgrade);
+    return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
+  }, [veinseekerFuelDurationSecReal, state.veinseekerFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
+
   const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
   const buffDurations = useMemo(() => {
     let list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
@@ -858,6 +919,9 @@ export function Drone() {
     }
     if (state.voidDroneOn && state.voidFueled) {
       list = [...list, { id: "void", label: "+Portal Resource Multi", baseSec: voidBuffDurationSec, icon: "https://static.wikitide.net/shminerwiki/d/d9/Drone_Void.png", realTimeOnly: false, noFuelMult: true }];
+    }
+    if (state.veinseekerDroneOn && state.veinseekerFueled) {
+      list = [...list, { id: "veinseeker", label: "+Golden Vein Multi", baseSec: veinseekerBuffDurationSec, icon: "https://static.wikitide.net/shminerwiki/5/5b/Drone_Veinseeker.png", realTimeOnly: false, noFuelMult: true }];
     }
     const multFor = (b: { baseSec: number; realTimeOnly?: boolean; noFuelMult?: boolean }) =>
       (b as { noFuelMult?: boolean }).noFuelMult ? 1 : fuelMult;
@@ -873,7 +937,7 @@ export function Drone() {
         return { ...b, sec, pct: (sec / maxSec) * 100 };
       })
       .sort((a, b) => a.sec - b.sec);
-  }, [state.fueled, state.fishingUnlocked, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, chainBomberBuffDurationSec, voidBuffDurationSec, fueledBuffDurationPct, fuelMult, gameSpeedMult]);
+  }, [state.fueled, state.fishingUnlocked, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, chainBomberBuffDurationSec, voidBuffDurationSec, veinseekerBuffDurationSec, fueledBuffDurationPct, fuelMult, gameSpeedMult]);
 
   const droneBomb10xMinPerHour = useMemo(() => {
     const cycleSec = numBuffs * intervalSec;
@@ -989,6 +1053,15 @@ export function Drone() {
     return Math.min(1, b.sec / (totalBuffs * intervalSec));
   }, [state.voidDroneOn, state.voidFueled, intervalSec, buffDurations]);
 
+  /** Veinseeker: uptime fraction (0..1) when ON and fueled. Buff appears in Elixir pool. */
+  const veinseekerBuffUptimeFraction = useMemo(() => {
+    if (!state.veinseekerDroneOn || !state.veinseekerFueled || intervalSec <= 0) return 0;
+    const b = buffDurations.find((x) => x.id === "veinseeker");
+    if (!b) return 0;
+    const totalBuffs = buffDurations.length;
+    return Math.min(1, b.sec / (totalBuffs * intervalSec));
+  }, [state.veinseekerDroneOn, state.veinseekerFueled, intervalSec, buffDurations]);
+
   /** Chain Bomber: uptime fraction (0..1) for Gem EV Gift procs. When ON and fueled, buff appears in Elixir pool. Uptime = buffSec / (totalBuffs × intervalSec). */
   const chainBomberBuffUptimeFraction = useMemo(() => {
     if (!state.chainBomberDroneOn || !state.chainBomberFueled) return 0;
@@ -1009,7 +1082,8 @@ export function Drone() {
     const starburstFuelGems = state.starburstDroneOn && state.starburstFueled ? starburstFuelGemsPerHour : 0;
     const chainBomberFuelGems = state.chainBomberDroneOn && state.chainBomberFueled ? chainBomberFuelGemsPerHour : 0;
     const voidFuelGems = state.voidDroneOn && state.voidFueled ? voidFuelGemsPerHour : 0;
-    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems + starburstFuelGems + chainBomberFuelGems + voidFuelGems;
+    const veinseekerFuelGems = state.veinseekerDroneOn && state.veinseekerFueled ? veinseekerFuelGemsPerHour : 0;
+    ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems + starburstFuelGems + chainBomberFuelGems + voidFuelGems + veinseekerFuelGems;
     ext.elixirFuelGemsPerHour = elixirFuelGems;
     ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     ext.fishingUnlocked = state.fishingUnlocked;
@@ -1020,7 +1094,7 @@ export function Drone() {
     ext.voidPortalMult = state.voidDroneOn && state.voidFueled ? voidPortalMult : 0;
     ext.voidBuffUptimeFraction = voidBuffUptimeFraction;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.fishingUnlocked]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -3250,6 +3324,143 @@ export function Drone() {
             <span className="droneLabel">Buff uptime</span>
             <span className="droneStepperValue mono">
               {state.voidDroneOn && state.voidFueled ? `${(voidBuffUptimeFraction * 100).toFixed(1)}%` : "—"}
+            </span>
+          </div>
+        </div>
+      </Collapsible>
+
+      <Collapsible
+        id="drone-veinseeker"
+        title="Veinseeker Drone"
+        defaultExpanded={false}
+        headerRight={
+          <div className="droneCheckboxRow" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            <img src="https://static.wikitide.net/shminerwiki/5/5b/Drone_Veinseeker.png" alt="" className="droneHeaderIcon" aria-hidden />
+            <input
+              type="checkbox"
+              id="veinseeker-drone-on"
+              className="droneCheckbox"
+              checked={state.veinseekerDroneOn}
+              onChange={(e) => update({ veinseekerDroneOn: e.target.checked })}
+            />
+            <label htmlFor="veinseeker-drone-on" className="droneLabel">
+              Drone: {state.veinseekerDroneOn ? "ON" : "OFF"}
+            </label>
+            <Tooltip
+              content={{
+                title: "Veinseeker Drone",
+                sections: [
+                  {
+                    heading: "Effect",
+                    lines: [
+                      "When fueled: +50% Golden Vein Multi at grade 0, +10% per grade, max +250% (Polychrome).",
+                      "Buff duration: 2:40 at grade 0, +0:08 per grade, max 5:20. Appears in Elixir buff pool.",
+                    ],
+                  },
+                ],
+              }}
+            />
+          </div>
+        }
+      >
+        <div className="droneSection">
+          <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
+            When fueled, Veinseeker Drone adds +X% Golden Vein Multi to the Elixir buff pool.
+          </p>
+          <div className="droneSectionTitle">Settings</div>
+          <div className="droneCheckboxRow">
+            <img src="https://static.wikitide.net/shminerwiki/4/44/Fuel.png" alt="" className="droneSkillIcon" aria-hidden />
+            <input
+              type="checkbox"
+              id="veinseeker-fueled"
+              className="droneCheckbox"
+              checked={state.veinseekerFueled}
+              onChange={(e) => update({ veinseekerFueled: e.target.checked })}
+            />
+            <label htmlFor="veinseeker-fueled" className="droneLabel">
+              Drone fueled
+            </label>
+          </div>
+          {state.veinseekerFueled ? (
+            <div className="droneSubSection">
+              <div className="droneSubTitle">When fueled</div>
+              <Stepper
+                label="Grade level"
+                value={state.veinseekerGradeLevel}
+                onChange={(n) => update({ veinseekerGradeLevel: n })}
+                min={0}
+                max={45}
+                step={1}
+                stepLarge={5}
+                tooltip={{
+                  title: "Veinseeker grade (fuel buff)",
+                  lines: [
+                    "Buff: +50% Golden Vein Multi at grade 0, +10% per grade, max +250% (Polychrome). Duration: 2:40 at grade 0, +0:08 per grade, max 5:20.",
+                    "Same fuel duration multipliers (Coal, Cards, etc.) as other drones.",
+                  ],
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {state.veinseekerFueled ? (
+          <div className="droneSection">
+            <div className="droneSectionTitle">Fuel (Veinseeker)</div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (game time)</span>
+              <span className="droneStepperValue">{formatMinSec(veinseekerFuelDurationGameSec)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">1 fuel lasts (real time)</span>
+              <span className="droneStepperValue">{formatMinSec(veinseekerFuelDurationSecReal)}</span>
+            </div>
+            <div className="droneRow">
+              <span className="droneLabel">Fuel Duration Multiplier</span>
+              <span className="droneStepperValue">{fuelDurationMultiplier.toFixed(2)}×</span>
+            </div>
+            <div className="droneRow droneFuelGemsRow">
+              <span className="droneFuelGemsLabel">
+                <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
+                <span className="droneLabel">
+                  Fuel cost (100% uptime)
+                  <Tooltip
+                    content={{
+                      title: "Fuel cost (100% uptime)",
+                      lines: [
+                        "Average gems per hour spent on fuel to keep the Veinseeker Drone fueled 100% of the time.",
+                        "Fuels per hour × (1 − Fuel Save Chance) × 5 gems per fuel.",
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+              <span className="droneFuelGemsValue" aria-label={`${veinseekerFuelGemsPerHour.toFixed(1)} gems per hour cost`}>
+                −{veinseekerFuelGemsPerHour.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="droneSection">
+          <div className="droneRow">
+            <span className="droneLabel">
+              Golden Vein Multi bonus
+              <Tooltip
+                content={{
+                  title: "Golden Vein Multi bonus",
+                  lines: ["When buff is active: +X% to Golden Vein Multi. Uptime from Elixir pool."],
+                }}
+              />
+            </span>
+            <span className="droneStepperValue mono">
+              {state.veinseekerDroneOn && state.veinseekerFueled ? `+${veinseekerGoldenVeinPct}%` : "—"}
+            </span>
+          </div>
+          <div className="droneRow">
+            <span className="droneLabel">Buff uptime</span>
+            <span className="droneStepperValue mono">
+              {state.veinseekerDroneOn && state.veinseekerFueled ? `${(veinseekerBuffUptimeFraction * 100).toFixed(1)}%` : "—"}
             </span>
           </div>
         </div>

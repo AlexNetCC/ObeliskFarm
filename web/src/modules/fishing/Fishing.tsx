@@ -111,6 +111,8 @@ type SavedState = {
   infernalAnglerDronePct?: number;
   /** Cards: Infernal Angler Drone Card — level. */
   infernalAnglerDroneLevel?: number;
+  /** Cards: Mr Nibbles Card. 0 = none, 1 = +1% Tiny Notice, 2 = Gilded +2%, 3 = Poly +4%. */
+  mrNibblesCardTier?: FishCardTier;
 };
 
 /** Single persisted state (same pattern as Drone: one state, lazy load, save on change). */
@@ -126,6 +128,8 @@ type FishingState = {
   sushiCardTier: FishCardTier;
   /** Fishing Rod card: 0 = none, 1 = Card 1.02×, 2 = Gilded 1.05×, 3 = Poly 1.10× rod power. */
   fishingRodCardTier: FishCardTier;
+  /** Cards: Mr Nibbles Card. 0 = none, 1 = Card +1% Tiny Notice, 2 = Gilded +2%, 3 = Poly +4%. */
+  mrNibblesCardTier: FishCardTier;
   valuePackPotencyPoly: boolean;
   skillTreeLevels: Partial<Record<FishingSkillId, number>>;
   legendaryFishFound: number;
@@ -398,6 +402,8 @@ type TotalFishOptions = {
   legendaryFishFound?: number;
   /** Fishing Rod card tier (0–3) for rod power mult 1 / 1.02 / 1.05 / 1.10. */
   fishingRodCardTier?: FishCardTier;
+  /** Mr Nibbles Card: 0 = none, 1 = +1% Tiny Notice, 2 = +2%, 3 = +4%. */
+  mrNibblesCardTier?: FishCardTier;
   relic5xPoints?: number;
   mrNibblesLevel?: number;
   mrNibblesQuestRank?: number;
@@ -877,6 +883,7 @@ export function Fishing() {
     const skillTreeLevels = saved?.skillTreeLevels ?? {};
     const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
     const fishingRodCardTier = clamp(Math.trunc(Number(saved?.fishingRodCardTier ?? 0)), 0, 3) as FishCardTier;
+    const mrNibblesCardTier = clamp(Math.trunc(Number(saved?.mrNibblesCardTier ?? 0)), 0, 3) as FishCardTier;
     const divineRelic5xPoints = clamp(Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)), 0, 50);
     const mcHours = clamp(Number(saved?.mcHours ?? 8), 0.1, 720);
     const mcRuns = clamp(Math.trunc(Number(saved?.mcRuns ?? 10000)), 1000, 100000);
@@ -903,7 +910,7 @@ export function Fishing() {
     const infernalMrNibblesLevel = Math.max(0, Math.trunc(Number(saved?.infernalMrNibblesLevel ?? 0)));
     const infernalAnglerDronePct = clamp(Number(saved?.infernalAnglerDronePct ?? 0), 0, 100);
     const infernalAnglerDroneLevel = Math.max(0, Math.trunc(Number(saved?.infernalAnglerDroneLevel ?? 0)));
-    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
+    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
   });
 
   useEffect(() => {
@@ -946,6 +953,7 @@ export function Fishing() {
     astraeusIdolLevel: state.astraeusIdolLevel,
     droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
     fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+    mrNibblesCardTier: state.mrNibblesCardTier,
     legendaryHaulerBundle: state.legendaryHaulerBundle,
     fishersBundle: state.fishersBundle,
     anglerBundle: state.anglerBundle,
@@ -1764,6 +1772,7 @@ export function Fishing() {
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
       fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
       astraeusIdolLevel: state.astraeusIdolLevel,
@@ -1906,6 +1915,7 @@ export function Fishing() {
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
       fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
       relic5xPoints: state.divineRelic5xPoints,
       mrNibblesLevel: state.mrNibblesLevel,
       mrNibblesQuestRank: state.mrNibblesQuestRank,
@@ -2047,6 +2057,7 @@ export function Fishing() {
     state.fishCardTier,
     state.legendaryFishFound,
     state.fishingRodCardTier,
+    state.mrNibblesCardTier,
     state.legendaryHaulerBundle,
     state.fishersBundle,
     state.anglerBundle,
@@ -2157,6 +2168,7 @@ export function Fishing() {
       fishCardTier: state.fishCardTier,
       legendaryFishFound: state.legendaryFishFound,
       fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
       astraeusIdolLevel: state.astraeusIdolLevel,
@@ -2363,7 +2375,7 @@ export function Fishing() {
       return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishCardGildCostEfficGemAbs: efficMapGemAbs, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, fishingRodCardGildCostEfficGemAbs: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1, costEfficHeatMinFishCardGemAbs: 0, costEfficHeatMaxFishCardGemAbs: 1 };
     }
     const cardToGildedRatio = 2 / 1.5; // Card 1.5× → Gilded 2×
-    const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints, mrNibblesLevel: state.mrNibblesLevel, mrNibblesQuestRank: state.mrNibblesQuestRank, poseidonIdolLevel: state.poseidonIdolLevel, tethysIdolLevel: state.tethysIdolLevel, astraeusIdolLevel: state.astraeusIdolLevel, droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3, legendaryHaulerBundle: state.legendaryHaulerBundle, fishersBundle: state.fishersBundle, anglerBundle: state.anglerBundle, divineChallengeCoinLevel: state.divineChallengeCoinLevel, infernalMrNibblesPct: state.infernalMrNibblesPct, infernalMrNibblesLevel: state.infernalMrNibblesLevel, infernalAnglerDronePct: state.infernalAnglerDronePct, infernalAnglerDroneLevel: state.infernalAnglerDroneLevel, constructStatue: state.constructStatue, cetusLevel: state.cetusLevel, blackHoleBonus: state.blackHoleBonus };
+    const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints, mrNibblesLevel: state.mrNibblesLevel, mrNibblesQuestRank: state.mrNibblesQuestRank, poseidonIdolLevel: state.poseidonIdolLevel, tethysIdolLevel: state.tethysIdolLevel, astraeusIdolLevel: state.astraeusIdolLevel, droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3, mrNibblesCardTier: state.mrNibblesCardTier, legendaryHaulerBundle: state.legendaryHaulerBundle, fishersBundle: state.fishersBundle, anglerBundle: state.anglerBundle, divineChallengeCoinLevel: state.divineChallengeCoinLevel, infernalMrNibblesPct: state.infernalMrNibblesPct, infernalMrNibblesLevel: state.infernalMrNibblesLevel, infernalAnglerDronePct: state.infernalAnglerDronePct, infernalAnglerDroneLevel: state.infernalAnglerDroneLevel, constructStatue: state.constructStatue, cetusLevel: state.cetusLevel, blackHoleBonus: state.blackHoleBonus };
     for (const row of visibleGainsRows) {
       if (!row.hasPower || row.fishPerHour <= 0) continue;
       const tier = (state.fishCardTier[row.fish.id] ?? 0) as FishCardTier;
@@ -2421,6 +2433,17 @@ export function Fishing() {
       costEfficHeatMaxFishCardGemAbs: efficValsGemAbs.length ? Math.max(...efficValsGemAbs) : 1,
     };
   }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, state.skillTreeLevels, state.legendaryFishFound, state.divineRelic5xPoints, state.infernalMrNibblesPct, state.infernalMrNibblesLevel, state.infernalAnglerDronePct, state.infernalAnglerDroneLevel, upgradeLevels, enhanceLevels, stats.fish_income_multi, stats.shiny_multiplier, stats.super_shiny_multiplier, stats.super_shiny_chance_pct, expectedShinyMulti, totalFishPerHourWithRodPoly, gemEvGemsPerHour]);
+
+  /** Mr Nibbles Card: effective assumed +% gain for next tier (Tiny Notice, same formula as Angler). Excluded from heatmap. */
+  const mrNibblesCardNextMarginalPct = useMemo(() => {
+    const tier = state.mrNibblesCardTier ?? 0;
+    if (tier >= 3) return null;
+    const currentTinyPct = stats.tiny_notice_chance_pct;
+    const delta = tier === 0 || tier === 1 ? 1 : 2;
+    const multWithout = 1 + (currentTinyPct / 100) * 9;
+    const multWith = 1 + ((currentTinyPct + delta) / 100) * 9;
+    return ((multWith - multWithout) / multWithout) * 100;
+  }, [state.mrNibblesCardTier, stats.tiny_notice_chance_pct]);
 
   /** Unified cost-efficiency heatmap. Min/max over all sections with data. Highest value gets green (t=1), lowest red (t=0). Empty sections excluded; when only one value, scale so it is green. */
   const { costEfficHeatMinGlobal, costEfficHeatMaxGlobal, costEfficHeatMinGemAbsGlobal, costEfficHeatMaxGemAbsGlobal } = useMemo(() => {
@@ -4106,6 +4129,9 @@ export function Fishing() {
                     ...((state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) != null
                       ? [{ type: "rod" as const, id: "fishing_rod_power", effic: (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs)! }]
                       : []),
+                    ...((state.mrNibblesCardTier ?? 0) >= 1 && (state.mrNibblesCardTier ?? 0) < 3
+                      ? [{ type: "mrNibbles" as const, id: "mr_nibbles_card", effic: -1 }]
+                      : []),
                   ]
                     .sort((a, b) => b.effic - a.effic)
                     .map((entry) => {
@@ -4165,6 +4191,42 @@ export function Fishing() {
                           </tr>
                         );
                       }
+                      if (entry.type === "mrNibbles") {
+                        const marginalPctMr = mrNibblesCardNextMarginalPct ?? 0;
+                        return (
+                          <tr key="mr_nibbles_card" className="fishingUpgradeRow">
+                            <td className="fishingUpgradeTdName">
+                              <img src="https://static.wikitide.net/shminerwiki/thumb/2/22/Mr_Nibbles_Default.png/36px-Mr_Nibbles_Default.png" alt="" className="fishingUpgradeIcon" />
+                              <span className="fishingUpgradeName">Mr Nibbles Card</span>
+                              <Tooltip
+                                content={{
+                                  title: "Mr Nibbles Card",
+                                  sections: [
+                                    {
+                                      heading: "Indirect gains",
+                                      lines: [
+                                        "Tiny Notice Chance (flat). Card +1%, Gilded +2%, Poly +4%.",
+                                        "Effective +% is the assumed gain from the Notice mechanic (Tiny = 10×). Not included in cost efficiency heatmap.",
+                                      ],
+                                    },
+                                  ],
+                                }}
+                                label="?"
+                              />
+                            </td>
+                            <td className="fishingUpgradeTdCostEffic">—</td>
+                            <td className="fishingUpgradeTdCost">—</td>
+                            <td className="fishingUpgradeTdTime">—</td>
+                            <td className="fishingUpgradeTdSpeed">
+                              {mrNibblesCardNextMarginalPct != null ? (
+                                <span title="Tiny Notice: effective assumed gain">+{marginalPctMr.toFixed(1)}% (notice)</span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
                       const costEffic = (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs)!;
                       const marginalPct = fishingRodCardGildMarginalPct ?? 0;
                       const { min: heatMin, max: heatMax } = state.useGemIncomeForCostEffic
@@ -4208,7 +4270,7 @@ export function Fishing() {
                 </tbody>
               </table>
             </div>
-            {!hasUngildedFishCard && !hasUngildedRodCard && (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) == null ? (
+            {!hasUngildedFishCard && !hasUngildedRodCard && (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) == null && ((state.mrNibblesCardTier ?? 0) === 0 || (state.mrNibblesCardTier ?? 0) >= 3) ? (
               <div className="small" style={{ padding: 8, opacity: 0.85 }}>You currently have no un-gilded Fish cards and no un-gilded Fishing Rod Power Card.</div>
             ) : null}
           </Collapsible>
@@ -4230,6 +4292,23 @@ export function Fishing() {
                   onChange={(t) => setState((prev) => ({ ...prev, fishingRodCardTier: t }))}
                 />
                 <div className="small" style={{ marginTop: 4, opacity: 0.85 }}>Card 1.02× · Gilded 1.05× · Poly 1.10×</div>
+              </div>
+              <div className="fishingFishCardCell">
+                <div className="fishingFishCardCellTop">
+                  <img src="https://static.wikitide.net/shminerwiki/thumb/2/22/Mr_Nibbles_Default.png/36px-Mr_Nibbles_Default.png" alt="" className="fishingFishCardIcon" />
+                  <span className="mono">Mr Nibbles</span>
+                  <Tooltip
+                    content={{
+                      title: "Mr Nibbles Card",
+                      lines: ["Tiny Notice Chance (flat). Card +1%, Gilded +2%, Poly +4%."],
+                    }}
+                  />
+                </div>
+                <FishCardTierToggles
+                  value={state.mrNibblesCardTier}
+                  onChange={(t) => setState((prev) => ({ ...prev, mrNibblesCardTier: t }))}
+                />
+                <div className="small" style={{ marginTop: 4, opacity: 0.85 }}>Card +1% · Gilded +2% · Poly +4% Tiny Notice</div>
               </div>
             </div>
             <div className="fishingFishCardsGrid">

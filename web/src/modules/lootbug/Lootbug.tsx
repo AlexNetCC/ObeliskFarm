@@ -6,6 +6,7 @@ import { loadJson, saveJson } from "../../lib/storage";
 import {
   calculateCherryChargesGemsPerHour,
   defaultGameParameters,
+  getEffectiveGameSpeedMultiplierForTime,
   getGameSpeedMultiplier,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
@@ -347,7 +348,7 @@ export function Lootbug() {
     return merged;
   }, []);
 
-  const gameSpeed = useMemo(() => getGameSpeedMultiplier(gameSpeedParams), [gameSpeedParams]);
+  const gameSpeed = useMemo(() => getEffectiveGameSpeedMultiplierForTime(gameSpeedParams), [gameSpeedParams]);
 
   /** Bomb Bear Drone: when fueled in Drone module, multiplies Lootbug spawn rate. Only used for Drone's "Gem EV/h from Bomb Bear" delta; not applied to Lootbug gains (user enters spawn rate manually). */
   const bombBearLootbugSpawnRateMult = (() => {

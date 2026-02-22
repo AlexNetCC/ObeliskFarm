@@ -383,3 +383,74 @@
     background-position: 100% 50%;
   }
 }
+
+/* Gifts/h by source chart modal: dark look like Stars chart */
+.gemEvGiftsPerHourChartModal .modalHeader {
+  background: #3d4556;
+  color: rgba(226, 232, 240, 0.95);
+}
+.gemEvGiftsPerHourChartModal .modalHeader .mono {
+  color: rgba(226, 232, 240, 0.9);
+}
+.gemEvGiftsPerHourChartModal .modalHeader .small {
+  color: rgba(226, 232, 240, 0.7);
+}
+.gemEvGiftsPerHourChartModal .modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #3d4556;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 0 0 12px 12px;
+}
+.gemEvGiftsContribBlock {
+  padding: 8px 0;
+}
+.gemEvGiftsContribTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.95);
+  margin-bottom: 8px;
+}
+.gemEvGiftsContribBars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gemEvGiftsContribRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+.gemEvGiftsContribLabel {
+  flex: 0 0 180px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.88);
+}
+.gemEvGiftsContribBarTrack {
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.gemEvGiftsContribBarFill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 4px;
+  transition: width 0.15s ease;
+}
+.gemEvGiftsContribValue {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(226, 232, 240, 0.95);
+}
+.gemEvGiftsContribPct {
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.65);
+  margin-left: 2px;
+}
