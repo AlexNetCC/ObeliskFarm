@@ -442,7 +442,7 @@ export function GemEv() {
     return Math.max(0, ev.gem_bomb_gems - withoutChaos);
   }, [effectiveParams, ev.gem_bomb_gems]);
 
-  /** Bomb contribution: from Bombs module when present, else from own params. */
+  /** Bomb contribution: from Bombs module when present, else from own params. Use external when set so Bombs' calculation is shown; total updates after opening Bombs (e.g. after toggling W3). */
   const bombContribution = typeof external.gemBombGemsPerHourFromBombs === "number" ? external.gemBombGemsPerHourFromBombs : ev.gem_bomb_gems;
   const gemBomb10xImpactForChart = typeof external.gemBomb10xImpactFromBombs === "number" ? external.gemBomb10xImpactFromBombs : gemBomb10xImpact;
   /** Chaos Totem in chart: when 100% from Bombs use Bombs' impact; otherwise use Items (Tier 1) value so the chart shows the proportional Chaos Totem. */
@@ -521,7 +521,7 @@ export function GemEv() {
     ext.stonksChestsPerHour = stonksChestsPerHour;
     ext.founderSupplyDropItemChestsPerHour = founderSupplyDrop.itemChestsPerHour;
     ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
-    ext.w3_floor_debuff = Boolean(effectiveParams.w3_floor_debuff);
+    (ext as Record<string, unknown>).w3_floor_debuff = Boolean(effectiveParams.w3_floor_debuff);
     ext.giftItemChestsPerHour = giftItemChestsPerHour;
     ext.giftRelicChestsPerHour = giftRelicChestsPerHour;
     ext.freebieRelicChestsPerHour = freebieRelicChestsPerHour;
