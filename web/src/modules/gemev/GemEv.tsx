@@ -244,6 +244,7 @@ export function GemEv() {
       fishPerSushiEvForGift?: number;
       chainBomberGoldenFloorBonusPct?: number;
       chainBomberBuffUptimeFraction?: number;
+      w3_debuff_fish_pct_loss?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
@@ -270,8 +271,9 @@ export function GemEv() {
     const fishPerSushiEvForGift = typeof ext?.fishPerSushiEvForGift === "number" ? ext.fishPerSushiEvForGift : undefined;
     const chainBomberGoldenFloorBonusPct = typeof ext?.chainBomberGoldenFloorBonusPct === "number" ? ext.chainBomberGoldenFloorBonusPct : undefined;
     const chainBomberBuffUptimeFraction = typeof ext?.chainBomberBuffUptimeFraction === "number" ? ext.chainBomberBuffUptimeFraction : undefined;
+    const w3DebuffFishPctLoss = typeof ext?.w3_debuff_fish_pct_loss === "number" ? ext.w3_debuff_fish_pct_loss : undefined;
     return {
-      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction,
+      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss,
     };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
@@ -817,6 +819,37 @@ export function GemEv() {
                           </span>
                         </td>
                         <td className="mono">42.9% longer</td>
+                      </tr>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Fewer</span></td>
+                        <td>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            {typeof external.w3DebuffFishPctLoss === "number" && external.w3DebuffFishPctLoss > 0
+                              ? "Fish (total)"
+                              : "Fish from freebie gifts"}
+                            <Tooltip
+                              content={{
+                                title: typeof external.w3DebuffFishPctLoss === "number" && external.w3DebuffFishPctLoss > 0 ? "Fish (total)" : "Fish from freebie gifts",
+                                lines:
+                                  typeof external.w3DebuffFishPctLoss === "number" && external.w3DebuffFishPctLoss > 0
+                                    ? [
+                                        "Effective total fish/h reduction from W3 debuff (fewer freebie gifts). Computed from your Fishing gains; open Fishing to refresh.",
+                                        "Freebie cooldown 42.9% longer → 30% fewer freebies/h; only the freebie-gift share of your total fish/h is reduced.",
+                                      ]
+                                    : [
+                                        "Freebie cooldown is 42.9% longer → 30% fewer freebies/h. Fish (and Sushi) from Statue of Soprano gifts scale with freebies/h, so ~30% fewer fish/h from that source. Founder supply drop is unchanged.",
+                                        "Open Fishing to see your effective total fish/h reduction here.",
+                                      ],
+                              }}
+                              label="?"
+                            />
+                          </span>
+                        </td>
+                        <td className="mono">
+                          {typeof external.w3DebuffFishPctLoss === "number" && external.w3DebuffFishPctLoss > 0
+                            ? `−${external.w3DebuffFishPctLoss.toFixed(1)}% fish/h`
+                            : "~30% fewer fish/h"}
+                        </td>
                       </tr>
                       <tr>
                         <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Longer interval</span></td>

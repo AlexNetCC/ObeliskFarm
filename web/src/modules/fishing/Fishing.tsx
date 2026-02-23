@@ -1440,6 +1440,17 @@ export function Fishing() {
     return fishingGainsRows.filter((r) => r.hasPower);
   }, [fishingGainsRows, state.showDisabledFishGrayed]);
 
+  /** When W3 floor debuff is on in Gem EV: effective % reduction of total fish/h (30% × freebie-gift share). Exported for Gem EV table only; no UI here. */
+  const w3FishPctLoss = useMemo(() => {
+    const ext = loadJson<{ w3_floor_debuff?: boolean }>(GEMEV_EXTERNAL_KEY);
+    if (!ext?.w3_floor_debuff) return null;
+    const totalFish = visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0);
+    if (totalFish <= 0 || totalEffectiveTicksPerHour <= 0) return null;
+    const freebieShare = (giftSushiFreebieTicksPerHour * tickMult) / totalEffectiveTicksPerHour;
+    if (freebieShare <= 0) return null;
+    return 100 * 0.3 * freebieShare;
+  }, [visibleGainsRows, totalEffectiveTicksPerHour, giftSushiFreebieTicksPerHour, tickMult]);
+
   /** Any fish card in Card (ungilded) state, regardless of dock power. Used for "no un-gilded" banner. */
   const hasUngildedFishCard = useMemo(() => {
     const ids = new Set(fishingGainsRows.map((r) => r.fish.id));
@@ -1670,13 +1681,15 @@ export function Fishing() {
   /** Fish per hour during 5× Tick Chance buff. totalFishPerHour already includes 2×/3×/5× tick mult; gift adds one more 5× (multiplicative). For Gem EV Gift chart: effective min + fish from that buff. */
   const giftFishPerHourDuring5xBuff = 5 * sushiEvAndTotal.totalFishPerHour;
 
-  /** Export for Gem EV: fish EV per 1 Sushi; fish/h during 5× buff (for Gift chart min + fish). */
+  /** Export for Gem EV: fish EV per 1 Sushi; fish/h during 5× buff (for Gift chart); W3 debuff total fish/h % loss for table. */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.fishPerSushiEvForGift = sushiEvAndTotal.fishPerSushiEv;
     ext.giftFishPerHourDuring5xBuff = giftFishPerHourDuring5xBuff;
+    if (w3FishPctLoss != null) ext.w3_debuff_fish_pct_loss = w3FishPctLoss;
+    else delete ext.w3_debuff_fish_pct_loss;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [sushiEvAndTotal.fishPerSushiEv, giftFishPerHourDuring5xBuff]);
+  }, [sushiEvAndTotal.fishPerSushiEv, giftFishPerHourDuring5xBuff, w3FishPctLoss]);
 
   function runSushiMc() {
     const { fishPerSushiEv, fishPerSushiEvPerFish } = sushiEvAndTotal;
