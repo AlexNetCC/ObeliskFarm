@@ -710,8 +710,9 @@ export function GemEv() {
                     {
                       heading: "W3 floor debuff",
                       lines: [
-                        "When active: 70% game speed on W3 floors. Affects freebie cooldown and bomb recharge only.",
-                        "Does not affect Founder supply drop or Stargazing (star gains there already account for it).",
+                        "When active: 70% game speed on W3 floors.",
+                        "Slower / longer in real time (+42.9%): Freebie cooldown, Bomb recharge, Drone buff/fuel intervals, Lootbug spawn interval and buff duration.",
+                        "Not affected: Founder supply drop, Stargazing.",
                       ],
                     },
                   ],
@@ -752,7 +753,20 @@ export function GemEv() {
                   <Tooltip
                     content={{
                       title: "Obelisk Level",
-                      lines: ["Affects bonus gems and Gift-EV multipliers (1 + Level × 0.08)."],
+                      sections: [
+                        {
+                          heading: "Bonus gems",
+                          lines: [
+                            "Founder supply drop: when the bonus-gems roll hits, you get 50 + 10 × Level gems per drop.",
+                          ],
+                        },
+                        {
+                          heading: "Gift-EV multiplier",
+                          lines: [
+                            "Freebie and supply-drop gift outcomes (Gems, Item/Relic Chests, Stonks, rare rolls, etc.) are multiplied by (1 + Level × 0.08).",
+                          ],
+                        },
+                      ],
                     }}
                     label="?"
                   />
@@ -765,14 +779,74 @@ export function GemEv() {
                     checked={Boolean(params.w3_floor_debuff)}
                     onChange={(e) => setParams((s) => ({ ...s, w3_floor_debuff: e.target.checked }))}
                   />
-                  <span>W3 floor debuff (−30% game speed)</span>
+                  <span>W3 Debuff (−30% Game Speed)</span>
                 </label>
                 {params.w3_floor_debuff ? (
                   <span className="mono" style={{ opacity: 0.85 }}>
-                    Effective (freebie/bombs): {getEffectiveGameSpeedMultiplierForTime(effectiveParams).toFixed(2)}×
+                    Effective Game Speed: {getEffectiveGameSpeedMultiplierForTime(effectiveParams).toFixed(2)}×
                   </span>
                 ) : null}
               </div>
+              {params.w3_floor_debuff ? (
+                <div className="gemEvW3DebuffTableWrap" style={{ marginTop: 6 }}>
+                  <table className="gemEvW3DebuffTable">
+                    <thead>
+                      <tr>
+                        <th>Effect</th>
+                        <th>What</th>
+                        <th>Change</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Slower</span></td>
+                        <td>
+                          <span className="gemEvW3DebuffWhat">
+                            <Sprite path="sprites/event/gembomb.png" alt="" className="iconSmall" />
+                            Bomb recharge
+                          </span>
+                        </td>
+                        <td className="mono">+42.9%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Longer</span></td>
+                        <td>
+                          <span className="gemEvW3DebuffWhat">
+                            <Sprite path="sprites/common/gem.png" alt="" className="iconSmall" />
+                            Freebie cooldown
+                          </span>
+                        </td>
+                        <td className="mono">+42.9%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Longer interval</span></td>
+                        <td>Drone: time between buffs / autofires</td>
+                        <td className="mono">+42.9%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffGood">Longer</span></td>
+                        <td>Drone: buff / fuel duration</td>
+                        <td className="mono">+42.9%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Longer interval</span></td>
+                        <td>Lootbug spawn interval</td>
+                        <td className="mono">+42.9%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffGood">Longer</span></td>
+                        <td>Lootbug buff duration</td>
+                        <td className="mono">+42.9%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="gemEvW3DebuffEffect gemEvW3DebuffUnchanged">Unchanged</span></td>
+                        <td>Supply drop, Stargazing</td>
+                        <td className="mono">—</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
             </div>
           </div>
 

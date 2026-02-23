@@ -76,6 +76,60 @@
   background: rgba(56, 161, 105, 0.1);
 }
 
+.gemEvW3DebuffTableWrap {
+  overflow-x: auto;
+}
+
+.gemEvW3DebuffTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.gemEvW3DebuffTable th,
+.gemEvW3DebuffTable td {
+  padding: 4px 6px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.gemEvW3DebuffTable th {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.gemEvW3DebuffTable td:last-child {
+  text-align: right;
+}
+
+.gemEvW3DebuffWhat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gemEvW3DebuffWhat .iconSmall {
+  flex-shrink: 0;
+}
+
+.gemEvW3DebuffEffect {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.gemEvW3DebuffBad {
+  color: #c62828;
+}
+
+.gemEvW3DebuffGood {
+  color: #2e7d32;
+}
+
+.gemEvW3DebuffUnchanged {
+  color: rgba(15, 23, 42, 0.55);
+  font-weight: 500;
+}
+
 /* Bombs (and shared) Game speed block: same format as Drone (box + glow when > 1×) */
 .bombsGameSpeedToggle {
   border: 2px solid rgba(15, 23, 42, 0.2);

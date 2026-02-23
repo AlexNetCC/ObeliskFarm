@@ -121,6 +121,7 @@ type SavedStateV1 = {
   catch_manually?: boolean;
   starfruit?: boolean;
   ice_cream?: boolean;
+  w3_debuff_removed_fishing?: boolean;
   star_cards?: Partial<StarCardsState>;
 };
 
@@ -360,12 +361,13 @@ export function Stargazing() {
     const catch_manually = saved?.catch_manually ?? false;
     const starfruit = saved?.starfruit ?? false;
     const ice_cream = saved?.ice_cream ?? false;
+    const w3_debuff_removed_fishing = saved?.w3_debuff_removed_fishing ?? false;
     const star_cards: StarCardsState = {
       ...defaultStarCards(),
       ...(saved?.star_cards ?? {}),
       selected_card_for_results: saved?.star_cards?.selected_card_for_results ?? "aries",
     };
-    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, starfruit, ice_cream, star_cards };
+    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, starfruit, ice_cream, w3_debuff_removed_fishing, star_cards };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
@@ -374,6 +376,7 @@ export function Stargazing() {
   const [catchManually, setCatchManually] = useState<boolean>(initial.catch_manually ?? false);
   const [starfruit, setStarfruit] = useState<boolean>(initial.starfruit ?? false);
   const [iceCream, setIceCream] = useState<boolean>(initial.ice_cream ?? false);
+  const [w3DebuffRemovedFishing, setW3DebuffRemovedFishing] = useState<boolean>(initial.w3_debuff_removed_fishing ?? false);
   const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
   const [resetArmed, setResetArmed] = useState(false);
 
@@ -388,11 +391,11 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, starfruit, ice_cream: iceCream, star_cards: starCards };
+      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, starfruit, ice_cream: iceCream, w3_debuff_removed_fishing: w3DebuffRemovedFishing, star_cards: starCards };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF, spoonStrat, catchManually, starfruit, iceCream, starCards]);
+  }, [ui, ctrlF, spoonStrat, catchManually, starfruit, iceCream, w3DebuffRemovedFishing, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -462,7 +465,10 @@ export function Stargazing() {
 
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
 
-  const w3FloorsMult = useMemo(() => getW3FloorsMult(starCards.selected_card_for_results), [starCards.selected_card_for_results]);
+  const w3FloorsMult = useMemo(() => {
+    if (w3DebuffRemovedFishing) return 1.0;
+    return getW3FloorsMult(starCards.selected_card_for_results);
+  }, [w3DebuffRemovedFishing, starCards.selected_card_for_results]);
 
   const stats = useMemo<PlayerStats>(() => {
     const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1) * w3FloorsMult;
@@ -780,7 +786,19 @@ export function Stargazing() {
             </div>
 
             <div className="sgResultsCardSelect" style={{ marginBottom: 10 }}>
-              <span className="small mono" style={{ opacity: 0.9 }}>View results for:</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span className="small mono" style={{ opacity: 0.9 }}>View results for:</span>
+                <Tooltip
+                  content={{
+                    title: "Star selection",
+                    lines: [
+                      "W3 floor debuff (−30% game speed on W3 floors) is already included in the results for the selected star.",
+                      "Orion, Hercules, Draco, Cetus, Phoenix each have a different W3 time fraction; effective floors/h is reduced accordingly. No separate setting in Gem EV needed for Stargazing.",
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
               <div className="sgResultsStarButtons">
                 {STAR_CARD_IDS.map((id) => {
                   const name = id.charAt(0).toUpperCase() + id.slice(1);
@@ -838,6 +856,24 @@ export function Stargazing() {
                 />
                 <img src={ICON_ICE_CREAM} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
                 <span>Ice Cream (Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140s)</span>
+              </label>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={w3DebuffRemovedFishing}
+                  onChange={(e) => setW3DebuffRemovedFishing(e.target.checked)}
+                />
+                <span>W3 Debuff removed (Fishing)</span>
+                <Tooltip
+                  content={{
+                    title: "W3 debuff removed",
+                    lines: [
+                      "Unchecked: −30% game speed on W3 applies only for part of the time, per star (e.g. Orion 2/5, Hercules 4/5, Draco/Cetus/Phoenix 5/5). Effective floors/h is reduced proportionally.",
+                      "Checked: debuff treated as removed (e.g. via Fishing). Stars beyond Ophiuchus then use full floor-clear rate.",
+                    ],
+                  }}
+                  label="?"
+                />
               </label>
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
