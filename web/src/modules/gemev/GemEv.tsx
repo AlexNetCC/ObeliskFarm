@@ -506,6 +506,7 @@ export function GemEv() {
       giftRelicChestsPerHour?: number;
       freebieRelicChestsPerHour?: number;
       stonksRelicChestsPerHour?: number;
+      w3_floor_debuff?: boolean;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     if (typeof external.gemBombGemsPerHourFromBombs !== "number") {
       ext.gemBomb10xImpact = gemBomb10xImpact;
