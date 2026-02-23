@@ -794,7 +794,7 @@ export function GemEv() {
                       <tr>
                         <th>Effect</th>
                         <th>What</th>
-                        <th>Change</th>
+                        <th>Real time</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -806,7 +806,7 @@ export function GemEv() {
                             Bomb recharge
                           </span>
                         </td>
-                        <td className="mono">+42.9%</td>
+                        <td className="mono">42.9% longer</td>
                       </tr>
                       <tr>
                         <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Longer</span></td>
@@ -816,27 +816,27 @@ export function GemEv() {
                             Freebie cooldown
                           </span>
                         </td>
-                        <td className="mono">+42.9%</td>
+                        <td className="mono">42.9% longer</td>
                       </tr>
                       <tr>
                         <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Longer interval</span></td>
                         <td>Drone: time between buffs / autofires</td>
-                        <td className="mono">+42.9%</td>
+                        <td className="mono">42.9% longer</td>
                       </tr>
                       <tr>
                         <td><span className="gemEvW3DebuffEffect gemEvW3DebuffGood">Longer</span></td>
                         <td>Drone: buff / fuel duration</td>
-                        <td className="mono">+42.9%</td>
+                        <td className="mono">42.9% longer</td>
                       </tr>
                       <tr>
                         <td><span className="gemEvW3DebuffEffect gemEvW3DebuffBad">Longer interval</span></td>
                         <td>Lootbug spawn interval</td>
-                        <td className="mono">+42.9%</td>
+                        <td className="mono">42.9% longer</td>
                       </tr>
                       <tr>
                         <td><span className="gemEvW3DebuffEffect gemEvW3DebuffGood">Longer</span></td>
                         <td>Lootbug buff duration</td>
-                        <td className="mono">+42.9%</td>
+                        <td className="mono">42.9% longer</td>
                       </tr>
                       <tr>
                         <td><span className="gemEvW3DebuffEffect gemEvW3DebuffUnchanged">Unchanged</span></td>
