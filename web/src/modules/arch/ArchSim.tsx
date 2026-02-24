@@ -186,6 +186,11 @@ function defaultBuild(): ArchBuild {
     avadaKedaEnabled: false,
     blockBonkerEnabled: false,
     permanentSpeedModEnabled: false,
+    axolotlQuestOwned: false,
+    axolotlQuestRank: 0,
+    level1TributeEnabled: false,
+    mythicChestsOwned: 0,
+    archBundleEnabled: false,
   };
 }
 
@@ -3160,6 +3165,118 @@ export function ArchSim() {
 
         {/* Column 2: upgrades/cards */}
         <div style={{ display: "grid", gap: 6 }}>
+          <Collapsible
+            id="arch-diverse-upgrades"
+            title="Diverse Upgrades"
+            defaultExpanded={false}
+            className="archDiverseUpgrades"
+          >
+            <div className="panel archDiverseSection" style={{ padding: "8px 10px" }}>
+              <div
+                className="fragmentUpgradeRow"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}
+              >
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/1/10/Axolotl_Quest.png/36px-Axolotl_Quest.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ flexShrink: 0 }}
+                />
+                <span style={{ color: "var(--text, inherit)" }}>
+                  Axolotl Skin Quest (rank 0 = +3%, +3% per rank)
+                  <Tooltip content={{ title: "Axolotl Skin Quest", lines: ["When owned, rank 0 already gives +3% fragment gain; each rank adds another +3% (e.g. rank 0 = 1.03×, rank 5 = 1.18×)."] }} />
+                </span>
+                <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={build.axolotlQuestOwned ?? false}
+                    onChange={(e) => setBuild((s) => ({ ...s, axolotlQuestOwned: e.target.checked }))}
+                    aria-label="Have Axolotl Skin Quest"
+                  />
+                </label>
+                {build.axolotlQuestOwned ? (
+                  <>
+                    <span className="small mono">Rank:</span>
+                    <input
+                      className="input mono"
+                      type="number"
+                      min={0}
+                      max={20}
+                      step={1}
+                      value={build.axolotlQuestRank ?? 0}
+                      onChange={(e) => setBuild((s) => ({ ...s, axolotlQuestRank: clampInt(Number(e.target.value), 0, 20) }))}
+                      style={{ width: 56 }}
+                    />
+                  </>
+                ) : null}
+              </div>
+              <div
+                className="fragmentUpgradeRow"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+              >
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/d/d3/Cave_Legendary_Fish.png/45px-Cave_Legendary_Fish.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ flexShrink: 0, objectFit: "contain" }}
+                />
+                <span style={{ color: "var(--text, inherit)" }}>
+                  Level 1 Tribute (Cave Legendary Fish)
+                  <Tooltip content={{ title: "Level 1 Tribute (Cave Legendary Fish)", lines: ["Fragment gain +0.25% per mythic chest owned (additive)."] }} />
+                </span>
+                <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={build.level1TributeEnabled ?? false}
+                    onChange={(e) => setBuild((s) => ({ ...s, level1TributeEnabled: e.target.checked }))}
+                    aria-label="Level 1 Tribute enabled"
+                  />
+                </label>
+                {build.level1TributeEnabled ? (
+                  <>
+                    <span className="small mono">Mythic chests:</span>
+                    <input
+                      className="input mono"
+                      type="number"
+                      min={0}
+                      max={999}
+                      step={1}
+                      value={build.mythicChestsOwned ?? 0}
+                      onChange={(e) => setBuild((s) => ({ ...s, mythicChestsOwned: clampInt(Number(e.target.value), 0, 999) }))}
+                      style={{ width: 56 }}
+                    />
+                  </>
+                ) : null}
+              </div>
+              <div
+                className="fragmentUpgradeRow"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+              >
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/5/55/Archbundle_vp.png/60px-Archbundle_vp.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ flexShrink: 0, objectFit: "contain" }}
+                />
+                <span style={{ color: "var(--text, inherit)" }}>
+                  Archaeology Bundle! (1.25× fragment gain)
+                  <Tooltip content={{ title: "Archaeology Bundle!", lines: ["When enabled: 1.25× fragment gain multiplier."] }} />
+                </span>
+                <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={build.archBundleEnabled ?? false}
+                    onChange={(e) => setBuild((s) => ({ ...s, archBundleEnabled: e.target.checked }))}
+                    aria-label="Archaeology Bundle enabled"
+                  />
+                </label>
+              </div>
+            </div>
+          </Collapsible>
+
           <Collapsible
             id="arch-fragment-upgrades"
             title="Fragment upgrades"

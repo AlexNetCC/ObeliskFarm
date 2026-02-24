@@ -178,9 +178,15 @@ export function getTotalStats(build: ArchBuild): ArchStats {
   const xp_bonus_per_int = (SKILL_BONUSES.intellect.xp_bonus ?? 0) + (frag.xp_bonus_skill ?? 0);
   const xp_mult = xp_mult_base * (1 + intPts * xp_bonus_per_int);
 
+  const axolotlQuestOwned = Boolean(build.axolotlQuestOwned);
+  const axolotlQuestRank = axolotlQuestOwned ? Math.max(0, Math.trunc(Number(build.axolotlQuestRank ?? 0))) : 0;
+  const level1TributeEnabled = Boolean(build.level1TributeEnabled);
+  const mythicChestsOwned = level1TributeEnabled ? Math.max(0, Math.trunc(Number(build.mythicChestsOwned ?? 0))) : 0;
   let fragment_mult =
-    base_fragment_mult + perPts * (SKILL_BONUSES.perception.fragment_gain ?? 0) + gem_fragment * (GEM_UPGRADE_BONUSES.fragment.fragment_gain ?? 0) + (frag.fragment_gain ?? 0);
+    base_fragment_mult + perPts * (SKILL_BONUSES.perception.fragment_gain ?? 0) + gem_fragment * (GEM_UPGRADE_BONUSES.fragment.fragment_gain ?? 0) + (frag.fragment_gain ?? 0) + mythicChestsOwned * 0.0025;
   if ((frag.fragment_gain_mult ?? 0) > 0) fragment_mult *= frag.fragment_gain_mult ?? 1.0;
+  if (axolotlQuestOwned) fragment_mult *= 1 + (axolotlQuestRank + 1) * 0.03;
+  if (build.archBundleEnabled) fragment_mult *= 1.25;
 
   const all_mod_bonus = luckPts * (SKILL_BONUSES.luck.all_mod_chance ?? 0) + (frag.all_mod_chance ?? 0);
   // Skill-buff "Mod Ch." adds per stat point × buff level (e.g. 10 AGI × 5 lvl × 0.02% = +1% for Agility Skill Buff).

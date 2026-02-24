@@ -30,6 +30,19 @@ export type ArchBuild = {
   blockBonkerEnabled: boolean;
   /** When true, all MC runs start with speed mod effectively always active (for late-game when you have more procs than you consume). */
   permanentSpeedModEnabled: boolean;
+
+  /** Whether you have the Axolotl Skin Quest. When true, rank 0 = +3% fragment gain, each rank adds another +3%. */
+  axolotlQuestOwned?: boolean;
+  /** Axolotl Skin Quest rank (0–20). Only used when axolotlQuestOwned; rank 0 already gives +3%. */
+  axolotlQuestRank?: number;
+
+  /** Level 1 Tribute (Cave Legendary Fish): when enabled, fragment gain +0.25% per mythic chest owned (additive). */
+  level1TributeEnabled?: boolean;
+  /** Number of mythic chests owned (used when level1TributeEnabled). */
+  mythicChestsOwned?: number;
+
+  /** Archaeology Bundle!: when enabled, fragment gain ×1.25. */
+  archBundleEnabled?: boolean;
 };
 
 export type ArchStats = {
