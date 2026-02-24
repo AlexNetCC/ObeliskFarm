@@ -16,7 +16,7 @@ import "./modules/overnight/overnight.css";
 type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight" | "about";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 /** Obelisk level for “tested up to” in About and README. Update README when this changes. */
-const OB_LEVEL = 46;
+const OB_LEVEL = 48;
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 const SHOW_BACKUP_KEY = "obeliskfarm:web:about_show_backup";
 const BACKUP_INTERVAL_MIN_KEY = "obeliskfarm:web:backup_interval_min";
@@ -147,6 +147,11 @@ export function App() {
             </span>
             <span className="navTileLabel">About this tool</span>
           </button>
+          {!headerMinimized ? (
+            <span className="topNavUpdateHint" aria-hidden="true">
+              F5 daily to activate latest updates!
+            </span>
+          ) : null}
         </div>
         <div className="topNavButtons">
           {modules.map((m) => (
