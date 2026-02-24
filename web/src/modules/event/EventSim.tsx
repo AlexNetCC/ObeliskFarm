@@ -1104,9 +1104,23 @@ export function EventSim() {
           {result ? (
             <>
               <div className="kv" style={{ marginTop: 10 }}>
-                <kbd>Estimated wave</kbd>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <kbd>Estimated wave</kbd>
+                  <Tooltip
+                    content={{
+                      title: "Estimated wave",
+                      lines: [
+                        "Mean wave (from the optimizer runs) reached with the suggested build.",
+                        "The value is the average over the evaluation runs for the chosen build; ± is the standard deviation.",
+                      ],
+                    }}
+                  />
+                </span>
                 <div className="mono" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   {result.expectedWave.toFixed(1)}
+                  {mcStats?.statistics?.std_dev_wave != null && Number.isFinite(mcStats.statistics.std_dev_wave) ? (
+                    <span className="small" style={{ color: "var(--muted)" }}>±{mcStats.statistics.std_dev_wave.toFixed(1)}</span>
+                  ) : null}
                   <button
                     type="button"
                     className="btn btnSecondary"
@@ -1131,6 +1145,24 @@ export function EventSim() {
                   >
                     {waveHistogramLoading ? "…" : "Chart"}
                   </button>
+                </div>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <kbd>Estimated time</kbd>
+                  <Tooltip
+                    content={{
+                      title: "Estimated time",
+                      lines: [
+                        "Mean time (from the optimizer runs) to complete the run with the suggested build.",
+                        "The value is the average over the evaluation runs for the chosen build; ± is the standard deviation.",
+                      ],
+                    }}
+                  />
+                </span>
+                <div className="mono">
+                  {formatTime(result.expectedTime)}
+                  {mcStats?.statistics?.std_dev_time != null && Number.isFinite(mcStats.statistics.std_dev_time) ? (
+                    <span className="small" style={{ color: "var(--muted)", marginLeft: 6 }}>±{formatTime(mcStats.statistics.std_dev_time)}</span>
+                  ) : null}
                 </div>
                 {mcStats?.bestWaveBand != null ? (
                   <>
@@ -1263,19 +1295,6 @@ export function EventSim() {
                     </div>
                   </>
                 ) : null}
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <kbd>Estimated time</kbd>
-                  <Tooltip
-                    content={{
-                      title: "Estimated time",
-                      lines: [
-                        "Time (from the optimizer runs) to complete the run with the suggested build.",
-                        "How long the simulated run took with the recommended upgrades.",
-                      ],
-                    }}
-                  />
-                </span>
-                <div className="mono">{formatTime(result.expectedTime)}</div>
               </div>
 
               <div className="sectionTitle">Upgrade plan</div>
