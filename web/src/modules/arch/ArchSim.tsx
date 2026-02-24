@@ -311,8 +311,10 @@ export function ArchSim() {
   const [gemCardSkillNextRefId, setGemCardSkillNextRefId] = useState<string | null>(null);
   const [gemFragNextRunning, setGemFragNextRunning] = useState(false);
   const [gemFragNextProgress, setGemFragNextProgress] = useState<string | null>(null);
+  type GemFragCostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic";
   const [gemFragNextResults, setGemFragNextResults] = useState<Array<{
-    source: "gem" | "card" | "skill";
+    source: "gem" | "card" | "skill" | "fragment";
+    costClass: GemFragCostClass;
     key: string;
     displayName: string;
     meanFrags: number;
@@ -3625,27 +3627,26 @@ export function ArchSim() {
                         const scale = 1000;
                         const heatPct = (v: number, lo: number, hi: number) =>
                           hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
-                        type CostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic";
-                        const classes: CostClass[] = ["gem", "skill", "common", "rare", "epic", "legendary", "mythic"];
-                        const byClass = (cls: CostClass) => rs.filter((r) => r.costClass === cls);
-                        const minMax = (cls: CostClass, getVal: (r: (typeof rs)[number]) => number) => {
+                        const classes: GemFragCostClass[] = ["gem", "skill", "common", "rare", "epic", "legendary", "mythic"];
+                        const byClass = (cls: GemFragCostClass) => rs.filter((r) => r.costClass === cls);
+                        const minMax = (cls: GemFragCostClass, getVal: (r: (typeof rs)[number]) => number) => {
                           const vals = byClass(cls).map(getVal).filter((v) => Number.isFinite(v));
                           return { min: vals.length > 0 ? Math.min(...vals) : 0, max: vals.length > 0 ? Math.max(...vals) : 0 };
                         };
-                        const growthByClass = Object.fromEntries(classes.map((c) => [c, minMax(c, (r) => r.growthPct)])) as Record<CostClass, { min: number; max: number }>;
-                        const allGrowthByClass = Object.fromEntries(classes.map((c) => [c, minMax(c, (r) => r.allFragmentsGrowthPct)])) as Record<CostClass, { min: number; max: number }>;
+                        const growthByClass = Object.fromEntries(classes.map((c) => [c, minMax(c, (r) => r.growthPct)])) as Record<GemFragCostClass, { min: number; max: number }>;
+                        const allGrowthByClass = Object.fromEntries(classes.map((c) => [c, minMax(c, (r) => r.allFragmentsGrowthPct)])) as Record<GemFragCostClass, { min: number; max: number }>;
                         const perCostByClass = Object.fromEntries(
                           classes.map((c) => {
                             const vals = byClass(c).map((r) => r.perCost * scale).filter((v) => Number.isFinite(v) && v >= 0);
                             return [c, { min: vals.length > 0 ? Math.min(...vals) : 0, max: vals.length > 0 ? Math.max(...vals) : 0 }];
                           }),
-                        ) as Record<CostClass, { min: number; max: number }>;
+                        ) as Record<GemFragCostClass, { min: number; max: number }>;
                         const perCostAllByClass = Object.fromEntries(
                           classes.map((c) => {
                             const vals = byClass(c).map((r) => r.perCostAllFragments * scale).filter((v) => Number.isFinite(v) && v >= 0);
                             return [c, { min: vals.length > 0 ? Math.min(...vals) : 0, max: vals.length > 0 ? Math.max(...vals) : 0 }];
                           }),
-                        ) as Record<CostClass, { min: number; max: number }>;
+                        ) as Record<GemFragCostClass, { min: number; max: number }>;
                         const targetFragLabel = (fragmentLogEntries.find((e) => e.id === (gemFragNextRefId ?? fragmentLogEntries[0]?.id))?.mc?.targetFrag ?? "target").toUpperCase();
                         const costEfficTitle = "Cost efficiency: (+%) per unit cost × 1000. Colors are normalized within each cost class (gems vs common/rare/epic/legendary/mythic fragments).";
                         let rowNum = 0;
