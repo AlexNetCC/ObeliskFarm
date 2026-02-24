@@ -3,7 +3,39 @@
  * Source: https://shminer.miraheze.org/wiki/Fishing#Upgrades and #Enhancements
  */
 
-import type { EnhanceId, FishingSkillId, FishingUpgradeId } from "./types";
+import type { DockDef, EnhanceId, FishingSkillId, FishingUpgradeId } from "./types";
+
+/** Options for effective dock tick requirement (reduces fills per hour = more fish/h). */
+export interface EffectiveTicksOptions {
+  /** Motley School skill level: Abyss -2 per level, Tier 2 docks -1 per level. */
+  motleySchoolLevel?: number;
+  /** Tier 2 Dock Ticks enhancement level: Tier 2 docks only, -1 per level (max 10). */
+  enhanceT2DockTicksLevel?: number;
+  /** Abyss Legendary (Cthulhu) caught: Abyss dock -9 ticks. */
+  abyssLegendaryCaught?: boolean;
+}
+
+/**
+ * Effective ticks needed to fill the dock meter. Lower = more dock fills per hour = more fish.
+ * Reductions: Abyss Legendary T1 (-9), Motley School (Abyss -2/level, T2 -1/level), T2 Dock Ticks Enhance (-1/level for T2).
+ */
+export function getEffectiveTicksNeeded(
+  dock: DockDef,
+  opts: EffectiveTicksOptions = {},
+): number {
+  const motley = Math.max(0, Math.floor(opts.motleySchoolLevel ?? 0));
+  const t2Enhance = Math.max(0, Math.min(10, Math.floor(opts.enhanceT2DockTicksLevel ?? 0)));
+  const abyssT1 = opts.abyssLegendaryCaught === true;
+  let ticks = dock.baseTicksNeeded;
+  if (dock.id === "abyss") {
+    if (abyssT1) ticks -= 9;
+    ticks -= 2 * motley;
+  } else if (dock.tier === 2) {
+    ticks -= motley;
+    ticks -= t2Enhance;
+  }
+  return Math.max(1, ticks);
+}
 
 /** All stats computed from upgrade and enhancement levels (including boat levels). */
 export interface ComputedFishingStats {

@@ -294,30 +294,21 @@ export function ArchSim() {
     significant: boolean;
   }> | null>(null);
   const upgradeNextCancelRef = useRef(false);
-  const [cardNextRunning, setCardNextRunning] = useState(false);
-  const [cardNextProgress, setCardNextProgress] = useState<string | null>(null);
-  const [cardNextResults, setCardNextResults] = useState<Array<{
+  const [gemCardSkillNextRunning, setGemCardSkillNextRunning] = useState(false);
+  const [gemCardSkillNextProgress, setGemCardSkillNextProgress] = useState<string | null>(null);
+  const [gemCardSkillNextResults, setGemCardSkillNextResults] = useState<Array<{
+    source: "gem" | "card" | "skill";
+    costClass: "gem" | "skill";
     key: string;
     displayName: string;
     meanFloors: number;
     growthPct: number;
-    cost: number;
+    cost: number | undefined;
     perCost: number;
     significant: boolean;
   }> | null>(null);
-  const cardNextCancelRef = useRef(false);
-  const [gemNextRunning, setGemNextRunning] = useState(false);
-  const [gemNextProgress, setGemNextProgress] = useState<string | null>(null);
-  const [gemNextResults, setGemNextResults] = useState<Array<{
-    key: ArchGemUpgradeKey;
-    displayName: string;
-    meanFloors: number;
-    growthPct: number;
-    cost: number;
-    perCost: number;
-    significant: boolean;
-  }> | null>(null);
-  const gemNextCancelRef = useRef(false);
+  const gemCardSkillNextCancelRef = useRef(false);
+  const [gemCardSkillNextRefId, setGemCardSkillNextRefId] = useState<string | null>(null);
   const [gemFragNextRunning, setGemFragNextRunning] = useState(false);
   const [gemFragNextProgress, setGemFragNextProgress] = useState<string | null>(null);
   const [gemFragNextResults, setGemFragNextResults] = useState<Array<{
@@ -334,19 +325,6 @@ export function ArchSim() {
   }> | null>(null);
   const gemFragNextCancelRef = useRef(false);
   const [gemFragNextRefId, setGemFragNextRefId] = useState<string | null>(null);
-  const [skillTreeNextRunning, setSkillTreeNextRunning] = useState(false);
-  const [skillTreeNextProgress, setSkillTreeNextProgress] = useState<string | null>(null);
-  const [skillTreeNextResults, setSkillTreeNextResults] = useState<Array<{
-    key: "avadaKeda" | "blockBonker";
-    displayName: string;
-    meanFloors: number;
-    growthPct: number;
-    significant: boolean;
-  }> | null>(null);
-  const skillTreeNextCancelRef = useRef(false);
-  const [cardNextRefId, setCardNextRefId] = useState<string | null>(null);
-  const [gemNextRefId, setGemNextRefId] = useState<string | null>(null);
-  const [skillTreeNextRefId, setSkillTreeNextRefId] = useState<string | null>(null);
   const [mcSettings, setMcSettings] = useState<McSettings>(() => {
     const raw = (loadJson<any>(MC_SETTINGS_KEY) ?? null) as any;
     const base = defaultMcSettings();
@@ -1971,112 +1949,10 @@ export function ArchSim() {
     }
   }
 
-  async function runCardUpgradeNext() {
-    const refEntry = cardNextRefId ? stageLogEntries.find((e) => e.id === cardNextRefId) ?? null : stageLogEntries[0] ?? null;
+  async function runGemCardSkillNext() {
+    const refEntry = gemCardSkillNextRefId ? stageLogEntries.find((e) => e.id === gemCardSkillNextRefId) ?? null : stageLogEntries[0] ?? null;
     if (!refEntry) {
-      setCardNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
-      return;
-    }
-    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
-    const baseBuild: ArchBuild = {
-      ...refEntry.build,
-      skillPoints: {
-        strength: winnerDist.strength ?? 0,
-        agility: winnerDist.agility ?? 0,
-        perception: winnerDist.perception ?? 0,
-        intellect: winnerDist.intellect ?? 0,
-        luck: winnerDist.luck ?? 0,
-      },
-    };
-    const eligibleCards: Array<{ key: string; blockType: BlockType; tier: BlockTier }> = [];
-    for (const bt of BLOCK_TYPES) {
-      for (const t of [1, 2, 3] as const) {
-        if (!getBlockData(t, bt)) continue;
-        const key = `${bt},${t}`;
-        const cur = (baseBuild.blockCards[key] ?? 0) as CardLevel;
-        if (cur === 1) eligibleCards.push({ key, blockType: bt, tier: t });
-      }
-    }
-    if (eligibleCards.length === 0) {
-      setCardNextProgress("No card upgrades to evaluate (only cards at Card level; Gilded/Poly or none are skipped).");
-      return;
-    }
-    setCardNextRunning(true);
-    setCardNextProgress(null);
-    setCardNextResults(null);
-    cardNextCancelRef.current = false;
-    const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
-    const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
-    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
-    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
-    const N_SIMS = 3000;
-    type CardResult = { key: string; displayName: string; meanFloors: number; growthPct: number; cost: number; perCost: number; significant: boolean };
-    const results: CardResult[] = [];
-    try {
-      setCardNextProgress("Which Card Upgrade next (Card → Gilded) to maximize Stage Push: Baseline…");
-      const baseStats = getTotalStats(baseBuild);
-      const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
-      const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
-      const baseOut = await pool.run({
-        type: "stageLite",
-        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
-      });
-      const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
-      const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
-      const baseMeanFloors = baseStatsRes.mean;
-      const baseStd = baseStatsRes.std;
-
-      for (let i = 0; i < eligibleCards.length; i += 1) {
-        if (cardNextCancelRef.current) break;
-        const { key, blockType, tier } = eligibleCards[i]!;
-        setCardNextProgress(`Which Card Upgrade next (Card → Gilded) to maximize Stage Push: ${i + 1}/${eligibleCards.length} — ${blockType} T${tier}`);
-        const cost = getCardGemCost(blockType, tier);
-        const variantBuild: ArchBuild = {
-          ...baseBuild,
-          blockCards: { ...baseBuild.blockCards, [key]: 2 },
-        };
-        const stats = getTotalStats(variantBuild);
-        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
-        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
-        const out = await pool.run({
-          type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 10000 + i, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
-        });
-        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
-        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
-        const meanFloors = varStats.mean;
-        const growthPct = baseMeanFloors > 0 ? ((meanFloors - baseMeanFloors) / baseMeanFloors) * 100 : 0;
-        const perCost = cost > 0 ? growthPct / cost : 0;
-        const seBase = baseStd / Math.sqrt(N_SIMS);
-        const seVar = varStats.std / Math.sqrt(N_SIMS);
-        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
-        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
-        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({
-          key,
-          displayName: `${blockType} T${tier}`,
-          meanFloors,
-          growthPct,
-          cost,
-          perCost,
-          significant,
-        });
-      }
-      results.sort((a, b) => b.growthPct - a.growthPct);
-      setCardNextResults(results);
-      setCardNextProgress(cardNextCancelRef.current ? "Cancelled." : "Done.");
-    } catch (e) {
-      setCardNextProgress(e instanceof Error ? e.message : String(e));
-    } finally {
-      pool.terminate();
-      setCardNextRunning(false);
-    }
-  }
-
-  async function runGemUpgradeNext() {
-    const refEntry = gemNextRefId ? stageLogEntries.find((e) => e.id === gemNextRefId) ?? null : stageLogEntries[0] ?? null;
-    if (!refEntry) {
-      setGemNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
+      setGemCardSkillNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
       return;
     }
     const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
@@ -2102,23 +1978,36 @@ export function ArchSim() {
       const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, maxLvl);
       if (curLvl < maxLvl) eligibleGems.push({ key, displayName: GEM_LABELS[key] });
     }
-    if (eligibleGems.length === 0) {
-      setGemNextProgress("No gem upgrades to evaluate (all maxed).");
+    const eligibleCards: Array<{ key: string; blockType: BlockType; tier: BlockTier; displayName: string }> = [];
+    for (const bt of BLOCK_TYPES) {
+      for (const t of [1, 2, 3] as const) {
+        if (!getBlockData(t, bt)) continue;
+        const key = `${bt},${t}`;
+        const cur = (baseBuild.blockCards[key] ?? 0) as CardLevel;
+        if (cur === 1) eligibleCards.push({ key, blockType: bt, tier: t, displayName: `${bt} T${t}` });
+      }
+    }
+    const eligibleSkills: Array<{ key: "avadaKeda" | "blockBonker"; displayName: string }> = [];
+    if (!baseBuild.avadaKedaEnabled) eligibleSkills.push({ key: "avadaKeda", displayName: "Avada Keda" });
+    if (!baseBuild.blockBonkerEnabled) eligibleSkills.push({ key: "blockBonker", displayName: "Block Bonker" });
+    const totalOptions = eligibleGems.length + eligibleCards.length + eligibleSkills.length;
+    if (totalOptions === 0) {
+      setGemCardSkillNextProgress("No gem, card, or skill tree upgrades to evaluate (all maxed or skills already ON).");
       return;
     }
-    setGemNextRunning(true);
-    setGemNextProgress(null);
-    setGemNextResults(null);
-    gemNextCancelRef.current = false;
+    setGemCardSkillNextRunning(true);
+    setGemCardSkillNextProgress(null);
+    setGemCardSkillNextResults(null);
+    gemCardSkillNextCancelRef.current = false;
     const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
     const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
     const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
-    type GemResult = { key: ArchGemUpgradeKey; displayName: string; meanFloors: number; growthPct: number; cost: number; perCost: number; significant: boolean };
-    const results: GemResult[] = [];
+    type StagePushResult = { source: "gem" | "card" | "skill"; costClass: "gem" | "skill"; key: string; displayName: string; meanFloors: number; growthPct: number; cost: number | undefined; perCost: number; significant: boolean };
+    const results: StagePushResult[] = [];
     try {
-      setGemNextProgress("Which Gem Upgrade next to maximize Stage Push: Baseline (no upgrade)…");
+      setGemCardSkillNextProgress("Which Gem/Card/Skill Tree next (Stage Push): Baseline…");
       const baseStats = getTotalStats(baseBuild);
       const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
       const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
@@ -2130,44 +2019,92 @@ export function ArchSim() {
       const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
       const baseMeanFloors = baseStatsRes.mean;
       const baseStd = baseStatsRes.std;
-
+      let idx = 0;
       for (let i = 0; i < eligibleGems.length; i += 1) {
-        if (gemNextCancelRef.current) break;
+        if (gemCardSkillNextCancelRef.current) break;
         const { key, displayName } = eligibleGems[i]!;
-        setGemNextProgress(`Which Gem Upgrade next to maximize Stage Push: ${i + 1}/${eligibleGems.length} — ${displayName}`);
+        idx += 1;
+        setGemCardSkillNextProgress(`Which Gem/Card/Skill Tree next (Stage Push): ${idx}/${totalOptions} — Gem: ${displayName}`);
         const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, 999);
         const cost = GEM_COSTS[key]?.[curLvl] ?? 0;
-        const variantBuild: ArchBuild = {
-          ...baseBuild,
-          gemUpgrades: { ...baseBuild.gemUpgrades, [key]: curLvl + 1 },
-        };
+        const variantBuild: ArchBuild = { ...baseBuild, gemUpgrades: { ...baseBuild.gemUpgrades, [key]: curLvl + 1 } };
         const stats = getTotalStats(variantBuild);
         const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
         const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
         const out = await pool.run({
           type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 20000 + i, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 10000 + idx, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
         });
         const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
         const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
-        const meanFloors = varStats.mean;
-        const growthPct = baseMeanFloors > 0 ? ((meanFloors - baseMeanFloors) / baseMeanFloors) * 100 : 0;
+        const growthPct = baseMeanFloors > 0 ? ((varStats.mean - baseMeanFloors) / baseMeanFloors) * 100 : 0;
         const perCost = cost > 0 ? growthPct / cost : 0;
         const seBase = baseStd / Math.sqrt(N_SIMS);
         const seVar = varStats.std / Math.sqrt(N_SIMS);
         const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
         const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
         const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ key, displayName, meanFloors, growthPct, cost, perCost, significant });
+        results.push({ source: "gem", costClass: "gem", key, displayName, meanFloors: varStats.mean, growthPct, cost, perCost, significant });
+      }
+      for (let i = 0; i < eligibleCards.length; i += 1) {
+        if (gemCardSkillNextCancelRef.current) break;
+        const { key, blockType, tier, displayName } = eligibleCards[i]!;
+        idx += 1;
+        setGemCardSkillNextProgress(`Which Gem/Card/Skill Tree next (Stage Push): ${idx}/${totalOptions} — Card: ${displayName}`);
+        const cost = getCardGemCost(blockType, tier);
+        const variantBuild: ArchBuild = { ...baseBuild, blockCards: { ...baseBuild.blockCards, [key]: 2 } };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 20000 + idx, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
+        });
+        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
+        const growthPct = baseMeanFloors > 0 ? ((varStats.mean - baseMeanFloors) / baseMeanFloors) * 100 : 0;
+        const perCost = cost > 0 ? growthPct / cost : 0;
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        results.push({ source: "card", costClass: "gem", key, displayName, meanFloors: varStats.mean, growthPct, cost, perCost, significant });
+      }
+      for (let i = 0; i < eligibleSkills.length; i += 1) {
+        if (gemCardSkillNextCancelRef.current) break;
+        const { key, displayName } = eligibleSkills[i]!;
+        idx += 1;
+        setGemCardSkillNextProgress(`Which Gem/Card/Skill Tree next (Stage Push): ${idx}/${totalOptions} — Skill: ${displayName}`);
+        const variantBuild: ArchBuild = {
+          ...baseBuild,
+          ...(key === "avadaKeda" ? { avadaKedaEnabled: true } : { blockBonkerEnabled: true }),
+        };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 30000 + idx, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
+        });
+        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
+        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
+        const growthPct = baseMeanFloors > 0 ? ((varStats.mean - baseMeanFloors) / baseMeanFloors) * 100 : 0;
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        results.push({ source: "skill", costClass: "skill", key, displayName, meanFloors: varStats.mean, growthPct, cost: undefined, perCost: 0, significant });
       }
       results.sort((a, b) => b.growthPct - a.growthPct);
-      setGemNextResults(results);
-      setGemNextProgress(gemNextCancelRef.current ? "Cancelled." : "Done.");
+      setGemCardSkillNextResults(results);
+      setGemCardSkillNextProgress(gemCardSkillNextCancelRef.current ? "Cancelled." : "Done.");
     } catch (e) {
-      setGemNextProgress(e instanceof Error ? e.message : String(e));
+      setGemCardSkillNextProgress(e instanceof Error ? e.message : String(e));
     } finally {
       pool.terminate();
-      setGemNextRunning(false);
+      setGemCardSkillNextRunning(false);
     }
   }
 
@@ -2213,9 +2150,16 @@ export function ArchSim() {
     const eligibleSkills: Array<{ key: "avadaKeda" | "blockBonker"; displayName: string }> = [];
     if (!baseBuild.avadaKedaEnabled) eligibleSkills.push({ key: "avadaKeda", displayName: "Avada Keda" });
     if (!baseBuild.blockBonkerEnabled) eligibleSkills.push({ key: "blockBonker", displayName: "Block Bonker" });
-    const totalOptions = eligibleGems.length + eligibleCards.length + eligibleSkills.length;
+    const eligibleFragmentUpgrades: Array<{ key: string; displayName: string }> = [];
+    for (const [key, info] of Object.entries(FRAGMENT_UPGRADES)) {
+      const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
+      const maxLvl = clampInt(Number(info.max_level ?? 0), 0, 999);
+      const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, maxLvl);
+      if (baseBuild.unlockedStage >= stageUnlock && curLvl < maxLvl) eligibleFragmentUpgrades.push({ key, displayName: String(info.display_name ?? key) });
+    }
+    const totalOptions = eligibleGems.length + eligibleCards.length + eligibleSkills.length + eligibleFragmentUpgrades.length;
     if (totalOptions === 0) {
-      setGemFragNextProgress("No gem, card, or skill tree upgrades to evaluate (all maxed or already have skills).");
+      setGemFragNextProgress("No gem, card, skill tree, or fragment upgrades to evaluate (all maxed or already have skills).");
       return;
     }
     setGemFragNextRunning(true);
@@ -2227,7 +2171,8 @@ export function ArchSim() {
     const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
-    type GemFragResult = { source: "gem" | "card" | "skill"; key: string; displayName: string; meanFrags: number; growthPct: number; cost: number | undefined; perCost: number; allFragmentsGrowthPct: number; perCostAllFragments: number; significant: boolean };
+    type CostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic";
+    type GemFragResult = { source: "gem" | "card" | "skill" | "fragment"; costClass: CostClass; key: string; displayName: string; meanFrags: number; growthPct: number; cost: number | undefined; perCost: number; allFragmentsGrowthPct: number; perCostAllFragments: number; significant: boolean };
     const results: GemFragResult[] = [];
     try {
       setGemFragNextProgress(`Which Gem/Card/Skill Tree Upgrade next to maximize Fragment gains (${targetFrag}): Baseline…`);
@@ -2278,7 +2223,7 @@ export function ArchSim() {
         const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
         const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
         const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ source: "gem", key, displayName, meanFrags, growthPct, cost, perCost, allFragmentsGrowthPct, perCostAllFragments, significant });
+        results.push({ source: "gem", costClass: "gem", key, displayName, meanFrags, growthPct, cost, perCost, allFragmentsGrowthPct, perCostAllFragments, significant });
       }
       for (let i = 0; i < eligibleCards.length; i += 1) {
         if (gemFragNextCancelRef.current) break;
@@ -2311,7 +2256,7 @@ export function ArchSim() {
         const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
         const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
         const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ source: "card", key, displayName, meanFrags, growthPct, cost, perCost, allFragmentsGrowthPct, perCostAllFragments, significant });
+        results.push({ source: "card", costClass: "gem", key, displayName, meanFrags, growthPct, cost, perCost, allFragmentsGrowthPct, perCostAllFragments, significant });
       }
       for (let i = 0; i < eligibleSkills.length; i += 1) {
         if (gemFragNextCancelRef.current) break;
@@ -2341,7 +2286,42 @@ export function ArchSim() {
         const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
         const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
         const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ source: "skill", key, displayName, meanFrags, growthPct, cost: undefined, perCost: 0, allFragmentsGrowthPct, perCostAllFragments: 0, significant });
+        results.push({ source: "skill", costClass: "skill", key, displayName, meanFrags, growthPct, cost: undefined, perCost: 0, allFragmentsGrowthPct, perCostAllFragments: 0, significant });
+      }
+      for (let i = 0; i < eligibleFragmentUpgrades.length; i += 1) {
+        if (gemFragNextCancelRef.current) break;
+        const { key, displayName } = eligibleFragmentUpgrades[i]!;
+        idx += 1;
+        setGemFragNextProgress(`Which Gem/Card/Skill Tree Upgrade next to maximize Fragment gains: ${idx}/${totalOptions} — Fragment: ${displayName}`);
+        const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, 999);
+        const cost = getUpgradeCost(key, curLvl) ?? undefined;
+        const variantBuild: ArchBuild = {
+          ...baseBuild,
+          fragmentUpgradeLevels: { ...baseBuild.fragmentUpgradeLevels, [key]: curLvl + 1 },
+        };
+        const stats = getTotalStats(variantBuild);
+        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
+        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
+        const out = await pool.run({
+          type: "stageLite",
+          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 70000 + idx, targetFrag, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
+        });
+        const fragSamples = (out as { target_frag_samples?: number[] }).target_frag_samples ?? [];
+        const totalSamples = (out as { total_fragments_samples?: number[] }).total_fragments_samples ?? [];
+        const varStats = fragSamples.length > 0 ? sampleStats(fragSamples) : { mean: 0, std: 0, min: 0, max: 0 };
+        const meanAllFrags = totalSamples.length > 0 ? sampleStats(totalSamples).mean : 0;
+        const meanFrags = varStats.mean;
+        const growthPct = baseMeanFrags > 0 ? ((meanFrags - baseMeanFrags) / baseMeanFrags) * 100 : 0;
+        const allFragmentsGrowthPct = baseMeanAllFrags > 0 ? ((meanAllFrags - baseMeanAllFrags) / baseMeanAllFrags) * 100 : 0;
+        const perCost = cost != null && cost > 0 ? growthPct / cost : 0;
+        const perCostAllFragments = cost != null && cost > 0 ? allFragmentsGrowthPct / cost : 0;
+        const seBase = baseStd / Math.sqrt(N_SIMS);
+        const seVar = varStats.std / Math.sqrt(N_SIMS);
+        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
+        const seGrowthPct = baseMeanFrags > 0 ? (seDiff / baseMeanFrags) * 100 : 0;
+        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
+        const costClass = (FRAGMENT_UPGRADES[key] as { cost_type?: CostClass })?.cost_type ?? "common";
+        results.push({ source: "fragment", costClass, key, displayName, meanFrags, growthPct, cost, perCost, allFragmentsGrowthPct, perCostAllFragments, significant });
       }
       results.sort((a, b) => b.growthPct - a.growthPct);
       setGemFragNextResults(results);
@@ -2351,93 +2331,6 @@ export function ArchSim() {
     } finally {
       pool.terminate();
       setGemFragNextRunning(false);
-    }
-  }
-
-  async function runSkillTreeNext() {
-    const refEntry = skillTreeNextRefId ? stageLogEntries.find((e) => e.id === skillTreeNextRefId) ?? null : stageLogEntries[0] ?? null;
-    if (!refEntry) {
-      setSkillTreeNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
-      return;
-    }
-    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
-    const baseBuild: ArchBuild = {
-      ...refEntry.build,
-      skillPoints: {
-        strength: winnerDist.strength ?? 0,
-        agility: winnerDist.agility ?? 0,
-        perception: winnerDist.perception ?? 0,
-        intellect: winnerDist.intellect ?? 0,
-        luck: winnerDist.luck ?? 0,
-      },
-    };
-    const eligibleSkills: Array<{ key: "avadaKeda" | "blockBonker"; displayName: string }> = [];
-    if (!baseBuild.avadaKedaEnabled) eligibleSkills.push({ key: "avadaKeda", displayName: "Avada Keda" });
-    if (!baseBuild.blockBonkerEnabled) eligibleSkills.push({ key: "blockBonker", displayName: "Block Bonker" });
-    if (eligibleSkills.length === 0) {
-      setSkillTreeNextProgress("No skill tree skills to evaluate (Avada Keda and Block Bonker already ON).");
-      return;
-    }
-    setSkillTreeNextRunning(true);
-    setSkillTreeNextProgress(null);
-    setSkillTreeNextResults(null);
-    skillTreeNextCancelRef.current = false;
-    const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
-    const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
-    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
-    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
-    const N_SIMS = 3000;
-    type SkillResult = { key: "avadaKeda" | "blockBonker"; displayName: string; meanFloors: number; growthPct: number; significant: boolean };
-    const results: SkillResult[] = [];
-    try {
-      setSkillTreeNextProgress("Which Skill Tree Skill next to maximize Stage Push: Baseline…");
-      const baseStats = getTotalStats(baseBuild);
-      const polychromeBase = clampInt(Number(baseBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
-      const cardCfgBase = { blockCards: baseBuild.blockCards, polychromeBonus: 0.15 * polychromeBase };
-      const baseOut = await pool.run({
-        type: "stageLite",
-        payload: { stats: baseStats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg: cardCfgBase, seed: seedBase, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
-      });
-      const baseFloors = (baseOut as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
-      const baseStatsRes = baseFloors.length > 0 ? sampleStats(baseFloors) : { mean: 0, std: 0, min: 0, max: 0 };
-      const baseMeanFloors = baseStatsRes.mean;
-      const baseStd = baseStatsRes.std;
-
-      for (let i = 0; i < eligibleSkills.length; i += 1) {
-        if (skillTreeNextCancelRef.current) break;
-        const { key, displayName } = eligibleSkills[i]!;
-        setSkillTreeNextProgress(`Which Skill Tree Skill next to maximize Stage Push: ${i + 1}/${eligibleSkills.length} — ${displayName}`);
-        const variantBuild: ArchBuild = {
-          ...baseBuild,
-          avadaKedaEnabled: key === "avadaKeda" ? true : baseBuild.avadaKedaEnabled,
-          blockBonkerEnabled: key === "blockBonker" ? true : baseBuild.blockBonkerEnabled,
-        };
-        const stats = getTotalStats(variantBuild);
-        const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
-        const cardCfg = { blockCards: variantBuild.blockCards, polychromeBonus: 0.15 * polychromeLvl };
-        const out = await pool.run({
-          type: "stageLite",
-          payload: { stats, starting_floor: 1, n_sims: N_SIMS, options, cardCfg, seed: seedBase + 30000 + i, targetFrag: null, initialSpeedModHits: baseBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined },
-        });
-        const floors = (out as { floors_cleared_samples?: number[] }).floors_cleared_samples ?? [];
-        const varStats = floors.length > 0 ? sampleStats(floors) : { mean: 0, std: 0, min: 0, max: 0 };
-        const meanFloors = varStats.mean;
-        const growthPct = baseMeanFloors > 0 ? ((meanFloors - baseMeanFloors) / baseMeanFloors) * 100 : 0;
-        const seBase = baseStd / Math.sqrt(N_SIMS);
-        const seVar = varStats.std / Math.sqrt(N_SIMS);
-        const seDiff = Math.sqrt(seBase * seBase + seVar * seVar);
-        const seGrowthPct = baseMeanFloors > 0 ? (seDiff / baseMeanFloors) * 100 : 0;
-        const significant = seGrowthPct > 0 && Math.abs(growthPct) > 1.96 * seGrowthPct;
-        results.push({ key, displayName, meanFloors, growthPct, significant });
-      }
-      results.sort((a, b) => b.growthPct - a.growthPct);
-      setSkillTreeNextResults(results);
-      setSkillTreeNextProgress(skillTreeNextCancelRef.current ? "Cancelled." : "Done.");
-    } catch (e) {
-      setSkillTreeNextProgress(e instanceof Error ? e.message : String(e));
-    } finally {
-      pool.terminate();
-      setSkillTreeNextRunning(false);
     }
   }
 
@@ -3359,15 +3252,28 @@ export function ArchSim() {
                       {upgradeNextResults && upgradeNextResults.length > 0 ? (() => {
                         const rs = upgradeNextResults;
                         const FRAG_ORDER = ["common", "rare", "epic", "legendary", "mythic"] as const;
-                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
-                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
-                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
-                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
-                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v));
-                        const minPerCost = perCostVals.length > 0 ? Math.min(...perCostVals) : 0;
-                        const maxPerCost = perCostVals.length > 0 ? Math.max(...perCostVals) : 0;
                         const heatPct = (v: number, lo: number, hi: number) =>
                           hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        const byCostType = (ct: (typeof FRAG_ORDER)[number]) => rs.filter((r) => r.costType === ct);
+                        const minMaxPerType = Object.fromEntries(
+                          FRAG_ORDER.map((ct) => {
+                            const group = byCostType(ct);
+                            const floors = group.map((r) => r.meanFloors);
+                            const growth = group.map((r) => r.growthPct);
+                            const perCost = group.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v));
+                            return [
+                              ct,
+                              {
+                                minFloors: floors.length ? Math.min(...floors) : 0,
+                                maxFloors: floors.length ? Math.max(...floors) : 0,
+                                minGrowth: growth.length ? Math.min(...growth) : 0,
+                                maxGrowth: growth.length ? Math.max(...growth) : 0,
+                                minPerCost: perCost.length ? Math.min(...perCost) : 0,
+                                maxPerCost: perCost.length ? Math.max(...perCost) : 0,
+                              },
+                            ];
+                          }),
+                        ) as Record<(typeof FRAG_ORDER)[number], { minFloors: number; maxFloors: number; minGrowth: number; maxGrowth: number; minPerCost: number; maxPerCost: number }>;
                         let rowNum = 0;
                         return (
                           <div className="small">
@@ -3385,6 +3291,7 @@ export function ArchSim() {
                               <span title="95% confidence; two-sample comparison (baseline vs variant, N=3000 each)">
                                 * = not statistically significant
                               </span>
+                              <span title="Colors normalized within each fragment cost type (common, rare, epic, legendary, mythic).">Colors per fragment type</span>
                             </div>
                             <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
                               <thead>
@@ -3415,13 +3322,14 @@ export function ArchSim() {
                                       </tr>
                                       {group.map((r) => {
                                         rowNum += 1;
+                                        const scale = minMaxPerType[ct];
                                         return (
                                           <tr key={r.key}>
                                             <td style={{ paddingRight: 12 }}>{rowNum}</td>
                                             <td style={{ paddingRight: 12 }}>{r.displayName}</td>
                                             <td className="num">
                                               <span
-                                                style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                                style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, scale.minFloors, scale.maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
                                                 title={!r.significant ? "Not statistically significant (95% CI includes 0)" : undefined}
                                               >
                                                 {!r.significant ? "*" : r.meanFloors.toFixed(3)}
@@ -3429,7 +3337,7 @@ export function ArchSim() {
                                             </td>
                                             <td className="num">
                                               <span
-                                                style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                                style={{ ...heatStyleRedGreen(heatPct(r.growthPct, scale.minGrowth, scale.maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
                                                 title={
                                                   !r.significant
                                                     ? "Not statistically significant (95% CI includes 0)"
@@ -3447,7 +3355,7 @@ export function ArchSim() {
                                             <td className="num">
                                               {r.perCost != null ? (
                                                 <span
-                                                  style={{ ...heatStyleRedGreen(heatPct(r.perCost, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
+                                                  style={{ ...heatStyleRedGreen(heatPct(r.perCost, scale.minPerCost, scale.maxPerCost)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
                                                   title={
                                                     !r.significant
                                                       ? "Not statistically significant (95% CI includes 0)"
@@ -3479,28 +3387,25 @@ export function ArchSim() {
               </Collapsible>
 
               <Collapsible
-                id="arch-card-next"
-                title="Which Card Upgrade next (Card → Gilded) to maximize Stage Push?"
+                id="arch-gem-card-skill-next"
+                title="Which Gem/Card/Skill Tree Upgrade next to maximize Stage Push?"
                 defaultExpanded={false}
                 className="archWhichNextGold"
                 headerRight={
                   <Tooltip
                     content={{
-                      title: "Card upgrade MC",
+                      title: "Gem / Card / Skill MC",
                       sections: [
                         {
                           heading: "What",
                           lines: [
-                            "Evaluates which block card upgrade (Card → Gilded) gives the most Floors/run gain per gem cost.",
-                            "Only cards at Card level are evaluated. Gilded/Poly or not owned are skipped.",
+                            "Evaluates Gem upgrades (+1 level), Card upgrades (Card → Gilded), and Skill Tree skills (Avada Keda, Block Bonker) in one run.",
+                            "Only non-maxed gems, cards at Card level, and skills you do not have are tested.",
                           ],
                         },
                         {
                           heading: "Significance",
-                          lines: [
-                            "Uses same Stage MC (N=3000) and 95% confidence test as fragment upgrade next.",
-                            "* = not statistically significant.",
-                          ],
+                          lines: ["Uses same Stage MC (N=3000) and 95% confidence test. * = not statistically significant. Colors per cost class (gems vs skills)."],
                         },
                       ],
                     }}
@@ -3520,9 +3425,9 @@ export function ArchSim() {
                           <select
                             className="mono"
                             style={{ marginLeft: 6 }}
-                            value={cardNextRefId ?? stageLogEntries[0]?.id ?? ""}
-                            onChange={(e) => setCardNextRefId(e.target.value || null)}
-                            disabled={cardNextRunning || mcRunning}
+                            value={gemCardSkillNextRefId ?? stageLogEntries[0]?.id ?? ""}
+                            onChange={(e) => setGemCardSkillNextRefId(e.target.value || null)}
+                            disabled={gemCardSkillNextRunning || mcRunning}
                           >
                             {stageLogEntries.map((e) => (
                               <option key={e.id} value={e.id}>
@@ -3534,370 +3439,101 @@ export function ArchSim() {
                         <button
                           className="btn"
                           type="button"
-                          onClick={() => runCardUpgradeNext()}
-                          disabled={cardNextRunning || mcRunning || stageLogEntries.length === 0}
+                          onClick={() => runGemCardSkillNext()}
+                          disabled={gemCardSkillNextRunning || mcRunning || stageLogEntries.length === 0}
                         >
-                          {cardNextRunning ? "Running…" : "Run (N=3000)"}
+                          {gemCardSkillNextRunning ? "Running…" : "Run (N=3000)"}
                         </button>
-                        {cardNextRunning ? (
-                          <button className="btn btnSecondary" type="button" onClick={() => { cardNextCancelRef.current = true; }} disabled={!cardNextRunning}>
+                        {gemCardSkillNextRunning ? (
+                          <button className="btn btnSecondary" type="button" onClick={() => { gemCardSkillNextCancelRef.current = true; }} disabled={!gemCardSkillNextRunning}>
                             Cancel
                           </button>
                         ) : null}
                       </div>
-                      {cardNextProgress ? (
+                      {gemCardSkillNextProgress ? (
                         <div className="small mono" style={{ marginBottom: 8 }}>
-                          {cardNextProgress}
+                          {gemCardSkillNextProgress}
                         </div>
                       ) : null}
-                      {cardNextResults && cardNextResults.length > 0 ? (() => {
-                        const rs = cardNextResults;
-                        // Independent heat scale (gems have different value than fragments)
-                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
-                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
-                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
-                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
-                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
-                        const minPerCost = perCostVals.length > 0 ? Math.min(...perCostVals) : 0;
-                        const maxPerCost = perCostVals.length > 0 ? Math.max(...perCostVals) : 0;
+                      {gemCardSkillNextResults && gemCardSkillNextResults.length > 0 ? (() => {
+                        const rs = gemCardSkillNextResults;
                         const heatPct = (v: number, lo: number, hi: number) =>
                           hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        const byClass = (cls: "gem" | "skill") => rs.filter((r) => r.costClass === cls);
+                        const scaleGem = (() => {
+                          const g = byClass("gem");
+                          const floors = g.map((r) => r.meanFloors);
+                          const growth = g.map((r) => r.growthPct);
+                          const perC = g.map((r) => r.perCost).filter((v) => Number.isFinite(v) && v >= 0);
+                          return {
+                            minFloors: floors.length ? Math.min(...floors) : 0,
+                            maxFloors: floors.length ? Math.max(...floors) : 0,
+                            minGrowth: growth.length ? Math.min(...growth) : 0,
+                            maxGrowth: growth.length ? Math.max(...growth) : 0,
+                            minPerCost: perC.length ? Math.min(...perC) : 0,
+                            maxPerCost: perC.length ? Math.max(...perC) : 0,
+                          };
+                        })();
+                        const scaleSkill = (() => {
+                          const s = byClass("skill");
+                          const floors = s.map((r) => r.meanFloors);
+                          const growth = s.map((r) => r.growthPct);
+                          return {
+                            minFloors: floors.length ? Math.min(...floors) : 0,
+                            maxFloors: floors.length ? Math.max(...floors) : 0,
+                            minGrowth: growth.length ? Math.min(...growth) : 0,
+                            maxGrowth: growth.length ? Math.max(...growth) : 0,
+                            minPerCost: 0,
+                            maxPerCost: 0,
+                          };
+                        })();
                         let rowNum = 0;
                         return (
                           <div className="small">
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next card upgrade (by Floors/run +%, gem cost):</div>
-                            <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                              <span
-                                style={{
-                                  color: "hsl(120, 75%, 35%)",
-                                  textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9), 0 0 14px hsla(120, 75%, 50%, 0.5)",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                GREEN = GOOD
-                              </span>
-                              <span style={{ color: "#666" }}>Heat scale: within this table only (gems ≠ fragments)</span>
-                              <span title="95% confidence; two-sample comparison (baseline vs variant, N=3000 each)">
-                                * = not statistically significant
-                              </span>
-                            </div>
-                            <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Card</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run (+%)</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gems</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="Floors/run (+%) per gem">(+%)/gem</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {rs.map((r) => {
-                                  rowNum += 1;
-                                  return (
-                                    <tr key={r.key}>
-                                      <td style={{ paddingRight: 12 }}>{rowNum}</td>
-                                      <td style={{ paddingRight: 12 }}>{r.displayName}</td>
-                                      <td className="num">
-                                        <span
-                                          style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
-                                          title={!r.significant ? "Not statistically significant (95% CI includes 0)" : undefined}
-                                        >
-                                          {!r.significant ? "*" : r.meanFloors.toFixed(3)}
-                                        </span>
-                                      </td>
-                                      <td className="num">
-                                        <span
-                                          style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
-                                          title={
-                                            !r.significant
-                                              ? "Not statistically significant (95% CI includes 0)"
-                                              : r.growthPct < 0
-                                                ? "(too much variance / rather negative)"
-                                                : undefined
-                                          }
-                                        >
-                                          {!r.significant
-                                            ? "*"
-                                            : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
-                                        </span>
-                                      </td>
-                                      <td className="num">{r.cost}</td>
-                                      <td className="num">
-                                        <span
-                                          style={{ ...heatStyleRedGreen(heatPct(r.perCost, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}
-                                          title={
-                                            !r.significant
-                                              ? "Not statistically significant (95% CI includes 0)"
-                                              : r.perCost < 0
-                                                ? "(too much variance / rather negative)"
-                                                : undefined
-                                          }
-                                        >
-                                          {!r.significant || r.perCost < 0 ? "*" : r.perCost.toFixed(6)}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })() : null}
-                    </>
-                  )}
-                </div>
-              </Collapsible>
-
-              <Collapsible
-                id="arch-gem-next"
-                title="Which Gem Upgrade next to maximize Stage Push?"
-                defaultExpanded={false}
-                className="archWhichNextGold"
-                headerRight={
-                  <Tooltip
-                    content={{
-                      title: "Gem upgrade MC",
-                      sections: [
-                        {
-                          heading: "What",
-                          lines: [
-                            "Evaluates which gem upgrade (+1 level: Stamina, XP, or Fragment) gives the most Floors/run gain per gem cost.",
-                            "Only non-maxed gem upgrades are evaluated.",
-                          ],
-                        },
-                        {
-                          heading: "Significance",
-                          lines: [
-                            "Uses same Stage MC (N=3000) and 95% confidence test as fragment upgrade next.",
-                            "* = not statistically significant.",
-                          ],
-                        },
-                      ],
-                    }}
-                  />
-                }
-              >
-                <div className="small" style={{ marginBottom: 8 }}>
-                  {stageLogEntries.length === 0 ? (
-                    <div className="pillLocked" style={{ padding: 8 }}>
-                      Run a Stage Push MC first. No Stage result in the log.
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                        <label className="small">
-                          Reference:
-                          <select
-                            className="mono"
-                            style={{ marginLeft: 6 }}
-                            value={gemNextRefId ?? stageLogEntries[0]?.id ?? ""}
-                            onChange={(e) => setGemNextRefId(e.target.value || null)}
-                            disabled={gemNextRunning || mcRunning}
-                          >
-                            {stageLogEntries.map((e) => (
-                              <option key={e.id} value={e.id}>
-                                {e.label} — {e.metrics.floorsPerRun.toFixed(2)} floors/run ({new Date(e.createdAt).toLocaleString()})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <button
-                          className="btn"
-                          type="button"
-                          onClick={() => runGemUpgradeNext()}
-                          disabled={gemNextRunning || mcRunning || stageLogEntries.length === 0}
-                        >
-                          {gemNextRunning ? "Running…" : "Run (N=3000)"}
-                        </button>
-                        {gemNextRunning ? (
-                          <button className="btn btnSecondary" type="button" onClick={() => { gemNextCancelRef.current = true; }} disabled={!gemNextRunning}>
-                            Cancel
-                          </button>
-                        ) : null}
-                      </div>
-                      {gemNextProgress ? (
-                        <div className="small mono" style={{ marginBottom: 8 }}>
-                          {gemNextProgress}
-                        </div>
-                      ) : null}
-                      {gemNextResults && gemNextResults.length > 0 ? (() => {
-                        const rs = gemNextResults;
-                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
-                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
-                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
-                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
-                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
-                        const minPerCost = perCostVals.length > 0 ? Math.min(...perCostVals) : 0;
-                        const maxPerCost = perCostVals.length > 0 ? Math.max(...perCostVals) : 0;
-                        const heatPct = (v: number, lo: number, hi: number) =>
-                          hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
-                        let rowNum = 0;
-                        return (
-                          <div className="small">
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next gem upgrade (by Floors/run +%, gem cost):</div>
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next upgrade (by Floors/run +%; colors per cost class):</div>
                             <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                               <span style={{ color: "hsl(120, 75%, 35%)", textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9)", fontWeight: 600 }}>GREEN = GOOD</span>
                               <span title="95% confidence">* = not statistically significant</span>
+                              <span>Colors: gems/cards vs skills</span>
                             </div>
                             <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
                               <thead>
                                 <tr>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gem Upgrade</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Type</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Option</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run (+%)</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gems</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="Floors/run (+%) per gem">(+%)/gem</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Cost</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="Floors/run (+%) per gem">(+%)/cost</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {rs.map((r) => {
                                   rowNum += 1;
+                                  const scale = r.costClass === "gem" ? scaleGem : scaleSkill;
                                   return (
-                                    <tr key={r.key}>
+                                    <tr key={`${r.source}-${r.key}`}>
                                       <td style={{ paddingRight: 12 }}>{rowNum}</td>
+                                      <td style={{ paddingRight: 12 }}>{r.source === "gem" ? "Gem" : r.source === "card" ? "Card" : "Skill"}</td>
                                       <td style={{ paddingRight: 12 }}>{r.displayName}</td>
                                       <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, scale.minFloors, scale.maxFloors)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
                                           {!r.significant ? "*" : r.meanFloors.toFixed(3)}
                                         </span>
                                       </td>
                                       <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, scale.minGrowth, scale.maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
                                           {!r.significant ? "*" : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
                                         </span>
                                       </td>
-                                      <td className="num">{r.cost}</td>
+                                      <td className="num">{r.cost != null ? r.cost : "—"}</td>
                                       <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.perCost, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4 }}>{!r.significant || r.perCost < 0 ? "*" : r.perCost.toFixed(6)}</span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })() : null}
-                    </>
-                  )}
-                </div>
-              </Collapsible>
-
-              <Collapsible
-                id="arch-skill-tree-next"
-                title="Which Skill Tree Skill next to maximize Stage Push?"
-                defaultExpanded={false}
-                className="archWhichNextGold"
-                headerRight={
-                  <Tooltip
-                    content={{
-                      title: "Skill tree MC",
-                      sections: [
-                        {
-                          heading: "What",
-                          lines: [
-                            "Evaluates which skill tree skill (Avada Keda or Block Bonker) gives the most Floors/run gain.",
-                            "Only skills you do not yet have are tested. If Block Bonker is ON, only Avada Keda is evaluated, and vice versa.",
-                          ],
-                        },
-                        {
-                          heading: "Significance",
-                          lines: ["Uses same Stage MC (N=3000) and 95% confidence test. * = not statistically significant."],
-                        },
-                      ],
-                    }}
-                  />
-                }
-              >
-                <div className="small" style={{ marginBottom: 8 }}>
-                  {stageLogEntries.length === 0 ? (
-                    <div className="pillLocked" style={{ padding: 8 }}>
-                      Run a Stage Push MC first. No Stage result in the log.
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                        <label className="small">
-                          Reference:
-                          <select
-                            className="mono"
-                            style={{ marginLeft: 6 }}
-                            value={skillTreeNextRefId ?? stageLogEntries[0]?.id ?? ""}
-                            onChange={(e) => setSkillTreeNextRefId(e.target.value || null)}
-                            disabled={skillTreeNextRunning || mcRunning}
-                          >
-                            {stageLogEntries.map((e) => (
-                              <option key={e.id} value={e.id}>
-                                {e.label} — {e.metrics.floorsPerRun.toFixed(2)} floors/run ({new Date(e.createdAt).toLocaleString()})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <button
-                          className="btn"
-                          type="button"
-                          onClick={() => runSkillTreeNext()}
-                          disabled={skillTreeNextRunning || mcRunning || stageLogEntries.length === 0}
-                        >
-                          {skillTreeNextRunning ? "Running…" : "Run (N=3000)"}
-                        </button>
-                        {skillTreeNextRunning ? (
-                          <button className="btn btnSecondary" type="button" onClick={() => { skillTreeNextCancelRef.current = true; }} disabled={!skillTreeNextRunning}>
-                            Cancel
-                          </button>
-                        ) : null}
-                      </div>
-                      {skillTreeNextProgress ? (
-                        <div className="small mono" style={{ marginBottom: 8 }}>
-                          {skillTreeNextProgress}
-                        </div>
-                      ) : null}
-                      {skillTreeNextResults && skillTreeNextResults.length > 0 ? (() => {
-                        const rs = skillTreeNextResults;
-                        const minFloors = Math.min(...rs.map((r) => r.meanFloors));
-                        const maxFloors = Math.max(...rs.map((r) => r.meanFloors));
-                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
-                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
-                        const heatPct = (v: number, lo: number, hi: number) =>
-                          hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
-                        let rowNum = 0;
-                        return (
-                          <div className="small">
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Best next skill tree skill (by Floors/run +%):</div>
-                            <div className="small" style={{ marginBottom: 8 }}>
-                              <span style={{ color: "hsl(120, 75%, 35%)", fontWeight: 600 }}>GREEN = GOOD</span>
-                              {" "}
-                              <span title="95% confidence">* = not statistically significant</span>
-                            </div>
-                            <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>#</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Skill</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Floors/run (+%)</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {rs.map((r) => {
-                                  rowNum += 1;
-                                  return (
-                                    <tr key={r.key}>
-                                      <td style={{ paddingRight: 12 }}>{rowNum}</td>
-                                      <td style={{ paddingRight: 12 }}>{r.displayName}</td>
-                                      <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.meanFloors, minFloors, maxFloors)), padding: "2px 6px", borderRadius: 4 }} title={!r.significant ? "Not statistically significant" : undefined}>
-                                          {!r.significant ? "*" : r.meanFloors.toFixed(3)}
-                                        </span>
-                                      </td>
-                                      <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4 }}>
-                                          {!r.significant ? "*" : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
-                                        </span>
+                                        {r.cost != null && r.cost > 0 ? (
+                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCost, scale.minPerCost, scale.maxPerCost)), padding: "2px 6px", borderRadius: 4 }}>{!r.significant || r.perCost < 0 ? "*" : r.perCost.toFixed(6)}</span>
+                                        ) : (
+                                          "—"
+                                        )}
                                       </td>
                                     </tr>
                                   );
@@ -3914,7 +3550,7 @@ export function ArchSim() {
 
               <Collapsible
                 id="arch-gem-frag-next"
-                title="Which Gem/Card/Skill Tree Upgrade to maximize Fragment gains?"
+                title="Which Gem/Card/Skill Tree/Fragment Upgrade to maximize Fragment gains?"
                 defaultExpanded={false}
                 className="archWhichNextPurple"
                 headerRight={
@@ -3986,23 +3622,32 @@ export function ArchSim() {
                       ) : null}
                       {gemFragNextResults && gemFragNextResults.length > 0 ? (() => {
                         const rs = gemFragNextResults;
-                        const minGrowth = Math.min(...rs.map((r) => r.growthPct));
-                        const maxGrowth = Math.max(...rs.map((r) => r.growthPct));
-                        const minAllGrowth = Math.min(...rs.map((r) => r.allFragmentsGrowthPct));
-                        const maxAllGrowth = Math.max(...rs.map((r) => r.allFragmentsGrowthPct));
                         const scale = 1000;
-                        const perCostVals = rs.map((r) => r.perCost).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
-                        const perCostAllVals = rs.map((r) => r.perCostAllFragments).filter((v): v is number => Number.isFinite(v) && v >= 0);
-                        const scaledPerCost = perCostVals.map((v) => v * scale);
-                        const scaledPerCostAll = perCostAllVals.map((v) => v * scale);
-                        const minPerCost = scaledPerCost.length > 0 ? Math.min(...scaledPerCost) : 0;
-                        const maxPerCost = scaledPerCost.length > 0 ? Math.max(...scaledPerCost) : 0;
-                        const minPerCostAll = scaledPerCostAll.length > 0 ? Math.min(...scaledPerCostAll) : 0;
-                        const maxPerCostAll = scaledPerCostAll.length > 0 ? Math.max(...scaledPerCostAll) : 0;
                         const heatPct = (v: number, lo: number, hi: number) =>
                           hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
+                        type CostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic";
+                        const classes: CostClass[] = ["gem", "skill", "common", "rare", "epic", "legendary", "mythic"];
+                        const byClass = (cls: CostClass) => rs.filter((r) => r.costClass === cls);
+                        const minMax = (cls: CostClass, getVal: (r: (typeof rs)[number]) => number) => {
+                          const vals = byClass(cls).map(getVal).filter((v) => Number.isFinite(v));
+                          return { min: vals.length > 0 ? Math.min(...vals) : 0, max: vals.length > 0 ? Math.max(...vals) : 0 };
+                        };
+                        const growthByClass = Object.fromEntries(classes.map((c) => [c, minMax(c, (r) => r.growthPct)])) as Record<CostClass, { min: number; max: number }>;
+                        const allGrowthByClass = Object.fromEntries(classes.map((c) => [c, minMax(c, (r) => r.allFragmentsGrowthPct)])) as Record<CostClass, { min: number; max: number }>;
+                        const perCostByClass = Object.fromEntries(
+                          classes.map((c) => {
+                            const vals = byClass(c).map((r) => r.perCost * scale).filter((v) => Number.isFinite(v) && v >= 0);
+                            return [c, { min: vals.length > 0 ? Math.min(...vals) : 0, max: vals.length > 0 ? Math.max(...vals) : 0 }];
+                          }),
+                        ) as Record<CostClass, { min: number; max: number }>;
+                        const perCostAllByClass = Object.fromEntries(
+                          classes.map((c) => {
+                            const vals = byClass(c).map((r) => r.perCostAllFragments * scale).filter((v) => Number.isFinite(v) && v >= 0);
+                            return [c, { min: vals.length > 0 ? Math.min(...vals) : 0, max: vals.length > 0 ? Math.max(...vals) : 0 }];
+                          }),
+                        ) as Record<CostClass, { min: number; max: number }>;
                         const targetFragLabel = (fragmentLogEntries.find((e) => e.id === (gemFragNextRefId ?? fragmentLogEntries[0]?.id))?.mc?.targetFrag ?? "target").toUpperCase();
-                        const costEfficTitle = "Cost efficiency: (+%) per gem × 1000";
+                        const costEfficTitle = "Cost efficiency: (+%) per unit cost × 1000. Colors are normalized within each cost class (gems vs common/rare/epic/legendary/mythic fragments).";
                         let rowNum = 0;
                         return (
                           <div className="small">
@@ -4010,6 +3655,7 @@ export function ArchSim() {
                             <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                               <span style={{ color: "hsl(120, 75%, 35%)", textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9)", fontWeight: 600 }}>GREEN = GOOD</span>
                               <span title="95% confidence">* = not statistically significant</span>
+                              <span title={costEfficTitle}>Colors per cost class (gems vs common/rare/epic/legendary/mythic)</span>
                             </div>
                             <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
                               <thead>
@@ -4021,7 +3667,7 @@ export function ArchSim() {
                                   <th style={{ textAlign: "left", paddingRight: 12 }} title={costEfficTitle}>Cost effic.</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }}>all fragments/run (+%)</th>
                                   <th style={{ textAlign: "left", paddingRight: 12 }} title={costEfficTitle}>Cost effic.</th>
-                                  <th style={{ textAlign: "left", paddingRight: 12 }}>Gems</th>
+                                  <th style={{ textAlign: "left", paddingRight: 12 }} title="Gem cost for Gem/Card; fragment cost for Fragment upgrades">Cost</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -4030,28 +3676,28 @@ export function ArchSim() {
                                   return (
                                     <tr key={`${r.source}-${r.key}`}>
                                       <td style={{ paddingRight: 12 }}>{rowNum}</td>
-                                      <td style={{ paddingRight: 12 }}>{r.source === "gem" ? "Gem" : r.source === "card" ? "Card" : "Skill"}</td>
+                                      <td style={{ paddingRight: 12 }}>{r.source === "gem" ? "Gem" : r.source === "card" ? "Card" : r.source === "skill" ? "Skill" : "Fragment"}</td>
                                       <td style={{ paddingRight: 12 }}>{r.displayName}</td>
                                       <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, minGrowth, maxGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.growthPct, growthByClass[r.costClass].min, growthByClass[r.costClass].max)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }} title={!r.significant ? "Not statistically significant" : undefined}>
                                           {!r.significant ? "*" : `${r.growthPct >= 0 ? "+" : ""}${r.growthPct.toFixed(2)}%`}
                                         </span>
                                       </td>
                                       <td className="num">
                                         {r.cost != null && r.cost > 0 ? (
-                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCost * scale, minPerCost, maxPerCost)), padding: "2px 6px", borderRadius: 4 }} title={costEfficTitle}>{!r.significant || r.perCost < 0 ? "*" : (r.perCost * scale).toFixed(3)}</span>
+                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCost * scale, perCostByClass[r.costClass].min, perCostByClass[r.costClass].max)), padding: "2px 6px", borderRadius: 4 }} title={costEfficTitle}>{!r.significant || r.perCost < 0 ? "*" : (r.perCost * scale).toFixed(3)}</span>
                                         ) : (
                                           "—"
                                         )}
                                       </td>
                                       <td className="num">
-                                        <span style={{ ...heatStyleRedGreen(heatPct(r.allFragmentsGrowthPct, minAllGrowth, maxAllGrowth)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
+                                        <span style={{ ...heatStyleRedGreen(heatPct(r.allFragmentsGrowthPct, allGrowthByClass[r.costClass].min, allGrowthByClass[r.costClass].max)), padding: "2px 6px", borderRadius: 4, cursor: !r.significant ? "help" : undefined }}>
                                           {!r.significant ? "*" : `${r.allFragmentsGrowthPct >= 0 ? "+" : ""}${r.allFragmentsGrowthPct.toFixed(2)}%`}
                                         </span>
                                       </td>
                                       <td className="num">
                                         {r.cost != null && r.cost > 0 ? (
-                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCostAllFragments * scale, minPerCostAll, maxPerCostAll)), padding: "2px 6px", borderRadius: 4 }} title={costEfficTitle}>{!r.significant ? "*" : (r.perCostAllFragments * scale).toFixed(3)}</span>
+                                          <span style={{ ...heatStyleRedGreen(heatPct(r.perCostAllFragments * scale, perCostAllByClass[r.costClass].min, perCostAllByClass[r.costClass].max)), padding: "2px 6px", borderRadius: 4 }} title={costEfficTitle}>{!r.significant ? "*" : (r.perCostAllFragments * scale).toFixed(3)}</span>
                                         ) : (
                                           "—"
                                         )}
