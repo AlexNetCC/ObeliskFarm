@@ -97,7 +97,7 @@ export function Items() {
   })();
 
 
-  /** Chests per hour = freebie + stonks + Lootbug "+1 Item Chest" + Gift + Founder Supply Drop (2 chests per drop). */
+  /** Chests per hour = freebie + stonks + Lootbug "+1 Item Chest" + Gift + Founder Supply Drop (6 chests per drop). */
   const ext = loadJson<{
     freebiesPerHour?: number;
     freebieChestsPerHour?: number;
@@ -111,6 +111,7 @@ export function Items() {
     freebieRelicChestsPerHour?: number;
     stonksRelicChestsPerHour?: number;
     founderSupplyDropItemChestsPerHour?: number;
+    founderSupplyDropRelicChestsPerHour?: number;
     chaosTotemImpact?: number;
     chaosTotem100FromBombs?: boolean;
     total10xMinPerHour?: number;
@@ -126,15 +127,15 @@ export function Items() {
   const founderSupplyDropItemChestsPerHour = typeof ext?.founderSupplyDropItemChestsPerHour === "number" ? ext.founderSupplyDropItemChestsPerHour : 0;
   const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour + giftItemChestsPerHour + founderSupplyDropItemChestsPerHour;
 
-  /** Relic chests per hour: Lootbug (free + gem "+1 Relic Chest" when purchased) + Gifts + Freebie (Construct) + Founder Supply Drop (1 relic chest per drop). Open Gem EV and Lootbug to refresh. */
+  /** Relic chests per hour: Lootbug (free + gem "+1 Relic Chest" when purchased) + Gifts + Freebie (Construct) + Founder Supply Drop (3 per drop). Open Gem EV and Lootbug to refresh. */
   const lootbugRelicChestsPerHourFree = typeof ext?.lootbugRelicChestsPerHourFree === "number" ? ext.lootbugRelicChestsPerHourFree : 0;
   const lootbugRelicChestsPerHourGem = typeof ext?.lootbugRelicChestsPerHourGem === "number" ? ext.lootbugRelicChestsPerHourGem : 0;
   const lootbugRelicChestsPerHour = typeof ext?.lootbugRelicChestsPerHour === "number" ? ext.lootbugRelicChestsPerHour : lootbugRelicChestsPerHourFree + lootbugRelicChestsPerHourGem;
   const giftRelicChestsPerHour = typeof ext?.giftRelicChestsPerHour === "number" ? ext.giftRelicChestsPerHour : 0;
   const freebieRelicChestsPerHour = typeof ext?.freebieRelicChestsPerHour === "number" ? ext.freebieRelicChestsPerHour : 0;
   const stonksRelicChestsPerHour = typeof ext?.stonksRelicChestsPerHour === "number" ? ext.stonksRelicChestsPerHour : 0;
-  /** Founder Supply Drop: 1 relic chest per drop; item chests = 2 per drop, so relic/h = itemChests/h ÷ 2. */
-  const founderRelicChestsPerHour = founderSupplyDropItemChestsPerHour / 2;
+  /** Founder Supply Drop: from Gem EV (relic chests/h). Fallback: itemChests/h ÷ 2 when external not yet updated (6 item, 3 relic per drop). */
+  const founderRelicChestsPerHour = typeof ext?.founderSupplyDropRelicChestsPerHour === "number" ? ext.founderSupplyDropRelicChestsPerHour : founderSupplyDropItemChestsPerHour / 2;
   const relicChestsPerHour = lootbugRelicChestsPerHour + giftRelicChestsPerHour + freebieRelicChestsPerHour + stonksRelicChestsPerHour + founderRelicChestsPerHour;
   /** In-game, one Relic Chest always gives 1 relic. */
   const relicsPerChest = 1;

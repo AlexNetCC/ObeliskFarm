@@ -111,6 +111,9 @@ const shiny_fish_chance: UpgradeCostEntry[] = [
   cost(1, "175", "catfish"), cost(2, "215", "spiny_puffer"), cost(3, "264", "frostdrip_spearfish"), cost(4, "325", "catfish"), cost(5, "400", "spiny_puffer"),
   cost(6, "492", "frostdrip_spearfish"), cost(7, "605", "coralstar"), cost(8, "745", "anchorfin_stingray"), cost(9, "916", "frostdrip_spearfish"), cost(10, "1,127", "catfish"),
   cost(11, "1,387", "spiny_puffer"), cost(12, "1,706", "frostdrip_spearfish"), cost(13, "2,098", "spiny_puffer"),
+  cost(14, "2,581", "anchorfin_stingray"), cost(15, "3,177", "anchorfin_stingray"), cost(16, "3,910", "pearlescent_tetra"), cost(17, "4,812", "pearlescent_tetra"), cost(18, "5,919", "pearlescent_tetra"),
+  cost(19, "7,288", "ionizing_eel"), cost(20, "8,970", "ionizing_eel"), cost(21, "11.0k", "gammangler_fish"), cost(22, "13.6k", "gammangler_fish"),
+  cost(23, "16.7k", "elephants_blob"), cost(24, "20.5k", "elephants_blob"), cost(25, "25.3k", "elephants_blob"),
 ];
 
 const drone_base_power: UpgradeCostEntry[] = [
@@ -126,6 +129,9 @@ const triple_tick_chance: UpgradeCostEntry[] = [
   cost(1, "245", "golden_trout"), cost(2, "301", "golden_trout"), cost(3, "370", "golden_trout"), cost(4, "455", "scarabshoe_crab"), cost(5, "560", "scarabshoe_crab"),
   cost(6, "689", "scarabshoe_crab"), cost(7, "848", "auroreel"), cost(8, "1,043", "auroreel"), cost(9, "1,283", "auroreel"), cost(10, "1,578", "coralstar"),
   cost(11, "1,941", "coralstar"), cost(12, "2,388", "coralstar"), cost(13, "2,937", "anchorfin_stingray"),
+  cost(14, "3,613", "anchorfin_stingray"), cost(15, "4,444", "anchorfin_stingray"), cost(16, "5,466", "pearlescent_tetra"), cost(17, "6,724", "pearlescent_tetra"), cost(18, "8,270", "pearlescent_tetra"),
+  cost(19, "10.2k", "ionizing_eel"), cost(20, "12.5k", "ionizing_eel"), cost(21, "15.4k", "gammangler_fish"), cost(22, "18.9k", "gammangler_fish"),
+  cost(23, "23.3k", "elephants_blob"), cost(24, "28.6k", "elephants_blob"), cost(25, "35.2k", "elephants_blob"),
 ];
 
 // ——— Tier 2 upgrade costs ———

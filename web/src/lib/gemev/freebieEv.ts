@@ -44,7 +44,7 @@ export type GameParameters = {
 
   // Founder supply drop (VIP Lounge tiers 1..12)
   vip_lounge_level: number; // 1..12
-  founder_gems_base: number; // fixed 10.0 in desktop
+  founder_gems_base: number; // per supply drop (e.g. 30)
   founder_gems_chance: number; // fixed 0.01 in desktop
   obelisk_level: number;
   founder_speed_multiplier: number; // fixed 2.0 in desktop
@@ -110,6 +110,8 @@ export type GameParameters = {
   gift_fish_per_hour_during_5x_buff?: number;
   /** Drone Fuel: value per 1 Fuel in Gems. Default 5. */
   gift_drone_fuel_gems_per_fuel?: number;
+  /** Founder supply drop: flat fishing ticks (28 per drop). Gems value per one fishing tick. When set, founder EV includes 28 × this per drop. */
+  founder_fishing_tick_gem_value?: number;
   /** Sushi: fish EV per 1 Sushi (from Fishing module). Sushi only affects fish gain, not Gem EV total. */
   gift_sushi_fish_per_sushi?: number;
 
@@ -144,7 +146,7 @@ export function defaultGameParameters(): GameParameters {
     jackpot_rolls: 5,
     instant_refresh_chance: 0.05,
     vip_lounge_level: 3,
-    founder_gems_base: 10.0,
+    founder_gems_base: 30.0,
     founder_gems_chance: 0.01,
     obelisk_level: 29,
     founder_speed_multiplier: 2.0,
@@ -236,16 +238,34 @@ export function getFounderDropIntervalMinutes(params: GameParameters): number {
   return 60.0 - 2.0 * (lvl - 1);
 }
 
-/** Per supply drop (before double/triple): 2 Item Chests, 50 Cherry Bomb charges, 4 min 2× Star Spawn Rate, 8 min 100% Star Auto-catch. Durations divided by game speed. */
+/**
+ * Per supply drop (before double/triple). Quantities may scale with built world monuments (e.g. W2, W3);
+ * current values are for W2 + W3 monument — to be confirmed numerically. Jackpots (double/triple chance,
+ * golden drop, bonus gems roll) may be unchanged.
+ * Contents: 30 gems, 6 Item Chests, 3 Relic Chests, 720 Cherry, 3 Fuel, 28 fishing ticks (flat), 194 arch ticks (not in EV). No star buffs.
+ */
 export interface FounderSupplyDropPerHour {
   itemChestsPerHour: number;
   cherryChargesPerHour: number;
+  relicChestsPerHour: number;
+  fuelPerHour: number;
+  fishingTicksPerHour: number;
+  archaeologyTicksPerHour: number;
   starSpawn2xMinPerHour: number;
   starAutoCatch100MinPerHour: number;
 }
 
 export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupplyDropPerHour {
-  const zero = { itemChestsPerHour: 0, cherryChargesPerHour: 0, starSpawn2xMinPerHour: 0, starAutoCatch100MinPerHour: 0 };
+  const zero = {
+    itemChestsPerHour: 0,
+    cherryChargesPerHour: 0,
+    relicChestsPerHour: 0,
+    fuelPerHour: 0,
+    fishingTicksPerHour: 0,
+    archaeologyTicksPerHour: 0,
+    starSpawn2xMinPerHour: 0,
+    starAutoCatch100MinPerHour: 0,
+  };
   if (!params.founder_enabled) return zero;
   const founderDropInterval = getFounderDropIntervalMinutes(params);
   const founderDropsPerHour = 60.0 / founderDropInterval;
@@ -253,13 +273,16 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
   const tripleChance = clamp01(getTripleDropChance(params));
   const singleChance = 1.0 - doubleChance - tripleChance;
   const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-  const gameSpeedMult = getGameSpeedMultiplier(params);
   const eventsPerHour = founderDropsPerHour * expectedDropsPerEvent;
   return {
-    itemChestsPerHour: eventsPerHour * 2,
-    cherryChargesPerHour: eventsPerHour * 50,
-    starSpawn2xMinPerHour: eventsPerHour * (4.0 / gameSpeedMult),
-    starAutoCatch100MinPerHour: eventsPerHour * (8.0 / gameSpeedMult),
+    itemChestsPerHour: eventsPerHour * 6,
+    cherryChargesPerHour: eventsPerHour * 720,
+    relicChestsPerHour: eventsPerHour * 3,
+    fuelPerHour: eventsPerHour * 3,
+    fishingTicksPerHour: eventsPerHour * 28,
+    archaeologyTicksPerHour: eventsPerHour * 194,
+    starSpawn2xMinPerHour: 0,
+    starAutoCatch100MinPerHour: 0,
   };
 }
 
@@ -829,7 +852,7 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
 
   const goldenChance = getGoldenSupplyDropChance(params); // 5× normal drops, not rare
   const baseGems =
-    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 10.0) * (1.0 + 4.0 * goldenChance);
+    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 30.0) * (1.0 + 4.0 * goldenChance);
   const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
   const bonusGems =
     founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop;
@@ -841,8 +864,10 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
 
   const supplyDrop = getFounderSupplyDropPerHour(params);
   const cherryGems = calculateCherryChargesGemsPerHour(params, supplyDrop.cherryChargesPerHour);
+  const fuelGems = supplyDrop.fuelPerHour * (params.gift_drone_fuel_gems_per_fuel ?? 0);
+  const fishingTickGems = supplyDrop.fishingTicksPerHour * (params.founder_fishing_tick_gem_value ?? 0);
 
-  return baseGems + bonusGems + giftGems + cherryGems;
+  return baseGems + bonusGems + giftGems + cherryGems + fuelGems + fishingTickGems;
 }
 
 /** Extra clicks per hour per bomb type (e.g. 20 each for Charge Magnet). Omit or use number to add same to all. */

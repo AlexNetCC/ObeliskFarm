@@ -3,6 +3,14 @@ export function formatInt(n: number): string {
   return Math.trunc(n).toLocaleString("en-US");
 }
 
+/** For cost displays: full number with locale below 10k; 5+ digits as e.g. "10.7k", "1.2M". */
+export function formatCostCompact(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return String(n);
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "k";
+  return Math.trunc(n).toLocaleString("en-US");
+}
+
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return String(seconds);
   if (seconds < 60) return `${seconds.toFixed(1)}s`;

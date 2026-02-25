@@ -499,6 +499,7 @@ export function GemEv() {
       freebiesPerHour?: number;
       freebieChestsPerHour?: number;
       founderSupplyDropItemChestsPerHour?: number;
+      founderSupplyDropRelicChestsPerHour?: number;
       chaosTotemImpact?: number;
       stonksChestsPerHour?: number;
       game_speed_multiplier?: number;
@@ -520,6 +521,7 @@ export function GemEv() {
     ext.freebieChestsPerHour = freebieChestsPerHour;
     ext.stonksChestsPerHour = stonksChestsPerHour;
     ext.founderSupplyDropItemChestsPerHour = founderSupplyDrop.itemChestsPerHour;
+    ext.founderSupplyDropRelicChestsPerHour = founderSupplyDrop.relicChestsPerHour;
     ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
     (ext as Record<string, unknown>).w3_floor_debuff = Boolean(effectiveParams.w3_floor_debuff);
     ext.giftItemChestsPerHour = giftItemChestsPerHour;
@@ -527,7 +529,7 @@ export function GemEv() {
     ext.freebieRelicChestsPerHour = freebieRelicChestsPerHour;
     ext.stonksRelicChestsPerHour = stonksRelicChestsPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, giftItemChestsPerHour, giftRelicChestsPerHour, freebieRelicChestsPerHour, stonksRelicChestsPerHour, external.gemBombGemsPerHourFromBombs, external.chaosTotem100FromBombs]);
+  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, founderSupplyDrop.relicChestsPerHour, giftItemChestsPerHour, giftRelicChestsPerHour, freebieRelicChestsPerHour, stonksRelicChestsPerHour, external.gemBombGemsPerHourFromBombs, external.chaosTotem100FromBombs]);
 
   const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
   useEffect(() => {
@@ -606,7 +608,7 @@ export function GemEv() {
             "T12: Gem Bomb Gem Chance +0.5%.",
           ],
         },
-        { heading: "Rewards (assumptions)", lines: ["Founder Gems: fixed 10 Gems/drop", "Founder Speed: 2× for 5 minutes (time saved → more freebies)", "1/1234 chance: 10 gifts per supply drop"] },
+        { heading: "Rewards (assumptions)", lines: ["Founder per-drop amounts may scale with built world monuments (current values: W2+W3); jackpots may be unchanged.", "Founder Gems: 30/drop (base); bonus roll 50+10×Level when chance hits", "Founder Speed: 2× for 5 minutes (time saved → more freebies)", "1/1234 chance: 10 gifts per supply drop"] },
       ],
     }),
     [],
@@ -760,7 +762,7 @@ export function GemEv() {
                         {
                           heading: "Bonus gems",
                           lines: [
-                            "Founder supply drop: when the bonus-gems roll hits, you get 50 + 10 × Level gems per drop.",
+                            "Founder supply drop: base 30 Gems/drop. When the bonus-gems roll hits, you get 50 + 10 × Level extra per drop.",
                           ],
                         },
                         {

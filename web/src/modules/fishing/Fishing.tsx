@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import "./fishing.css";
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
+import { formatCostCompact } from "../../lib/format";
 import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import {
@@ -341,7 +342,7 @@ function formatUpgradeNextEffect(
     case "drone_multiplier":
       return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
     case "drone_base_power":
-      return `${current.drone_base_power.toFixed(2)}→${next.drone_base_power.toFixed(2)}`;
+      return `${current.drone_base_power_base.toFixed(2)}→${next.drone_base_power_base.toFixed(2)}`;
     case "drone_cloner":
       return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
     case "shiny_multiplier":
@@ -3595,12 +3596,12 @@ export function Fishing() {
                           <>
                             <span className="fishingUpgradeCostBox">
                               <img src={fishIconUrl(fishDef.iconFile)} alt="" className="fishingUpgradeCostFishIcon" />
-                              <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
+                              <span className="mono">{formatCostCompact(nextCostEntry.amount)}</span>
                             </span>
                           </>
                         ) : nextCostEntry ? (
                           <span className="fishingUpgradeCostBox">
-                            <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
+                            <span className="mono">{formatCostCompact(nextCostEntry.amount)}</span>
                           </span>
                         ) : (
                           "—"
@@ -3762,11 +3763,11 @@ export function Fishing() {
                         ) : nextCostEntry && fishDef ? (
                           <span className="fishingUpgradeCostBox">
                             <img src={fishIconUrl(fishDef.iconFile)} alt="" className="fishingUpgradeCostFishIcon" />
-                            <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
+                            <span className="mono">{formatCostCompact(nextCostEntry.amount)}</span>
                           </span>
                         ) : nextCostEntry ? (
                           <span className="fishingUpgradeCostBox">
-                            <span className="mono">{nextCostEntry.amount.toLocaleString()}</span>
+                            <span className="mono">{formatCostCompact(nextCostEntry.amount)}</span>
                           </span>
                         ) : (
                           "—"
@@ -3964,7 +3965,7 @@ export function Fishing() {
                             ) : nextCostEntry ? (
                               <span className="fishingUpgradeCostBox">
                                 <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
+                                <span className="mono">{formatCostCompact(nextCostEntry.gems)}</span>
                               </span>
                             ) : (
                               "—"
@@ -4113,7 +4114,7 @@ export function Fishing() {
                             ) : nextCostEntry ? (
                               <span className="fishingUpgradeCostBox">
                                 <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                                <span className="mono">{nextCostEntry.gems.toLocaleString()}</span>
+                                <span className="mono">{formatCostCompact(nextCostEntry.gems)}</span>
                               </span>
                             ) : (
                               "—"
@@ -4229,7 +4230,7 @@ export function Fishing() {
                                 <td className="fishingUpgradeTdCost">
                                   <span className="fishingUpgradeCostBox">
                                     <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                                    <span className="mono">{gems.toLocaleString()}</span>
+                                    <span className="mono">{formatCostCompact(gems)}</span>
                                   </span>
                                 </td>
                                 <td className="fishingUpgradeTdTime">
@@ -4311,7 +4312,7 @@ export function Fishing() {
                           <td className="fishingUpgradeTdCost">
                             <span className="fishingUpgradeCostBox">
                               <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                              <span className="mono">{FISHING_ROD_GILD_CARD_COST.toLocaleString()}</span>
+                              <span className="mono">{formatCostCompact(FISHING_ROD_GILD_CARD_COST)}</span>
                             </span>
                           </td>
                           <td className="fishingUpgradeTdTime">
@@ -4585,11 +4586,11 @@ export function Fishing() {
                           <span className="fishingUpgradeCostBox" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                               <img src={SKILL_POINT_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                              <span className="mono">{nextCost.toLocaleString()}</span>
+                              <span className="mono">{formatCostCompact(nextCost)}</span>
                             </span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted, #64748b)" }}>
                               = <img src={GEM_ICON_URL} alt="" className="fishingUpgradeCostFishIcon" />
-                              <span className="mono">{(nextCost * GEMS_PER_SKILL_POINT).toLocaleString()}</span> gems
+                              <span className="mono">{formatCostCompact(nextCost * GEMS_PER_SKILL_POINT)}</span> gems
                             </span>
                           </span>
                         ) : (
