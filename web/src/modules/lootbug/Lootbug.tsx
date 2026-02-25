@@ -18,6 +18,7 @@ import {
   getGemBuffIcon,
   getWeight,
 } from "../../lib/lootbug/constants";
+import { LootbugEvChart, type LootbugEvBreakdown } from "./LootbugEvChart";
 
 const DEFAULT_ACTIVE_GEM_BUFFS = ["2x Game Speed", "10x Bomb Recharge"];
 
@@ -329,6 +330,7 @@ export function Lootbug() {
     if (s.activeGemBuffs.length === 0) s.activeGemBuffs = [...DEFAULT_ACTIVE_GEM_BUFFS];
     return s;
   });
+  const [evChartOpen, setEvChartOpen] = useState(false);
 
   useEffect(() => {
     saveJson(STORAGE_KEY, state);
@@ -349,6 +351,10 @@ export function Lootbug() {
   }, []);
 
   const gameSpeed = useMemo(() => getEffectiveGameSpeedMultiplierForTime(gameSpeedParams), [gameSpeedParams]);
+
+  const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
+  const BOMB_RECHARGE_ICON = "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
+  const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
 
   /** Bomb Bear Drone: when fueled in Drone module, multiplies Lootbug spawn rate. Only used for Drone's "Gem EV/h from Bomb Bear" delta; not applied to Lootbug gains (user enters spawn rate manually). */
   const bombBearLootbugSpawnRateMult = (() => {
@@ -614,8 +620,85 @@ export function Lootbug() {
     ? (gemsPerHour + cherryChargesGemsPerHourFromLootbug + net10xGemEvPerHour) / lootbugsPerHour
     : 0;
 
-  /** EV per lootbug spawn event (1 banked = 1 spawn, can be triple = 3 claims). Used by Overnight for banked lootbugs. */
+  /** EV per lootbug spawn event (1 banked = 1 spawn, can be triple = 3 claims). Used by Overnight when net is not available. */
   const lootbugEvPerSpawn = lootbugEvPerClaim * expectedLootbugsPerSpawn;
+
+  /** Net EV per spawn (all gains minus all costs). Same as in EV breakdown chart. Free buffs always in; gem buffs only when bought. Used by Overnight for banked lootbugs. */
+  const lootbugNetEvPerSpawn = useMemo(() => {
+    if (spawnsPerHour <= 0) return 0;
+    const gainsHour =
+      gemsPerHour +
+      (buyGemBuffsSet.has("10x Bomb Recharge") ? lootbug10xGemEvPerHour : 0) +
+      lootbugChestGemEvPerHour +
+      cherryChargesGemsPerHourFromLootbug +
+      (buyGemBuffsSet.has("+100 Cherry Charges") ? cherry100GemEvPerHourFromLootbug : 0);
+    return (gainsHour - totalGemCostPerHour) / spawnsPerHour;
+  }, [
+    spawnsPerHour,
+    gemsPerHour,
+    lootbug10xGemEvPerHour,
+    lootbugChestGemEvPerHour,
+    cherryChargesGemsPerHourFromLootbug,
+    cherry100GemEvPerHourFromLootbug,
+    totalGemCostPerHour,
+    buyGemBuffsSet,
+  ]);
+
+  /** Breakdown for EV chart: gains and costs per spawn (1 activation). */
+  const lootbugEvBreakdown = useMemo((): LootbugEvBreakdown => {
+    if (spawnsPerHour <= 0) {
+      return { gains: [], costs: [], totalGains: 0, totalCosts: 0, net: 0, spawnsPerHour: 0, expectedClaimsPerSpawn: expectedLootbugsPerSpawn };
+    }
+    const perSpawn = (perHour: number) => perHour / spawnsPerHour;
+    const gains: LootbugEvBreakdown["gains"] = [];
+    if (gemsPerHour > 0) gains.push({ key: "gems", label: "+2 Gems (free)", value: perSpawn(gemsPerHour), icon: GEM_ICON });
+    if (cherryChargesGemsPerHourFromLootbug > 0) gains.push({ key: "cherry10", label: "+10 Cherry Charges (free)", value: perSpawn(cherryChargesGemsPerHourFromLootbug), icon: getFreeBuffIcon("+10 Cherry Charges") });
+    if (buyGemBuffsSet.has("10x Bomb Recharge") && lootbug10xGemEvPerHour > 0) gains.push({ key: "10x", label: "10× Bomb Recharge (gross)", value: perSpawn(lootbug10xGemEvPerHour), icon: BOMB_RECHARGE_ICON });
+    if (lootbugChestGemEvPerHour > 0) gains.push({ key: "chest", label: "Item Chests (free)", value: perSpawn(lootbugChestGemEvPerHour), icon: CHEST_ICON });
+    if (buyGemBuffsSet.has("+100 Cherry Charges") && cherry100GemEvPerHourFromLootbug > 0) gains.push({ key: "cherry100", label: "+100 Cherry Charges", value: perSpawn(cherry100GemEvPerHourFromLootbug), icon: getGemBuffIcon("+100 Cherry Charges") });
+    const totalGains = perSpawn(
+      gemsPerHour +
+      (buyGemBuffsSet.has("10x Bomb Recharge") ? lootbug10xGemEvPerHour : 0) +
+      lootbugChestGemEvPerHour +
+      cherryChargesGemsPerHourFromLootbug +
+      (buyGemBuffsSet.has("+100 Cherry Charges") ? cherry100GemEvPerHourFromLootbug : 0)
+    );
+
+    const costs: LootbugEvBreakdown["costs"] = [];
+    if (totalGemWeightAll > 0) {
+      for (const buff of GEM_BUFFS) {
+        if (!buyGemBuffsSet.has(buff.name)) continue;
+        const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
+        const actualCost = Math.max(0, buff.cost - state.gemCostReduction);
+        const costPerHour = perHour * actualCost * (1 - goldenPct);
+        if (costPerHour > 0) costs.push({ key: buff.name, label: buff.name, value: perSpawn(costPerHour), icon: getGemBuffIcon(buff.name) });
+      }
+    }
+    const totalCosts = perSpawn(totalGemCostPerHour);
+    return {
+      gains,
+      costs,
+      totalGains,
+      totalCosts,
+      net: totalGains - totalCosts,
+      spawnsPerHour,
+      expectedClaimsPerSpawn: expectedLootbugsPerSpawn,
+    };
+  }, [
+    spawnsPerHour,
+    expectedLootbugsPerSpawn,
+    gemsPerHour,
+    cherryChargesGemsPerHourFromLootbug,
+    lootbug10xGemEvPerHour,
+    lootbugChestGemEvPerHour,
+    cherry100GemEvPerHourFromLootbug,
+    totalGemCostPerHour,
+    totalGemWeightAll,
+    lootbugsPerHour,
+    buyGemBuffsSet,
+    state.gemCostReduction,
+    goldenPct,
+  ]);
 
   useEffect(() => {
     const ext = loadJson<{
@@ -632,6 +715,7 @@ export function Lootbug() {
       lootbug2xStarMinPerHour?: number;
       lootbugEvPerClaim?: number;
       lootbugEvPerSpawn?: number;
+      lootbugNetEvPerSpawn?: number;
       lootbugGainsGross?: number;
       lootbug10xGemEvPerHour?: number;
       lootbugChestGemEvPerHour?: number;
@@ -649,12 +733,13 @@ export function Lootbug() {
     ext.lootbug2xStarMinPerHour = lootbug2xStarMinPerHour;
     ext.lootbugEvPerClaim = lootbugEvPerClaim;
     ext.lootbugEvPerSpawn = lootbugEvPerSpawn;
+    ext.lootbugNetEvPerSpawn = lootbugNetEvPerSpawn;
     ext.lootbugGainsGross = gemsPerHour + lootbug10xGemEvPerHour + lootbugChestGemEvPerHour;
     ext.lootbug10xGemEvPerHour = lootbug10xGemEvPerHour;
     ext.lootbugChestGemEvPerHour = lootbugChestGemEvPerHour;
     ext.lootbugTotalGemCostPerHour = totalGemCostPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbugNetEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
@@ -705,11 +790,7 @@ export function Lootbug() {
     return pct;
   }, [lootbug2xStarFreeMinPerHour]);
 
-  const GEM_ICON = "https://static.wikitide.net/shminerwiki/a/aa/Gem.png";
   const GAME_SPEED_ICON = "https://static.wikitide.net/shminerwiki/d/d4/Game_Speed_Multiplier.png";
-  const BOMB_RECHARGE_ICON =
-    "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
-  const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
 
   return (
     <div className="container">
@@ -902,6 +983,26 @@ export function Lootbug() {
         defaultExpanded={false}
       >
         <div className="lootbugSection">
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <button
+              type="button"
+              className="btn btnSecondary"
+              onClick={() => setEvChartOpen(true)}
+              aria-label="Open Lootbug EV breakdown chart"
+            >
+              EV breakdown chart
+            </button>
+            <Tooltip
+              content={{
+                title: "EV breakdown chart",
+                lines: [
+                  "Shows what one Lootbug activation (1 spawn) brings and costs in Gem EV: gains by source and costs for each gem buff you Buy.",
+                  "Net per spawn = total gains − total costs. Uses your current gem buff selection.",
+                ],
+              }}
+              label="?"
+            />
+          </div>
           <div className="lootbugGainsBlock">
             <span className="lootbugSectionTitle">Free buffs</span>
             <div className="lootbugRow">
@@ -1544,6 +1645,27 @@ export function Lootbug() {
             </table>
         </div>
       </Collapsible>
+
+      {evChartOpen ? (
+        <div className="modalOverlay" onMouseDown={() => setEvChartOpen(false)} role="dialog" aria-modal="true" aria-labelledby="lootbug-ev-chart-title">
+          <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div>
+                <div id="lootbug-ev-chart-title" className="mono" style={{ fontWeight: 900 }}>
+                  Lootbug EV breakdown
+                </div>
+                <div className="small">Per spawn (1 activation). Gains and costs with your current gem buff selection.</div>
+              </div>
+              <button type="button" className="btn btnSecondary" onClick={() => setEvChartOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="modalBody">
+              <LootbugEvChart breakdown={lootbugEvBreakdown} />
+            </div>
+          </div>
+        </div>
+      ) : null}
       </div>
     </div>
   );

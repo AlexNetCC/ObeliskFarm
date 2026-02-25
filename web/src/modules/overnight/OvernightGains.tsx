@@ -21,7 +21,7 @@ const BOMBS_STORAGE_KEY = "obeliskfarm:web:bombs_save.json:v1";
 const AUTO_BOMBER_INTERVAL_GAME_SEC = 1.25;
 
 const GEM_ICON = "sprites/common/gem.png";
-const GEM_BOMB_ICON = "sprites/event/gembomb.png";
+const CHERRY_BOMB_ICON = "sprites/event/cherrybomb.png";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const LOOTBUG_ICON = "https://static.wikitide.net/shminerwiki/8/86/Lootbug_Default.png";
 function iconSrc(path: string): string {
@@ -149,23 +149,29 @@ function fmtContrib(x: number): string {
   return x.toFixed(1);
 }
 
+function pctOvernight(part: number, total: number): number {
+  if (!Number.isFinite(part) || !Number.isFinite(total) || total <= 0) return 0;
+  return (Math.abs(part) / total) * 100.0;
+}
+
 function OvernightContribChart(props: { contributions: OvernightContrib }) {
   const { contributions } = props;
   const rows: Array<{ label: string; value: number }> = [
-    { label: "Auto-Bomber", value: contributions.autoBomber },
+    { label: "Auto-Bomber (Cherry Bomb)", value: contributions.autoBomber },
     { label: "Banked freebies", value: contributions.freebies },
     { label: "Founder (1 event)", value: contributions.founder },
     { label: "Banked lootbugs", value: contributions.lootbugs },
     { label: "Drone fuel", value: contributions.droneFuel },
   ];
+  const totalForPct = rows.reduce((s, r) => s + Math.abs(r.value), 0);
   const allValues = [0, ...rows.map((r) => r.value)];
   const minVal = Math.min(...allValues);
   const maxVal = Math.max(...allValues);
   const range = Math.max(maxVal - minVal, 1);
 
-  const W = 720;
-  const padL = 140;
-  const padR = 152;
+  const W = 800;
+  const padL = 220;
+  const padR = 160;
   const padT = 20;
   const padB = 56;
   const plotW = W - padL - padR;
@@ -187,84 +193,92 @@ function OvernightContribChart(props: { contributions: OvernightContrib }) {
     return Math.abs(v) * scaleX;
   }
 
+  const gemIconUrl = assetUrl(GEM_ICON);
+
   return (
     <div className="gemEvChartBlock">
       <svg
-          width="100%"
-          viewBox={`0 0 ${W} ${H}`}
-          style={{
-            display: "block",
-            background: "#ffffff",
-            borderRadius: "0 0 10px 10px",
-            border: "1px solid rgba(15,23,42,0.10)",
-            borderTop: "none",
-          }}
-          role="img"
-          aria-label="Overnight contributions by source"
-        >
-          {xTicks.map((t, i) => (
-            <g key={i}>
-              <line x1={xOf(t)} y1={padT} x2={xOf(t)} y2={padT + plotH} stroke="rgba(15,23,42,0.08)" strokeDasharray="4 4" />
-              <text x={xOf(t)} y={padT + plotH + 16} textAnchor="middle" fontSize={10} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
-                {t.toFixed(0)}
-              </text>
-            </g>
-          ))}
-          {minVal < 0 && (
-            <line x1={xOf(0)} y1={padT} x2={xOf(0)} y2={padT + plotH} stroke="rgba(15,23,42,0.35)" strokeWidth={1.2} />
-          )}
-          <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
-          <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        style={{
+          display: "block",
+          background: "#ffffff",
+          borderRadius: "0 0 10px 10px",
+          border: "1px solid rgba(15,23,42,0.10)",
+          borderTop: "none",
+        }}
+        role="img"
+        aria-label="Overnight contributions by source"
+      >
+        {xTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={xOf(t)} y1={padT} x2={xOf(t)} y2={padT + plotH} stroke="rgba(15,23,42,0.08)" strokeDasharray="4 4" />
+            <text x={xOf(t)} y={padT + plotH + 16} textAnchor="middle" fontSize={10} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
+              {t.toFixed(0)}
+            </text>
+          </g>
+        ))}
+        {minVal < 0 && (
+          <line x1={xOf(0)} y1={padT} x2={xOf(0)} y2={padT + plotH} stroke="rgba(15,23,42,0.35)" strokeWidth={1.2} />
+        )}
+        <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
+        <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
 
-          {rows.map((row, i) => {
-            const y0 = padT + i * rowH + barPad;
-            const v = row.value;
-            const barStartX = v >= 0 ? 0 : v;
-            const barLen = Math.abs(v);
-            const barEndX = v >= 0 ? v : 0;
-            const labelY = y0 + barH / 2 + 4;
-            return (
-              <g key={row.label}>
+        <g aria-hidden="true">
+          <image href={gemIconUrl} x={W / 2 - 18} y={H - 14} width={16} height={16} />
+          <text x={W / 2 - 2} y={H - 2} textAnchor="start" fontSize={10} fontWeight={800} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">(total)</text>
+        </g>
+
+        {rows.map((row, i) => {
+          const y0 = padT + i * rowH + barPad;
+          const v = row.value;
+          const barStartX = v >= 0 ? 0 : v;
+          const barLen = Math.abs(v);
+          const labelY = y0 + barH / 2 + 4;
+          const pctVal = totalForPct > 0 ? pctOvernight(v, totalForPct) : 0;
+          const valueText = `${fmtContrib(v)} (${pctVal.toFixed(1)}%)`;
+          return (
+            <g key={row.label}>
+              <rect
+                x={xOf(barStartX)}
+                y={y0}
+                width={wOf(barLen)}
+                height={barH}
+                fill="none"
+                stroke="rgba(15,23,42,0.55)"
+                strokeWidth={1}
+                rx={2}
+              />
+              {v !== 0 && (
                 <rect
                   x={xOf(barStartX)}
                   y={y0}
                   width={wOf(barLen)}
                   height={barH}
-                  fill="none"
-                  stroke="rgba(15,23,42,0.55)"
-                  strokeWidth={1}
+                  fill={CONTRIB_BAR_FILL}
+                  stroke="rgba(15,23,42,0.45)"
+                  strokeWidth={0.6}
                   rx={2}
                 />
-                {v !== 0 && (
-                  <rect
-                    x={xOf(barStartX)}
-                    y={y0}
-                    width={wOf(barLen)}
-                    height={barH}
-                    fill={CONTRIB_BAR_FILL}
-                    stroke="rgba(15,23,42,0.45)"
-                    strokeWidth={0.6}
-                    rx={2}
-                  />
-                )}
-                <text x={padL - 8} y={labelY} textAnchor="end" fontSize={11} fontWeight={800} fill="rgba(15,23,42,0.85)">
-                  {row.label}
-                </text>
-                <text
-                  x={padL + plotW + 8}
-                  y={labelY}
-                  textAnchor="start"
-                  fontSize={10}
-                  fontWeight={800}
-                  fill="rgba(71,85,105,0.9)"
-                  fontFamily="var(--mono)"
-                >
-                  {fmtContrib(v)}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+              )}
+              <text x={padL - 8} y={labelY} textAnchor="end" fontSize={11} fontWeight={800} fill="rgba(15,23,42,0.85)">
+                {row.label}
+              </text>
+              <text
+                x={padL + plotW + 8}
+                y={labelY}
+                textAnchor="start"
+                fontSize={10}
+                fontWeight={800}
+                fill="rgba(71,85,105,0.9)"
+                fontFamily="var(--mono)"
+              >
+                {valueText}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -303,6 +317,7 @@ export function OvernightGains() {
       elixirFuelGemsPerHour?: number;
       lootbugEvPerClaim?: number;
       lootbugEvPerSpawn?: number;
+      lootbugNetEvPerSpawn?: number;
       chaosTotem100FromBombs?: boolean;
     }>(GEMEV_EXTERNAL_KEY);
     const gameSpeed = typeof ext?.game_speed_multiplier === "number" && ext.game_speed_multiplier >= 1
@@ -311,9 +326,9 @@ export function OvernightGains() {
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? Math.max(0, ext.droneBomb10xMinPerHour) : 0;
     const droneFuel = typeof ext?.droneFuelGemsPerHour === "number" ? Math.max(0, ext.droneFuelGemsPerHour) : 0;
     const elixirFuel = typeof ext?.elixirFuelGemsPerHour === "number" ? Math.max(0, ext.elixirFuelGemsPerHour) : 0;
-    const lootbugEv = typeof ext?.lootbugEvPerSpawn === "number"
-      ? ext.lootbugEvPerSpawn
-      : (typeof ext?.lootbugEvPerClaim === "number" ? ext.lootbugEvPerClaim : null);
+    const lootbugEv = typeof ext?.lootbugNetEvPerSpawn === "number"
+      ? ext.lootbugNetEvPerSpawn
+      : (typeof ext?.lootbugEvPerSpawn === "number" ? ext.lootbugEvPerSpawn : (typeof ext?.lootbugEvPerClaim === "number" ? ext.lootbugEvPerClaim : null));
     const chaos100 = typeof ext?.chaosTotem100FromBombs === "boolean" ? ext.chaosTotem100FromBombs : false;
     const bombsSaved = loadJson<{ params?: Partial<GameParameters> }>(BOMBS_STORAGE_KEY);
     const bombsParams = { ...defaultGameParameters(), ...(bombsSaved?.params ?? {}) } as GameParameters;
@@ -335,7 +350,7 @@ export function OvernightGains() {
     return p;
   }, [gemEvParams, external.gameSpeed, effectiveDrone10x, external.chaos100]);
 
-  /** Auto-Bomber Gem EV/h: same logic as Bombs module (raw Gem Bombs only, no Cherry/D20/Battery). Uses bomb params from Bombs module. */
+  /** Auto-Bomber Gem EV/h: Cherry Bomb overnight (not Gem Bomb). Late cycle: each Cherry detonation = 1 + 2×tripleChance gem-equivalent detonations, so Cherry yields more gems. Uses bomb params from Bombs module. */
   const autoBomberGemEvPerHour = useMemo(() => {
     if (!state.gemBombActive) return 0;
     const drone10xUptime = effectiveDrone10x / 60.0;
@@ -343,15 +358,17 @@ export function OvernightGains() {
     const chaosUptime = external.chaos100 ? 1.0 : 0.0;
     const chaosFactor = 1.0 + chaosUptime;
     const gameSpeedBonus = getGameSpeedBonus({ ...effectiveParams, game_speed_multiplier: external.gameSpeed });
-    const effGemSec = Math.max(0.01, bombsParams.gem_bomb_recharge_seconds ?? 46) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
+    const effCherrySec = Math.max(0.01, bombsParams.cherry_bomb_recharge_seconds ?? 48) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
     const freeBombMult = 1.0 / (1.0 - Math.max(0, Math.min(0.99, bombsParams.free_bomb_chance ?? 0)));
-    const gemMult = rechargeChargeMultiplier(bombsParams.gem_bomb_recharge_card_level ?? 0);
-    const gemBombsRechargedPerHour = (3600 / effGemSec) * gemMult * freeBombMult;
+    const cherryMult = rechargeChargeMultiplier(bombsParams.cherry_bomb_recharge_card_level ?? 0);
+    const cherryRechargedPerHour = (3600 / effCherrySec) * cherryMult * freeBombMult;
     const intervalRealSec = AUTO_BOMBER_INTERVAL_GAME_SEC / external.gameSpeed;
-    const gemBombsDroppedPerHour = intervalRealSec > 0 ? 3600 / intervalRealSec : 0;
-    const effectiveGemBombsPerHour = Math.min(gemBombsDroppedPerHour, gemBombsRechargedPerHour);
+    const dropsPerHour = intervalRealSec > 0 ? 3600 / intervalRealSec : 0;
+    const effectiveCherryPerHour = Math.min(dropsPerHour, cherryRechargedPerHour);
+    const tripleChance = Math.max(0, Math.min(1, bombsParams.cherry_bomb_triple_charge_chance ?? 0));
+    const cherryEffectMult = 1.0 + 2.0 * tripleChance;
     const gemChance = Math.max(0, Math.min(1, bombsParams.gem_bomb_gem_chance ?? 0)) + getGemBombGemChanceT12Bonus(effectiveParams);
-    return effectiveGemBombsPerHour * gemChance;
+    return effectiveCherryPerHour * cherryEffectMult * gemChance;
   }, [state.gemBombActive, effectiveParams, bombsParams, effectiveDrone10x, external.gameSpeed, external.chaos100]);
 
   const freebieEvPerClaim = useMemo(() => getFreebieEvPerClaim(effectiveParams), [effectiveParams]);
@@ -382,14 +399,16 @@ export function OvernightGains() {
         heading: "Scope",
         lines: [
           "Same logic as Gem EV Calculator, but only sources that apply while you are away.",
+          "Elixir Drone shoots buffs when the client is offline (e.g. 10× Bomb Recharge). So overnight gains include Elixir buffs by default.",
           "Freebies and Lootbugs are not collected during sleep; only banked amounts are paid out at end of night.",
         ],
       },
       {
-        heading: "Auto-Bomber",
+        heading: "Auto-Bomber (Cherry Bomb)",
         lines: [
-          "Uses bomb params from Bombs module (recharge times, Free Bomb Chance, Gem chance, Card level). Same gains as Bombs Raw Gem Bombs.",
-          "No Cherry/Battery/D20 effect. 10× Bomb Recharge: from Drone (Elixir Drone buffs apply when the client is offline). Lootbug 10× does not accumulate while you sleep.",
+          "Overnight we assume Cherry Bomb is fired (not Gem Bomb). Uses bomb params from Bombs module: Cherry recharge, 3× Charges Chance, Gem chance, Card level.",
+          "In the late bomb cycle each Cherry detonation counts as (1 + 2× 3× chance) gem-equivalent detonations, so Cherry yields more gems per hour than Gem Bomb for the same drop rate.",
+          "10× Bomb Recharge: from Drone. Elixir Drone shoots buffs when you are offline, so 10× runs overnight. Lootbug 10× does not accumulate while you sleep.",
         ],
       },
       {
@@ -410,7 +429,7 @@ export function OvernightGains() {
         heading: "Lootbugs",
         lines: [
           "Banked lootbugs are paid out at end of night. One triple spawn counts as one banked lootbug.",
-          "EV per spawn (includes triple chance: 1 or 3 claims per spawn) is taken from Lootbug module.",
+          "Net EV per spawn (gains minus all costs, same as Lootbug EV breakdown chart) is taken from Lootbug. Total = banked count × net per spawn.",
         ],
       },
     ],
@@ -467,8 +486,11 @@ export function OvernightGains() {
           <div className="modalOverlay" onMouseDown={() => setChartOpen(false)}>
             <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
               <div className="modalHeader">
-                <div className="mono" style={{ fontWeight: 900 }}>
-                  Overview chart
+                <div>
+                  <div className="mono" style={{ fontWeight: 900 }}>
+                    Overview chart
+                  </div>
+                  <div className="small">Overnight total by source (Gem EV).</div>
                 </div>
                 <button className="btn btnSecondary" type="button" onClick={() => setChartOpen(false)}>
                   Close
@@ -502,16 +524,31 @@ export function OvernightGains() {
               />
             </div>
             <div className="overnightRow overnightRowSingle overnightRowBordered">
-              <img src={iconSrc(GEM_BOMB_ICON)} alt="" className="iconSmall" style={{ width: 20, height: 20 }} aria-hidden />
+              <img src={iconSrc(CHERRY_BOMB_ICON)} alt="" className="iconSmall" style={{ width: 20, height: 20 }} aria-hidden />
               <label className="toggle" style={{ margin: 0 }}>
                 <input
                   type="checkbox"
                   checked={state.gemBombActive}
                   onChange={(e) => setState((s) => ({ ...s, gemBombActive: e.target.checked }))}
                 />
-                <span>Auto-Bomber (Gem Bomb active)</span>
+                <span>Auto-Bomber (Cherry Bomb)</span>
               </label>
-              <Tooltip content={{ title: "Auto-Bomber", lines: ["When on, auto-bomber runs while you sleep and gem bomb drops are counted.", "Battery/Cherry/D20 cycle does not apply; only Gem Bomb recharge and drops.", "When off, no gem bomb contribution for the night."] }} label="?" />
+              <Tooltip
+                content={{
+                  title: "Auto-Bomber (Cherry Bomb)",
+                  sections: [
+                    {
+                      heading: "Why Cherry",
+                      lines: [
+                        "Overnight we fire Cherry Bomb, not Gem Bomb. In the late bomb cycle each Cherry detonation counts as more than one gem-equivalent detonation (1 + 2× your 3× Charges Chance).",
+                        "Same drop rate as Gem Bomb, so Cherry yields more gems per hour. Set Cherry recharge and 3× chance in Bombs module.",
+                      ],
+                    },
+                    { heading: "Toggle", lines: ["When on, auto-bomber runs while you sleep and Cherry Bomb drops are counted. When off, no bomb contribution for the night."] },
+                  ],
+                }}
+                label="?"
+              />
             </div>
             <div className="overnightRow overnightRowSingle overnightRowBordered">
               <img src={CHAOS_TOTEM_ICON} alt="" className="iconSmall" style={{ width: 20, height: 20 }} aria-hidden />
@@ -531,9 +568,19 @@ export function OvernightGains() {
               <Tooltip
                 content={{
                   title: "Elixir Drone overnight",
-                  lines: [
-                    "Elixir Drone buffs (e.g. 10× Bomb Recharge) apply when the client is offline. They are included in the calculation by default.",
-                    "Check this box only if you want to assume no Elixir overnight: 10× = 0 and Elixir fuel cost excluded.",
+                  sections: [
+                    {
+                      heading: "Offline behavior",
+                      lines: [
+                        "Elixir Drone shoots buffs when the client is offline. So 10× Bomb Recharge and other Elixir buffs are active overnight and are included in the calculation by default.",
+                      ],
+                    },
+                    {
+                      heading: "Assume no Elixir",
+                      lines: [
+                        "Check this box only if you want to assume no Elixir overnight: 10× = 0 and Elixir fuel cost excluded.",
+                      ],
+                    },
                   ],
                 }}
                 label="?"
@@ -551,16 +598,36 @@ export function OvernightGains() {
                 <Tooltip content={{ title: "Freebie EV per claim", lines: ["Expected Gem EV from one freebie claim (one pop).", "Includes: base gems, Stonks, Skill Shards, Statue of Soprano gifts (when built).", "From Gem EV params. Used for banked freebies: count × EV per claim."] }} label="?" />
               </div>
               <div className="gemEvRow overnightEvDisplay">
-                <span className="label">Lootbug EV per spawn</span>
+                <span className="label">Lootbug net per spawn</span>
                 <span className="mono">{external.lootbugEv != null ? external.lootbugEv.toFixed(1) : "—"}</span>
-                <Tooltip content={{ title: "Lootbug EV per spawn", lines: ["Taken from Lootbug module. Open Lootbug to update the value.", "Used for banked lootbugs: count × EV per spawn (each spawn can be triple = 3 claims).", "Triple spawn chance is included: EV per spawn = EV per claim × expected lootbugs per spawn."] }} label="?" />
+                <Tooltip
+                  content={{
+                    title: "Lootbug net per spawn",
+                    sections: [
+                      {
+                        heading: "Formula",
+                        lines: [
+                          "Taken from Lootbug module. Banked lootbugs at end of night: count × net per spawn.",
+                          "Net = all gains (e.g. +2 Gems, +10 Cherry, 10×, Item Chests, +100 Cherry when checked) minus all costs (gem buffs you Buy). Same value as in Lootbug EV breakdown chart.",
+                        ],
+                      },
+                      {
+                        heading: "Triple / Golden / Multi",
+                        lines: [
+                          "Triple chance, golden chance, gem cost reduction, and loot multiplier are already included in the Lootbug calculation. Open Lootbug to update the value.",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
               </div>
             </div>
           </div>
         </Collapsible>
 
         <div className="overnightReadOnlyNote">
-          <span className="small">Auto-Bomber: bomb params from Bombs module. Game speed from Gem EV. Drone 10× and fuel from Drone. Freebie EV from Gem EV. Lootbug EV from Lootbug.</span>
+          <span className="small">Auto-Bomber: Cherry Bomb (recharge, 3× chance) from Bombs module. Game speed from Gem EV. Drone 10× and fuel from Drone (Elixir Drone shoots buffs offline). Freebie EV from Gem EV. Lootbug EV from Lootbug.</span>
         </div>
       </div>
     </div>
