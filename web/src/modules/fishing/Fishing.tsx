@@ -2604,7 +2604,10 @@ export function Fishing() {
               Fishing gains (by fish)
               <span style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
                 <span className="mono fishingTotalRainbow" style={{ fontSize: "1.45em" }}>
-                  {visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}/h
+                  {(() => {
+                    const total = visibleGainsRows.reduce((s, r) => s + r.fishPerHour, 0);
+                    return total.toLocaleString(undefined, total > 1000 ? { maximumFractionDigits: 0, minimumFractionDigits: 0 } : { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+                  })()}/h
                 </span>
               </span>
             </span>
@@ -2692,10 +2695,9 @@ export function Fishing() {
                         style={rateColor ? { backgroundColor: rateColor, color: heatT > 0.5 ? "#0a0a0a" : "#fff" } : undefined}
                       >
                         {isActive
-                          ? fishPerHour.toLocaleString(undefined, {
-                              maximumFractionDigits: 2,
-                              minimumFractionDigits: 2,
-                            })
+                          ? fishPerHour.toLocaleString(undefined, fishPerHour > 1000
+                              ? { maximumFractionDigits: 0, minimumFractionDigits: 0 }
+                              : { maximumFractionDigits: 2, minimumFractionDigits: 2 })
                           : "—"}
                         /h
                       </span>

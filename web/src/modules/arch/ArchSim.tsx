@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Collapsible } from "../../components/Collapsible";
-import { Tooltip } from "../../components/Tooltip";
+import { Tooltip, type TooltipContent } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
 import { formatInt } from "../../lib/format";
 import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
-import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES } from "../../lib/archaeology/constants";
+import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES, SKILL_BONUSES } from "../../lib/archaeology/constants";
 import { BLOCK_TYPES, getBlockData, getCardGemCost } from "../../lib/archaeology/blockStats";
-import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
+import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getFragmentUpgradeBonuses, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
 import { getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
 import { PERMANENT_SPEED_MOD_INITIAL_HITS } from "../../lib/archaeology/mc/monteCarlo";
 import type { ArchBuild, ArchGemUpgradeKey, BlockTier, BlockType, CardLevel, Skill } from "../../lib/archaeology/types";
@@ -518,6 +518,121 @@ export function ArchSim() {
     }),
     [],
   );
+
+  const STAT_TOOLTIPS: Record<Skill, TooltipContent> = useMemo(() => {
+    const frag = getFragmentUpgradeBonuses(build.fragmentUpgradeLevels);
+    const agiSkillBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["agi_skill_buff"] ?? 0));
+    const perSkillBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["per_skill_buff"] ?? 0));
+    const intSkillBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["int_skill_buff"] ?? 0));
+
+    const modChanceAgi = Number(FRAGMENT_UPGRADES.agi_skill_buff?.mod_chance_skill ?? 0);
+    const modChancePer = Number(FRAGMENT_UPGRADES.per_skill_buff?.mod_chance_skill ?? 0);
+    const modChanceInt = Number(FRAGMENT_UPGRADES.int_skill_buff?.mod_chance_skill ?? 0);
+
+    function fmtPct(x: number, decimals = 2): string {
+      const v = x * 100;
+      return decimals <= 0 || v === Math.round(v) ? String(Math.round(v)) : v.toFixed(decimals);
+    }
+    const boostedByFrag = (
+      <>
+        {" "}
+        <span className="archStatTooltipFrag">
+          * Boosted by <Sprite path="sprites/archaeology/fragmentcommon.png" alt="Fragment" className="iconSmall" /> Upgrade
+        </span>
+      </>
+    );
+    const strFlatBase = SKILL_BONUSES.strength.flat_damage ?? 0;
+    const strFlatActual = strFlatBase + (frag.flat_damage_skill ?? 0);
+    const strPctBase = SKILL_BONUSES.strength.percent_damage ?? 0;
+    const strPctActual = strPctBase + (frag.percent_damage_skill ?? 0);
+    const strCritBase = SKILL_BONUSES.strength.crit_damage ?? 0;
+
+    const agiStamBase = SKILL_BONUSES.agility.max_stamina ?? 0;
+    const agiStamActual = agiStamBase + (frag.max_stamina_skill ?? 0);
+    const agiCritBase = SKILL_BONUSES.agility.crit_chance ?? 0;
+    const agiSpeedBase = SKILL_BONUSES.agility.speed_mod_chance ?? 0;
+    const agiSpeedActual = agiSpeedBase + agiSkillBuffLvl * modChanceAgi;
+
+    const perFragBase = SKILL_BONUSES.perception.fragment_gain ?? 0;
+    const perLootBase = SKILL_BONUSES.perception.loot_mod_chance ?? 0;
+    const perLootActual = perLootBase + perSkillBuffLvl * modChancePer;
+    const perArmorBase = SKILL_BONUSES.perception.armor_pen ?? 0;
+    const perArmorActual = perArmorBase + (frag.armor_pen_skill ?? 0);
+
+    const intXpBase = SKILL_BONUSES.intellect.xp_bonus ?? 0;
+    const intXpActual = intXpBase + (frag.xp_bonus_skill ?? 0);
+    const intExpModBase = SKILL_BONUSES.intellect.exp_mod_chance ?? 0;
+    const intExpModActual = intExpModBase + intSkillBuffLvl * modChanceInt;
+    const intArmorMultBase = SKILL_BONUSES.intellect.armor_pen_mult ?? 0;
+
+    return {
+      strength: {
+        title: "STR",
+        sections: [
+          {
+            heading: "Per point (actual)",
+            lines: [
+              <>Damage: +{strFlatActual} flat{strFlatActual !== strFlatBase ? boostedByFrag : null}</>,
+              <>Damage: +{fmtPct(strPctActual, 0)}%{strPctActual !== strPctBase ? boostedByFrag : null}</>,
+              `Crit Damage: +${fmtPct(strCritBase, 0)}%`,
+            ],
+          },
+        ],
+      },
+      agility: {
+        title: "AGI",
+        sections: [
+          {
+            heading: "Per point (actual)",
+            lines: [
+              <>Max Stamina: +{agiStamActual}{agiStamActual !== agiStamBase ? boostedByFrag : null}</>,
+              `Crit Chance: +${fmtPct(agiCritBase, 0)}%`,
+              <>Speed Mod Chance: +{fmtPct(agiSpeedActual)}%{agiSpeedActual !== agiSpeedBase ? boostedByFrag : null}</>,
+            ],
+          },
+        ],
+      },
+      perception: {
+        title: "PER",
+        sections: [
+          {
+            heading: "Per point (actual)",
+            lines: [
+              `Fragment Gain: +${fmtPct(perFragBase, 0)}%`,
+              <>Loot Mod Chance: +{fmtPct(perLootActual)}%{perLootActual !== perLootBase ? boostedByFrag : null}</>,
+              <>Armor Penetration: +{perArmorActual}{perArmorActual !== perArmorBase ? boostedByFrag : null}</>,
+            ],
+          },
+        ],
+      },
+      intellect: {
+        title: "INT",
+        sections: [
+          {
+            heading: "Per point (actual)",
+            lines: [
+              <>Exp Gain: +{fmtPct(intXpActual, 0)}%{intXpActual !== intXpBase ? boostedByFrag : null}</>,
+              <>EXP Mod Chance: +{fmtPct(intExpModActual)}%{intExpModActual !== intExpModBase ? boostedByFrag : null}</>,
+              `Armor Pen multiplier: ×(1 + ${fmtPct(intArmorMultBase, 0)}% per point)`,
+            ],
+          },
+        ],
+      },
+      luck: {
+        title: "LCK",
+        sections: [
+          {
+            heading: "Per point (actual)",
+            lines: [
+              `Crit Chance: +${fmtPct(SKILL_BONUSES.luck.crit_chance ?? 0, 0)}%`,
+              `All Mod Chances (EXP, Loot, Speed, Stamina): +${fmtPct(SKILL_BONUSES.luck.all_mod_chance ?? 0)}%`,
+              "Golden crosshair (active gameplay) is not modeled here.",
+            ],
+          },
+        ],
+      },
+    };
+  }, [build.fragmentUpgradeLevels]);
 
   const sortedFragmentUpgrades = useMemo(() => {
     const entries = Object.entries(FRAGMENT_UPGRADES);
@@ -2957,13 +3072,17 @@ export function ArchSim() {
                 statKey === "strength" ? "STR" : statKey === "agility" ? "AGI" : statKey === "perception" ? "PER" : statKey === "intellect" ? "INT" : "LCK";
               return (
                 <div key={statKey} className="row" style={{ marginBottom: 8 }}>
-                  <div className="label">
+                  <div className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="mono">{short}</span>
+                    <Tooltip content={STAT_TOOLTIPS[statKey]} />
                     <span className="mono">
                       {v} / {cap}
                     </span>
                   </div>
                   <div className="btnRow" style={{ marginTop: 0 }}>
+                    <button className="btn btnSecondary" type="button" onClick={() => setSkill(statKey, -5)} disabled={v <= 0}>
+                      −5
+                    </button>
                     <button className="btn btnSecondary" type="button" onClick={() => setSkill(statKey, -1)} disabled={v <= 0}>
                       −
                     </button>
@@ -2972,9 +3091,6 @@ export function ArchSim() {
                     </button>
                     <button className="btn btnSecondary" type="button" onClick={() => setSkill(statKey, +5)} disabled={v >= cap || totalSkillPoints >= build.archLevel}>
                       +5
-                    </button>
-                    <button className="btn btnSecondary" type="button" onClick={() => setSkill(statKey, -5)} disabled={v <= 0}>
-                      −5
                     </button>
                   </div>
                 </div>
@@ -3017,8 +3133,6 @@ export function ArchSim() {
               <div className="mono">{formatPct(stats.ultra_crit_chance, 2)}</div>
               <kbd>Ultra Crit Damage</kbd>
               <div className="mono">{stats.ultra_crit_dmg_mult.toFixed(3)}x</div>
-              <kbd>One-Hit-KO Chance</kbd>
-              <div className="mono">{formatPct(stats.one_hit_chance, 3)}</div>
               <kbd>Ability Instacharge</kbd>
               <div className="mono">{formatPct(stats.ability_instacharge, 2)}</div>
               <kbd>Exp Gain</kbd>
