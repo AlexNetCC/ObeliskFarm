@@ -3075,8 +3075,9 @@ export function Fishing() {
         >
           <div className="fishingSection fishingTickSection">
             <div className="fishingTickRows">
-              <div className="fishingTickRow">
+              <div className="fishingTickRow fishingTickRowBase">
                 1 Fishing Tick = <span className="mono">{tickDurationSec.toFixed(2)}</span> Seconds
+                <span style={{ marginLeft: 6 }}>→ Fishing Ticks per hour = <span className="mono">{tickDurationSec > 0 ? (3600 / tickDurationSec).toFixed(2) : "—"}</span></span>
               </div>
               <div className="fishingTickRow">
                 <strong>Effective</strong> 1 Fishing Tick = <span className="mono">{effectiveTickSec.toFixed(2)}</span> Seconds

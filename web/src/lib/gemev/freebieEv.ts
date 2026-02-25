@@ -916,10 +916,11 @@ export function calculateGemBombGemsPerHour(
   const batteryClicks0 = batteryClicksBase * freeBombMult + extra.battery;
   const d20Clicks0 = d20ClicksBase * freeBombMult + extra.d20;
 
-  // Refill rates (per click of the source) to EACH target bomb (expected value per target).
+  // Refill rates (per click of the source) to each OTHER bomb (expected value per target). Battery and D20 cannot refill themselves.
   const totalBombTypes = Math.max(2, clampInt(params.total_bomb_types, 12));
-  const batteryRefillPerClick = clampPositive(params.battery_bomb_charges_per_charge, 2.0) / (totalBombTypes - 1);
-  const d20RefillPerClick = (clamp01(params.d20_bomb_refill_chance) * clampPositive(params.d20_bomb_charges_distributed, 42)) / (totalBombTypes - 1);
+  const targetsExcludingSelf = totalBombTypes - 1;
+  const batteryRefillPerClick = clampPositive(params.battery_bomb_charges_per_charge, 2.0) / targetsExcludingSelf;
+  const d20RefillPerClick = (clamp01(params.d20_bomb_refill_chance) * clampPositive(params.d20_bomb_charges_distributed, 42)) / targetsExcludingSelf;
 
   // Cherry effect: expected free clicks multiplier = 1 + 2p (p = triple_charge_chance). Used for cycle logic.
   const cherryEffectMult = 1.0 + 2.0 * clamp01(params.cherry_bomb_triple_charge_chance);
@@ -940,17 +941,17 @@ export function calculateGemBombGemsPerHour(
       ? batteryTotal + cherryTotal * (cherryEffectMult - 1)
       : batteryTotal;
 
-    // Battery refills to each bomb (including itself per python comment "self-refill")
+    // Battery refills to each other bomb (cannot refill itself)
     const batteryToGem = effectiveBattery * batteryRefillPerClick;
     const batteryToCherry = effectiveBattery * batteryRefillPerClick;
-    const batteryToBattery = effectiveBattery * batteryRefillPerClick;
+    const batteryToBattery = 0;
     const batteryToD20 = effectiveBattery * batteryRefillPerClick;
 
-    // D20 refills to each bomb (including itself)
+    // D20 refills to each other bomb (cannot refill itself)
     const d20ToGem = d20Total * d20RefillPerClick;
     const d20ToCherry = d20Total * d20RefillPerClick;
     const d20ToBattery = d20Total * d20RefillPerClick;
-    const d20ToD20 = d20Total * d20RefillPerClick;
+    const d20ToD20 = 0;
 
     const gemNew = gemClicks0 + batteryToGem + d20ToGem;
     const cherryNew = cherryClicks0 + batteryToCherry + d20ToCherry;
