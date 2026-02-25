@@ -768,6 +768,19 @@
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
+.fishingDockDroneCountInput {
+  width: 2.5em;
+  padding: 2px 4px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  box-sizing: border-box;
+}
+.fishingDockDroneCountInput:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.5);
+}
 
 /* Toggle above fish-per-hour list */
 /* Gem income toggle: prominent at top of module */

@@ -949,6 +949,8 @@ export function Fishing() {
   /** Bump when Drone (or other module) updates fishing_external so we re-read and re-render. */
   const [fishingExternalRevision, setFishingExternalRevision] = useState(0);
   const [tickChartOpen, setTickChartOpen] = useState(false);
+  /** When user edits drone count in the input: { dockId, input }. On blur/Enter we parse and apply (capped to max). */
+  const [editingDroneCount, setEditingDroneCount] = useState<{ dockId: DockId; input: string } | null>(null);
   useEffect(() => {
     const handler = () => setFishingExternalRevision((r) => r + 1);
     window.addEventListener("obelisk:fishing_external_updated", handler);
@@ -1071,10 +1073,38 @@ export function Fishing() {
     setState((prev) => {
       const cur = prev.dronesPerDock[dockId] ?? 0;
       const total = DOCKS.reduce((s, d) => s + (prev.dronesPerDock[d.id] ?? 0), 0);
-      const others = total - cur;
-      const maxThis = Math.max(0, droneCap - others);
-      const clamped = Math.max(0, Math.min(maxThis, value));
-      return { ...prev, dronesPerDock: { ...prev.dronesPerDock, [dockId]: clamped } };
+      const othersTotal = total - cur;
+      const maxThis = Math.max(0, droneCap - othersTotal);
+      const targetThis = Math.max(0, Math.min(droneCap, value));
+
+      if (targetThis <= maxThis) {
+        return { ...prev, dronesPerDock: { ...prev.dronesPerDock, [dockId]: targetThis } };
+      }
+
+      const remainingForOthers = droneCap - targetThis;
+      if (remainingForOthers <= 0 || othersTotal <= 0) {
+        const next: Record<DockId, number> = { ...prev.dronesPerDock };
+        next[dockId] = targetThis;
+        for (const d of DOCKS) if (d.id !== dockId) next[d.id] = 0;
+        return { ...prev, dronesPerDock: next };
+      }
+
+      const otherDocks = DOCKS.filter((d) => d.id !== dockId);
+      const scaled: { id: DockId; val: number; rounded: number }[] = otherDocks.map((d) => {
+        const v = prev.dronesPerDock[d.id] ?? 0;
+        const scaledVal = (remainingForOthers * v) / othersTotal;
+        return { id: d.id, val: scaledVal, rounded: Math.max(0, Math.round(scaledVal)) };
+      });
+      let sumRounded = scaled.reduce((s, x) => s + x.rounded, 0);
+      const diff = remainingForOthers - sumRounded;
+      if (diff !== 0) {
+        const idx = scaled.findIndex((x) => x.rounded > 0);
+        if (idx >= 0) scaled[idx]!.rounded = Math.max(0, scaled[idx]!.rounded + diff);
+      }
+      const next: Record<DockId, number> = { ...prev.dronesPerDock };
+      next[dockId] = targetThis;
+      for (const x of scaled) next[x.id] = x.rounded;
+      return { ...prev, dronesPerDock: next };
     });
   }
 
@@ -3430,7 +3460,39 @@ export function Fishing() {
                     >
                       −
                     </button>
-                    <span className="fishingDockDroneCount">{dockDrones}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="fishingDockDroneCount fishingDockDroneCountInput"
+                      value={editingDroneCount?.dockId === dock.id ? editingDroneCount.input : String(dockDrones)}
+                      onChange={(e) => {
+                        if (editingDroneCount?.dockId === dock.id) {
+                          setEditingDroneCount({ dockId: dock.id, input: e.target.value });
+                        }
+                      }}
+                      onFocus={() => {
+                        if (editingDroneCount != null && editingDroneCount.dockId !== dock.id) {
+                          const prev = state.dronesPerDock[editingDroneCount.dockId] ?? 0;
+                          const raw = editingDroneCount.input.trim().replace(",", ".");
+                          const num = raw === "" ? 0 : Math.trunc(Number(raw));
+                          setDockDronesTo(editingDroneCount.dockId, Number.isFinite(num) ? num : prev);
+                        }
+                        setEditingDroneCount({ dockId: dock.id, input: String(dockDrones) });
+                      }}
+                      onBlur={() => {
+                        if (editingDroneCount?.dockId !== dock.id) return;
+                        const raw = editingDroneCount.input.trim().replace(",", ".");
+                        const num = raw === "" ? 0 : Math.trunc(Number(raw));
+                        setDockDronesTo(dock.id, Number.isFinite(num) ? num : dockDrones);
+                        setEditingDroneCount(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && editingDroneCount?.dockId === dock.id) {
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      aria-label={`Drones at ${dock.name}`}
+                    />
                     <button
                       type="button"
                       className="fishingDockDroneBtn"
