@@ -186,7 +186,8 @@ function GiftChartSvg(props: {
   const scaleX = maxVal > 0 ? plotW / maxVal : plotW;
   const gemIconUrl = assetUrl("sprites/common/gem.png");
   const iconX = padL - 8 - 16 - 4;
-  const tooltipX = iconX + 8;
+  /** X position for tooltip "?" so it sits to the right of the label text (not over the bar/value). */
+  const tooltipQuestionX = (label: string) => labelPad + 4 + label.length * 8 + 6;
   const titleColor = darkTheme ? CHART_DARK.text : "rgba(71,85,105,0.85)";
   const subtitleColor = darkTheme ? CHART_DARK.textMuted : "rgba(71,85,105,0.65)";
   const svgBg = darkTheme ? CHART_DARK.bg : "#ffffff";
@@ -271,7 +272,7 @@ function GiftChartSvg(props: {
                   </text>
                   {row.icon ? <image href={row.icon} x={iconX} y={y0} width={16} height={16} /> : null}
                   {hasTooltip ? (
-                    <text x={iconX + 8} y={labelY} textAnchor="middle" fontSize={13} fontWeight={700} fill={textFill}>
+                    <text x={tooltipQuestionX(row.label)} y={labelY} textAnchor="start" fontSize={13} fontWeight={700} fill={textFill}>
                       ?
                     </text>
                   ) : null}
@@ -296,18 +297,20 @@ function GiftChartSvg(props: {
         {rows.some((r) => r.key === "skin") ? (
           (() => {
             const skinRowIdx = rows.findIndex((r) => r.key === "skin");
+            const skinRow = rows[skinRowIdx];
             const y0 = padT + skinRowIdx * rowH + barPad;
+            const qX = tooltipQuestionX(skinRow.label);
             return (
               <div
                 style={{
                   position: "absolute",
-                  left: `${(tooltipX / W) * 100}%`,
+                  left: `${(qX / W) * 100}%`,
                   top: `${((y0 - 2) / H) * 100}%`,
                   width: `${(20 / W) * 100}%`,
                   height: `${(20 / H) * 100}%`,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
+                  justifyContent: "flex-start",
                   pointerEvents: "auto",
                 }}
               >

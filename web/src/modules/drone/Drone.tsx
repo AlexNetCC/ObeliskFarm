@@ -184,6 +184,12 @@ type ElixirState = {
   platinumStatueOfAppetite: boolean;
   /** World 3 upgrade: Fuel Duration +0.15% per level (multiplicative). */
   fuelDurationWorld3Level: number;
+  /** Elixir Crit Chance (Fishing): +10% chance for 3× buff duration. Tribute Rank 2 + Elixir Crit Chance. */
+  elixirCritChanceFishing: boolean;
+  /** Infernal Elixir Drone Card: when active, use elixirCritMult instead of default 3× for crit. */
+  infernalElixirDroneCard: boolean;
+  /** Elixir crit duration mult when Infernal card is active (default 3×). */
+  elixirCritMult: number;
   /** Frogger Drone */
   /** Frogger Drone enabled (ON). When OFF, contributions to Gem EV/fuel are zero. */
   froggerDroneOn: boolean;
@@ -274,6 +280,9 @@ const DEFAULT: ElixirState = {
   axolotlSkin: false,
   platinumStatueOfAppetite: false,
   fuelDurationWorld3Level: 0,
+  elixirCritChanceFishing: false,
+  infernalElixirDroneCard: false,
+  elixirCritMult: 3,
   froggerDroneOn: false,
   froggerSuitLevel: 8,
   froggerGradeLevel: 0,
@@ -602,6 +611,9 @@ export function Drone() {
     s.axolotlSkin = typeof migrated.axolotlSkin === "boolean" ? migrated.axolotlSkin : DEFAULT.axolotlSkin;
     s.platinumStatueOfAppetite = typeof migrated.platinumStatueOfAppetite === "boolean" ? migrated.platinumStatueOfAppetite : DEFAULT.platinumStatueOfAppetite;
     s.fuelDurationWorld3Level = Math.max(0, Math.trunc(Number(s.fuelDurationWorld3Level ?? 0)));
+    s.elixirCritChanceFishing = typeof migrated.elixirCritChanceFishing === "boolean" ? migrated.elixirCritChanceFishing : DEFAULT.elixirCritChanceFishing;
+    s.infernalElixirDroneCard = typeof migrated.infernalElixirDroneCard === "boolean" ? migrated.infernalElixirDroneCard : DEFAULT.infernalElixirDroneCard;
+    s.elixirCritMult = clamp(migrated.elixirCritMult ?? DEFAULT.elixirCritMult, 1, 20);
     s.froggerSuitLevel = clamp(s.froggerSuitLevel ?? DEFAULT.froggerSuitLevel, 0, 20);
     s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, 45);
     s.froggerDroneOn = typeof migrated.froggerDroneOn === "boolean" ? migrated.froggerDroneOn : DEFAULT.froggerDroneOn;
@@ -912,6 +924,10 @@ export function Drone() {
   }, [veinseekerFuelDurationSecReal, state.veinseekerFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
   const fuelMult = state.fueled ? 1 + fueledBuffDurationPct / 100 : 1;
+  /** Elixir Crit (Fishing): +10% chance for N× buff duration; expected mult = 1 + 0.1×(N−1). Infernal card overrides N. */
+  const elixirCritExpectedMult = state.elixirCritChanceFishing
+    ? 1 + 0.1 * (state.elixirCritMult - 1)
+    : 1;
   const buffDurations = useMemo(() => {
     let list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
     if (state.chainBomberDroneOn && state.chainBomberFueled) {
@@ -925,19 +941,16 @@ export function Drone() {
     }
     const multFor = (b: { baseSec: number; realTimeOnly?: boolean; noFuelMult?: boolean }) =>
       (b as { noFuelMult?: boolean }).noFuelMult ? 1 : fuelMult;
-    const maxSec = Math.max(
-      ...list.map((b) =>
-        b.realTimeOnly ? b.baseSec * multFor(b) : (b.baseSec * multFor(b)) / gameSpeedMult,
-      ),
-      1,
-    );
-    return list
-      .map((b) => {
-        const sec = b.realTimeOnly ? b.baseSec * multFor(b) : (b.baseSec * multFor(b)) / gameSpeedMult;
-        return { ...b, sec, pct: (sec / maxSec) * 100 };
-      })
+    const withSec = list.map((b) => {
+      const baseSec = b.realTimeOnly ? b.baseSec * multFor(b) : (b.baseSec * multFor(b)) / gameSpeedMult;
+      const sec = baseSec * elixirCritExpectedMult;
+      return { ...b, sec };
+    });
+    const maxSec = Math.max(...withSec.map((b) => b.sec), 1);
+    return withSec
+      .map((b) => ({ ...b, pct: (b.sec / maxSec) * 100 }))
       .sort((a, b) => a.sec - b.sec);
-  }, [state.fueled, state.fishingUnlocked, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, chainBomberBuffDurationSec, voidBuffDurationSec, veinseekerBuffDurationSec, fueledBuffDurationPct, fuelMult, gameSpeedMult]);
+  }, [state.fueled, state.fishingUnlocked, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.elixirCritChanceFishing, state.elixirCritMult, chainBomberBuffDurationSec, voidBuffDurationSec, veinseekerBuffDurationSec, fueledBuffDurationPct, fuelMult, gameSpeedMult, elixirCritExpectedMult]);
 
   const droneBomb10xMinPerHour = useMemo(() => {
     const cycleSec = numBuffs * intervalSec;
@@ -1661,6 +1674,78 @@ export function Drone() {
               Drone fueled (Elixir fuel buff extends buff duration)
             </label>
           </div>
+
+          <div className="droneCheckboxRow">
+            <span className="droneSkillIconWrap" style={{ display: "flex", gap: 2 }}>
+              <img
+                src="https://static.wikitide.net/shminerwiki/9/9a/Elixir_Crit_Chance.png"
+                alt=""
+                className="droneSkillIcon"
+                aria-hidden
+              />
+              <img
+                src="https://static.wikitide.net/shminerwiki/d/d0/Tribute_Rank_2.png"
+                alt=""
+                className="droneSkillIcon"
+                aria-hidden
+              />
+            </span>
+            <input
+              id="elixir-crit-fishing"
+              type="checkbox"
+              className="droneCheckbox"
+              checked={state.elixirCritChanceFishing}
+              onChange={(e) => update({ elixirCritChanceFishing: e.target.checked })}
+            />
+            <label htmlFor="elixir-crit-fishing" className="droneLabel">
+              Elixir Crit Chance (Fishing)
+            </label>
+            <Tooltip
+              content={{
+                title: "Elixir Crit Chance (Fishing)",
+                lines: [
+                  "+10% chance that a buff gets 3× duration (huge for 10× Bomb Recharge etc.).",
+                  "Infernal Elixir Drone Card increases the crit mult; check it below and set the actual mult.",
+                ],
+              }}
+            />
+          </div>
+
+          {state.elixirCritChanceFishing ? (
+            <div className="droneSubSection" style={{ marginTop: 4 }}>
+              <div className="droneCheckboxRow">
+                <img
+                  src="https://static.wikitide.net/shminerwiki/8/8b/Card_Backing_Infernal.png"
+                  alt=""
+                  className="droneSkillIcon"
+                  aria-hidden
+                />
+                <input
+                  id="elixir-infernal-card"
+                  type="checkbox"
+                  className="droneCheckbox"
+                  checked={state.infernalElixirDroneCard}
+                  onChange={(e) => update({ infernalElixirDroneCard: e.target.checked })}
+                />
+                <label htmlFor="elixir-infernal-card" className="droneLabel">
+                  Infernal Elixir Drone Card (override crit mult)
+                </label>
+              </div>
+              {state.infernalElixirDroneCard ? (
+                <div style={{ marginLeft: 24, marginTop: 2 }}>
+                  <NumInput
+                    label="Elixir crit mult"
+                    value={state.elixirCritMult}
+                    onChange={(n) => update({ elixirCritMult: clamp(n, 1, 20) })}
+                    min={1}
+                    max={20}
+                    decimals={2}
+                    suffix="×"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {state.fueled ? (
             <div className="droneSubSection">
