@@ -352,6 +352,15 @@ export function EventSim() {
   const currentPlayerStats = currentSimStats.player;
   const currentEnemyStats = currentSimStats.enemy;
 
+  const maxOneHitWaveTooltipLine = useMemo(() => {
+    const atk = currentPlayerStats.atk;
+    const { baseHealth, healthScaling } = currentEnemyStats;
+    if (atk < baseHealth) return "No wave is one-hit with this damage.";
+    if (healthScaling <= 0) return "All waves are one-hit with this damage.";
+    const w = Math.floor((atk - baseHealth) / healthScaling);
+    return `Highest wave one-hit with this damage: ${formatInt(w)}.`;
+  }, [currentPlayerStats.atk, currentEnemyStats.baseHealth, currentEnemyStats.healthScaling]);
+
   function ensureWorker() {
     if (workerRef.current) return;
     workerRef.current = new Worker(new URL("../../workers/mc.worker.ts", import.meta.url), { type: "module" });
@@ -994,7 +1003,10 @@ export function EventSim() {
                 <kbd>Max HP</kbd>
               <div className="mono">{formatInt(currentPlayerStats.health)}</div>
               <kbd>Attack Damage</kbd>
-              <div className="mono">{formatInt(currentPlayerStats.atk)}</div>
+              <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Tooltip content={{ title: "Max wave one-hit", lines: [maxOneHitWaveTooltipLine] }} />
+                <span>{formatInt(currentPlayerStats.atk)}</span>
+              </div>
               <kbd>Attack Speed</kbd>
               <div className="mono">{currentPlayerStats.atkSpeed.toFixed(2)}</div>
               <kbd>Move Speed</kbd>
