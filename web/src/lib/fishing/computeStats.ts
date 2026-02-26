@@ -3,7 +3,11 @@
  * Source: https://shminer.miraheze.org/wiki/Fishing#Upgrades and #Enhancements
  */
 
+import { ALL_FISH } from "./constants";
 import type { DockDef, EnhanceId, FishingSkillId, FishingUpgradeId } from "./types";
+
+/** Fish ids only (excludes misc cards: Fishing Rod Power, Mr Nibbles). Used for With This Fish I Summon card count. */
+const FISH_IDS = new Set(ALL_FISH.map((f) => f.id));
 
 /** Options for effective dock tick requirement (reduces fills per hour = more fish/h). */
 export interface EffectiveTicksOptions {
@@ -157,20 +161,22 @@ export function computeFishingStatsFromLevels(
   const rodMultiMotleySchool = 1 + 0.1 * skill("motley_school");
   const fishing_rod_power = rodBase * rodMultiUpgrade * rodMultiEnhance * rodMultiMotleySchool;
 
-  // Fish Income Multiplier: four separate multis (upgrade, With This Fish, enhance, Fishing With Friends).
-  // (1 + 0.03×upgrade) × (1 + 0.01×With This Fish×cards) × (1 + 0.05×enhance) × (1 + 0.03×Fishing With Friends).
+  // Fish Income Multiplier: upgrade and enhancement are separate factors; the two skills (Fishing With Friends, With This Fish) add together into one factor (additive, not multiplicative).
+  // (1 + 0.03×upgrade) × (1 + 0.05×enhance) × (1 + 0.03×Fishing With Friends + 0.01×With This Fish×cards).
+  // With This Fish: only fish cards count; Fishing Rod Power and Mr Nibbles (misc cards) are excluded.
   const effectiveFishCardCount =
     (options?.fishCardTier &&
-      Object.values(options.fishCardTier).reduce<number>(
-        (sum, t) => sum + (t === 1 ? 1 : t === 2 ? 2 : t === 3 ? 3 : 0),
+      Object.entries(options.fishCardTier).reduce<number>(
+        (sum, [id, t]) => sum + (FISH_IDS.has(id) ? (t === 1 ? 1 : t === 2 ? 2 : t === 3 ? 3 : 0) : 0),
         0,
       )) ??
     0;
+  const skillFishMulti =
+    1 +
+    0.03 * skill("fishing_with_friends") +
+    0.01 * skill("with_this_fish_i_summon_two_more_fish") * effectiveFishCardCount;
   const fishIncomeBase =
-    (1 + 0.03 * u("fish_multiplier")) *
-    (1 + 0.01 * skill("with_this_fish_i_summon_two_more_fish") * effectiveFishCardCount) *
-    (1 + 0.05 * e("enhance_fish_multiplier")) *
-    (1 + 0.03 * skill("fishing_with_friends"));
+    (1 + 0.03 * u("fish_multiplier")) * (1 + 0.05 * e("enhance_fish_multiplier")) * skillFishMulti;
   const constructMult =
     options?.constructStatue === "gilded" ? 1.25 : options?.constructStatue === "platinized" ? 1.4 : 1;
   const cetusLevel = Math.max(0, Math.floor(options?.cetusLevel ?? 0));
@@ -221,8 +227,8 @@ export function computeFishingStatsFromLevels(
   // Token Gain Multiplier: only from enhancement +0.05x per level.
   const token_gain_multi = 1 + 0.05 * e("enhance_token_multiplier");
 
-  // Notice fish requirement: no upgrade source in game; use 1. Skill: Friendship Ended -10% per level (mult 0.9^level).
-  const notice_fish_req = Math.max(0.01, 1 * Math.pow(0.9, skill("friendship_ended_tier1")));
+  // Notice fish requirement: no upgrade source in game; use 1. Skill: Friendship Ended -10% per level (additive: 3 levels = -30% → 0.70x).
+  const notice_fish_req = Math.max(0.01, 1 - 0.1 * skill("friendship_ended_tier1"));
 
   // Tick chances (%): double +0.5% (upgrade), +0.5% (enhance); triple +0.35% (upgrade), +0.4% (enhance). Skill: Let's Pick Up The Pace +2% double, +1% triple per level. Archaeology: Astraeus Idol +0.03% double (flat).
   const astraeusIdol = Math.max(0, Math.floor(options?.astraeusIdolLevel ?? 0));

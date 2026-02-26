@@ -236,7 +236,7 @@ function GiftIcon() {
   );
 }
 
-/** Notice Fish Req -10% per level = 1/0.9 − 1 ≈ +11.1% effective gains when notice farming. */
+/** Notice Fish Req -10% per level (additive: 3 levels = -30% → 0.70x). First level: 1→0.9 = 1/0.9 − 1 ≈ +11.1% effective gains when notice farming. */
 const FRIENDSHIP_ENDED_NOTICE_MARGINAL_PCT = (1 / 0.9 - 1) * 100;
 /** Token Multiplier: +0.05 per level (1.05, 1.10, …). Marginal gain = relative to current mult, e.g. 1.05→1.10 = 0.05/1.05 ≈ 4.76%. */
 function tokenMultiplierMarginalPct(currentLevel: number): number {
@@ -317,11 +317,12 @@ function heatmapColor(t: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-/** Format "current→next" for the stat this upgrade changes. Used under upgrade name. */
+/** Format "current→next" for the stat this upgrade changes. Used under upgrade name. Pass upgradeLevels so Fish Multiplier shows only this upgrade's factor (1+0.03×level), not total. */
 function formatUpgradeNextEffect(
   upgradeId: FishingUpgradeId,
   current: ComputedFishingStats,
   next: ComputedFishingStats,
+  upgradeLevels?: Partial<Record<FishingUpgradeId, number>>,
 ): string | null {
   switch (upgradeId) {
     case "fishing_rod":
@@ -335,8 +336,12 @@ function formatUpgradeNextEffect(
       return `${current.t2_boat_level}→${next.t2_boat_level}`;
     case "tick_speed":
       return `${current.fishing_tick_reduction.toFixed(1)}s→${next.fishing_tick_reduction.toFixed(1)}s`;
-    case "fish_multiplier":
-      return `${current.fish_income_multi.toFixed(2)}×→${next.fish_income_multi.toFixed(2)}×`;
+    case "fish_multiplier": {
+      const lvl = Math.floor(Number(upgradeLevels?.fish_multiplier ?? 0));
+      const curFactor = 1 + 0.03 * lvl;
+      const nextFactor = 1 + 0.03 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
     case "rod_multiplier":
       return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
     case "drone_multiplier":
@@ -350,29 +355,34 @@ function formatUpgradeNextEffect(
     case "poly_card_multi":
       return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
     case "double_tick_chance":
-      return `${current.double_tick_chance_pct.toFixed(1)}%→${next.double_tick_chance_pct.toFixed(1)}%`;
+      return `${current.double_tick_chance_pct.toFixed(2)}%→${next.double_tick_chance_pct.toFixed(2)}%`;
     case "shiny_fish_chance":
-      return `${current.shiny_fish_chance_pct.toFixed(1)}%→${next.shiny_fish_chance_pct.toFixed(1)}%`;
+      return `${current.shiny_fish_chance_pct.toFixed(2)}%→${next.shiny_fish_chance_pct.toFixed(2)}%`;
     case "triple_tick_chance":
-      return `${current.triple_tick_chance_pct.toFixed(1)}%→${next.triple_tick_chance_pct.toFixed(1)}%`;
+      return `${current.triple_tick_chance_pct.toFixed(2)}%→${next.triple_tick_chance_pct.toFixed(2)}%`;
     case "tier2_dock_power":
       return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
     case "super_shiny_chance":
-      return `${current.super_shiny_chance_pct.toFixed(1)}%→${next.super_shiny_chance_pct.toFixed(1)}%`;
+      return `${current.super_shiny_chance_pct.toFixed(2)}%→${next.super_shiny_chance_pct.toFixed(2)}%`;
     default:
       return null;
   }
 }
 
-/** Format "current→next" for the stat this enhancement changes. Used under enhancement name. */
+/** Format "current→next" for the stat this enhancement changes. Used under enhancement name. Pass enhanceLevels so Fish Multiplier shows only this enhancement's factor (1+0.05×level), not total. */
 function formatEnhanceNextEffect(
   enhanceId: EnhanceId,
   current: ComputedFishingStats,
   next: ComputedFishingStats,
+  enhanceLevels?: Partial<Record<EnhanceId, number>>,
 ): string | null {
   switch (enhanceId) {
-    case "enhance_fish_multiplier":
-      return `${current.fish_income_multi.toFixed(2)}×→${next.fish_income_multi.toFixed(2)}×`;
+    case "enhance_fish_multiplier": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_fish_multiplier ?? 0));
+      const curFactor = 1 + 0.05 * lvl;
+      const nextFactor = 1 + 0.05 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
     case "enhance_fishing_drone":
     case "enhance_fishing_drone_3":
       return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
@@ -387,15 +397,15 @@ function formatEnhanceNextEffect(
     case "enhance_shiny_multiplier":
       return `${current.shiny_multiplier.toFixed(2)}→${next.shiny_multiplier.toFixed(2)}`;
     case "enhance_double_tick_chance":
-      return `${current.double_tick_chance_pct.toFixed(1)}%→${next.double_tick_chance_pct.toFixed(1)}%`;
+      return `${current.double_tick_chance_pct.toFixed(2)}%→${next.double_tick_chance_pct.toFixed(2)}%`;
     case "enhance_triple_tick_chance":
-      return `${current.triple_tick_chance_pct.toFixed(1)}%→${next.triple_tick_chance_pct.toFixed(1)}%`;
+      return `${current.triple_tick_chance_pct.toFixed(2)}%→${next.triple_tick_chance_pct.toFixed(2)}%`;
     case "enhance_tier2_dock_power":
       return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
     case "enhance_super_shiny_multi":
       return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
     case "enhance_tiny_notice_chance":
-      return `${current.tiny_notice_chance_pct.toFixed(1)}%→${next.tiny_notice_chance_pct.toFixed(1)}%`;
+      return `${current.tiny_notice_chance_pct.toFixed(2)}%→${next.tiny_notice_chance_pct.toFixed(2)}%`;
     default:
       return null;
   }
@@ -1917,7 +1927,7 @@ export function Fishing() {
         def.id,
         currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null,
       );
-      upgradeEffectMap.set(def.id, formatUpgradeNextEffect(def.id, currentStats, nextStats));
+      upgradeEffectMap.set(def.id, formatUpgradeNextEffect(def.id, currentStats, nextStats, upgradeLevels));
     }
     const enhanceMap = new Map<EnhanceId, number | null>();
     const enhanceEffectMap = new Map<EnhanceId, string | null>();
@@ -1964,7 +1974,7 @@ export function Fishing() {
         marginalPct = tinyNoticeMarginalPct(lvl);
       }
       enhanceMap.set(def.id, marginalPct);
-      enhanceEffectMap.set(def.id, formatEnhanceNextEffect(def.id, currentStats, nextStats));
+      enhanceEffectMap.set(def.id, formatEnhanceNextEffect(def.id, currentStats, nextStats, enhanceLevels));
     }
     return {
       upgradeMarginalPct: upgradeMap,
@@ -4547,7 +4557,7 @@ export function Fishing() {
                                       heading: "Indirect gains",
                                       lines: [
                                         "Notice Fish Req -10% means you need 10% less fish per notice.",
-                                        "For notice farming this equals 1/0.9 ≈ +11.1% effective gains per level.",
+                                        "Notice Fish Req -10% per level (additive; 3 levels = -30% → 0.70x). First level: 1→0.9 ≈ +11.1% effective gains when notice farming.",
                                         "Fish/h does not change; the gain is in completing notices faster.",
                                         "Cost efficiency value is shown but excluded from the heatmap (indirect gain).",
                                       ],
