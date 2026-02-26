@@ -252,6 +252,7 @@ const STORAGE_KEY_V2 = "obeliskfarm:web:drone_elixir_save.json:v2";
 const STORAGE_KEY_V1 = "obeliskfarm:web:drone_elixir_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
+const BOMBS_STORAGE_KEY = "obeliskfarm:web:bombs_save.json:v1";
 const LOOTBUG_STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
 const LOOTBUG_BASE_SPAWN_MIN = 20;
 const DEFAULT_ACTIVE_GEM_BUFFS = ["2x Game Speed", "10x Bomb Recharge"];
@@ -650,6 +651,7 @@ export function Drone() {
 
   /** Bump when fishing_external is updated (by this module or Fishing) so Angler ticks/h display re-reads. */
   const [fishingExternalRevision, setFishingExternalRevision] = useState(0);
+  const [froggerBombsChartOpen, setFroggerBombsChartOpen] = useState(false);
   useEffect(() => {
     const handler = () => setFishingExternalRevision((r) => r + 1);
     window.addEventListener("obelisk:fishing_external_updated", handler);
@@ -967,15 +969,19 @@ export function Drone() {
     ? FROGGER_FUEL_BOMBS_BASE + state.froggerGradeLevel * FROGGER_FUEL_BOMBS_PER_GRADE
     : 1;
 
-  /** Frogger Gem EV+/h: one bomb every X s (without fuel); with fuel, (5 + grade) of same random type per interval. Uses Gem EV bomb cycle (marginal value per detonation). */
-  const { froggerGemEvPerHour, totalBombTypesFromGemEv } = useMemo(() => {
+  /** Bomb cycle from Bombs module so Frogger recalculates when user switches Late/Early in Bombs. */
+  const bombsBombCycle = loadJson<{ params?: Partial<GameParameters> }>(BOMBS_STORAGE_KEY)?.params?.bomb_cycle ?? "early";
+
+  /** Frogger Gem EV+/h and chart data: bomb types from Gem EV; uniform pick → same throws/h per type. Bomb cycle and bomb params from Bombs module (bombs_save), rest from Gem EV. */
+  const { froggerGemEvPerHour, totalBombTypesFromGemEv, froggerBombsChartData } = useMemo(() => {
     const baseParams = defaultGameParameters();
-    const saved = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
+    const savedGemEv = loadJson<{ params?: Partial<GameParameters> }>(GEMEV_STORAGE_KEY);
+    const savedBombs = loadJson<{ params?: Partial<GameParameters> }>(BOMBS_STORAGE_KEY);
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
       chaosTotemUptimePct?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
-    const params: GameParameters = { ...baseParams, ...(saved?.params ?? {}) };
+    const params: GameParameters = { ...baseParams, ...(savedGemEv?.params ?? {}), ...(savedBombs?.params ?? {}) };
     const includeFounder = params.include_founder_bomb_in_total ?? params.founder_enabled;
     const hasVeinmorph = "has_veinmorph_bomb" in params ? params.has_veinmorph_bomb : true;
     const hasMegabomb = "has_megabomb" in params ? params.has_megabomb : false;
@@ -983,6 +989,13 @@ export function Drone() {
     params.bomb_recharge_10x_min_per_hour = (ext.lootbugBomb10xMinPerHour ?? 0) + droneBomb10xMinPerHour;
     params.chaos_totem_uptime = ((ext.chaosTotemUptimePct ?? 0) / 100);
     const totalBombTypes = Math.max(2, Math.min(13, params.total_bomb_types));
+    const bombTypeLabels: string[] = ["Gem", "Cherry", "Battery", "D20", "Other 5", "Other 6", "Other 7", "Other 8", "Other 9", "Other 10"];
+    if (includeFounder) bombTypeLabels.push("Founder");
+    if (hasVeinmorph) bombTypeLabels.push("Veinmorph");
+    if (hasMegabomb) bombTypeLabels.push("Megabomb");
+    const labels = bombTypeLabels.slice(0, totalBombTypes);
+    const colorsBombs = ["#fff59d", "#ffeb3b", "#ffc107", "#ffa726", "#ff9800", "#fb8c00", "#f57c00", "#ef6c00", "#e65100", "#ffcc80", "#ffb74d", "#ffa726", "#ff9800"];
+    const colorsEv = ["#90caf9", "#64b5f6", "#42a5f5", "#2196f3"];
     let baseEv: number;
     let deltaGem: number;
     let deltaCherry: number;
@@ -995,14 +1008,24 @@ export function Drone() {
       deltaBattery = calculateGemBombGemsPerHour(params, { battery: 1 }) - baseEv;
       deltaD20 = calculateGemBombGemsPerHour(params, { d20: 1 }) - baseEv;
     } catch {
-      return { froggerGemEvPerHour: 0, totalBombTypesFromGemEv: totalBombTypes };
+      const bombsPerTypePerHour = (3600 / Math.max(0.1, froggerBombIntervalSecReal)) * froggerBombsPerAutofire / totalBombTypes;
+      const bombsRows = labels.map((label, i) => ({ label, value: bombsPerTypePerHour, color: colorsBombs[i % colorsBombs.length] })).sort((a, b) => b.value - a.value);
+      return { froggerGemEvPerHour: 0, totalBombTypesFromGemEv: totalBombTypes, froggerBombsChartData: { bombsPerTypeRows: bombsRows, gemEvPerTypeRows: [] } };
     }
     const sumDeltas = deltaGem + deltaCherry + deltaBattery + deltaD20;
     const bombsPerHour = 3600 / Math.max(0.1, froggerBombIntervalSecReal);
     const bombsPerPick = froggerBombsPerAutofire;
     const froggerGemEvPerHour = bombsPerHour * (1 / totalBombTypes) * bombsPerPick * sumDeltas;
-    return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes };
-  }, [froggerBombIntervalSecReal, froggerBombsPerAutofire, droneBomb10xMinPerHour]);
+    const bombsPerTypePerHour = (bombsPerHour * bombsPerPick) / totalBombTypes;
+    const bombsPerTypeRows = labels.map((label, i) => ({ label, value: bombsPerTypePerHour, color: colorsBombs[i % colorsBombs.length] })).sort((a, b) => b.value - a.value);
+    const gemEvRows = [
+      { label: "Gem", value: bombsPerTypePerHour * deltaGem, color: colorsEv[0] },
+      { label: "Cherry", value: bombsPerTypePerHour * deltaCherry, color: colorsEv[1] },
+      { label: "Battery", value: bombsPerTypePerHour * deltaBattery, color: colorsEv[2] },
+      { label: "D20", value: bombsPerTypePerHour * deltaD20, color: colorsEv[3] },
+    ].filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+    return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes, froggerBombsChartData: { bombsPerTypeRows, gemEvPerTypeRows: gemEvRows } };
+  }, [froggerBombIntervalSecReal, froggerBombsPerAutofire, droneBomb10xMinPerHour, bombsBombCycle]);
 
   /** Lootfrog gains: spawns/h per reward, gems/h for calculable rewards. Only when lootfrogsUnlocked. */
   const { lootfrogGainsRows, lootfrogsPerHour } = useMemo(() => {
@@ -2106,7 +2129,7 @@ export function Drone() {
           <div className="droneRow">
             <span className="droneLabel">→ Time between autofires</span>
             <span className="droneStepperValue">
-              {froggerBombIntervalSecReal.toFixed(1)} s{gameSpeedMult > 1 ? " (real)" : ""}
+              {froggerBombIntervalSecReal.toFixed(2)} s{gameSpeedMult > 1 ? " (real)" : ""}
             </span>
           </div>
 
@@ -2418,7 +2441,7 @@ export function Drone() {
           <div className="droneRow">
             <span className="droneLabel">Time between autofires</span>
             <span className="droneStepperValue">
-              {froggerBombIntervalSecReal.toFixed(1)} s{gameSpeedMult > 1 ? " (real)" : ""}
+              {froggerBombIntervalSecReal.toFixed(2)} s{gameSpeedMult > 1 ? " (real)" : ""}
             </span>
           </div>
           {state.froggerFueled ? (
@@ -2427,20 +2450,27 @@ export function Drone() {
               <span className="droneStepperValue">{froggerBombsPerAutofire}</span>
             </div>
           ) : null}
-          <div className="droneRow">
-            <span className="droneLabel">
-              Total bomb types (Gem EV)
-              <Tooltip
-                content={{
-                  title: "Total bomb types (available)",
-                  lines: [
-                    "Available bomb types from Gem EV. Minimum 10 (base); +1 each if Founder, Veinmorph, or Megabomb is counted. Pool size for Frogger: he picks uniformly from these types.",
-                    "Open Gem EV once so this count is in sync.",
-                  ],
-                }}
-              />
+          <div className="droneRow droneRowBombsFired">
+            <div className="droneRowBombsFiredLabel">
+              <span className="droneLabel">Bombs fired / h</span>
+              <button
+                type="button"
+                className="droneFroggerChartBtn"
+                onClick={() => setFroggerBombsChartOpen(true)}
+                title="Bombs per type and Gem EV chart"
+                aria-label="Open bombs chart"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 3v18h18" />
+                  <path d="M7 16v-5" />
+                  <path d="M12 16v-9" />
+                  <path d="M17 16v-12" />
+                </svg>
+              </button>
+            </div>
+            <span className="droneStepperValue mono">
+              {Math.round((3600 / Math.max(0.1, froggerBombIntervalSecReal)) * froggerBombsPerAutofire).toLocaleString()}
             </span>
-            <span className="droneStepperValue">{totalBombTypesFromGemEv}</span>
           </div>
           <div className="droneRow droneFuelGemsRow droneBomb10xRow">
             <span className="droneFuelGemsLabel">
@@ -2454,13 +2484,15 @@ export function Drone() {
                       {
                         heading: "Meaning",
                         lines: [
-                          "Expected Gem EV per hour from Frogger Drone bombs. Pool = available bomb types from Gem EV; we assume charges.",
+                          "Expected Gem EV per hour from Frogger Drone bombs (gross). Fuel cost for Frogger is not deducted; see Fuel (Frogger) below for cost. Net = this value minus that cost.",
+                          "For a breakdown of bombs thrown per type and Gem EV per type, use the chart icon next to Bombs fired / h.",
+                          "In late bomb cycle (Bombs module): each Cherry detonation = (1 + 2× 3× chance) gem-equivalent detonations, so Cherry EV per throw is higher than Gem — same reason Overnight Gains uses Cherry Bomb. Early: cherry bonus feeds battery refills.",
                           "Based on Gem EV bomb cycle (marginal value per gem, cherry, battery, d20 detonation). Without fuel: (3600 ÷ interval) × (1 ÷ bomb types) × 1 bomb. With fuel: same × (5 + grade) bombs per pick.",
                         ],
                       },
                       {
                         heading: "Source",
-                        lines: ["Available bomb types and params from Gem EV; 10× Bomb Recharge (Lootbug + Drone) from external. Open Gem EV once to sync."],
+                        lines: ["Available bomb types and params from Gem EV (Bombs module). Set Bomb cycle to Late so Cherry EV per throw is higher than Gem; 10× Bomb Recharge (Lootbug + Drone) from external. Open Gem EV once to sync."],
                       },
                     ],
                   }}
@@ -2473,6 +2505,74 @@ export function Drone() {
           </div>
         </div>
       </Collapsible>
+
+      {froggerBombsChartOpen && froggerBombsChartData ? (
+        <div className="modalOverlay droneFroggerChartOverlay" onMouseDown={() => setFroggerBombsChartOpen(false)}>
+          <div className="modalWindow droneFroggerChartModal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalHeader droneFroggerChartHeader">
+              <div>
+                <div className="mono" style={{ fontWeight: 900 }}>Frogger bombs</div>
+                <div className="small">Bombs thrown per type per hour (descending) and Gem EV per type. Late cycle: Cherry EV per throw is (1 + 2× 3× chance) × gem chance, so Cherry is higher than Gem — same as Overnight Gains (Cherry Bomb). Uses Bomb cycle and params from Bombs module.</div>
+              </div>
+              <button className="btn btnSecondary" type="button" onClick={() => setFroggerBombsChartOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="modalBody droneFroggerChartBody">
+              <div className="droneFroggerChartBlock">
+                <div className="droneFroggerChartTitle">Bombs thrown / h (per type)</div>
+                <div className="droneFroggerChartBars" role="img" aria-label="Bombs per type bar chart">
+                  {froggerBombsChartData.bombsPerTypeRows.map(({ label, value, color }) => {
+                    const total = froggerBombsChartData.bombsPerTypeRows.reduce((s, r) => s + r.value, 0);
+                    const pct = total > 0 ? (value / total) * 100 : 0;
+                    const maxVal = Math.max(...froggerBombsChartData.bombsPerTypeRows.map((r) => r.value), 1);
+                    const widthPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
+                    return (
+                      <div key={label} className="droneFroggerChartRow">
+                        <span className="droneFroggerChartLabel">{label}</span>
+                        <div className="droneFroggerChartBarTrack">
+                          <div className="droneFroggerChartBarFill" style={{ width: `${widthPct}%`, backgroundColor: color }} />
+                        </div>
+                        <span className="mono droneFroggerChartValue">
+                          {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                          <span className="droneFroggerChartPct"> ({pct.toFixed(1)}%)</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="droneFroggerChartBlock">
+                <div className="droneFroggerChartTitle">Gem EV / h (per type)</div>
+                <div className="droneFroggerChartBars" role="img" aria-label="Gem EV per type bar chart">
+                  {froggerBombsChartData.gemEvPerTypeRows.length === 0 ? (
+                    <div className="small" style={{ color: "rgba(226,232,240,0.7)" }}>No Gem EV data (open Gem EV to sync).</div>
+                  ) : (
+                    froggerBombsChartData.gemEvPerTypeRows.map(({ label, value, color }) => {
+                      const total = froggerBombsChartData.gemEvPerTypeRows.reduce((s, r) => s + r.value, 0);
+                      const pct = total > 0 ? (value / total) * 100 : 0;
+                      const maxVal = Math.max(...froggerBombsChartData.gemEvPerTypeRows.map((r) => r.value), 1);
+                      const widthPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
+                      return (
+                        <div key={label} className="droneFroggerChartRow">
+                          <span className="droneFroggerChartLabel">{label}</span>
+                          <div className="droneFroggerChartBarTrack">
+                            <div className="droneFroggerChartBarFill" style={{ width: `${widthPct}%`, backgroundColor: color }} />
+                          </div>
+                          <span className="mono droneFroggerChartValue">
+                            {value.toFixed(1)}
+                            <span className="droneFroggerChartPct"> ({pct.toFixed(1)}%)</span>
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Collapsible
         id="drone-bomb-bear"
@@ -2700,7 +2800,7 @@ export function Drone() {
                       {
                         heading: "Meaning",
                         lines: [
-                          "Extra Gem EV per hour from Bomb Bear alone: Lootbug gains (with Bomb Bear) minus gains without Bomb Bear.",
+                          "Extra Gem EV per hour from Bomb Bear alone (gross): Lootbug gains (with Bomb Bear) minus gains without Bomb Bear. Fuel cost for Bomb Bear is not deducted; see Fuel (Bomb Bear) below. Net = this value minus that cost.",
                         ],
                       },
                       {

@@ -514,3 +514,114 @@
   border-radius: 4px;
   overflow: hidden;
 }
+
+/* Bombs fired / h row: same line as chart icon */
+.droneRowBombsFired {
+  align-items: center;
+}
+.droneRowBombsFiredLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Frogger bombs chart button: same small look as Gift-EV chart icon (gemev.css .giftEvChartIconBtn) */
+.droneFroggerChartBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin-left: 0;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(71, 85, 105, 0.9);
+  cursor: pointer;
+}
+.droneFroggerChartBtn:hover {
+  background: rgba(92, 107, 192, 0.12);
+  border-color: rgba(92, 107, 192, 0.35);
+}
+.droneFroggerChartBtn svg {
+  display: block;
+}
+
+/* Frogger bombs chart modal (Stats Contributions style: dark gray, horizontal bars) */
+.droneFroggerChartModal.modalWindow {
+  border-radius: 12px;
+}
+.droneFroggerChartHeader.modalHeader {
+  background: #3d4556;
+  color: rgba(226, 232, 240, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.droneFroggerChartHeader .mono {
+  color: rgba(226, 232, 240, 0.9);
+}
+.droneFroggerChartHeader .small {
+  color: rgba(226, 232, 240, 0.7);
+}
+.droneFroggerChartBody.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #3d4556;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 0 0 12px 12px;
+}
+.droneFroggerChartBlock {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.droneFroggerChartBlock:last-child {
+  border-bottom: none;
+}
+.droneFroggerChartTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.95);
+  margin-bottom: 8px;
+}
+.droneFroggerChartBars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.droneFroggerChartRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+.droneFroggerChartLabel {
+  flex: 0 0 110px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.88);
+}
+.droneFroggerChartBarTrack {
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.droneFroggerChartBarFill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 4px;
+  transition: width 0.15s ease;
+}
+.droneFroggerChartValue {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(226, 232, 240, 0.95);
+}
+.droneFroggerChartPct {
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.65);
+  margin-left: 2px;
+}

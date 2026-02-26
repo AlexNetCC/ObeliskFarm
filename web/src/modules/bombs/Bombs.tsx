@@ -172,7 +172,7 @@ const bombsInfo = {
   title: "Bombs",
   sections: [
     { heading: "Free Bomb Chance", lines: ["Chance that a bomb click consumes 0 charges.", "Applies to the entire dump (all charges at once).", "Affects all bomb types."] as string[] },
-    { heading: "Bomb cycle", lines: ["Early: Cherry → Battery → D20 → Gem.", "Late: Cherry → Gem → Battery → D20. Cherry triple-charge bonus counts as extra gem bomb detonations (direct gem EV)."] as string[] },
+    { heading: "Bomb cycle", lines: ["Early: Cherry → Battery → D20 → Gem. Cherry triple-charge bonus counts as extra battery detonations (feeds refills to other bombs).", "Late: Cherry → Gem → Battery → D20. Cherry triple-charge bonus counts as extra gem bomb detonations (direct gem EV)."] as string[] },
     { heading: "Total bomb types", lines: ["Count Founder Bomb, Veinmorph, and Megabomb. Base 10 + checked = total (max 13).", "More bomb types = refill is more widely distributed (Battery and D20 spread charges across more targets)."] as string[] },
     { heading: "Refill", lines: ["Battery bomb: refills all bomb types (Gem, Cherry, Battery, D20, and others) including itself (self-refill).", "D20 bomb: refills all bomb types including itself (self-refill).", "Charges are distributed evenly across all types (divided by total bomb types − 1 in the formula)."] as string[] },
   ],
