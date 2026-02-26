@@ -297,3 +297,27 @@
 .overnightPage .small {
   color: rgba(203, 213, 225, 0.75);
 }
+
+/* Chart modal: dark Stargazing-style (header + body) */
+.overnightChartModal .modalHeader {
+  background: #3d4556;
+  color: rgba(226, 232, 240, 0.95);
+}
+.overnightChartModal .modalHeader .mono {
+  color: rgba(226, 232, 240, 0.9);
+}
+.overnightChartModal .modalHeader .small {
+  color: rgba(226, 232, 240, 0.7);
+}
+.overnightChartModal .modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #3d4556;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 0 0 12px 12px;
+}
+.overnightChartModal .gemEvChartBlock {
+  padding: 0;
+}

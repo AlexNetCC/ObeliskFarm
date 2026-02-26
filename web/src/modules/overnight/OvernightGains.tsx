@@ -142,6 +142,14 @@ type OvernightContrib = {
   lootbugs: number;
   droneFuel: number;
   total: number;
+  /** Frogger Gem EV+/h (when Frogger Drone ON). Shown as separate row when > 0. */
+  froggerGemEv?: number;
+  /** Elixir Drone fuel cost (negative). Shown when available from Drone module. */
+  elixirFuel?: number;
+  /** Frogger Drone fuel cost (negative). Shown when available. */
+  froggerFuel?: number;
+  /** Other drones fuel cost (negative). Shown when breakdown available and ≠ 0. */
+  otherDroneFuel?: number;
 };
 
 function fmtContrib(x: number): string {
@@ -154,14 +162,22 @@ function pctOvernight(part: number, total: number): number {
   return (Math.abs(part) / total) * 100.0;
 }
 
-function OvernightContribChart(props: { contributions: OvernightContrib }) {
-  const { contributions } = props;
+function OvernightContribChart(props: { contributions: OvernightContrib; dark?: boolean }) {
+  const { contributions, dark } = props;
+  const hasDroneBreakdown = contributions.elixirFuel !== undefined || contributions.froggerFuel !== undefined || contributions.otherDroneFuel !== undefined;
   const rows: Array<{ label: string; value: number }> = [
     { label: "Auto-Bomber (Cherry Bomb)", value: contributions.autoBomber },
     { label: "Banked freebies", value: contributions.freebies },
     { label: "Founder (1 event)", value: contributions.founder },
     { label: "Banked lootbugs", value: contributions.lootbugs },
-    { label: "Drone fuel", value: contributions.droneFuel },
+    ...(contributions.froggerGemEv != null && contributions.froggerGemEv > 0 ? [{ label: "Frogger Gem EV+/h", value: contributions.froggerGemEv }] : []),
+    ...(hasDroneBreakdown
+      ? [
+          ...(contributions.elixirFuel != null && contributions.elixirFuel < 0 ? [{ label: "Elixir Drone (fuel)", value: contributions.elixirFuel }] : []),
+          ...(contributions.froggerFuel != null && contributions.froggerFuel < 0 ? [{ label: "Frogger Drone (fuel)", value: contributions.froggerFuel }] : []),
+          ...(contributions.otherDroneFuel != null && contributions.otherDroneFuel < 0 ? [{ label: "Other drones (fuel)", value: contributions.otherDroneFuel }] : []),
+        ]
+      : [{ label: "Drone fuel", value: contributions.droneFuel }]),
   ];
   const totalForPct = rows.reduce((s, r) => s + Math.abs(r.value), 0);
   const allValues = [0, ...rows.map((r) => r.value)];
@@ -195,6 +211,18 @@ function OvernightContribChart(props: { contributions: OvernightContrib }) {
 
   const gemIconUrl = assetUrl(GEM_ICON);
 
+  const chartBg = dark ? "#2d3340" : "#ffffff";
+  const gridStroke = dark ? "rgba(226,232,240,0.15)" : "rgba(15,23,42,0.08)";
+  const axisStroke = dark ? "rgba(226,232,240,0.35)" : "rgba(15,23,42,0.22)";
+  const zeroStroke = dark ? "rgba(226,232,240,0.5)" : "rgba(15,23,42,0.35)";
+  const tickFill = dark ? "rgba(226,232,240,0.88)" : "rgba(71,85,105,0.9)";
+  const labelFill = dark ? "rgba(226,232,240,0.95)" : "rgba(15,23,42,0.85)";
+  const valueFill = dark ? "rgba(226,232,240,0.9)" : "rgba(71,85,105,0.9)";
+  const barStroke = dark ? "rgba(226,232,240,0.4)" : "rgba(15,23,42,0.55)";
+  const barStrokeInner = dark ? "rgba(226,232,240,0.3)" : "rgba(15,23,42,0.45)";
+  const barFill = dark ? "#5ba3c9" : CONTRIB_BAR_FILL;
+  const borderStyle = dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(15,23,42,0.10)";
+
   return (
     <div className="gemEvChartBlock">
       <svg
@@ -202,9 +230,9 @@ function OvernightContribChart(props: { contributions: OvernightContrib }) {
         viewBox={`0 0 ${W} ${H}`}
         style={{
           display: "block",
-          background: "#ffffff",
+          background: chartBg,
           borderRadius: "0 0 10px 10px",
-          border: "1px solid rgba(15,23,42,0.10)",
+          border: borderStyle,
           borderTop: "none",
         }}
         role="img"
@@ -212,21 +240,21 @@ function OvernightContribChart(props: { contributions: OvernightContrib }) {
       >
         {xTicks.map((t, i) => (
           <g key={i}>
-            <line x1={xOf(t)} y1={padT} x2={xOf(t)} y2={padT + plotH} stroke="rgba(15,23,42,0.08)" strokeDasharray="4 4" />
-            <text x={xOf(t)} y={padT + plotH + 16} textAnchor="middle" fontSize={10} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">
+            <line x1={xOf(t)} y1={padT} x2={xOf(t)} y2={padT + plotH} stroke={gridStroke} strokeDasharray="4 4" />
+            <text x={xOf(t)} y={padT + plotH + 16} textAnchor="middle" fontSize={10} fill={tickFill} fontFamily="var(--mono)">
               {t.toFixed(0)}
             </text>
           </g>
         ))}
         {minVal < 0 && (
-          <line x1={xOf(0)} y1={padT} x2={xOf(0)} y2={padT + plotH} stroke="rgba(15,23,42,0.35)" strokeWidth={1.2} />
+          <line x1={xOf(0)} y1={padT} x2={xOf(0)} y2={padT + plotH} stroke={zeroStroke} strokeWidth={1.2} />
         )}
-        <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
-        <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke="rgba(15,23,42,0.22)" />
+        <line x1={padL} y1={padT} x2={padL} y2={padT + plotH} stroke={axisStroke} />
+        <line x1={padL} y1={padT + plotH} x2={padL + plotW} y2={padT + plotH} stroke={axisStroke} />
 
         <g aria-hidden="true">
           <image href={gemIconUrl} x={W / 2 - 18} y={H - 14} width={16} height={16} />
-          <text x={W / 2 - 2} y={H - 2} textAnchor="start" fontSize={10} fontWeight={800} fill="rgba(71,85,105,0.9)" fontFamily="var(--mono)">(total)</text>
+          <text x={W / 2 - 2} y={H - 2} textAnchor="start" fontSize={10} fontWeight={800} fill={tickFill} fontFamily="var(--mono)">(total)</text>
         </g>
 
         {rows.map((row, i) => {
@@ -245,7 +273,7 @@ function OvernightContribChart(props: { contributions: OvernightContrib }) {
                 width={wOf(barLen)}
                 height={barH}
                 fill="none"
-                stroke="rgba(15,23,42,0.55)"
+                stroke={barStroke}
                 strokeWidth={1}
                 rx={2}
               />
@@ -255,13 +283,13 @@ function OvernightContribChart(props: { contributions: OvernightContrib }) {
                   y={y0}
                   width={wOf(barLen)}
                   height={barH}
-                  fill={CONTRIB_BAR_FILL}
-                  stroke="rgba(15,23,42,0.45)"
+                  fill={barFill}
+                  stroke={barStrokeInner}
                   strokeWidth={0.6}
                   rx={2}
                 />
               )}
-              <text x={padL - 8} y={labelY} textAnchor="end" fontSize={11} fontWeight={800} fill="rgba(15,23,42,0.85)">
+              <text x={padL - 8} y={labelY} textAnchor="end" fontSize={11} fontWeight={800} fill={labelFill}>
                 {row.label}
               </text>
               <text
@@ -270,7 +298,7 @@ function OvernightContribChart(props: { contributions: OvernightContrib }) {
                 textAnchor="start"
                 fontSize={10}
                 fontWeight={800}
-                fill="rgba(71,85,105,0.9)"
+                fill={valueFill}
                 fontFamily="var(--mono)"
               >
                 {valueText}
@@ -315,6 +343,8 @@ export function OvernightGains() {
       droneBomb10xMinPerHour?: number;
       droneFuelGemsPerHour?: number;
       elixirFuelGemsPerHour?: number;
+      froggerFuelGemsPerHour?: number;
+      froggerGemEvPerHour?: number;
       lootbugEvPerClaim?: number;
       lootbugEvPerSpawn?: number;
       lootbugNetEvPerSpawn?: number;
@@ -326,13 +356,15 @@ export function OvernightGains() {
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? Math.max(0, ext.droneBomb10xMinPerHour) : 0;
     const droneFuel = typeof ext?.droneFuelGemsPerHour === "number" ? Math.max(0, ext.droneFuelGemsPerHour) : 0;
     const elixirFuel = typeof ext?.elixirFuelGemsPerHour === "number" ? Math.max(0, ext.elixirFuelGemsPerHour) : 0;
+    const froggerFuel = typeof ext?.froggerFuelGemsPerHour === "number" ? Math.max(0, ext.froggerFuelGemsPerHour) : 0;
+    const froggerGemEvPerHour = typeof ext?.froggerGemEvPerHour === "number" ? Math.max(0, ext.froggerGemEvPerHour) : 0;
     const lootbugEv = typeof ext?.lootbugNetEvPerSpawn === "number"
       ? ext.lootbugNetEvPerSpawn
       : (typeof ext?.lootbugEvPerSpawn === "number" ? ext.lootbugEvPerSpawn : (typeof ext?.lootbugEvPerClaim === "number" ? ext.lootbugEvPerClaim : null));
     const chaos100 = typeof ext?.chaosTotem100FromBombs === "boolean" ? ext.chaosTotem100FromBombs : false;
     const bombsSaved = loadJson<{ params?: Partial<GameParameters> }>(BOMBS_STORAGE_KEY);
     const bombsParams = { ...defaultGameParameters(), ...(bombsSaved?.params ?? {}) } as GameParameters;
-    return { gameSpeed, drone10x, droneFuel, elixirFuel, lootbugEv, chaos100, bombsParams };
+    return { gameSpeed, drone10x, droneFuel, elixirFuel, froggerFuel, froggerGemEvPerHour, lootbugEv, chaos100, bombsParams };
   })();
 
   const bombsParams = external.bombsParams;
@@ -383,9 +415,25 @@ export function OvernightGains() {
     const founder = founderGemsPerEvent;
     const lootbugs = state.bankedLootbugs * lootbugEvPerClaim;
     const droneFuelCost = hours * effectiveDroneFuel;
-    const total = autoBomber + freebies + founder + lootbugs - droneFuelCost;
-    return { autoBomber, freebies, founder, lootbugs, droneFuel: -droneFuelCost, total };
-  }, [state.sleepHours, state.bankedFreebies, state.bankedLootbugs, state.gemBombActive, autoBomberGemEvPerHour, freebieEvPerClaim, founderGemsPerEvent, lootbugEvPerClaim, effectiveDroneFuel]);
+    const froggerGemEv = !state.offlineNoElixirBuff && external.froggerGemEvPerHour > 0 ? hours * external.froggerGemEvPerHour : 0;
+    const elixirFuelCost = !state.offlineNoElixirBuff && external.elixirFuel > 0 ? -hours * external.elixirFuel : 0;
+    const froggerFuelCost = external.froggerFuel > 0 ? -hours * external.froggerFuel : 0;
+    const otherDroneFuelCost = droneFuelCost - (state.offlineNoElixirBuff ? 0 : hours * external.elixirFuel) - hours * external.froggerFuel;
+    const otherDroneFuel = otherDroneFuelCost > 0 ? -otherDroneFuelCost : 0;
+    const total = autoBomber + freebies + founder + lootbugs + froggerGemEv - droneFuelCost;
+    return {
+      autoBomber,
+      freebies,
+      founder,
+      lootbugs,
+      droneFuel: -droneFuelCost,
+      froggerGemEv: froggerGemEv > 0 ? froggerGemEv : undefined,
+      elixirFuel: elixirFuelCost < 0 ? elixirFuelCost : undefined,
+      froggerFuel: froggerFuelCost < 0 ? froggerFuelCost : undefined,
+      otherDroneFuel: otherDroneFuel < 0 ? otherDroneFuel : undefined,
+      total,
+    };
+  }, [state.sleepHours, state.bankedFreebies, state.bankedLootbugs, state.gemBombActive, state.offlineNoElixirBuff, autoBomberGemEvPerHour, freebieEvPerClaim, founderGemsPerEvent, lootbugEvPerClaim, effectiveDroneFuel, external.froggerGemEvPerHour, external.elixirFuel, external.froggerFuel]);
 
   const overnightTotal = contributions.total;
   /** Ongoing gem EV per hour (rate × hours). Does not include one-time payouts. */
@@ -484,20 +532,20 @@ export function OvernightGains() {
 
         {chartOpen ? (
           <div className="modalOverlay" onMouseDown={() => setChartOpen(false)}>
-            <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalWindow overnightChartModal" onMouseDown={(e) => e.stopPropagation()}>
               <div className="modalHeader">
                 <div>
                   <div className="mono" style={{ fontWeight: 900 }}>
-                    Overview chart
+                    Overnight Gem EV by source
                   </div>
-                  <div className="small">Overnight total by source (Gem EV).</div>
+                  <div className="small">Total by source (gains and costs).</div>
                 </div>
                 <button className="btn btnSecondary" type="button" onClick={() => setChartOpen(false)}>
                   Close
                 </button>
               </div>
               <div className="modalBody">
-                <OvernightContribChart contributions={contributions} />
+                <OvernightContribChart contributions={contributions} dark />
               </div>
             </div>
           </div>

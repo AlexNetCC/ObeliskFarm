@@ -511,6 +511,18 @@ export function ArchSim() {
           lines: ["These toggles affect the Monte Carlo simulation results."],
         },
         {
+          heading: "Avada Keda",
+          lines: [
+            "Skill tree skill (Obelisk 30, 50 points). When ON: Ability Duration +5 (Enrage/Quake charges), Flurry stamina on cast +5, Ability Cooldown −10 s (Enrage/Flurry/Quake), Ability Instacharge Chance +3%. Instacharge can proc on any ability use and refund it immediately.",
+          ],
+        },
+        {
+          heading: "Block Bonker",
+          lines: [
+            "Skill tree skill. When ON: +N% damage, +N% max stamina, and +N extra speed-mod hits when it procs, where N = Unlocked stage (1–100). Set Unlocked stage to match your in-game unlock.",
+          ],
+        },
+        {
           heading: "Cooldown behavior in MC",
           lines: ["Ability cooldown state can persist between simulated runs inside a batch (cooldowns carry over between successive sims)."],
         },

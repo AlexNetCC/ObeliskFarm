@@ -807,6 +807,26 @@ const costEfficUpgradeTooltip = {
   ],
 };
 
+const dockScoreTooltip = {
+  title: "Dock Score",
+  sections: [
+    {
+      heading: "What it is",
+      lines: [
+        "Sum of cost efficiency per cost fish.",
+        "For each fish type (dock), only the highest cost effic. among upgrades that cost that fish is counted.",
+      ],
+    },
+    {
+      heading: "Use",
+      lines: [
+        "Use it to see which dock to focus on for best efficiency.",
+        "Higher score means this floor offers more strong upgrades across different fish.",
+      ],
+    },
+  ],
+};
+
 const costEfficGemTooltip = {
   title: "Cost efficiency",
   sections: [
@@ -2212,6 +2232,35 @@ export function Fishing() {
     state.dronesPerDock,
   ]);
 
+  /** Dock Score: sum of cost efficiency with max per cost fish. Each fish (dock) counts once with its best upgrade. */
+  const dockScore = useMemo(() => {
+    const byCostFish = new Map<string, number>();
+    for (const def of [...availableT1Upgrades, ...availableT2Upgrades]) {
+      const costs = UPGRADE_COSTS[def.id];
+      const maxLvl = costs?.length ? costs[costs.length - 1]!.level : 0;
+      const lvl = Math.max(0, Math.min(maxLvl, upgradeLevels[def.id] ?? 0));
+      if (lvl >= maxLvl) continue;
+      const marginalPct = upgradeMarginalPct.get(def.id);
+      const nextLevel = lvl + 1;
+      const nextCostEntry = costs?.find((c) => c.level === nextLevel);
+      const fishPerHour = nextCostEntry ? (totalFishPerHourByFishId[nextCostEntry.fishId] ?? 0) : 0;
+      if (marginalPct != null && nextCostEntry && fishPerHour > 0) {
+        const hoursToNext = nextCostEntry.amount / fishPerHour;
+        const costEffic = marginalPct / hoursToNext;
+        const fishId = nextCostEntry.fishId;
+        const prev = byCostFish.get(fishId);
+        if (prev == null || costEffic > prev) byCostFish.set(fishId, costEffic);
+      }
+    }
+    return [...byCostFish.values()].reduce((a, b) => a + b, 0);
+  }, [
+    availableT1Upgrades,
+    availableT2Upgrades,
+    totalFishPerHourByFishId,
+    upgradeLevels,
+    upgradeMarginalPct,
+  ]);
+
   /** Cost-efficiency heatmap for enhancements: time-based (marginal % per hour) and gem-absolute (marginal % per gem × 100). */
   const { costEfficHeatMinEnhance, costEfficHeatMaxEnhance, costEfficHeatMinEnhanceGemAbs, costEfficHeatMaxEnhanceGemAbs } = useMemo(() => {
     const timeVals: number[] = [];
@@ -3532,6 +3581,11 @@ export function Fishing() {
 
         <Collapsible id="fishing-upgrades" title="Available Fishing Upgrades" defaultExpanded={false}>
           <div className="fishingUpgradesPanel">
+            <div className="fishingUpgradeSumBlock">
+              <span className="fishingUpgradeSumLabel">Dock Score </span>
+              <span className="mono">{dockScore.toFixed(2)}</span>
+              <Tooltip content={dockScoreTooltip} />
+            </div>
             <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={false} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
                 <table className="fishingUpgradeTable">

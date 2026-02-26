@@ -1010,7 +1010,9 @@ export function Drone() {
     } catch {
       const bombsPerTypePerHour = (3600 / Math.max(0.1, froggerBombIntervalSecReal)) * froggerBombsPerAutofire / totalBombTypes;
       const bombsRows = labels.map((label, i) => ({ label, value: bombsPerTypePerHour, color: colorsBombs[i % colorsBombs.length] })).sort((a, b) => b.value - a.value);
-      return { froggerGemEvPerHour: 0, totalBombTypesFromGemEv: totalBombTypes, froggerBombsChartData: { bombsPerTypeRows: bombsRows, gemEvPerTypeRows: [] } };
+      const capChance = Math.max(0, Math.min(1, baseParams.battery_bomb_cap_increase_chance ?? 0.001));
+      const batteryCapIncreasesPerHour = bombsPerTypePerHour * capChance;
+      return { froggerGemEvPerHour: 0, totalBombTypesFromGemEv: totalBombTypes, froggerBombsChartData: { bombsPerTypeRows: bombsRows, gemEvPerTypeRows: [], batteryCapIncreasesPerHour } };
     }
     const sumDeltas = deltaGem + deltaCherry + deltaBattery + deltaD20;
     const bombsPerHour = 3600 / Math.max(0.1, froggerBombIntervalSecReal);
@@ -1024,7 +1026,9 @@ export function Drone() {
       { label: "Battery", value: bombsPerTypePerHour * deltaBattery, color: colorsEv[2] },
       { label: "D20", value: bombsPerTypePerHour * deltaD20, color: colorsEv[3] },
     ].filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
-    return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes, froggerBombsChartData: { bombsPerTypeRows, gemEvPerTypeRows: gemEvRows } };
+    const capChance = Math.max(0, Math.min(1, params.battery_bomb_cap_increase_chance ?? 0.001));
+    const batteryCapIncreasesPerHour = bombsPerTypePerHour * capChance;
+    return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes, froggerBombsChartData: { bombsPerTypeRows, gemEvPerTypeRows: gemEvRows, batteryCapIncreasesPerHour } };
   }, [froggerBombIntervalSecReal, froggerBombsPerAutofire, droneBomb10xMinPerHour, bombsBombCycle]);
 
   /** Lootfrog gains: spawns/h per reward, gems/h for calculable rewards. Only when lootfrogsUnlocked. */
@@ -1121,6 +1125,8 @@ export function Drone() {
     const veinseekerFuelGems = state.veinseekerDroneOn && state.veinseekerFueled ? veinseekerFuelGemsPerHour : 0;
     ext.droneFuelGemsPerHour = elixirFuelGems + froggerFuelGems + bombBearFuelGems + anglerFuelGems + starburstFuelGems + chainBomberFuelGems + voidFuelGems + veinseekerFuelGems;
     ext.elixirFuelGemsPerHour = elixirFuelGems;
+    ext.froggerFuelGemsPerHour = froggerFuelGems;
+    ext.froggerGemEvPerHour = state.froggerDroneOn ? froggerGemEvPerHour : 0;
     ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     ext.fishingUnlocked = state.fishingUnlocked;
     ext.chainBomberDroneOn = state.chainBomberDroneOn;
@@ -1130,7 +1136,7 @@ export function Drone() {
     ext.voidPortalMult = state.voidDroneOn && state.voidFueled ? voidPortalMult : 0;
     ext.voidBuffUptimeFraction = voidBuffUptimeFraction;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, froggerGemEvPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -2540,6 +2546,15 @@ export function Drone() {
                       </div>
                     );
                   })}
+                </div>
+                <div className="droneFroggerChartRow" style={{ marginTop: 8 }}>
+                  <span className="droneFroggerChartLabel">Cap increases / h (from Battery)</span>
+                  <span className="mono droneFroggerChartValue" style={{ marginLeft: "auto" }}>
+                    {froggerBombsChartData.batteryCapIncreasesPerHour.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="small" style={{ color: "rgba(226,232,240,0.65)", marginTop: 2 }}>
+                  Battery bomb has a chance per detonation to increase bomb cap by 1. Chance from Bombs module (default 0.1%).
                 </div>
               </div>
               <div className="droneFroggerChartBlock">
