@@ -111,9 +111,9 @@ const shiny_fish_chance: UpgradeCostEntry[] = [
   cost(1, "175", "catfish"), cost(2, "215", "spiny_puffer"), cost(3, "264", "frostdrip_spearfish"), cost(4, "325", "catfish"), cost(5, "400", "spiny_puffer"),
   cost(6, "492", "frostdrip_spearfish"), cost(7, "605", "coralstar"), cost(8, "745", "anchorfin_stingray"), cost(9, "916", "frostdrip_spearfish"), cost(10, "1,127", "catfish"),
   cost(11, "1,387", "spiny_puffer"), cost(12, "1,706", "frostdrip_spearfish"), cost(13, "2,098", "spiny_puffer"),
-  cost(14, "2,581", "anchorfin_stingray"), cost(15, "3,177", "anchorfin_stingray"), cost(16, "3,910", "pearlescent_tetra"), cost(17, "4,812", "pearlescent_tetra"), cost(18, "5,919", "pearlescent_tetra"),
-  cost(19, "7,288", "ionizing_eel"), cost(20, "8,970", "ionizing_eel"), cost(21, "11.0k", "gammangler_fish"), cost(22, "13.6k", "gammangler_fish"),
-  cost(23, "16.7k", "elephants_blob"), cost(24, "20.5k", "elephants_blob"), cost(25, "25.3k", "elephants_blob"),
+  cost(14, "2,581", "frostdrip_spearfish"), cost(15, "3,174", "pearlescent_tetra"), cost(16, "3,904", "coralstar"), cost(17, "4,803", "guppy"), cost(18, "5,907", "guppy"),
+  cost(19, "7,266", "coralstar"), cost(20, "8,937", "frostdrip_spearfish"), cost(21, "11.0k", "pearlescent_tetra"), cost(22, "13.5k", "coralstar"),
+  cost(23, "16.6k", "frostdrip_spearfish"), cost(24, "20.5k", "pearlescent_tetra"), cost(25, "25.2k", "coralstar"),
 ];
 
 const drone_base_power: UpgradeCostEntry[] = [

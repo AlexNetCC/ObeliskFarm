@@ -3176,7 +3176,7 @@ export function ArchSim() {
         <div style={{ display: "grid", gap: 6 }}>
           <Collapsible
             id="arch-diverse-upgrades"
-            title="Diverse Upgrades"
+            title="Diverse Upgrades (Mid-Late Game)"
             defaultExpanded={false}
             className="archDiverseUpgrades"
           >
