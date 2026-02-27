@@ -340,7 +340,8 @@ function formatUpgradeNextEffect(
       const lvl = Math.floor(Number(upgradeLevels?.fish_multiplier ?? 0));
       const curFactor = 1 + 0.03 * lvl;
       const nextFactor = 1 + 0.03 * (lvl + 1);
-      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+      const ratio = curFactor > 0 ? nextFactor / curFactor : 1;
+      return `1→${ratio.toFixed(2)}×`;
     }
     case "rod_multiplier":
       return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
@@ -350,10 +351,18 @@ function formatUpgradeNextEffect(
       return `${current.drone_base_power_base.toFixed(2)}→${next.drone_base_power_base.toFixed(2)}`;
     case "drone_cloner":
       return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
-    case "shiny_multiplier":
-      return `${current.shiny_multiplier.toFixed(2)}→${next.shiny_multiplier.toFixed(2)}`;
-    case "poly_card_multi":
-      return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
+    case "shiny_multiplier": {
+      const cur = current.shiny_multiplier;
+      const nxt = next.shiny_multiplier;
+      const ratio = cur > 0 ? nxt / cur : 1;
+      return `1→${ratio.toFixed(2)}×`;
+    }
+    case "poly_card_multi": {
+      const cur = current.super_shiny_multiplier;
+      const nxt = next.super_shiny_multiplier;
+      const ratio = cur > 0 ? nxt / cur : 1;
+      return `1→${ratio.toFixed(2)}×`;
+    }
     case "double_tick_chance":
       return `${current.double_tick_chance_pct.toFixed(2)}%→${next.double_tick_chance_pct.toFixed(2)}%`;
     case "shiny_fish_chance":
@@ -381,7 +390,8 @@ function formatEnhanceNextEffect(
       const lvl = Math.floor(Number(enhanceLevels?.enhance_fish_multiplier ?? 0));
       const curFactor = 1 + 0.05 * lvl;
       const nextFactor = 1 + 0.05 * (lvl + 1);
-      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+      const ratio = curFactor > 0 ? nextFactor / curFactor : 1;
+      return `1→${ratio.toFixed(2)}×`;
     }
     case "enhance_fishing_drone":
     case "enhance_fishing_drone_3":
@@ -392,18 +402,30 @@ function formatEnhanceNextEffect(
       return `${current.fishing_tick_reduction.toFixed(1)}s→${next.fishing_tick_reduction.toFixed(1)}s`;
     case "enhance_drone_multiplier":
       return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
-    case "enhance_token_multiplier":
-      return `${current.token_gain_multi.toFixed(2)}×→${next.token_gain_multi.toFixed(2)}×`;
-    case "enhance_shiny_multiplier":
-      return `${current.shiny_multiplier.toFixed(2)}→${next.shiny_multiplier.toFixed(2)}`;
+    case "enhance_token_multiplier": {
+      const cur = current.token_gain_multi;
+      const nxt = next.token_gain_multi;
+      const ratio = cur > 0 ? nxt / cur : 1;
+      return `1→${ratio.toFixed(2)}×`;
+    }
+    case "enhance_shiny_multiplier": {
+      const cur = current.shiny_multiplier;
+      const nxt = next.shiny_multiplier;
+      const ratio = cur > 0 ? nxt / cur : 1;
+      return `1→${ratio.toFixed(2)}×`;
+    }
     case "enhance_double_tick_chance":
       return `${current.double_tick_chance_pct.toFixed(2)}%→${next.double_tick_chance_pct.toFixed(2)}%`;
     case "enhance_triple_tick_chance":
       return `${current.triple_tick_chance_pct.toFixed(2)}%→${next.triple_tick_chance_pct.toFixed(2)}%`;
     case "enhance_tier2_dock_power":
       return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
-    case "enhance_super_shiny_multi":
-      return `${current.super_shiny_multiplier.toFixed(2)}→${next.super_shiny_multiplier.toFixed(2)}`;
+    case "enhance_super_shiny_multi": {
+      const cur = current.super_shiny_multiplier;
+      const nxt = next.super_shiny_multiplier;
+      const ratio = cur > 0 ? nxt / cur : 1;
+      return `1→${ratio.toFixed(2)}×`;
+    }
     case "enhance_tiny_notice_chance":
       return `${current.tiny_notice_chance_pct.toFixed(2)}%→${next.tiny_notice_chance_pct.toFixed(2)}%`;
     default:

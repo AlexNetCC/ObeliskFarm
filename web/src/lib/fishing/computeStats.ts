@@ -278,8 +278,8 @@ export function computeFishingStatsFromLevels(
     (1 + (infernalAnglerPct * infernalAnglerLvl) / 100) *
     (options?.blackHoleBonus ? 1.25 : 1);
 
-  // Shiny Multiplier: base 5×, +0.05x (T2 upgrade), +0.05x (enhance). Pets: Mr Nibbles +0.03× per level (own mult). Divine Challenge Coin: +10% per level (own mult).
-  const shinyBase = 5 + 0.05 * u("shiny_multiplier") + 0.05 * e("enhance_shiny_multiplier");
+  // Shiny Multiplier: base 5×, +5% per level (T2 upgrade and enhance; multiplicative so each step is 1.05×). Pets: Mr Nibbles +0.03× per level (own mult). Divine Challenge Coin: +10% per level (own mult).
+  const shinyBase = 5 * Math.pow(1.05, u("shiny_multiplier")) * Math.pow(1.05, e("enhance_shiny_multiplier"));
   const divineChallengeCoinLevel = Math.max(0, Math.floor(options?.divineChallengeCoinLevel ?? 0));
   const shiny_multiplier = shinyBase * (1 + 0.03 * mrNibblesLevel) * (1 + 0.1 * divineChallengeCoinLevel);
 
