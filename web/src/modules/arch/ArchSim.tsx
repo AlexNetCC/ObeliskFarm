@@ -120,6 +120,8 @@ type McLogEntry = {
         primary: number;
         secondary?: number;
         tertiary?: number;
+        /** Frag mode: XP/h for tertiary display. */
+        xpPerHour?: number;
         dist: { strength: number; agility: number; perception: number; intellect: number; luck: number };
       }>;
     };
@@ -325,6 +327,36 @@ export function ArchSim() {
     perCostAllFragments: number;
     significant: boolean;
   }> | null>(null);
+
+  const COLLAPSED_FRAGMENT_GROUPS_KEY = "obeliskfarm:web:arch:collapsedFragmentGroups";
+  type FragmentGroupType = "common" | "rare" | "epic" | "legendary" | "mythic";
+  const [collapsedFragmentGroups, setCollapsedFragmentGroups] = useState<Set<FragmentGroupType>>(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSED_FRAGMENT_GROUPS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw) as unknown;
+        if (Array.isArray(arr) && arr.every((x) => ["common", "rare", "epic", "legendary", "mythic"].includes(x))) return new Set(arr as FragmentGroupType[]);
+      }
+    } catch {
+      // ignore
+    }
+    return new Set();
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLLAPSED_FRAGMENT_GROUPS_KEY, JSON.stringify([...collapsedFragmentGroups]));
+    } catch {
+      // ignore
+    }
+  }, [collapsedFragmentGroups]);
+  function toggleCollapsedFragmentGroup(ct: FragmentGroupType) {
+    setCollapsedFragmentGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(ct)) next.delete(ct);
+      else next.add(ct);
+      return next;
+    });
+  }
   const gemFragNextCancelRef = useRef(false);
   const [gemFragNextRefId, setGemFragNextRefId] = useState<string | null>(null);
   const [mcSettings, setMcSettings] = useState<McSettings>(() => {
@@ -372,7 +404,7 @@ export function ArchSim() {
           lines: [
             "Max stage: primary = avg max stage, secondary = fragments/hour, tertiary = XP/hour.",
             "XP/hour: primary = XP/hour, secondary = fragments/hour, tertiary = avg max stage.",
-            "Fragments/hour: primary = target fragment/h. Secondary = next-smaller fragment/h (or next-higher if none, e.g. Common → Rare). Tertiary = next-higher (or over-next-higher if no smaller, e.g. Common → Epic).",
+            "Fragments/hour: primary = target fragment/h. Secondary = next-smaller fragment/h (or next-higher if none). Tertiary = next fragment/h when available; for Mythic only, XP/h is used as tertiary.",
           ],
         },
         {
@@ -1072,6 +1104,8 @@ export function ArchSim() {
       primary: number;
       secondary: number | null;
       tertiary: number | null;
+      /** Frag mode: XP/h for tie-break tertiary display. */
+      xpPerHour?: number;
       primaryStd?: number;
       primaryN?: number;
       secondaryStd?: number;
@@ -1103,6 +1137,7 @@ export function ArchSim() {
             primary: out.avg_frag_per_hour ?? 0,
             secondary: secondary ?? null,
             tertiary: tertiary ?? null,
+            xpPerHour: out.xp_per_hour ?? 0,
             primaryStd: out.std_frag_per_hour,
             primaryN: n,
             secondaryStd: secFrag != null ? stdByType[secFrag] : undefined,
@@ -1118,7 +1153,13 @@ export function ArchSim() {
           const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
           const secondary = secFrag != null ? (byType[secFrag] ?? 0) : null;
           const tertiary = terFrag != null ? (byType[terFrag] ?? 0) : null;
-          scores.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
+          scores.push({
+            dist,
+            primary: fragPerH,
+            secondary: secondary ?? null,
+            tertiary: tertiary ?? null,
+            xpPerHour: (out as { xp_per_hour?: number }).xp_per_hour ?? 0,
+          });
         }
         return;
       }
@@ -1186,6 +1227,9 @@ export function ArchSim() {
         const at = a.tertiary ?? -Infinity;
         const bt = b.tertiary ?? -Infinity;
         if (Math.abs(at - bt) >= epsS) return bt - at;
+        const aXp = a.xpPerHour ?? -Infinity;
+        const bXp = b.xpPerHour ?? -Infinity;
+        if (mode === "frag" && targetFrag === "mythic" && (Math.abs(aXp - bXp) >= epsS)) return bXp - aXp;
         return b.primary - a.primary;
       };
     }
@@ -1209,12 +1253,17 @@ export function ArchSim() {
         const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
         const secLabel = secFrag != null ? secFrag.toUpperCase() : null;
         const terLabel = terFrag != null ? terFrag.toUpperCase() : null;
+        const hasXp = targetFrag === "mythic" && ((best.xpPerHour ?? 0) > 0 || cands.some((c) => (c.xpPerHour ?? 0) > 0));
         const tail =
           hasTertiary && secLabel && terLabel
             ? `tie-break by ${secLabel}/h then ${terLabel}/h`
             : hasSecondary && secLabel
-              ? `tie-break by ${secLabel}/h`
-              : "tie-break (lexicographic)";
+              ? hasXp
+                ? `tie-break by ${secLabel}/h then XP/h`
+                : `tie-break by ${secLabel}/h`
+              : hasXp
+                ? "tie-break by XP/h"
+                : "tie-break (lexicographic)";
         winnerReason = `primary tied → ${tail}`;
       }
       const top3 = cands.slice(0, 3).map((c, i) => ({
@@ -1222,6 +1271,7 @@ export function ArchSim() {
         primary: c.primary,
         secondary: c.secondary ?? undefined,
         tertiary: c.tertiary ?? undefined,
+        ...(mode === "frag" ? { xpPerHour: c.xpPerHour ?? undefined } : {}),
         dist: candToDistMap(c.dist),
       }));
       return {
@@ -1530,6 +1580,7 @@ export function ArchSim() {
                     primary: out.avg_frag_per_hour ?? 0,
                     secondary: secondary ?? null,
                     tertiary: tertiary ?? null,
+                    xpPerHour: out.xp_per_hour ?? 0,
                     primaryStd: out.std_frag_per_hour,
                     primaryN: n,
                     secondaryStd: secFrag != null ? stdByType[secFrag] : undefined,
@@ -1545,7 +1596,13 @@ export function ArchSim() {
                   const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
                   const secondary = secFrag != null ? (byType[secFrag] ?? 0) : null;
                   const tertiary = terFrag != null ? (byType[terFrag] ?? 0) : null;
-                  refined.push({ dist, primary: fragPerH, secondary: secondary ?? null, tertiary: tertiary ?? null });
+                  refined.push({
+                    dist,
+                    primary: fragPerH,
+                    secondary: secondary ?? null,
+                    tertiary: tertiary ?? null,
+                    xpPerHour: (out as { xp_per_hour?: number }).xp_per_hour ?? 0,
+                  });
                 }
                 return;
               }
@@ -1658,6 +1715,7 @@ export function ArchSim() {
           primary: c.primary,
           secondary: c.secondary ?? undefined,
           tertiary: c.tertiary ?? undefined,
+          ...(mode === "frag" ? { xpPerHour: c.xpPerHour ?? undefined } : {}),
           dist: candToDistMap(c.dist),
         }));
         tieBreakReport = {
@@ -2776,6 +2834,13 @@ export function ArchSim() {
                     fragType: terFrag,
                   });
                 }
+                arr.push({
+                  key: "xp",
+                  label: "XP/h",
+                  barClass: "tbBarXp",
+                  valueFmt: (v) => v.toFixed(1),
+                  get: (r) => Number((r as { xpPerHour?: number }).xpPerHour ?? 0),
+                });
                 return arr;
               })()
             : [
@@ -2902,6 +2967,17 @@ export function ArchSim() {
           </p>
         </div>
         <div className="badge">MC • Multi-core</div>
+      </div>
+
+      <div className="archWarningBanner" role="status">
+        <span className="archWarningIcon" aria-hidden>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          </svg>
+        </span>
+        <div className="archWarningText">
+          Since 2.1 (end of February 2026) block spawn odds have changed. The arch sim will be updated once the new rates are known. Luck has already been updated in the sim; until then, block spawn rates in the sim are outdated. The Golden Crosshair is not implemented (active play).
+        </div>
       </div>
 
       <div className="panel archSetupPanel" style={{ background: "var(--tier1)" }}>
@@ -3848,9 +3924,26 @@ export function ArchSim() {
               const color = BLOCK_COLORS[ct];
               const icon = getFragIconPath(ct);
               if (!entries.length) return null;
+              const groupCollapsed = collapsedFragmentGroups.has(ct);
               return (
                 <div key={ct} className="fragmentGroup" style={{ borderColor: `rgba(15,23,42,0.12)` }}>
-                  <div className="fragmentGroupHeader">
+                  <div
+                    className="fragmentGroupHeader fragmentGroupHeaderCollapsible"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={!groupCollapsed}
+                    aria-label={groupCollapsed ? `Expand ${ct} upgrades` : `Collapse ${ct} upgrades`}
+                    onClick={() => toggleCollapsedFragmentGroup(ct)}
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleCollapsedFragmentGroup(ct);
+                      }
+                    }}
+                  >
+                    <span className="fragmentGroupChevron" aria-hidden>
+                      {groupCollapsed ? "▶" : "▼"}
+                    </span>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Sprite path={icon} alt={`${ct} icon`} className="iconSmall" />
                       <div className="mono" style={{ fontWeight: 900, color }}>
@@ -3859,88 +3952,92 @@ export function ArchSim() {
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {entries.map(([key, info]) => {
-                      const lvl = clampInt(Number(build.fragmentUpgradeLevels[key] ?? 0), 0, clampInt(Number(info.max_level ?? 0), 0, 999));
-                      const maxLvl = clampInt(Number(info.max_level ?? 0), 0, 999);
-                      const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
-                      const locked = build.unlockedStage < stageUnlock;
-                      const nextCost = getUpgradeCost(key, lvl);
-                      const isMaxed = !locked && lvl >= maxLvl;
-                      return (
-                        <div
-                          key={key}
-                          className={`fragmentUpgradeRow ${locked ? "fragmentUpgradeRowLocked" : ""}`}
-                          style={{
-                            ...(locked ? undefined : heatStyle(lvl, maxLvl)),
-                            ...(isMaxed ? { color: "#888" } : undefined),
-                          }}
-                        >
-                          <div className="fragmentUpgradeTop">
-                            <div className="mono" style={{ fontWeight: 900 }}>
-                              {info.display_name}
-                            </div>
-                            <div className="fragmentUpgradeRight upgradeLevel" style={isMaxed ? { color: "#888" } : undefined}>
-                              {locked ? (
-                                <span className="small">
-                                  <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {stageUnlock}</span>
-                                </span>
-                              ) : (
-                                <>
-                                  <span className="small">lvl</span>{" "}
-                                  <span className="heatNum mono" style={isMaxed ? { color: "#888" } : heatStyle(lvl, maxLvl)}>
-                                    {lvl}
-                                  </span>{" "}
-                                  <span className="small">/</span> <span className="mono">{maxLvl}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          {!locked ? (
-                            <>
-                              <div className="small">
-                                next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
-                              </div>
-                              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-                                {lvl >= maxLvl ? (
-                                  <span
-                                    className="fragmentUpgradeMaxed"
-                                    style={{
-                                      background: "hsl(120, 45%, 35%)",
-                                      color: "#fff",
-                                      padding: "6px 12px",
-                                      borderRadius: 6,
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    Maxed
-                                  </span>
-                                ) : null}
-                                <div className="btnRow fragmentUpgradeButtons">
-                                  <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -5)} disabled={lvl <= 0 || mcRunning}>
-                                    −5
-                                  </button>
-                                  <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -1)} disabled={lvl <= 0 || mcRunning}>
-                                    −
-                                  </button>
-                                  {lvl < maxLvl ? (
-                                    <>
-                                      <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={mcRunning}>
-                                        +
-                                      </button>
-                                      <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={mcRunning}>
-                                        +5
-                                      </button>
-                                    </>
-                                  ) : null}
+                  {!groupCollapsed ? (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {entries.map(([key, info]) => {
+                        const lvl = clampInt(Number(build.fragmentUpgradeLevels[key] ?? 0), 0, clampInt(Number(info.max_level ?? 0), 0, 999));
+                        const maxLvl = clampInt(Number(info.max_level ?? 0), 0, 999);
+                        const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
+                        const locked = build.unlockedStage < stageUnlock;
+                        const nextCost = getUpgradeCost(key, lvl);
+                        const isMaxed = !locked && lvl >= maxLvl;
+                        return (
+                          <div
+                            key={key}
+                            className={`fragmentUpgradeRow ${locked ? "fragmentUpgradeRowLocked" : ""} ${isMaxed ? "fragmentUpgradeRowMaxed" : ""}`}
+                            style={{
+                              ...(locked ? undefined : heatStyle(lvl, maxLvl)),
+                              ...(isMaxed ? { color: "#888" } : undefined),
+                            }}
+                          >
+                            <div className="fragmentUpgradeTop">
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                                <div className="mono" style={{ fontWeight: 900 }}>
+                                  {info.display_name}
                                 </div>
                               </div>
-                            </>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
+                              <div className="fragmentUpgradeRight upgradeLevel" style={isMaxed ? { color: "#888" } : undefined}>
+                                {locked ? (
+                                  <span className="small">
+                                    <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {stageUnlock}</span>
+                                  </span>
+                                ) : (
+                                  <>
+                                    <span className="small">lvl</span>{" "}
+                                    <span className="heatNum mono" style={isMaxed ? { color: "#888" } : heatStyle(lvl, maxLvl)}>
+                                      {lvl}
+                                    </span>{" "}
+                                    <span className="small">/</span> <span className="mono">{maxLvl}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {!locked ? (
+                              <>
+                                <div className="small">
+                                  next cost: <span className="mono">{nextCost == null ? "—" : String(nextCost)}</span>
+                                </div>
+                                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                                  {lvl >= maxLvl ? (
+                                    <span
+                                      className="fragmentUpgradeMaxed"
+                                      style={{
+                                        background: "hsl(120, 45%, 35%)",
+                                        color: "#fff",
+                                        padding: "6px 12px",
+                                        borderRadius: 6,
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      Maxed
+                                    </span>
+                                  ) : null}
+                                  <div className="btnRow fragmentUpgradeButtons">
+                                    <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -5)} disabled={lvl <= 0 || mcRunning}>
+                                      −5
+                                    </button>
+                                    <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, -1)} disabled={lvl <= 0 || mcRunning}>
+                                      −
+                                    </button>
+                                    {lvl < maxLvl ? (
+                                      <>
+                                        <button className="btn" type="button" onClick={() => setFragmentUpgrade(key, +1)} disabled={mcRunning}>
+                                          +
+                                        </button>
+                                        <button className="btn btnSecondary" type="button" onClick={() => setFragmentUpgrade(key, +5)} disabled={mcRunning}>
+                                          +5
+                                        </button>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

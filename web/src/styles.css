@@ -535,6 +535,21 @@ body {
   margin-bottom: 4px;
 }
 
+.fragmentGroupHeaderCollapsible {
+  cursor: pointer;
+  gap: 8px;
+  user-select: none;
+}
+.fragmentGroupHeaderCollapsible:hover {
+  opacity: 0.9;
+}
+
+.fragmentGroupChevron {
+  flex-shrink: 0;
+  font-size: 10px;
+  opacity: 0.75;
+}
+
 .fragmentUpgradeRow {
   border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: 10px;
@@ -1506,6 +1521,31 @@ a:hover {
   font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* Arch Sim: full-width warning (block spawn rates 2.1, Golden Crosshair) */
+.archWarningBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(15, 23, 42, 0.9);
+}
+.archWarningIcon {
+  flex-shrink: 0;
+  color: #d97706;
+  margin-top: 1px;
+}
+.archWarningText {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Event Sim: top row = Currency budget + Results */

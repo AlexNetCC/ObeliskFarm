@@ -340,8 +340,7 @@ function formatUpgradeNextEffect(
       const lvl = Math.floor(Number(upgradeLevels?.fish_multiplier ?? 0));
       const curFactor = 1 + 0.03 * lvl;
       const nextFactor = 1 + 0.03 * (lvl + 1);
-      const ratio = curFactor > 0 ? nextFactor / curFactor : 1;
-      return `1→${ratio.toFixed(2)}×`;
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
     case "rod_multiplier":
       return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
@@ -390,8 +389,7 @@ function formatEnhanceNextEffect(
       const lvl = Math.floor(Number(enhanceLevels?.enhance_fish_multiplier ?? 0));
       const curFactor = 1 + 0.05 * lvl;
       const nextFactor = 1 + 0.05 * (lvl + 1);
-      const ratio = curFactor > 0 ? nextFactor / curFactor : 1;
-      return `1→${ratio.toFixed(2)}×`;
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
     case "enhance_fishing_drone":
     case "enhance_fishing_drone_3":
