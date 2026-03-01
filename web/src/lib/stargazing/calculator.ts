@@ -374,6 +374,8 @@ export class StargazingCalculator {
     supernova: number;
     supergiant: number;
     radiant: number;
+    /** SS that are both Supernova and Supergiant (Novagiant combo) per hour. */
+    supernovaSupergiant: number;
   } {
     const spawns = this.calculate_super_star_spawn_rate_per_hour();
     const mult = this.calculate_super_star_multiplier_per_star();
@@ -399,8 +401,10 @@ export class StargazingCalculator {
     const supernova = (sn_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
     const supergiant = (sg_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
     const radiant = (rad_contrib - 1) * slice;
+    /** Expected count of SS per hour that roll both Supernova and Supergiant (p_sn × p_sg per SS). */
+    const supernovaSupergiant = spawns * ss_per_spawn * p_sn * p_sg;
 
-    return { tenXChance, tripleStar, supernova, supergiant, radiant };
+    return { tenXChance, tripleStar, supernova, supergiant, radiant, supernovaSupergiant };
   }
 
   /** Get a summary of all calculated values. */

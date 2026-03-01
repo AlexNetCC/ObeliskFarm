@@ -958,6 +958,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.fishingGainsHoursToCatch {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
 /* Available Upgrades: icon + name + level (lvl X/Y + buttons) + cost + time to next */
 .fishingUpgradesPanel {
   border: 1px solid rgba(15, 23, 42, 0.10);

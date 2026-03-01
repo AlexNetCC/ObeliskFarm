@@ -71,13 +71,14 @@ const ANGLER_SUIT_SEC_PER_LEVEL = 40; // −40 s per suit level
 /** Angler fuel duration: same pattern as Frogger (3:00 + 0:09 per grade). */
 const ANGLER_FUEL_DURATION_BASE_SEC = 180;
 const ANGLER_FUEL_DURATION_SEC_PER_GRADE = 9;
-/** Angler fuel buff: 1% proc per Angler cycle. When proc: +6 ticks (base), +2% Legendary Fish Chance, 1:45 duration. Per grade: +6 ticks, +2%, +0:05.25. Max (Poly): +222 ticks, +52%, 3:09. */
+/** Angler fuel buff: 1% proc per Angler cycle. When proc: +6 ticks (base), +Legendary Fish Chance %, 1:45 duration. Per grade: +6 ticks, +% (see below), +0:05.25. Max (Poly): +222 ticks, +52%, 3:09. */
 const ANGLER_BUFF_PROC_CHANCE = 0.01;
 const ANGLER_BUFF_TICKS_BASE = 6;
 const ANGLER_BUFF_TICKS_PER_GRADE = 6;
 const ANGLER_BUFF_TICKS_MAX = 222;
 const ANGLER_BUFF_LEGENDARY_PCT_BASE = 2;
-const ANGLER_BUFF_LEGENDARY_PCT_PER_GRADE = 2;
+/** In-game display (e.g. 8/129k at grade 7) matches ~14% reduction; 2 + (12/7)×grade gives 14% at grade 7. Wiki "+2% per grade" may refer to cap progression. */
+const ANGLER_BUFF_LEGENDARY_PCT_PER_GRADE = 12 / 7;
 const ANGLER_BUFF_LEGENDARY_PCT_MAX = 52;
 const ANGLER_BUFF_DURATION_BASE_SEC = 105; // 1:45
 const ANGLER_BUFF_DURATION_SEC_PER_GRADE = 5.25; // +0:05.25
@@ -3050,8 +3051,8 @@ export function Drone() {
                       }}
                     >
                       <span className="droneLabel">More Legendary Fish from Angler Drone</span>
-                      <span className="droneStepperValue mono">
-                        +{anglerFishingData.legendaryPctIncrease.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+                      <span className="droneStepperValue mono" title="Legendary Fish Chance when buff is active (effective base 150k reduced by this %)">
+                        +{anglerLegendaryBonusPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
                       </span>
                     </div>
                   ) : null}

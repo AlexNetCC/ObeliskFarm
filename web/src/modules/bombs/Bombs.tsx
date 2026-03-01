@@ -447,7 +447,7 @@ export function Bombs() {
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span className="mono" style={{ fontWeight: 900 }}>Gem Bomb</span>
                 <Sprite path="sprites/event/gembomb.png" alt="Gem Bomb" className="iconSmall" />
-                <Tooltip content={{ title: "Gem Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
+                <Tooltip content={{ title: "Gem Bomb", lines: ["As shown in bomb's ingame tooltip. (WITHOUT influence of W3 Debuff)"] }} />
               </div>
               <CardToggles value={params.gem_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, gem_bomb_recharge_card_level: lvl }))} />
             </div>
@@ -462,7 +462,7 @@ export function Bombs() {
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span className="mono" style={{ fontWeight: 900 }}>Cherry Bomb</span>
                 <Sprite path="sprites/event/cherrybomb.png" alt="Cherry Bomb" className="iconSmall" />
-                <Tooltip content={{ title: "Cherry Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
+                <Tooltip content={{ title: "Cherry Bomb", lines: ["As shown in bomb's ingame tooltip. (WITHOUT influence of W3 Debuff)"] }} />
               </div>
               <CardToggles value={params.cherry_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, cherry_bomb_recharge_card_level: lvl }))} />
             </div>
@@ -477,7 +477,7 @@ export function Bombs() {
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span className="mono" style={{ fontWeight: 900 }}>Battery Bomb</span>
                 <Sprite path="sprites/common/battery_bomb.png" alt="Battery Bomb" className="iconSmall" label="sprites/common/battery_bomb.png" />
-                <Tooltip content={{ title: "Battery Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
+                <Tooltip content={{ title: "Battery Bomb", lines: ["As shown in bomb's ingame tooltip. (WITHOUT influence of W3 Debuff)"] }} />
               </div>
               <CardToggles value={params.battery_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, battery_bomb_recharge_card_level: lvl }))} />
             </div>
@@ -491,7 +491,7 @@ export function Bombs() {
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span className="mono" style={{ fontWeight: 900 }}>D20 Bomb</span>
                 <Sprite path="sprites/common/d20_bomb.png" alt="D20 Bomb" className="iconSmall" label="sprites/common/d20_bomb.png" />
-                <Tooltip content={{ title: "D20 Bomb", lines: ["As shown in bomb's ingame tooltip."] }} />
+                <Tooltip content={{ title: "D20 Bomb", lines: ["As shown in bomb's ingame tooltip. (WITHOUT influence of W3 Debuff)"] }} />
               </div>
               <CardToggles value={params.d20_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, d20_bomb_recharge_card_level: lvl }))} />
             </div>

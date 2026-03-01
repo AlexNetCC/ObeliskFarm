@@ -346,8 +346,11 @@ function formatUpgradeNextEffect(
       return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
     case "drone_multiplier":
       return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
-    case "drone_base_power":
-      return `${current.drone_base_power_base.toFixed(2)}→${next.drone_base_power_base.toFixed(2)}`;
+    case "drone_base_power": {
+      const lvl = Math.floor(Number(upgradeLevels?.drone_base_power ?? 0));
+      const perLvl = 0.25;
+      return `${(perLvl * lvl).toFixed(2)}→${(perLvl * (lvl + 1)).toFixed(2)}`;
+    }
     case "drone_cloner":
       return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
     case "shiny_multiplier": {
@@ -362,16 +365,28 @@ function formatUpgradeNextEffect(
       const ratio = cur > 0 ? nxt / cur : 1;
       return `1→${ratio.toFixed(2)}×`;
     }
-    case "double_tick_chance":
-      return `${current.double_tick_chance_pct.toFixed(2)}%→${next.double_tick_chance_pct.toFixed(2)}%`;
-    case "shiny_fish_chance":
-      return `${current.shiny_fish_chance_pct.toFixed(2)}%→${next.shiny_fish_chance_pct.toFixed(2)}%`;
-    case "triple_tick_chance":
-      return `${current.triple_tick_chance_pct.toFixed(2)}%→${next.triple_tick_chance_pct.toFixed(2)}%`;
+    case "double_tick_chance": {
+      const lvl = Math.floor(Number(upgradeLevels?.double_tick_chance ?? 0));
+      const pct = 0.5;
+      return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
+    }
+    case "shiny_fish_chance": {
+      const lvl = Math.floor(Number(upgradeLevels?.shiny_fish_chance ?? 0));
+      const pct = 0.5;
+      return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
+    }
+    case "triple_tick_chance": {
+      const lvl = Math.floor(Number(upgradeLevels?.triple_tick_chance ?? 0));
+      const pct = 0.35;
+      return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
+    }
     case "tier2_dock_power":
       return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
-    case "super_shiny_chance":
-      return `${current.super_shiny_chance_pct.toFixed(2)}%→${next.super_shiny_chance_pct.toFixed(2)}%`;
+    case "super_shiny_chance": {
+      const lvl = Math.floor(Number(upgradeLevels?.super_shiny_chance ?? 0));
+      const pct = 1;
+      return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
+    }
     default:
       return null;
   }
@@ -412,10 +427,16 @@ function formatEnhanceNextEffect(
       const ratio = cur > 0 ? nxt / cur : 1;
       return `1→${ratio.toFixed(2)}×`;
     }
-    case "enhance_double_tick_chance":
-      return `${current.double_tick_chance_pct.toFixed(2)}%→${next.double_tick_chance_pct.toFixed(2)}%`;
-    case "enhance_triple_tick_chance":
-      return `${current.triple_tick_chance_pct.toFixed(2)}%→${next.triple_tick_chance_pct.toFixed(2)}%`;
+    case "enhance_double_tick_chance": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_double_tick_chance ?? 0));
+      const pct = 0.5;
+      return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
+    }
+    case "enhance_triple_tick_chance": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_triple_tick_chance ?? 0));
+      const pct = 0.4;
+      return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
+    }
     case "enhance_tier2_dock_power":
       return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
     case "enhance_super_shiny_multi": {
@@ -424,8 +445,11 @@ function formatEnhanceNextEffect(
       const ratio = cur > 0 ? nxt / cur : 1;
       return `1→${ratio.toFixed(2)}×`;
     }
-    case "enhance_tiny_notice_chance":
-      return `${current.tiny_notice_chance_pct.toFixed(2)}%→${next.tiny_notice_chance_pct.toFixed(2)}%`;
+    case "enhance_tiny_notice_chance": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_tiny_notice_chance ?? 0));
+      const pct = 0.5;
+      return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
+    }
     default:
       return null;
   }
@@ -1286,8 +1310,13 @@ export function Fishing() {
   const giftPerHourFounder = fishingExternalData.giftPerHourFounder ?? 0;
   const giftPerHourTotal = giftPerHourFreebie + giftPerHourFounder;
   const gift5xTickUptimeFraction = fishingExternalData.gift5xTickUptimeFraction ?? 0;
-  /** Angler fuel buff: +X% Legendary Fish Chance during buff uptime. Effective base = 150k × (1 − bonus% × uptime). */
+  /** Angler fuel buff: +X% Legendary Fish Chance during buff uptime. Effective base = 150k × (1 − bonus% × uptime) for rate. */
   const effectiveLegendaryCatchBase = Math.max(1, LEGENDARY_CATCH_BASE * (1 - (anglerLegendaryBonusPct / 100) * anglerBuffUptimeFraction));
+  /** Display denominator: when Angler buff is on, show "when buff active" base (matches in-game tooltip), else effective base. */
+  const effectiveLegendaryCatchBaseDisplay =
+    anglerLegendaryBonusPct > 0
+      ? Math.max(1, LEGENDARY_CATCH_BASE * (1 - anglerLegendaryBonusPct / 100))
+      : effectiveLegendaryCatchBase;
 
   const effectiveTickSec = effectiveFishingTickSec(tickDurationSec, elixir3xFishingExternal.uptimeFraction);
   /** Fish/h multiplier from Elixir 3× buff (1 = no buff, 3 = 100% uptime). */
@@ -1404,6 +1433,10 @@ export function Fishing() {
       catchPct: number;
       totalMulti: number;
       isLegendary?: boolean;
+      /** Legendary only: numerator of catch chance (1–9). */
+      legendaryChanceNum?: number;
+      /** Legendary only: denominator of catch chance (e.g. 150000). */
+      legendaryChanceDenom?: number;
     }> = [];
     for (const leg of LEGENDARY_FISH) {
       if (!dockIds.has(leg.dockId)) continue;
@@ -1432,6 +1465,8 @@ export function Fishing() {
         catchPct: legendaryChance * 100,
         totalMulti: 1,
         isLegendary: true,
+        legendaryChanceNum: eligible ? numerator : undefined,
+        legendaryChanceDenom: eligible ? effectiveLegendaryCatchBaseDisplay : undefined,
       });
     }
 
@@ -1480,6 +1515,7 @@ export function Fishing() {
     effectiveTickSec,
     extraTicksPerHour,
     effectiveLegendaryCatchBase,
+    effectiveLegendaryCatchBaseDisplay,
     expectedShinyMulti,
     effectiveRodPower,
     effectiveTicksByDock,
@@ -2733,7 +2769,7 @@ export function Fishing() {
               </label>
             </div>
             <div className="fishingGainsList">
-              {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct, totalMulti, isLegendary }) => {
+              {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct, totalMulti, isLegendary, legendaryChanceNum, legendaryChanceDenom }) => {
                 const dock = DOCKS.find((d) => d.id === dockId);
                 const isActive = hasPower;
                 const heatT =
@@ -2742,6 +2778,11 @@ export function Fishing() {
                     : 0.5;
                 const rateColor = isActive ? heatmapColor(heatT) : undefined;
                 const iconSrc = "iconUrl" in fish && fish.iconUrl ? fish.iconUrl : fishIconUrl(fish.iconFile!);
+                const showLegendaryXY = isLegendary && isActive && legendaryChanceNum != null && legendaryChanceDenom != null;
+                const denomStr = legendaryChanceDenom != null
+                  ? (legendaryChanceDenom >= 1000 ? ((legendaryChanceDenom / 1000) % 1 === 0 ? `${legendaryChanceDenom / 1000}k` : `${(legendaryChanceDenom / 1000).toFixed(1)}k`) : String(legendaryChanceDenom))
+                  : "";
+                const hoursToCatchOne = isActive && fishPerHour > 0 ? 1 / fishPerHour : null;
                 return (
                   <div
                     key={`${dockId}-${fish.id}`}
@@ -2765,8 +2806,8 @@ export function Fishing() {
                     </span>
                     <span className="fishingGainsRateWrap">
                       {isActive && (
-                        <span className="fishingGainsCatchPct" title="Catch chance (%)">
-                          {Math.round(catchPct)}%
+                        <span className="fishingGainsCatchPct" title={isLegendary && !showLegendaryXY ? "Catch chance (%)" : undefined}>
+                          {showLegendaryXY ? `${legendaryChanceNum}/${denomStr}` : `${Math.round(catchPct)}%`}
                         </span>
                       )}
                       <span
@@ -2780,6 +2821,11 @@ export function Fishing() {
                           : "—"}
                         /h
                       </span>
+                      {isLegendary && hoursToCatchOne != null && (
+                        <span className="small mono fishingGainsHoursToCatch" title="Expected hours to catch one (based on current effective ticks/h)">
+                          ~{hoursToCatchOne >= 1 ? hoursToCatchOne.toFixed(1) : hoursToCatchOne.toFixed(2)} h
+                        </span>
+                      )}
                     </span>
                   </div>
                 );
@@ -3426,20 +3472,6 @@ export function Fishing() {
                     suffix="×"
                   />
                   <StatRow
-                    label="Shiny Fish Chance"
-                    iconUrl={upgradeIconUrl("Shiny_Fish_Chance.png")}
-                    value={stats.shiny_fish_chance_pct}
-                    decimals={2}
-                    suffix="%"
-                  />
-                  <StatRow
-                    label="Super Shiny Chance"
-                    iconUrl={upgradeIconUrl("Super_Shiny_Fish_Chance.png")}
-                    value={stats.super_shiny_chance_pct}
-                    decimals={2}
-                    suffix="%"
-                  />
-                  <StatRow
                     label="Tiny Notice Chance"
                     iconUrl={upgradeIconUrl("Tiny_Notice_Chance.png")}
                     value={stats.tiny_notice_chance_pct}
@@ -3447,11 +3479,11 @@ export function Fishing() {
                     suffix="%"
                   />
                   <StatRow
-                    label="Tier 2 Dock Power"
-                    iconUrl={upgradeIconUrl("Tier_2_Dock_Power.png")}
-                    value={stats.tier2_dock_power_mult}
+                    label="Shiny Fish Chance"
+                    iconUrl={upgradeIconUrl("Shiny_Fish_Chance.png")}
+                    value={stats.shiny_fish_chance_pct}
                     decimals={2}
-                    suffix="×"
+                    suffix="%"
                   />
                   <StatRow
                     label="Shiny Multiplier"
@@ -3461,9 +3493,23 @@ export function Fishing() {
                     suffix="×"
                   />
                   <StatRow
+                    label="Super Shiny Chance"
+                    iconUrl={upgradeIconUrl("Super_Shiny_Fish_Chance.png")}
+                    value={stats.super_shiny_chance_pct}
+                    decimals={2}
+                    suffix="%"
+                  />
+                  <StatRow
                     label="Super Shiny Multi"
                     iconUrl={upgradeIconUrl("Super_Shiny_Multiplier.png")}
                     value={stats.super_shiny_multiplier}
+                    decimals={2}
+                    suffix="×"
+                  />
+                  <StatRow
+                    label="Tier 2 Dock Power"
+                    iconUrl={upgradeIconUrl("Tier_2_Dock_Power.png")}
+                    value={stats.tier2_dock_power_mult}
                     decimals={2}
                     suffix="×"
                   />

@@ -87,6 +87,7 @@ function getW3FloorsMult(selectedCardId: string): number {
 
 /** 2× Star Spawn Rate buff icon (Elixir/Lootbug/Founder). */
 const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spawn_Rate_Buff.png";
+const ICON_STARFISH_QUEST = "https://static.wikitide.net/shminerwiki/thumb/d/de/Starfish_Quest.png/36px-Starfish_Quest.png";
 
 /** Starfruit: All Star Multi +30%, Star Supernova Chance +10%, 140s. */
 const ICON_STARFRUIT = "https://static.wikitide.net/shminerwiki/d/db/Starfruit.png";
@@ -159,6 +160,11 @@ function fmt0(n: number): string {
 function fmt1(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return n.toFixed(1);
+}
+
+function fmt2(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(2);
 }
 
 /** Tier toggles: Card / Gilded / Poly / Infernal. No "None" – nothing checked = no tier. */
@@ -920,6 +926,27 @@ export function Stargazing() {
                 </span>
               </kbd>
               <div className="mono sgResultValueOrange">{fmt1(summaryOffline.super_stars_per_hour_offline_gains)}</div>
+              {stats.super_star_supergiant_chance > 0 && (
+                <>
+                  <kbd>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <img src={ICON_STARFISH_QUEST} alt="" width={18} height={18} className="iconSmall" aria-hidden />
+                      <span>SS Supernova Supergiants / h for Starfish Quest</span>
+                      <Tooltip
+                        content={{
+                          title: "SS Supernova Supergiants / h for Starfish Quest",
+                          lines: [
+                            "SS that roll both Supernova and Supergiant on the same star (Novagiant combo). Required for Starfish Quest progress.",
+                            "Probability multiplies, so this rate is lower than SS Supergiants alone. Shown for current Online setup.",
+                          ],
+                        }}
+                        label="?"
+                      />
+                    </span>
+                  </kbd>
+                  <div className="mono sgResultValueOrange">{fmt2(superStarContributions.supernovaSupergiant)}</div>
+                </>
+              )}
             </div>
 
             {droneBuffs.total2xStarMinPerHour > 0 && (
