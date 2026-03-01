@@ -1505,6 +1505,8 @@ export function Fishing() {
           catchPct,
           totalMulti,
           isLegendary: false,
+          legendaryChanceNum: undefined,
+          legendaryChanceDenom: undefined,
         };
       });
     });
