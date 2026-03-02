@@ -200,7 +200,7 @@ export function getTotalStats(build: ArchBuild): ArchStats {
   const exp_mod_chance = intPts * (SKILL_BONUSES.intellect.exp_mod_chance ?? 0) + mod_from_int_buff + all_mod_bonus + gem_xp * (GEM_UPGRADE_BONUSES.xp.exp_mod_chance ?? 0) + (frag.exp_mod_chance ?? 0);
   const loot_mod_chance = perPts * (SKILL_BONUSES.perception.loot_mod_chance ?? 0) + mod_from_per_buff + all_mod_bonus + gem_fragment * (GEM_UPGRADE_BONUSES.fragment.loot_mod_chance ?? 0);
   const speed_mod_chance = agiPts * (SKILL_BONUSES.agility.speed_mod_chance ?? 0) + mod_from_agi_buff + all_mod_bonus;
-  const stamina_mod_chance = all_mod_bonus + mod_from_agi_buff + gem_stamina * (GEM_UPGRADE_BONUSES.stamina.stamina_mod_chance ?? 0) + (frag.stamina_mod_chance ?? 0);
+  const stamina_mod_chance = all_mod_bonus + gem_stamina * (GEM_UPGRADE_BONUSES.stamina.stamina_mod_chance ?? 0) + (frag.stamina_mod_chance ?? 0);
 
   const arch_xp_bonus_total = frag.arch_xp_bonus ?? 0;
   const arch_xp_mult = 1.0 + arch_xp_bonus_total;

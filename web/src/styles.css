@@ -16,6 +16,17 @@
   --tier4: #fce4ec;
   --ridge: #9aa4b2;
 
+  /* Border radius scale (buttons, inputs, panels, cards). Set all to 0 for sharp 90° corners. */
+  --radius-2xs: 0;
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-ml: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-pill: 0;
+
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
     "Segoe UI Emoji";
@@ -71,7 +82,7 @@ body {
     padding: 0;
     margin: 0;
     flex-shrink: 0;
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
     border: 1px solid rgba(25, 118, 210, 0.35);
     background: rgba(227, 242, 253, 0.85);
     font-size: 20px;
@@ -120,7 +131,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: rgba(255, 255, 255, 0.7);
   font-size: 0.8rem;
@@ -208,7 +219,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(25, 118, 210, 0.35);
   background: rgba(227, 242, 253, 0.85); /* match desktop menu tile bg */
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
@@ -329,7 +340,7 @@ body {
   color: #fff;
   background: rgba(25, 118, 210, 0.12);
   border-color: rgba(25, 118, 210, 0.25);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .navBetaBadge .qmark:hover {
   color: #fff;
@@ -389,7 +400,7 @@ body {
 
 .collapseWrap {
   border: 1px solid rgba(15, 23, 42, 0.14);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: rgba(255, 255, 255, 0.92);
 }
 
@@ -404,7 +415,7 @@ body {
 .collapseToggle {
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(25, 118, 210, 0.28);
   background: rgba(25, 118, 210, 0.10);
   cursor: pointer;
@@ -438,7 +449,7 @@ body {
 .collapseWrap.eventPlayerStatsDark .collapseBody {
   background: #1a1d23;
   color: #fff;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 .collapseWrap.eventPlayerStatsDark .eventPlayerStatsDarkInner,
 .collapseWrap.eventPlayerStatsDark .small,
@@ -507,7 +518,7 @@ body {
 
 .archSetupCell {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 6px 8px;
 }
 
@@ -522,7 +533,7 @@ body {
 
 .fragmentGroup {
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 4px 6px;
   background: #ffffff;
   margin-bottom: 4px;
@@ -552,7 +563,7 @@ body {
 
 .fragmentUpgradeRow {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 4px 6px;
   background: #ffffff;
 }
@@ -582,7 +593,7 @@ body {
 
 .gemUpgradeRow {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 4px 6px;
   background: rgba(255, 255, 255, 0.92);
 }
@@ -609,7 +620,7 @@ body {
 /* Arch: Diverse Upgrades (red glow, same style as Fishing Diverse Fishing Upgrades) */
 .collapseWrap.archDiverseUpgrades {
   border: 1px solid rgba(127, 29, 29, 0.5);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   box-shadow:
     0 0 20px rgba(127, 29, 29, 0.25),
     0 0 40px rgba(88, 28, 28, 0.15),
@@ -621,7 +632,7 @@ body {
 }
 .archDiverseSection {
   border: 2px ridge var(--ridge, rgba(15, 23, 42, 0.15));
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.92);
   font-size: 12px;
 }
@@ -648,7 +659,7 @@ body {
 
 .mcDevBox {
   border: 1px solid rgba(15, 23, 42, 0.14);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 10px;
   background: rgba(15, 23, 42, 0.04);
 }
@@ -665,7 +676,7 @@ body {
   font-weight: 900;
   font-size: 18px;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(245, 124, 0, 0.40);
   background: rgba(255, 243, 224, 0.85);
   color: rgba(15, 23, 42, 0.95);
@@ -733,7 +744,7 @@ body {
 
 .mcCard {
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 10px;
   background: rgba(255, 255, 255, 0.94);
   position: relative;
@@ -844,7 +855,7 @@ body {
 
 .mcLogPanel {
   border: 1px solid rgba(92, 107, 192, 0.55);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
   background: #e8eaf6;
 }
@@ -872,7 +883,7 @@ body {
 
 .mcLogTableWrap {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 
@@ -942,7 +953,7 @@ body {
 .archBlockBreakdownTableWrap {
   overflow-x: auto;
   border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
 }
 
 .archBlockBreakdownTable {
@@ -991,7 +1002,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-weight: 900;
   font-size: 11px;
   border: 1px solid rgba(15, 23, 42, 0.14);
@@ -1035,7 +1046,7 @@ body {
 
 .histCard {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: #ffffff;
   padding: 10px;
 }
@@ -1066,7 +1077,7 @@ body {
 
 .histSvg {
   display: block;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   border: 1px solid rgba(15, 23, 42, 0.10);
   background: #fff;
 }
@@ -1088,7 +1099,7 @@ body {
 
 .tbPlot {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 10px;
   background: #ffffff;
 }
@@ -1130,7 +1141,7 @@ body {
 
 .tbBar {
   height: 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(15, 23, 42, 0.12);
 }
 
@@ -1161,7 +1172,7 @@ body {
 
 .tbLegend {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 10px;
   background: #ffffff;
 }
@@ -1185,7 +1196,7 @@ body {
 .tbSwatch {
   width: 18px;
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(15, 23, 42, 0.12);
   display: inline-block;
 }
@@ -1222,7 +1233,7 @@ body {
   width: min(1100px, 96vw);
   max-height: min(86vh, 900px);
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: var(--radius-2xl);
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.18);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
@@ -1311,7 +1322,7 @@ a:hover {
   color: #fff;
   background: linear-gradient(135deg, #ffdd00 0%, #f5a623 100%);
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   box-shadow: 0 4px 14px rgba(245, 166, 35, 0.4);
   text-decoration: none;
   transition: filter 0.2s, box-shadow 0.2s;
@@ -1373,7 +1384,7 @@ a:hover {
   color: #0f172a;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .aboutBackupIntervalSuffix {
@@ -1400,7 +1411,7 @@ a:hover {
   font-variant-numeric: tabular-nums;
   padding: 1px 4px;
   background: rgba(15, 23, 42, 0.08);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .aboutSubtitle {
@@ -1442,7 +1453,7 @@ a:hover {
   color: #0f172a;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1517,7 +1528,7 @@ a:hover {
   border: 1px solid var(--border);
   background: #ffffff;
   padding: 8px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
@@ -1533,7 +1544,7 @@ a:hover {
   margin-bottom: 10px;
   background: rgba(245, 158, 11, 0.14);
   border: 1px solid rgba(245, 158, 11, 0.45);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   font-size: 13px;
   line-height: 1.4;
   color: rgba(15, 23, 42, 0.9);
@@ -1616,7 +1627,7 @@ a:hover {
 .panel {
   border: 1px solid var(--ridge);
   background: var(--panel);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 14px;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
 }
@@ -1686,7 +1697,7 @@ a:hover {
   padding: 16px 20px;
   background: linear-gradient(135deg, rgba(139, 90, 43, 0.22) 0%, rgba(101, 67, 33, 0.28) 100%);
   border: 2px solid rgba(139, 90, 43, 0.6);
-  border-radius: 14px;
+  border-radius: var(--radius-2xl);
 }
 
 .worldMonumentsLabel {
@@ -1726,7 +1737,7 @@ a:hover {
     rgba(0, 0, 0, 0.02) 3px,
     rgba(0, 0, 0, 0.02) 4px
   );
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
@@ -1754,7 +1765,7 @@ a:hover {
   border: 1px solid var(--border);
   background: #ffffff;
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   padding: 10px 10px;
   outline: none;
   font-size: 14px;
@@ -1829,7 +1840,7 @@ a:hover {
   background: rgba(25, 118, 210, 0.12);
   color: var(--text);
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   cursor: pointer;
   font-weight: 700;
   font-size: 13px;
@@ -1947,7 +1958,7 @@ a:hover {
   background: rgba(198, 40, 40, 0.08);
   color: var(--text);
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   font-size: 13px;
 }
 
@@ -1958,7 +1969,7 @@ a:hover {
   padding: 10px 12px;
   border: 1px solid var(--border);
   background: #ffffff;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
 
 .kv kbd {
@@ -1988,7 +1999,7 @@ a:hover {
 .tierBlock {
   border: 1px solid var(--ridge);
   background: #ffffff;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   margin-bottom: 10px;
 }
@@ -2025,7 +2036,7 @@ a:hover {
   align-items: center;
   margin-bottom: 6px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   padding: 6px 8px;
   transition: background-color 120ms ease;
 }
@@ -2067,7 +2078,7 @@ a:hover {
 
 .lockedRow {
   background: rgba(198, 40, 40, 0.06);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   padding: 6px 8px;
 }
 
@@ -2079,7 +2090,7 @@ a:hover {
 .pillLocked {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(198, 40, 40, 0.35);
   background: rgba(198, 40, 40, 0.08);
   color: #c62828;
@@ -2092,7 +2103,7 @@ a:hover {
   min-width: 28px;
   text-align: center;
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(15, 23, 42, 0.16);
   font-weight: 900;
   font-size: 14px;
@@ -2109,7 +2120,7 @@ a:hover {
   width: 20px;
   height: 20px;
   border: 1px dashed rgba(15, 23, 42, 0.25);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2128,7 +2139,7 @@ a:hover {
   width: 18px;
   height: 18px;
   padding: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(15, 23, 42, 0.18);
   background: #ffffff;
   color: rgba(15, 23, 42, 0.65);
@@ -2152,7 +2163,7 @@ a:hover {
   box-sizing: border-box;
   background: #ffffff;
   border: 1px solid rgba(44, 62, 80, 0.25);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   box-shadow: 0 10px 24px rgba(44, 62, 80, 0.20);
   overflow-wrap: break-word;
@@ -2224,7 +2235,7 @@ a:hover {
 .budgetBar {
   border: 1px solid var(--ridge);
   background: #ffffff;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   display: grid;
   gap: 8px;
@@ -2266,7 +2277,7 @@ a:hover {
   width: 100%;
   max-width: 100%;
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #ffffff;
   overflow: hidden;
 }

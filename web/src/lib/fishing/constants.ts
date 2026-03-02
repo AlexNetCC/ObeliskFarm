@@ -209,6 +209,18 @@ export function getFishById(id: string): FishDef | undefined {
   return ALL_FISH.find((f) => f.id === id);
 }
 
+/**
+ * Polychrome shard odds for fish cards (Polychrome column).
+ * Source: https://shminer.miraheze.org/wiki/Cards#Fish_card_odds
+ * Tier 1 & 2: 1 in (15000 × 1.1^n) where n = index in ALL_FISH (Guppy=0, …, Wreckshell=23, Stonescale=24, …).
+ * Returns the denominator (e.g. 15000 for Guppy). Legendary fish are not in ALL_FISH; returns Infinity.
+ */
+export function getFishPolyShardOdds(fishId: string): number {
+  const idx = ALL_FISH.findIndex((f) => f.id === fishId);
+  if (idx < 0) return Infinity;
+  return 15000 * Math.pow(1.1, idx);
+}
+
 // ——— Upgrades (bought with fish); wiki order and Boat Level (N/A = 0) ———
 
 export const FISHING_UPGRADES_T1: UpgradeDef[] = [

@@ -36,6 +36,7 @@ import {
   getFishById,
   getEffectiveTicksNeeded,
   getFishCardGildGemCost,
+  getFishPolyShardOdds,
   FISHING_ROD_GILD_CARD_COST,
   upgradeIconUrl,
   enhanceIconUrl,
@@ -67,6 +68,7 @@ type SavedState = {
   dronesPerDock?: Partial<Record<DockId, number>>;
   activeDockId?: DockId | null;
   showDisabledFishGrayed?: boolean;
+  showPolyShardDroprate?: boolean;
   useGemIncomeForCostEffic?: boolean;
   upgradeLevels?: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels?: Partial<Record<EnhanceId, number>>;
@@ -124,6 +126,7 @@ type FishingState = {
   dronesPerDock: Record<DockId, number>;
   activeDockId: DockId;
   showDisabledFishGrayed: boolean;
+  showPolyShardDroprate: boolean;
   useGemIncomeForCostEffic: boolean;
   upgradeLevels: Partial<Record<FishingUpgradeId, number>>;
   enhanceLevels: Partial<Record<EnhanceId, number>>;
@@ -965,6 +968,7 @@ export function Fishing() {
       dronesPerDock[d.id] = saved?.dronesPerDock?.[d.id] ?? (i === 0 ? Math.max(0, Math.round(computed.fishing_drone_cap)) : 0);
     });
     const showDisabledFishGrayed = saved?.showDisabledFishGrayed ?? false;
+    const showPolyShardDroprate = saved?.showPolyShardDroprate ?? false;
     const useGemIncomeForCostEffic = saved?.useGemIncomeForCostEffic ?? true;
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
     const fishCardTier = saved?.fishCardTier ?? {};
@@ -1001,7 +1005,7 @@ export function Fishing() {
     const infernalMrNibblesLevel = Math.max(0, Math.trunc(Number(saved?.infernalMrNibblesLevel ?? 0)));
     const infernalAnglerDronePct = clamp(Number(saved?.infernalAnglerDronePct ?? 0), 0, 100);
     const infernalAnglerDroneLevel = Math.max(0, Math.trunc(Number(saved?.infernalAnglerDroneLevel ?? 0)));
-    return { dronesPerDock, showDisabledFishGrayed, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, abyssLegendaryCaught, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
+    return { dronesPerDock, showDisabledFishGrayed, showPolyShardDroprate, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, abyssLegendaryCaught, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
   });
 
   useEffect(() => {
@@ -2769,6 +2773,14 @@ export function Fishing() {
                 />
                 <span className="small">Show fish from docks with no power (grayed out)</span>
               </label>
+              <label className="fishingGainsToggleLabel">
+                <input
+                  type="checkbox"
+                  checked={state.showPolyShardDroprate}
+                  onChange={(e) => setState((prev) => ({ ...prev, showPolyShardDroprate: e.target.checked }))}
+                />
+                <span className="small">Show Poly Shard droprate</span>
+              </label>
             </div>
             <div className="fishingGainsList">
               {visibleGainsRows.map(({ dockId, dockName, hasPower, fish, fishPerHour, catchPct, totalMulti, isLegendary, legendaryChanceNum, legendaryChanceDenom }) => {
@@ -2798,14 +2810,19 @@ export function Fishing() {
                     />
                     <span className="fishingGainsFishName">
                       {fish.name}
-                      {!isLegendary && <span className="fishingGainsCardMulti"> ×{totalMulti.toFixed(2)}</span>}
                     </span>
                     <span className="small fishingGainsDockName">
                       {dockName}
-                      {dock ? (
-                        <span className="fishingDockReqTicks"> (Req: {effectiveTicksByDock[dock.id] ?? dock.baseTicksNeeded} Ticks)</span>
-                      ) : null}
                     </span>
+                    {state.showPolyShardDroprate && (state.fishCardTier[fish.id] ?? 0) === 2 && (() => {
+                      const odds = getFishPolyShardOdds(fish.id);
+                      const polyShardsPerHour = Number.isFinite(odds) && odds > 0 && isActive ? fishPerHour / odds : null;
+                      return (
+                        <span className="small mono fishingGainsPolyShards" title="Expected Polychrome shards per hour (1 in N per catch, Polychrome column from wiki). Only shown when this fish has a Gilded card.">
+                          Shards/h: {polyShardsPerHour != null ? polyShardsPerHour.toFixed(2) : "—"}
+                        </span>
+                      );
+                    })()}
                     <span className="fishingGainsRateWrap">
                       {isActive && (
                         <span className="fishingGainsCatchPct" title={isLegendary && !showLegendaryXY ? "Catch chance (%)" : undefined}>
@@ -2825,7 +2842,7 @@ export function Fishing() {
                       </span>
                       {isLegendary && hoursToCatchOne != null && (
                         <span className="small mono fishingGainsHoursToCatch" title="Expected hours to catch one (based on current effective ticks/h)">
-                          ~{hoursToCatchOne >= 1 ? hoursToCatchOne.toFixed(1) : hoursToCatchOne.toFixed(2)} h
+                          : Will take ~ {hoursToCatchOne >= 1 ? hoursToCatchOne.toFixed(1) : hoursToCatchOne.toFixed(2)} h for 1 catch
                         </span>
                       )}
                     </span>

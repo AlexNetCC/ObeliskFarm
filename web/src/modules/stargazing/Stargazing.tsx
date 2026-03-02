@@ -1243,7 +1243,27 @@ export function Stargazing() {
                   label={
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       Star Spawn Rate Multiplier (x)
-                      <Tooltip content={{ title: "Star Spawn Rate", lines: ["Enter value without the 2× Star Spawn Rate buff. Buffs from Drone, Lootbug, Founder are applied automatically."] }} label="?" />
+                      <Tooltip
+                      content={{
+                        title: "Star Spawn Rate",
+                        sections: [
+                          {
+                            heading: "What to enter",
+                            lines: [
+                              "Enter the value from the game with Starburst Drone OFF (not active).",
+                              "Also enter without the 2× Star Spawn Rate buff.",
+                            ],
+                          },
+                          {
+                            heading: "Applied automatically",
+                            lines: [
+                              "2× Star Spawn Rate (Elixir, Lootbug, Founder) and Starburst Drone (when ON in Drone module) are applied by the calculator.",
+                            ],
+                          },
+                        ],
+                      }}
+                      label="?"
+                    />
                     </span>
                   }
                   spritePaths={["sprites/stargazing/Star_Spawn_Rate_Multiplier.png"]}

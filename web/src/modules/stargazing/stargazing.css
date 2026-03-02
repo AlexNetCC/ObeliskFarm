@@ -17,7 +17,7 @@
 
 .sgSection {
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.75);
 }
@@ -75,7 +75,7 @@
   align-items: center;
   gap: 8px;
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 4px 8px;
   background: rgba(255, 255, 255, 0.92);
   min-width: 0;
@@ -169,7 +169,7 @@
   height: 32px;
   padding: 0;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   background: rgba(255, 255, 255, 0.7);
   cursor: pointer;
 }
@@ -252,7 +252,7 @@
   margin-top: 8px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
 .sg2xUptimeLabel {
   display: inline-flex;
@@ -300,7 +300,7 @@
   width: 22px;
   height: 22px;
   border: 1px solid #3d4556;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: #3d4556;
   color: rgba(226, 232, 240, 0.9);
 }
@@ -338,7 +338,7 @@
   background: #3d4556;
   color: #e2e8f0;
   padding: 12px 14px;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 .sgStatsContribBlock {
   padding: 8px 0;
@@ -374,13 +374,13 @@
   min-width: 0;
   height: 14px;
   background: rgba(0, 0, 0, 0.22);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .sgStatsContribBarFill {
   height: 100%;
   min-width: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: width 0.15s ease;
 }
 .sgStatsContribValue {

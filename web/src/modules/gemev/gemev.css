@@ -21,7 +21,7 @@
 
 .gemEvSection {
   border: 2px ridge var(--ridge);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 6px 8px;
   margin-bottom: 8px;
 }
@@ -31,7 +31,7 @@
   padding: 0;
 }
 .collapseWrap.gemEvSection .collapseHeader {
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius-ml) var(--radius-ml) 0 0;
 }
 .collapseWrap.gemEvSection .collapseBody {
   padding-top: 6px;
@@ -71,7 +71,7 @@
 
 .gemEvGameSpeedWrap {
   border: 2px solid rgba(56, 161, 105, 0.5);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   padding: 6px 8px;
   background: rgba(56, 161, 105, 0.1);
 }
@@ -133,7 +133,7 @@
 /* Bombs (and shared) Game speed block: same format as Drone (box + glow when > 1×) */
 .bombsGameSpeedToggle {
   border: 2px solid rgba(15, 23, 42, 0.2);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 8px 10px;
   margin-bottom: 8px;
   background: rgba(255, 255, 255, 0.92);
@@ -186,7 +186,7 @@
 
 .gemEvSkillShardsWrap {
   border: 2px solid rgba(138, 100, 180, 0.4);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   padding: 8px 10px;
   background: rgba(138, 100, 180, 0.08);
 }
@@ -199,7 +199,7 @@
   gap: 6px;
   margin-top: 2px;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(100, 180, 255, 0.25);
   background: linear-gradient(135deg, rgba(80, 160, 255, 0.06) 0%, rgba(160, 100, 255, 0.05) 100%);
   box-shadow:
@@ -220,7 +220,7 @@
   gap: 6px;
   margin-bottom: 2px;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(100, 116, 139, 0.35);
   background: linear-gradient(135deg, rgba(71, 85, 105, 0.08) 0%, rgba(100, 116, 139, 0.06) 100%);
   box-shadow:
@@ -237,7 +237,7 @@
 .gemEvAutoBomberNegativeGlow {
   padding: 6px 10px;
   margin: 2px -10px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(200, 100, 90, 0.22);
   background: linear-gradient(135deg, rgba(200, 120, 110, 0.06) 0%, rgba(220, 140, 130, 0.03) 100%);
   box-shadow:
@@ -298,7 +298,7 @@
 .gemEvSubSection {
   border: 2px ridge rgba(15, 23, 42, 0.22);
   background: #ffe9d6;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px;
 }
 
@@ -324,7 +324,7 @@
 
 .gemEvBombBlock {
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px;
   background: rgba(255, 255, 255, 0.92);
 }
@@ -366,7 +366,7 @@
 
 /* Stonks tiers: progressively darker green */
 .gemEvStonksTier {
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   padding: 8px 10px;
   margin-bottom: 6px;
 }
@@ -396,19 +396,19 @@
 .gemEvGiftChartBlockBasic {
   padding: 8px 10px;
   border: 1px solid rgba(30, 136, 229, 0.35);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(227, 242, 253, 0.4);
 }
 .gemEvGiftChartBlockRare {
   padding: 8px 10px;
   border: 1px solid rgba(232, 168, 56, 0.45);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 243, 224, 0.4);
 }
 .gemEvGiftChartBlockFish {
   padding: 8px 10px;
   border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(248, 250, 252, 0.95);
 }
 
@@ -430,7 +430,7 @@
   background: #3d4556;
   color: #e2e8f0;
   padding: 12px 14px;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 .gemEvGiftEvChartModal .gemEvChartBlock {
   background: transparent;
@@ -458,7 +458,7 @@
   height: 24px;
   padding: 0;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.9);
   color: rgba(71, 85, 105, 0.9);
   cursor: pointer;
@@ -513,7 +513,7 @@
   background: #3d4556;
   color: #e2e8f0;
   padding: 12px 14px;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 .gemEvGiftsContribBlock {
   padding: 8px 0;
@@ -545,13 +545,13 @@
   min-width: 0;
   height: 14px;
   background: rgba(0, 0, 0, 0.22);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .gemEvGiftsContribBarFill {
   height: 100%;
   min-width: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: width 0.15s ease;
 }
 .gemEvGiftsContribValue {

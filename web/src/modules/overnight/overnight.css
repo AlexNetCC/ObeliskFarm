@@ -111,7 +111,7 @@
 
 .overnightResultPanel {
   border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   margin-bottom: 8px;
   background: rgba(30, 41, 59, 0.85);
@@ -201,7 +201,7 @@
 
 .overnightRowBordered {
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 4px 8px;
 }
 
@@ -316,7 +316,7 @@
   background: #3d4556;
   color: #e2e8f0;
   padding: 10px 12px;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 .overnightChartModal .gemEvChartBlock {
   padding: 0;

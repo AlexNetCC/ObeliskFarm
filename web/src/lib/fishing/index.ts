@@ -48,6 +48,7 @@ export {
   getFishById,
   getFishForDock,
   getFishCardGildGemCost,
+getFishPolyShardOdds,
   FISHING_ROD_GILD_CARD_COST,
 } from "./constants";
 

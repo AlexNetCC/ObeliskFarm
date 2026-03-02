@@ -17,7 +17,7 @@
 
 .fishingSection {
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.75);
 }
@@ -25,7 +25,7 @@
 /* Diverse Fishing Upgrades: Pets + Upgrades blocks (same pattern as Drone Fuel Save/Duration) */
 .fishingDiverseSection {
   border: 2px ridge var(--ridge, rgba(15, 23, 42, 0.15));
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.92);
 }
@@ -33,7 +33,7 @@
 .fishingUpgradesBlock {
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 6px 8px;
 }
 
@@ -96,7 +96,7 @@
   padding: 6px 8px;
   min-height: 44px;
   border: 1px solid var(--border, rgba(15, 23, 42, 0.12));
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background-color: var(--panel-bg, rgba(248, 250, 252, 0.6));
   margin-bottom: 4px;
 }
@@ -378,7 +378,7 @@
   height: 28px;
   padding: 0;
   border: 1px solid rgba(15, 23, 42, 0.18);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   background: rgba(255, 255, 255, 0.95);
   color: rgba(71, 85, 105, 0.9);
   cursor: pointer;
@@ -409,7 +409,7 @@
   background: #3d4556;
   color: #e2e8f0;
   padding: 12px 14px;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   text-align: left;
 }
 
@@ -455,13 +455,13 @@
   min-width: 0;
   height: 14px;
   background: rgba(0, 0, 0, 0.22);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .fishingTickContribBarFill {
   height: 100%;
   min-width: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: width 0.15s ease;
 }
 .fishingTickContribValue {
@@ -484,7 +484,7 @@
   gap: 6px;
   padding: 6px 8px;
   margin-bottom: 6px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(139, 90, 43, 0.25);
   background: rgba(255, 248, 240, 0.6);
   box-shadow: 0 0 14px rgba(139, 90, 43, 0.2), 0 0 6px rgba(139, 90, 43, 0.12);
@@ -492,7 +492,7 @@
 
 .fishingRow {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 4px 8px;
   background: rgba(255, 255, 255, 0.92);
   min-width: 0;
@@ -583,7 +583,7 @@
 /* Docks: muted dark blue bg, soft blue-gray borders (screenshot-style) */
 .fishingDocksBox {
   border: 1px solid #3d5f7a;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: #0d2847;
 }
@@ -729,7 +729,7 @@
   height: 24px;
   padding: 0;
   border: 1px solid #3d5f7a;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: #1e3a5f;
   color: #e2e8f0;
   font-size: 16px;
@@ -772,7 +772,7 @@
   width: 2.5em;
   padding: 2px 4px;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.08);
   color: inherit;
   box-sizing: border-box;
@@ -788,7 +788,7 @@
   padding: 10px 12px;
   margin-bottom: 12px;
   background: rgba(15, 23, 42, 0.06);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(15, 23, 42, 0.1);
 }
 .fishingGemIncomeToggle {
@@ -811,6 +811,9 @@
 }
 
 .fishingGainsToggleWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: 10px;
 }
 
@@ -838,7 +841,7 @@
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.9);
   min-width: 0;
@@ -866,7 +869,7 @@
   gap: 10px;
   padding: 8px 10px;
   margin-top: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(100, 100, 110, 0.2);
   background: rgba(120, 125, 135, 0.12);
   font-size: 12px;
@@ -928,6 +931,13 @@
   flex-shrink: 0;
 }
 
+.fishingGainsPolyShards {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .fishingDockReqTicks {
   font-size: 0.8em;
   opacity: 0.9;
@@ -953,7 +963,7 @@
   min-width: 4em;
   text-align: right;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
@@ -968,7 +978,7 @@
 /* Available Upgrades: icon + name + level (lvl X/Y + buttons) + cost + time to next */
 .fishingUpgradesPanel {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.9);
 }
@@ -1166,7 +1176,7 @@
   gap: 6px;
   padding: 4px 8px;
   border: 1px solid rgba(15, 23, 42, 0.15);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.6);
 }
 
@@ -1206,7 +1216,7 @@
 /* Fish Cards section (same layout as Stargazing Star Cards) */
 .fishingFishCardsPanel {
   border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.9);
 }
@@ -1228,7 +1238,7 @@
 
 .fishingFishCardCell {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 6px 8px;
   background: rgba(15, 23, 42, 0.04);
   display: flex;
@@ -1256,7 +1266,7 @@
 /* How's the fish gains when I gild my cards: gold border, title row yellow with shimmer */
 .collapseWrap.fishingFishCardGildEffic {
   border: 1px solid rgba(255, 193, 7, 0.7);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 .collapseWrap.fishingFishCardGildEffic .collapseHeader {
@@ -1264,7 +1274,7 @@
   background-size: 200% 100%;
   animation: fishingGildEfficShimmer 4s ease-in-out infinite;
   border: 1px solid rgba(255, 152, 0, 0.5);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   margin-bottom: 0;
 }
 @keyframes fishingGildEfficShimmer {
@@ -1275,7 +1285,7 @@
 /* Diverse Fishing Upgrades: dark red glow for mysterious endgame */
 .collapseWrap.fishingDiverseEndgame {
   border: 1px solid rgba(127, 29, 29, 0.5);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   box-shadow:
     0 0 20px rgba(127, 29, 29, 0.25),
     0 0 40px rgba(88, 28, 28, 0.15),
@@ -1312,7 +1322,7 @@
   padding: 8px 10px;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   font-size: 12px;
   line-height: 1.4;
@@ -1405,14 +1415,14 @@
   padding: 4px 8px;
   font-size: 13px;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.9);
 }
 .fishingMcResults {
   margin-top: 10px;
   padding: 10px 12px;
   background: rgba(15, 23, 42, 0.06);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(15, 23, 42, 0.1);
 }
 .fishingMcResultsTitle {
@@ -1466,13 +1476,13 @@
   display: flex;
   align-items: flex-end;
   background: rgba(15, 23, 42, 0.06);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 .fishingMcHistogramBar {
   width: 100%;
   min-height: 0;
   background: rgba(92, 107, 192, 0.55);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   transition: height 0.15s ease;
 }
 .fishingMcHistogramAxis {
@@ -1493,7 +1503,7 @@
   margin-top: 14px;
   padding: 10px 12px;
   background: rgba(15, 23, 42, 0.05);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 .fishingMcPerFishRow {
@@ -1562,7 +1572,7 @@
   margin-top: 14px;
   padding: 10px 12px;
   background: rgba(15, 23, 42, 0.05);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
@@ -1582,7 +1592,7 @@
   position: relative;
   height: 20px;
   background: rgba(15, 23, 42, 0.06);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: visible;
 }
 
@@ -1593,7 +1603,7 @@
   transform: translateY(-50%);
   height: 3px;
   background: rgba(92, 107, 192, 0.45);
-  border-radius: 1px;
+  border-radius: var(--radius-2xs);
 }
 
 .fishingMcBoxplotBox {
@@ -1601,7 +1611,7 @@
   top: 2px;
   bottom: 2px;
   background: rgba(92, 107, 192, 0.55);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 
 .fishingMcBoxplotMedian {
@@ -1611,7 +1621,7 @@
   width: 2px;
   margin-left: -1px;
   background: rgba(15, 23, 42, 0.85);
-  border-radius: 1px;
+  border-radius: var(--radius-2xs);
 }
 
 /* Sushi per-fish histogram: no absolute numbers on axis, just fewer/more */

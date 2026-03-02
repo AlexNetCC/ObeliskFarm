@@ -11,7 +11,7 @@
 
 .itemsChestsBlock {
   border: 2px solid rgba(15, 23, 42, 0.2);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.92);
 }
@@ -62,7 +62,7 @@
 .itemsChestsBarBg {
   height: 20px;
   background: rgba(15, 23, 42, 0.08);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
   flex-direction: row;
@@ -126,7 +126,7 @@
 .itemsChestsBarLegendSwatch {
   width: 12px;
   height: 12px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .itemsChestsBarLegendSwatch.itemsChestsBarFreebies {
@@ -218,7 +218,7 @@
 
 .itemsGameSpeedToggle {
   border: 2px solid rgba(15, 23, 42, 0.2);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   padding: 8px 10px;
   margin-bottom: 8px;
   background: rgba(255, 255, 255, 0.92);
@@ -285,7 +285,7 @@
 
 .itemsSection {
   border: 2px ridge var(--ridge);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.92);
 }
@@ -337,7 +337,7 @@
 .itemsInput {
   padding: 4px 8px;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-ml);
   font: inherit;
   font-variant-numeric: tabular-nums;
   width: 80px;
