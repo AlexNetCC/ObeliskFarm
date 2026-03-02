@@ -157,14 +157,19 @@ function fmt0(n: number): string {
   return Math.round(n).toString();
 }
 
+/** Thousand separator: narrow no-break space (typographic, small gap). */
+const THOUSAND_SEP = "\u202F";
+
 function fmt1(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  return n.toFixed(1);
+  if (n > 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 }).replace(/,/g, THOUSAND_SEP);
+  return n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).replace(/,/g, THOUSAND_SEP);
 }
 
 function fmt2(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  return n.toFixed(2);
+  if (n > 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 }).replace(/,/g, THOUSAND_SEP);
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/,/g, THOUSAND_SEP);
 }
 
 /** Tier toggles: Card / Gilded / Poly / Infernal. No "None" – nothing checked = no tier. */
@@ -412,14 +417,29 @@ export function Stargazing() {
   /** Force re-render and invalidate memos after Starburst toggle so results update. */
   const [starburstToggleRefresh, setStarburstToggleRefresh] = useState(0);
 
-  /** 2× Star Spawn Rate: Elixir (Drone) + Lootbug (incl. Golden) + Founder Supply Drop. Same buff; durations add (e.g. 3+5+2 = 10 min/h → 1/6 uptime). 3× Super Star from Drone Elixir only. Starburst Drone not included: enter its effects manually in Your stats to avoid double-counting. */
+  /** Refresh external data (Drone writes Starburst etc. to STARGAZING_EXTERNAL_KEY). Re-read when tab becomes visible or every 2s so toggling Starburst in Drone updates Stars/hour. */
+  const [externalRefreshKey, setExternalRefreshKey] = useState(0);
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) setExternalRefreshKey((k) => k + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const t = window.setInterval(() => {
+      if (!document.hidden) setExternalRefreshKey((k) => k + 1);
+    }, 2000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(t);
+    };
+  }, []);
+
+  /** 2× Star Spawn Rate: Elixir (Drone) + Lootbug (incl. Golden) + Founder Supply Drop. Same buff; durations add. 3× Super Star from Drone Elixir only. Starburst from Drone (when ON) is read from external. */
   const droneBuffs = useMemo(() => {
     const sg = loadJson<{
       elixir2xStarMinPerHour?: number;
       drone3xSuperUptimeFraction?: number;
       founderSupplyDrop2xStarMinPerHour?: number;
       founderSupplyDropAutoCatch100MinPerHour?: number;
-      starburstDroneOn?: boolean;
       starburstTripleStarChancePct?: number;
       starburstStarSpawnRateUptimeFraction?: number;
       starburstStarSpawnRatePct?: number;
@@ -438,12 +458,12 @@ export function Stargazing() {
       drone3xSuperUptimeFraction: typeof sg?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.drone3xSuperUptimeFraction)) : 0,
       founderSupplyDropAutoCatch100MinPerHour: Math.min(60, founderAutoCatchMin),
       founderOnlyAutoCatch100MinPerHour: founderAutoCatchMin,
-      starburstTripleStarChancePct: 0,
-      starburstStarSpawnRateUptimeFraction: 0,
-      starburstStarSpawnRatePct: 0,
-      starburstAutoCatch100MinPerHour: 0,
+      starburstTripleStarChancePct: typeof sg?.starburstTripleStarChancePct === "number" ? Math.max(0, sg.starburstTripleStarChancePct) : 0,
+      starburstStarSpawnRateUptimeFraction: typeof sg?.starburstStarSpawnRateUptimeFraction === "number" ? Math.max(0, Math.min(1, sg.starburstStarSpawnRateUptimeFraction)) : 0,
+      starburstStarSpawnRatePct: typeof sg?.starburstStarSpawnRatePct === "number" ? Math.max(0, sg.starburstStarSpawnRatePct) : 0,
+      starburstAutoCatch100MinPerHour: typeof sg?.starburstAutoCatch100MinPerHour === "number" ? Math.max(0, sg.starburstAutoCatch100MinPerHour) : 0,
     };
-  }, [starburstToggleRefresh]);
+  }, [starburstToggleRefresh, externalRefreshKey]);
 
   /** For Online AFK and Offline Gains: only Elixir (no Lootbug, no Founder, no Starburst). Elixir Drone buffs apply when the client is offline. */
   const droneBuffsOnlineAfk = useMemo(() => {
@@ -464,7 +484,7 @@ export function Stargazing() {
       starburstStarSpawnRatePct: 0,
       starburstAutoCatch100MinPerHour: 0,
     };
-  }, [starburstToggleRefresh]);
+  }, [starburstToggleRefresh, externalRefreshKey]);
 
   /** Offline gains use same drone buff set as Online AFK (Elixir only). */
   const droneBuffsOffline = droneBuffsOnlineAfk;
@@ -718,7 +738,7 @@ export function Stargazing() {
       lines: [
         "Manual catch: full rate (inherent ×5, you switch stages). CTRL+F has no effect.",
         "Auto-catch: toggle \"Do you catch manually?\" off — then CTRL+F applies (0.2 vs 1.0).",
-        "All buffs (Lootbug, Founder Supply Drop, Elixir Drone) are collected. Starburst: enter manually in Your stats.",
+        "All buffs (Lootbug, Founder Supply Drop, Elixir Drone, Starburst Drone) are read from the Drone module. Toggle Starburst in Drone to update Stars/hour here.",
       ],
     }),
     [],
@@ -936,8 +956,9 @@ export function Stargazing() {
                         content={{
                           title: "SS Supernova Supergiants / h for Starfish Quest",
                           lines: [
-                            "SS that roll both Supernova and Supergiant on the same star (Novagiant combo). Required for Starfish Quest progress.",
-                            "Probability multiplies, so this rate is lower than SS Supergiants alone. Shown for current Online setup.",
+                            <span key="novagiant" style={{ fontWeight: "bold", fontSize: "1.15em" }}>Supergiant and Supernova together are called Novagiant.</span>,
+                            "SS that roll both on the same star count for Starfish Quest. Probability multiplies, so this rate is lower than SS Supergiants alone.",
+                            "Shown for current Online setup.",
                           ],
                         }}
                         label="?"
@@ -1083,42 +1104,97 @@ export function Stargazing() {
                   );
                 })}
               </div>
-              <div className="sgRows" style={{ marginTop: 12 }}>
-                <Stepper
-                  label="Happy Bot Pet Quest rank (0 = none)"
-                  value={starCards.happy_bot_rank}
-                  onChange={(v) => setStarCards((s) => ({ ...s, happy_bot_rank: clamp(v, 0, 10) }))}
-                  step={1}
+            </div>
+          </Collapsible>
+
+        <Collapsible
+          id="stargazing-diverse-upgrades"
+          title="Diverse Upgrades (Mid-Late Game)"
+          defaultExpanded={false}
+          className="archDiverseUpgrades"
+        >
+            <div className="panel archDiverseSection" style={{ padding: "8px 10px" }}>
+              <div
+                className="fragmentUpgradeRow"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}
+              >
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/c/c5/Happybot_Quest.png/36px-Happybot_Quest.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ flexShrink: 0 }}
+                />
+                <span style={{ color: "var(--text, inherit)" }}>
+                  Happy Bot Pet Quest rank (0 = none)
+                  <Tooltip
+                    content={{
+                      title: "Happy Bot Pet Quest",
+                      lines: ["Rank Up at Level 225+. Ranks 1–10 XP: 150, 225, 335, 505, 760, 1,140, 1,710, 2,560, 3,845, 5,765. +2% poly card gain per rank."],
+                    }}
+                  />
+                </span>
+                <span className="small mono">Rank:</span>
+                <input
+                  className="input mono"
+                  type="number"
                   min={0}
                   max={10}
-                  decimals={0}
-                  inputMode="numeric"
-                />
-                <div className="sgRow" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div className="sgLabel" style={{ marginBottom: 0, flex: 1 }}>
-                    <span className="sgLabelName">Polychrome Potency Bundle! (×1.15)</span>
-                  </div>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={starCards.polychrome_bundle}
-                      onChange={(e) => setStarCards((s) => ({ ...s, polychrome_bundle: e.target.checked }))}
-                    />
-                    Polychrome Potency Bundle active
-                  </label>
-                </div>
-                <Stepper
-                  label="Infernal Bonus (×)"
-                  value={starCards.infernal_bonus}
-                  onChange={(v) => setStarCards((s) => ({ ...s, infernal_bonus: v }))}
-                  step={0.01}
-                  min={0}
-                  max={1_000}
-                  decimals={2}
+                  step={1}
+                  value={starCards.happy_bot_rank}
+                  onChange={(e) => setStarCards((s) => ({ ...s, happy_bot_rank: clamp(Number(e.target.value), 0, 10) }))}
+                  style={{ width: 56 }}
                 />
               </div>
-              <div className="small" style={{ marginTop: 10, opacity: 0.85 }}>
-                Happy Bot: Rank Up at Level 225+. Ranks 1–10 XP: 150, 225, 335, 505, 760, 1,140, 1,710, 2,560, 3,845, 5,765.
+              <div
+                className="fragmentUpgradeRow"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}
+              >
+                <img
+                  src="https://static.wikitide.net/shminerwiki/thumb/0/04/Polychromepotency_vp.png/36px-Polychromepotency_vp.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ flexShrink: 0, objectFit: "contain" }}
+                />
+                <span style={{ color: "var(--text, inherit)" }}>
+                  Polychrome Potency Bundle! (×1.15)
+                  <Tooltip content={{ title: "Polychrome Potency Bundle", lines: ["When active: star card polychrome gain ×1.15."] }} />
+                </span>
+                <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={starCards.polychrome_bundle}
+                    onChange={(e) => setStarCards((s) => ({ ...s, polychrome_bundle: e.target.checked }))}
+                    aria-label="Polychrome Potency Bundle active"
+                  />
+                </label>
+              </div>
+              <div
+                className="fragmentUpgradeRow"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+              >
+                <img
+                  src="https://static.wikitide.net/shminerwiki/8/8b/Card_Backing_Infernal.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{ flexShrink: 0, objectFit: "contain" }}
+                />
+                <span style={{ color: "var(--text, inherit)" }}>
+                  Infernal Bonus (×)
+                  <Tooltip content={{ title: "Infernal Bonus", lines: ["Multiplier applied to star card gains from infernal cards."] }} />
+                </span>
+                <input
+                  className="input mono"
+                  type="number"
+                  min={0}
+                  max={1000}
+                  step={0.01}
+                  value={starCards.infernal_bonus}
+                  onChange={(e) => setStarCards((s) => ({ ...s, infernal_bonus: clamp(Number(e.target.value) || 0, 0, 1000) }))}
+                  style={{ width: 72 }}
+                />
               </div>
             </div>
           </Collapsible>
