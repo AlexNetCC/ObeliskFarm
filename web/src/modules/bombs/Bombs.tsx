@@ -5,14 +5,13 @@ import { Collapsible } from "../../components/Collapsible";
 import { Tooltip } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
 import { loadJson, saveJson } from "../../lib/storage";
-import { calculateGemBombGemsPerHour, defaultGameParameters, getEffectiveGameSpeedMultiplierForTime, getGameSpeedBonus, getGemBombGemChanceT12Bonus, type GameParameters } from "../../lib/gemev/freebieEv";
+import { calculateGemBombGemsPerHour, defaultGameParameters, getEffectiveGameSpeedMultiplierForTime, type GameParameters } from "../../lib/gemev/freebieEv";
 
 const STORAGE_KEY = "obeliskfarm:web:bombs_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const CHAOS_TOTEM_ICON = "https://static.wikitide.net/shminerwiki/a/a6/Chaos_Totem.png";
 const WORKSHOP_BUTTON_ICON = "https://static.wikitide.net/shminerwiki/6/6f/Workshop_Button.png";
 const FOUNDER_BOMB_VISIBLE = false;
-const AUTO_BOMBER_INTERVAL_GAME_SEC = 1.25;
 
 function rechargeChargeMultiplier(cardLevel: number): number {
   const lvl = Math.max(0, Math.min(3, Math.trunc(cardLevel)));
@@ -190,8 +189,6 @@ export function Bombs() {
     const saved = loadJson<{ chaosTotem100Uptime?: boolean }>(STORAGE_KEY);
     return saved?.chaosTotem100Uptime ?? false;
   });
-  const [autoBomberOfflineGains, setAutoBomberOfflineGains] = useState(false);
-
   const externalFromGemEv = useMemo(() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
@@ -266,25 +263,6 @@ export function Bombs() {
   }, [gemBombGemsPerHour, gemBomb10xImpact, chaosTotemImpact, chaosTotem100Uptime]);
 
   const gameSpeedMult = useMemo(() => getEffectiveGameSpeedMultiplierForTime(effectiveParams), [effectiveParams]);
-  const autoBomberStats = useMemo(() => {
-    const drone10xMinPerHour = autoBomberOfflineGains ? 0 : externalFromGemEv.drone;
-    const drone10xUptime = drone10xMinPerHour / 60.0;
-    const bomb10xFactor = 1.0 + 9.0 * drone10xUptime;
-    const chaosUptime = chaosTotem100Uptime ? 1.0 : 0.0;
-    const chaosFactor = 1.0 + chaosUptime;
-    const gameSpeedBonus = getGameSpeedBonus(effectiveParams);
-    const effGemSec = Math.max(0.01, params.gem_bomb_recharge_seconds) / (1.0 + gameSpeedBonus) / bomb10xFactor / chaosFactor;
-    const freeBombMult = 1.0 / (1.0 - Math.max(0, Math.min(0.99, params.free_bomb_chance)));
-    const gemMult = rechargeChargeMultiplier(params.gem_bomb_recharge_card_level);
-    const gemBombsRechargedPerHour = (3600 / effGemSec) * gemMult * freeBombMult;
-    const intervalRealSec = AUTO_BOMBER_INTERVAL_GAME_SEC / gameSpeedMult;
-    const gemBombsDroppedPerHour = intervalRealSec > 0 ? 3600 / intervalRealSec : 0;
-    const effectiveGemBombsPerHour = Math.min(gemBombsDroppedPerHour, gemBombsRechargedPerHour);
-    const gemChance = Math.max(0, Math.min(1, params.gem_bomb_gem_chance)) + getGemBombGemChanceT12Bonus(effectiveParams);
-    const gemEVPerHour = effectiveGemBombsPerHour * gemChance;
-    const rechargeMinusDropped = gemBombsRechargedPerHour - gemBombsDroppedPerHour;
-    return { gemBombsDroppedPerHour, gemBombsRechargedPerHour, gemEVPerHour, rechargeMinusDropped };
-  }, [effectiveParams, params.free_bomb_chance, params.gem_bomb_recharge_seconds, params.gem_bomb_recharge_card_level, params.gem_bomb_gem_chance, externalFromGemEv.drone, gameSpeedMult, chaosTotem100Uptime, autoBomberOfflineGains]);
 
   return (
     <div className="container">
@@ -500,79 +478,6 @@ export function Bombs() {
             <Stepper label="Refill Chance (%)" value={params.d20_bomb_refill_chance * 100} onChange={(v) => setParams((s) => ({ ...s, d20_bomb_refill_chance: v / 100 }))} step={0.5} min={0} max={100} decimals={1} />
           </div>
         </div>
-        </Collapsible>
-
-        <Collapsible
-          id="bombs-auto-bomber"
-          title="Auto-Bomber"
-          defaultExpanded={false}
-          className="gemEvSection tierHeader1"
-          headerRight={
-            <Tooltip
-              content={{
-                title: "Auto-Bomber",
-                sections: [
-                  {
-                    heading: "What this shows",
-                    lines: [
-                      "Gem Bomb balance if you only run the auto-bomber: consumption (drops) vs recharge. No Battery/D20 refills, no Charge Magnets.",
-                      "1.25 s between drops (game time); divided by Game Speed from Gem EV for real time.",
-                    ],
-                  },
-                  {
-                    heading: "10× Bomb Recharge",
-                    lines: ["Only Elixir Drone is used here (runs on auto-pilot). Lootbug is not included."],
-                  },
-                  {
-                    heading: "Offline Gains",
-                    lines: ["When checked, Elixir Drone 10× recharge is excluded from the auto-bomber calculation (offline = no drone buff)."],
-                  },
-                ],
-              }}
-              label="?"
-            />
-          }
-        >
-          <div className="gemEvSectionBody">
-            <p className="small" style={{ marginBottom: 10 }}>
-              Raw Gem Bombs: how many dropped by auto-bomber vs how many recharged (no D20/Battery refills, no Charge Magnets). Interval: {AUTO_BOMBER_INTERVAL_GAME_SEC} s game time ÷ Game Speed = {(AUTO_BOMBER_INTERVAL_GAME_SEC / gameSpeedMult).toFixed(2)} s real.
-            </p>
-            <label className="toggle" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <input
-                type="checkbox"
-                checked={autoBomberOfflineGains}
-                onChange={(e) => setAutoBomberOfflineGains(e.target.checked)}
-              />
-              <span>Offline Gains = No Elixir Drone buff</span>
-            </label>
-            <div className="gemEvBombBlock">
-              <div className="gemEvBombHeader">
-                <span className="mono" style={{ fontWeight: 900 }}>Gem Bomb (auto-bomber)</span>
-                <Sprite path="sprites/event/gembomb.png" alt="Gem Bomb" className="iconSmall" />
-              </div>
-              <div className="gemEvRow" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div className="gemEvRow" style={{ justifyContent: "space-between" }}>
-                  <span className="mono small">Gem Bombs/h dropped (auto-bomber)</span>
-                  <span className="mono">{autoBomberStats.gemBombsDroppedPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                </div>
-                <div className="gemEvRow" style={{ justifyContent: "space-between" }}>
-                  <span className="mono small">Gem Bombs/h recharged</span>
-                  <span className="mono">{autoBomberStats.gemBombsRechargedPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                </div>
-                <div
-                  className={`gemEvRow ${autoBomberStats.rechargeMinusDropped < 0 ? "gemEvAutoBomberNegativeGlow" : ""}`}
-                  style={{ justifyContent: "space-between" }}
-                >
-                  <span className="mono small">Recharge − Dropped</span>
-                  <span className="mono">{autoBomberStats.rechargeMinusDropped >= 0 ? "+" : ""}{autoBomberStats.rechargeMinusDropped.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                </div>
-                <div className="gemEvRow" style={{ justifyContent: "space-between" }}>
-                  <span className="mono small">Gem EV/h (from Gem Bomb)</span>
-                  <span className="mono">{autoBomberStats.gemEVPerHour.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </Collapsible>
       </div>
     </div>

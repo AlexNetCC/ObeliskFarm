@@ -1171,10 +1171,12 @@ export function GemEv() {
                     />
                   </div>
 
-                  {/* Tier 2: Super Stonks (medium green) */}
-                  <div className="gemEvStonksTier gemEvStonksTier2">
-                    <div className="gemEvInlineHead">
-                      <span className="mono">Super Stonks</span>
+                  {/* Tier 2: Super Stonks (medium green) – collapsible, default collapsed */}
+                  <Collapsible
+                    id="gemev-super-stonks"
+                    title="Super Stonks"
+                    defaultExpanded={false}
+                    headerRight={
                       <Tooltip
                         content={{
                           title: "Super Stonks",
@@ -1182,40 +1184,45 @@ export function GemEv() {
                         }}
                         label="?"
                       />
+                    }
+                  >
+                    <div className="gemEvStonksTier gemEvStonksTier2">
+                      <Stepper
+                        label="Super Stonks chance (%)"
+                        value={(params.super_stonks_chance ?? 0) * 100}
+                        onChange={(v) => setParams((s) => ({ ...s, super_stonks_chance: v / 100 }))}
+                        step={0.5}
+                        min={0}
+                        max={100}
+                        decimals={1}
+                      />
+                      <Stepper
+                        label="Super Stonks bonus (Gems)"
+                        value={params.super_stonks_bonus_gems ?? 0}
+                        onChange={(v) => setParams((s) => ({ ...s, super_stonks_bonus_gems: v }))}
+                        step={10}
+                        min={0}
+                        max={99999}
+                        decimals={0}
+                      />
+                      <Stepper
+                        label="Super Stonks multiplier (×)"
+                        value={params.super_stonks_multiplier ?? 1}
+                        onChange={(v) => setParams((s) => ({ ...s, super_stonks_multiplier: v }))}
+                        step={0.1}
+                        min={0}
+                        max={999}
+                        decimals={1}
+                      />
                     </div>
-                    <Stepper
-                      label="Super Stonks chance (%)"
-                      value={(params.super_stonks_chance ?? 0) * 100}
-                      onChange={(v) => setParams((s) => ({ ...s, super_stonks_chance: v / 100 }))}
-                      step={0.5}
-                      min={0}
-                      max={100}
-                      decimals={1}
-                    />
-                    <Stepper
-                      label="Super Stonks bonus (Gems)"
-                      value={params.super_stonks_bonus_gems ?? 0}
-                      onChange={(v) => setParams((s) => ({ ...s, super_stonks_bonus_gems: v }))}
-                      step={10}
-                      min={0}
-                      max={99999}
-                      decimals={0}
-                    />
-                    <Stepper
-                      label="Super Stonks multiplier (×)"
-                      value={params.super_stonks_multiplier ?? 1}
-                      onChange={(v) => setParams((s) => ({ ...s, super_stonks_multiplier: v }))}
-                      step={0.1}
-                      min={0}
-                      max={999}
-                      decimals={1}
-                    />
-                  </div>
+                  </Collapsible>
 
-                  {/* Tier 3: Ultra Stonks (darkest green) */}
-                  <div className="gemEvStonksTier gemEvStonksTier3">
-                    <div className="gemEvInlineHead">
-                      <span className="mono">Ultra Stonks</span>
+                  {/* Tier 3: Ultra Stonks (darkest green) – collapsible, default collapsed */}
+                  <Collapsible
+                    id="gemev-ultra-stonks"
+                    title="Ultra Stonks"
+                    defaultExpanded={false}
+                    headerRight={
                       <Tooltip
                         content={{
                           title: "Ultra Stonks",
@@ -1223,35 +1230,38 @@ export function GemEv() {
                         }}
                         label="?"
                       />
+                    }
+                  >
+                    <div className="gemEvStonksTier gemEvStonksTier3">
+                      <Stepper
+                        label="Ultra Stonks chance (%)"
+                        value={(params.ultra_stonks_chance ?? 0) * 100}
+                        onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_chance: v / 100 }))}
+                        step={0.5}
+                        min={0}
+                        max={100}
+                        decimals={1}
+                      />
+                      <Stepper
+                        label="Ultra Stonks bonus (Gems)"
+                        value={params.ultra_stonks_bonus_gems ?? 0}
+                        onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_bonus_gems: v }))}
+                        step={10}
+                        min={0}
+                        max={99999}
+                        decimals={0}
+                      />
+                      <Stepper
+                        label="Ultra Stonks multiplier (×)"
+                        value={params.ultra_stonks_multiplier ?? 1}
+                        onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_multiplier: v }))}
+                        step={0.1}
+                        min={0}
+                        max={999}
+                        decimals={1}
+                      />
                     </div>
-                    <Stepper
-                      label="Ultra Stonks chance (%)"
-                      value={(params.ultra_stonks_chance ?? 0) * 100}
-                      onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_chance: v / 100 }))}
-                      step={0.5}
-                      min={0}
-                      max={100}
-                      decimals={1}
-                    />
-                    <Stepper
-                      label="Ultra Stonks bonus (Gems)"
-                      value={params.ultra_stonks_bonus_gems ?? 0}
-                      onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_bonus_gems: v }))}
-                      step={10}
-                      min={0}
-                      max={99999}
-                      decimals={0}
-                    />
-                    <Stepper
-                      label="Ultra Stonks multiplier (×)"
-                      value={params.ultra_stonks_multiplier ?? 1}
-                      onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_multiplier: v }))}
-                      step={0.1}
-                      min={0}
-                      max={999}
-                      decimals={1}
-                    />
-                  </div>
+                  </Collapsible>
 
                   {/* Stonks all multiplier */}
                   <div className="gemEvInlineHead" style={{ marginTop: 4 }}>

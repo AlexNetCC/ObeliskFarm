@@ -20,7 +20,7 @@ import {
 } from "../../lib/lootbug/constants";
 import { LootbugEvChart, type LootbugEvBreakdown } from "./LootbugEvChart";
 
-const DEFAULT_ACTIVE_GEM_BUFFS = ["2x Game Speed", "10x Bomb Recharge"];
+const DEFAULT_ACTIVE_GEM_BUFFS = ["10x Bomb Recharge"];
 
 const LOOTBUG_BASE_SPAWN_MIN = 20;
 const STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
@@ -825,7 +825,7 @@ export function Lootbug() {
           </div>
         </div>
 
-        <Collapsible id="lootbug-stats" title="Lootbug stats" defaultExpanded={false}>
+        <Collapsible id="lootbug-stats" title="Lootbug stats" defaultExpanded={true}>
           <div className="lootbugSection">
             <div className="lootbugSectionTitle">Your stats</div>
           {effectiveSpawnMinReal > 0 && (

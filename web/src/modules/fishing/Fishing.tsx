@@ -968,7 +968,7 @@ export function Fishing() {
       dronesPerDock[d.id] = saved?.dronesPerDock?.[d.id] ?? (i === 0 ? Math.max(0, Math.round(computed.fishing_drone_cap)) : 0);
     });
     const showDisabledFishGrayed = saved?.showDisabledFishGrayed ?? false;
-    const showPolyShardDroprate = saved?.showPolyShardDroprate ?? false;
+    const showPolyShardDroprate = saved?.showPolyShardDroprate ?? true;
     const useGemIncomeForCostEffic = saved?.useGemIncomeForCostEffic ?? true;
     const activeDockId: DockId = (saved?.activeDockId != null ? saved.activeDockId : "lake") as DockId;
     const fishCardTier = saved?.fishCardTier ?? {};
@@ -3758,7 +3758,7 @@ export function Fishing() {
               <span className="mono">{dockScore.toFixed(2)}</span>
               <Tooltip content={dockScoreTooltip} />
             </div>
-            <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={false} className="fishingUpgradesTier">
+            <Collapsible id="fishing-upgrades-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
                 <table className="fishingUpgradeTable">
                   <thead>
@@ -4101,7 +4101,7 @@ export function Fishing() {
               Enhancements cost <img src={GEM_ICON_URL} alt="gems" className="fishingGemIcon" /> gems. They do not count toward completion. See{" "}
               <a href="https://shminer.miraheze.org/wiki/Fishing#Enhancements" target="_blank" rel="noopener noreferrer">Fishing § Enhancements</a>.
             </p>
-            <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={false} className="fishingUpgradesTier">
+            <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
                 <table className="fishingUpgradeTable">
                   <thead>

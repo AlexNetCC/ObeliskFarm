@@ -127,7 +127,7 @@ export type GameParameters = {
 
 export function defaultGameParameters(): GameParameters {
   return {
-    founder_enabled: true,
+    founder_enabled: false,
     freebie_gems_base: 9.0,
     freebie_timer_minutes: 7.0,
     game_speed_multiplier: 1.0,

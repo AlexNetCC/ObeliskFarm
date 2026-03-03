@@ -808,7 +808,6 @@ export function Stargazing() {
         <div className="panel panelResults">
             <div className="panelHeader">
               <h2 className="panelTitle">Results</h2>
-              <p className="panelHint">Updates instantly.</p>
             </div>
 
             <div className="sgResultsCardSelect" style={{ marginBottom: 10 }}>
