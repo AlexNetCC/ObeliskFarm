@@ -831,13 +831,14 @@ export function Lootbug() {
           {effectiveSpawnMinReal > 0 && (
             <div className="lootbugRow">
               <span className="lootbugLabel">
-                Spawn time & occurence rate
+                Spawn time & occurrence rate
                 <Tooltip
                   content={{
                     title: "Spawn interval",
                     lines: [
                       "Time between spawns in real time. Game time ÷ game speed.",
-                      "Lootbugs/h: spawns per hour × expected lootbugs per spawn (1 or 3 with Triple chance).",
+                      "Spawns/h: how often a spawn event occurs. Lootbugs/h: spawns × expected lootbugs per spawn (1 or 3 with Triple).",
+                      "Bank capacity is in spawn slots: 1 spawn = 1 slot (triple uses 1 slot).",
                     ],
                   }}
                 />
@@ -847,7 +848,7 @@ export function Lootbug() {
                   ? effectiveSpawnMinReal.toFixed(1) + " min"
                   : (effectiveSpawnMinReal * 60).toFixed(1) + " s"}
                 {" · "}
-                {lootbugsPerHour.toFixed(1)} lootbugs/h
+                <span className="mono">{spawnsPerHour.toFixed(1)}</span> spawns/h · <span className="mono">{lootbugsPerHour.toFixed(1)}</span> lootbugs/h
               </span>
             </div>
           )}
@@ -966,7 +967,8 @@ export function Lootbug() {
                     content={{
                       title: "Banked Lootbugs (cap)",
                       lines: [
-                        "Lootbug bank capacity. In-game this value is shown as Banked Lootbugs.",
+                        "Lootbug bank capacity (spawn slots). In-game shown as Banked Lootbugs.",
+                        "One slot per spawn; triple = 3 lootbugs but still uses 1 slot.",
                         "Increased by Lootbug Lantern (+1 each, cap +25), Banker's Bundle, Saving For A Rainy Day.",
                       ],
                     }}
@@ -979,21 +981,24 @@ export function Lootbug() {
             min={1}
             max={999}
           />
-          {lootbugsPerHour > 0 && (
+          {spawnsPerHour > 0 && (
             <div className="lootbugRow">
               <span className="lootbugLabel">
                 Time to lootbug cap{" "}
                 <Tooltip
                   content={{
                     title: "Time to hit Lootbug cap",
-                    lines: ["Time from 0 banked until the bank is full, at current lootbugs/h."],
+                    lines: [
+                      "Time from 0 banked until the bank is full, at current spawn rate.",
+                      "The bank counts spawn events: 1 spawn = 1 slot (triple = 3 lootbugs but still 1 slot).",
+                    ],
                   }}
                 />
               </span>
               <span className="lootbugValue mono">
                 {(() => {
                   const cap = state.bankCap;
-                  const hours = cap / lootbugsPerHour;
+                  const hours = cap / spawnsPerHour;
                   const totalMinutes = hours * 60;
                   if (hours >= 1) {
                     const h = Math.floor(hours);
