@@ -689,8 +689,10 @@ function StepperRow(props: {
   onChange: (v: number) => void;
   tooltipContent?: import("../../components/Tooltip").TooltipContent;
   effectText?: ReactNode;
+  /** Optional extra class for the level input (e.g. wider for 3+ digits). */
+  inputClassName?: string;
 }) {
-  const { label, iconUrl, value, min, max, onChange, tooltipContent, effectText } = props;
+  const { label, iconUrl, value, min, max, onChange, tooltipContent, effectText, inputClassName } = props;
   const [focused, setFocused] = useState(false);
   const [raw, setRaw] = useState(() => String(value));
 
@@ -711,7 +713,7 @@ function StepperRow(props: {
   };
 
   return (
-    <div className="fishingStepperRow">
+    <div className={`fishingStepperRow ${inputClassName ? "fishingStepperRowWideLvl" : ""}`.trim()}>
       <div className="fishingStepperNameBlock">
         {iconUrl ? (
           <img src={iconUrl} alt="" className="fishingUpgradeIcon" aria-hidden />
@@ -737,7 +739,7 @@ function StepperRow(props: {
         <input
           type="text"
           inputMode="numeric"
-          className="input mono fishingStepperLevelInput"
+          className={`input mono fishingStepperLevelInput ${inputClassName ?? ""}`.trim()}
           value={focused ? raw : String(value)}
           onChange={(e) => setRaw(e.target.value)}
           onFocus={() => {
@@ -979,18 +981,18 @@ export function Fishing() {
     const abyssLegendaryCaught = Boolean(saved?.abyssLegendaryCaught ?? false);
     const fishingRodCardTier = clamp(Math.trunc(Number(saved?.fishingRodCardTier ?? 0)), 0, 3) as FishCardTier;
     const mrNibblesCardTier = clamp(Math.trunc(Number(saved?.mrNibblesCardTier ?? 0)), 0, 3) as FishCardTier;
-    const divineRelic5xPoints = clamp(Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)), 0, 50);
+    const divineRelic5xPoints = Math.max(0, Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)));
     const mcHours = clamp(Number(saved?.mcHours ?? 8), 0.1, 720);
     const mcRuns = clamp(Math.trunc(Number(saved?.mcRuns ?? 10000)), 1000, 100000);
     const rawMrLvl = Number(saved?.mrNibblesLevel ?? 0);
     const mrNibblesLevel = Number.isFinite(rawMrLvl) ? Math.max(0, Math.trunc(rawMrLvl)) : 0;
     const rawMrQuest = Number(saved?.mrNibblesQuestRank ?? 0);
     const mrNibblesQuestRank = Number.isFinite(rawMrQuest) ? Math.max(0, Math.trunc(rawMrQuest)) : 0;
-    const poseidonIdolLevel = clamp(Math.trunc(Number(saved?.poseidonIdolLevel ?? 0)), 0, 20);
-    const tethysIdolLevel = clamp(Math.trunc(Number(saved?.tethysIdolLevel ?? 0)), 0, 20);
+    const poseidonIdolLevel = Math.max(0, Math.trunc(Number(saved?.poseidonIdolLevel ?? 0)));
+    const tethysIdolLevel = Math.max(0, Math.trunc(Number(saved?.tethysIdolLevel ?? 0)));
     const astraeusIdolLevel = Math.max(0, Math.trunc(Number(saved?.astraeusIdolLevel ?? 0)));
-    const fishingDroneBasePowerWorld3 = clamp(Math.trunc(Number(saved?.fishingDroneBasePowerWorld3 ?? 0)), 0, 99);
-    const workshopSushiTicksWorld3 = clamp(Math.trunc(Number(saved?.workshopSushiTicksWorld3 ?? 0)), 0, 99);
+    const fishingDroneBasePowerWorld3 = Math.max(0, Math.trunc(Number(saved?.fishingDroneBasePowerWorld3 ?? 0)));
+    const workshopSushiTicksWorld3 = Math.max(0, Math.trunc(Number(saved?.workshopSushiTicksWorld3 ?? 0)));
     const legendaryHaulerBundle = Boolean(saved?.legendaryHaulerBundle ?? false);
     const fishersBundle = Boolean(saved?.fishersBundle ?? false);
     const anglerBundle = Boolean(saved?.anglerBundle ?? false);
@@ -1001,9 +1003,9 @@ export function Fishing() {
     const cetusLevel = Math.max(0, Math.trunc(Number(saved?.cetusLevel ?? 0)));
     const blackHoleBonus = Boolean(saved?.blackHoleBonus ?? false);
     const droneBasePowerWorld3Upgrade = Math.max(0, Math.trunc(Number(saved?.droneBasePowerWorld3Upgrade ?? 0)));
-    const infernalMrNibblesPct = clamp(Number(saved?.infernalMrNibblesPct ?? 0), 0, 100);
+    const infernalMrNibblesPct = Math.max(0, Number(saved?.infernalMrNibblesPct ?? 0));
     const infernalMrNibblesLevel = Math.max(0, Math.trunc(Number(saved?.infernalMrNibblesLevel ?? 0)));
-    const infernalAnglerDronePct = clamp(Number(saved?.infernalAnglerDronePct ?? 0), 0, 100);
+    const infernalAnglerDronePct = Math.max(0, Number(saved?.infernalAnglerDronePct ?? 0));
     const infernalAnglerDroneLevel = Math.max(0, Math.trunc(Number(saved?.infernalAnglerDroneLevel ?? 0)));
     return { dronesPerDock, showDisabledFishGrayed, showPolyShardDroprate, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, abyssLegendaryCaught, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
   });
@@ -4949,6 +4951,7 @@ export function Fishing() {
                     → Shiny ×{(1 + 0.03 * state.mrNibblesLevel).toFixed(2)}; triple tick +{state.mrNibblesLevel}%
                   </>
                 }
+                inputClassName="fishingStepperLevelInputWide"
               />
               <StepperRow
                 label="Mr Nibbles Quest"
@@ -4969,6 +4972,7 @@ export function Fishing() {
                   ],
                 }}
                 effectText={`→ T2 Dock Power ×${(1 + 0.05 * state.mrNibblesQuestRank).toFixed(2)} (+${state.mrNibblesQuestRank * 5}%)`}
+                inputClassName="fishingStepperLevelInputWide"
               />
             </div>
 
@@ -5002,14 +5006,13 @@ export function Fishing() {
                       type="number"
                       inputMode="decimal"
                       min={0}
-                      max={100}
                       step={0.5}
                       className="input mono fishingInfernalInput"
                       value={state.infernalMrNibblesPct}
                       onChange={(e) => {
                         const v = Number(e.target.value.replace(",", "."));
                         if (!Number.isFinite(v)) return;
-                        setState((prev) => ({ ...prev, infernalMrNibblesPct: Math.max(0, Math.min(100, v)) }));
+                        setState((prev) => ({ ...prev, infernalMrNibblesPct: Math.max(0, v) }));
                       }}
                       aria-label="Infernal Mr Nibbles % per level"
                     />
@@ -5020,14 +5023,13 @@ export function Fishing() {
                       type="number"
                       inputMode="numeric"
                       min={0}
-                      max={999}
                       step={1}
                       className="input mono fishingInfernalInput"
                       value={state.infernalMrNibblesLevel}
                       onChange={(e) => {
                         const v = parseInt(e.target.value.replace(",", "."), 10);
                         if (!Number.isFinite(v)) return;
-                        setState((prev) => ({ ...prev, infernalMrNibblesLevel: Math.max(0, Math.min(999, v)) }));
+                        setState((prev) => ({ ...prev, infernalMrNibblesLevel: Math.max(0, v) }));
                       }}
                       aria-label="Infernal Mr Nibbles level"
                     />
@@ -5062,14 +5064,13 @@ export function Fishing() {
                       type="number"
                       inputMode="decimal"
                       min={0}
-                      max={100}
                       step={0.5}
                       className="input mono fishingInfernalInput"
                       value={state.infernalAnglerDronePct}
                       onChange={(e) => {
                         const v = Number(e.target.value.replace(",", "."));
                         if (!Number.isFinite(v)) return;
-                        setState((prev) => ({ ...prev, infernalAnglerDronePct: Math.max(0, Math.min(100, v)) }));
+                        setState((prev) => ({ ...prev, infernalAnglerDronePct: Math.max(0, v) }));
                       }}
                       aria-label="Infernal Angler Drone % per level"
                     />
@@ -5080,14 +5081,13 @@ export function Fishing() {
                       type="number"
                       inputMode="numeric"
                       min={0}
-                      max={999}
                       step={1}
                       className="input mono fishingInfernalInput"
                       value={state.infernalAnglerDroneLevel}
                       onChange={(e) => {
                         const v = parseInt(e.target.value.replace(",", "."), 10);
                         if (!Number.isFinite(v)) return;
-                        setState((prev) => ({ ...prev, infernalAnglerDroneLevel: Math.max(0, Math.min(999, v)) }));
+                        setState((prev) => ({ ...prev, infernalAnglerDroneLevel: Math.max(0, v) }));
                       }}
                       aria-label="Infernal Angler Drone level"
                     />
@@ -5108,17 +5108,19 @@ export function Fishing() {
                 iconUrl="https://static.wikitide.net/shminerwiki/4/43/Poseidon.png"
                 value={state.poseidonIdolLevel}
                 min={0}
-                max={20}
-                onChange={(n) => setState((prev) => ({ ...prev, poseidonIdolLevel: clamp(n, 0, 20) }))}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, poseidonIdolLevel: Math.max(0, n) }))}
                 effectText={`→ +${(state.poseidonIdolLevel * 0.25).toFixed(2)} base drone power`}
+                inputClassName="fishingStepperLevelInputWide"
               />
               <StepperRow
                 label="Tethys Idol"
                 iconUrl="https://static.wikitide.net/shminerwiki/0/0b/Tethys.png"
                 value={state.tethysIdolLevel}
                 min={0}
-                max={20}
-                onChange={(n) => setState((prev) => ({ ...prev, tethysIdolLevel: clamp(n, 0, 20) }))}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, tethysIdolLevel: Math.max(0, n) }))}
+                inputClassName="fishingStepperLevelInputWide"
                 tooltipContent={{
                   title: "Tethys Idol",
                   sections: [
@@ -5158,6 +5160,7 @@ export function Fishing() {
                   ],
                 }}
                 effectText={`→ +${(state.astraeusIdolLevel * 0.03).toFixed(2)}% double tick chance`}
+                inputClassName="fishingStepperLevelInputWide"
               />
             </div>
 
@@ -5170,8 +5173,8 @@ export function Fishing() {
                 iconUrl={RELICS_ICON_URL}
                 value={state.divineRelic5xPoints}
                 min={0}
-                max={50}
-                onChange={(n) => setState((prev) => ({ ...prev, divineRelic5xPoints: clamp(n, 0, 50) }))}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, divineRelic5xPoints: Math.max(0, n) }))}
                 tooltipContent={{
                   title: "Divine Relic",
                   sections: [
@@ -5186,6 +5189,7 @@ export function Fishing() {
                   ],
                 }}
                 effectText={`→ +${state.divineRelic5xPoints * 2}% 5× tick chance`}
+                inputClassName="fishingStepperLevelInputWide"
               />
             </div>
 
@@ -5205,6 +5209,7 @@ export function Fishing() {
                   lines: ["Each level gives Shiny Fish Multiplier +10% (own multiplier)."],
                 }}
                 effectText={`→ Shiny ×${(1 + 0.1 * state.divineChallengeCoinLevel).toFixed(2)} (+${state.divineChallengeCoinLevel * 10}%)`}
+                inputClassName="fishingStepperLevelInputWide"
               />
             </div>
 
@@ -5304,6 +5309,7 @@ export function Fishing() {
                   ],
                 }}
                 effectText={`→ Fish Income ×${(1 + 0.02 * state.cetusLevel).toFixed(2)} (+${state.cetusLevel * 2}%)`}
+                inputClassName="fishingStepperLevelInputWide"
               />
               <div className="fishingCheckboxRow">
                 <img
@@ -5471,18 +5477,20 @@ export function Fishing() {
                 iconUrl="https://static.wikitide.net/shminerwiki/f/f0/Drone_Power_Multiplier.png"
                 value={state.fishingDroneBasePowerWorld3}
                 min={0}
-                max={99}
-                onChange={(n) => setState((prev) => ({ ...prev, fishingDroneBasePowerWorld3: clamp(n, 0, 99) }))}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, fishingDroneBasePowerWorld3: Math.max(0, n) }))}
                 effectText={`→ +${(state.fishingDroneBasePowerWorld3 * 0.02).toFixed(2)}× multi`}
+                inputClassName="fishingStepperLevelInputWide"
               />
               <StepperRow
                 label="Sushi Fishing Ticks (World 3)"
                 iconUrl="https://static.wikitide.net/shminerwiki/6/6d/Sushi.png"
                 value={state.workshopSushiTicksWorld3}
                 min={0}
-                max={99}
-                onChange={(n) => setState((prev) => ({ ...prev, workshopSushiTicksWorld3: clamp(n, 0, 99) }))}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, workshopSushiTicksWorld3: Math.max(0, n) }))}
                 effectText={`→ +${state.workshopSushiTicksWorld3} sushi ticks`}
+                inputClassName="fishingStepperLevelInputWide"
               />
             </div>
 
@@ -5511,6 +5519,7 @@ export function Fishing() {
                   ],
                 }}
                 effectText={`→ +${(state.droneBasePowerWorld3Upgrade * 0.1).toFixed(2)} base drone power`}
+                inputClassName="fishingStepperLevelInputWide"
               />
             </div>
           </div>

@@ -2833,21 +2833,24 @@ export function ArchSim() {
         ? counts.map((c, i) => {
             if (c <= 0) return null;
             const h = (plotH * c) / maxC;
-            const cx = pad + (i + 0.5) * barW;
+            const barLeft = pad + i * barW;
+            const barWidth = Math.max(1, barW - 1);
+            const barCx = barLeft + barWidth / 2;
             const yBarTop = plotTop + plotH - h;
+            const labelY = yBarTop - 4;
             const pct = (100 * c) / totalSamples;
             const labelText = `${formatWithThinSpaces(c, 0)} (${pct.toFixed(1)}%)`;
             return (
               <text
                 key={i}
-                x={cx}
-                y={yBarTop - 2}
-                textAnchor="middle"
-                dominantBaseline="hanging"
+                x={barCx}
+                y={labelY}
+                textAnchor="start"
+                dominantBaseline="middle"
                 fontSize="9"
                 fontWeight="700"
                 fill="rgba(15,23,42,0.9)"
-                transform={`rotate(-90, ${cx}, ${yBarTop - 2})`}
+                transform={`rotate(-90, ${barCx}, ${labelY})`}
               >
                 {labelText}
               </text>
@@ -4990,7 +4993,15 @@ export function ArchSim() {
                                   <tr key={`${e.id}:row`} className={rowClass}>
                                     <td className="mono time">{new Date(e.createdAt).toLocaleString()}</td>
                                     <td className="run">
-                                      <span className={`mcTypePill mcTypePill_${e.mcType}`}>{e.mcType.toUpperCase()}</span>{" "}
+                                      {e.mc?.screeningSims === 0 ? (
+                                        <>
+                                          <span className="mcTypePill mcTypePill_stage">STAGE</span>{" "}
+                                          <span className="mcTypePill mcTypePill_frag">FRAG</span>{" "}
+                                          <span className="mcTypePill mcTypePill_XP">XP</span>{" "}
+                                        </>
+                                      ) : (
+                                        <span className={`mcTypePill mcTypePill_${e.mcType}`}>{e.mcType.toUpperCase()}</span>
+                                      )}{" "}
                                       <span className="label">{e.label}</span>
                                     </td>
                                     <td className="mono num">{formatWithThinSpaces(e.metrics.floorsPerRun, 2)}</td>
@@ -5065,7 +5076,10 @@ export function ArchSim() {
             <div className="modalHeader">
               <div>
                 <div className="mono" style={{ fontWeight: 900 }}>
-                  {openLog.label} • {openLog.mcType.toUpperCase()}
+                  {openLog.label}
+                  {openLog.mc?.screeningSims === 0
+                    ? " • STAGE • FRAG • XP"
+                    : ` • ${openLog.mcType.toUpperCase()}`}
                 </div>
                 <div className="small">{new Date(openLog.createdAt).toLocaleString()}</div>
               </div>

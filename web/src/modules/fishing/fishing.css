@@ -133,6 +133,9 @@
   flex-shrink: 0;
   justify-self: center;
 }
+.fishingStepperRowWideLvl .fishingStepperLvlBlock {
+  width: 128px;
+}
 .fishingStepperMinusBtn,
 .fishingStepperPlusBtn {
   padding: 3px 8px;
@@ -150,6 +153,10 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
   box-sizing: border-box;
+}
+.fishingStepperLevelInputWide {
+  width: 5ch;
+  min-width: 5ch;
 }
 .fishingStepperLvlBlock .fishingUpgradeLevelLabel {
   font-size: 12px;
@@ -1295,6 +1302,12 @@
 .collapseWrap.fishingDiverseEndgame .collapseHeader {
   background: linear-gradient(135deg, rgba(127, 29, 29, 0.12), rgba(69, 10, 10, 0.08));
   border-bottom: 1px solid rgba(127, 29, 29, 0.2);
+}
+/* Smaller digits in number fields in Diverse section */
+.collapseWrap.fishingDiverseEndgame .fishingStepperLevelInput,
+.collapseWrap.fishingDiverseEndgame .fishingStepperLevelInputWide,
+.collapseWrap.fishingDiverseEndgame .fishingInfernalInput {
+  font-size: 11px;
 }
 
 .fishingCardTierRow {
