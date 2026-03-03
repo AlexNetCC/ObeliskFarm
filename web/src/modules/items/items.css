@@ -105,6 +105,10 @@
   background: rgba(0, 160, 170, 0.88);
 }
 
+.itemsChestsBarLootfrog {
+  background: rgba(80, 160, 80, 0.8);
+}
+
 .itemsChestsBarFreebie {
   background: rgba(180, 140, 30, 0.85);
 }
@@ -158,6 +162,10 @@
 
 .itemsChestsBarLegendSwatch.itemsChestsBarGift {
   background: rgba(0, 160, 170, 0.88);
+}
+
+.itemsChestsBarLegendSwatch.itemsChestsBarLootfrog {
+  background: rgba(80, 160, 80, 0.8);
 }
 
 .itemsChestsBarLegendSwatch.itemsChestsBarFreebie {

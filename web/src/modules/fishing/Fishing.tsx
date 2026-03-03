@@ -1027,6 +1027,7 @@ export function Fishing() {
   /** Bump when Drone (or other module) updates fishing_external so we re-read and re-render. */
   const [fishingExternalRevision, setFishingExternalRevision] = useState(0);
   const [tickChartOpen, setTickChartOpen] = useState(false);
+  const [sushiChartOpen, setSushiChartOpen] = useState(false);
   /** When user edits drone count in the input: { dockId, input }. On blur/Enter we parse and apply (capped to max). */
   const [editingDroneCount, setEditingDroneCount] = useState<{ dockId: DockId; input: string } | null>(null);
   useEffect(() => {
@@ -1257,6 +1258,7 @@ export function Fishing() {
       giftSushiPerHour?: number;
       giftSushiFreebiePerHour?: number;
       giftSushiFounderPerHour?: number;
+      lootfrogSushiPerHour?: number;
     }>(FISHING_EXTERNAL_KEY);
     const minPerHour = typeof ext?.elixir3xFishingTickSpeedMinPerHour === "number" ? ext.elixir3xFishingTickSpeedMinPerHour : 0;
     const uptimeFraction =
@@ -1297,8 +1299,9 @@ export function Fishing() {
       giftPerHourFounder = Math.max(0, bySource.giftPerHourFounder ?? 0);
       gift5xTickUptimeFraction = calculateGift5xTickUptimeFraction(params);
     }
+    const lootfrogSushiPerHour = typeof ext?.lootfrogSushiPerHour === "number" ? Math.max(0, ext.lootfrogSushiPerHour) : 0;
 
-    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour, giftSushiFreebiePerHour, giftSushiFounderPerHour, giftPerHourFreebie, giftPerHourFounder, gift5xTickUptimeFraction };
+    return { elixir3xFishingExternal: { minPerHour, uptimeFraction }, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootbugFishing12TicksProcsPerHour, giftSushiPerHour, giftSushiFreebiePerHour, giftSushiFounderPerHour, giftPerHourFreebie, giftPerHourFounder, gift5xTickUptimeFraction, lootfrogSushiPerHour };
   })();
   const elixir3xFishingExternal = fishingExternalData.elixir3xFishingExternal;
   const anglerTicksPerHour = fishingExternalData.anglerTicksPerHour;
@@ -1314,6 +1317,7 @@ export function Fishing() {
   const giftPerHourFounder = fishingExternalData.giftPerHourFounder ?? 0;
   const giftPerHourTotal = giftPerHourFreebie + giftPerHourFounder;
   const gift5xTickUptimeFraction = fishingExternalData.gift5xTickUptimeFraction ?? 0;
+  const lootfrogSushiPerHour = fishingExternalData.lootfrogSushiPerHour ?? 0;
   /** Angler fuel buff: +X% Legendary Fish Chance during buff uptime. Effective base = 150k × (1 − bonus% × uptime) for rate. */
   const effectiveLegendaryCatchBase = Math.max(1, LEGENDARY_CATCH_BASE * (1 - (anglerLegendaryBonusPct / 100) * anglerBuffUptimeFraction));
   /** Display denominator: when Angler buff is on, show "when buff active" base (matches in-game tooltip), else effective base. */
@@ -1332,16 +1336,17 @@ export function Fishing() {
   const giftSushiTicksPerHour = giftSushiPerHour * ticksPerSushiForGift;
   const giftSushiFreebieTicksPerHour = giftSushiFreebiePerHour * ticksPerSushiForGift;
   const giftSushiFounderTicksPerHour = giftSushiFounderPerHour * ticksPerSushiForGift;
-  const extraTicksPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour + (state.workshopSushiTicksWorld3 ?? 0);
+  const lootfrogSushiTicksPerHour = lootfrogSushiPerHour * ticksPerSushiForGift;
+  const extraTicksPerHour = anglerTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour + lootfrogSushiTicksPerHour + (state.workshopSushiTicksWorld3 ?? 0);
   /** Raw tick-bar units per hour (before double/triple/5× mult). Used for Sushi correspondence. */
   const rawTicksPerHour = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) + extraTicksPerHour;
-  /** Double/triple/5× tick chance: mult (2×, 3×, 5×) from stats, multiplied together. Applies to Base, Angler, Lootbug, Gift Sushi. */
+  /** Double/triple/5× tick chance: mult (2×, 3×, 5×) from stats, multiplied together. Applies to Base, Angler, Lootbug, Gift Sushi, Lootfrog Sushi. */
   const tickMult =
     (1 + stats.double_tick_chance_pct / 100) *
     (1 + 2 * stats.triple_tick_chance_pct / 100) *
     (1 + 4 * stats.five_tick_chance_pct / 100);
   /** Extra effective ticks from Gift basic reward "5× Fishing Tick Chance" (uptime × 4× on that slice). Gift +25% does not apply to Sushi ticks. */
-  const nonSushiRawTicksPerHour = Math.max(0, rawTicksPerHour - giftSushiTicksPerHour);
+  const nonSushiRawTicksPerHour = Math.max(0, rawTicksPerHour - giftSushiTicksPerHour - lootfrogSushiTicksPerHour);
   const gift5xTickContribution = nonSushiRawTicksPerHour * tickMult * 4 * gift5xTickUptimeFraction;
   /** Total effective fishing ticks per hour (base×mult + Gift 5× contribution). Used for display. */
   const totalEffectiveTicksPerHour = rawTicksPerHour * tickMult + gift5xTickContribution;
@@ -1352,12 +1357,13 @@ export function Fishing() {
     angler: "#42a5f5",
     lootbug: "#2196f3",
     giftSushi: "#1e88e5",
+    lootfrogSushi: "#2e7d32",
     gift5x: "#1565c0",
   };
 
   /** Rows for the effective-ticks breakdown bar chart (modal). Only when there is something to show. Workshop Sushi (W3) is shown in the Sushi section, not here. */
   const tickChartRows = useMemo(() => {
-    if (anglerTicksPerHour <= 0 && lootbugFishing12TicksProcsPerHour <= 0 && giftSushiTicksPerHour <= 0 && gift5xTickContribution <= 0 && tickMult <= 1) return [];
+    if (anglerTicksPerHour <= 0 && lootbugFishing12TicksProcsPerHour <= 0 && giftSushiTicksPerHour <= 0 && lootfrogSushiTicksPerHour <= 0 && gift5xTickContribution <= 0 && tickMult <= 1) return [];
     const baseVal = (effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0) * tickMult;
     type Row = { key: string; label: string; value: number; color: string; icon?: ReactNode; subtitle?: string; tooltip: { title: string; lines: string[] } | null };
     const rows: (Row | null)[] = [
@@ -1380,6 +1386,20 @@ export function Fishing() {
                   : "",
                 "Includes double/triple tick mult, but not the 5× tick multi from Gift's 5× tick buff.",
               ].filter(Boolean),
+            },
+          }
+        : null,
+      lootfrogSushiTicksPerHour > 0
+        ? {
+            key: "lootfrogSushi",
+            label: "Lootfrog Sushi",
+            value: lootfrogSushiTicksPerHour * tickMult,
+            color: TICK_CHART_ROW_COLORS.lootfrogSushi,
+            tooltip: {
+              title: "Lootfrog Sushi",
+              lines: [
+                "Sushi from Lootfrog (Drone module). Same ticks per Sushi as Gift Sushi. Open Drone to refresh.",
+              ],
             },
           }
         : null,
@@ -1408,11 +1428,21 @@ export function Fishing() {
     anglerTicksPerHour,
     lootbugFishing12TicksProcsPerHour,
     giftSushiTicksPerHour,
+    lootfrogSushiTicksPerHour,
     gift5xTickContribution,
     giftPerHourTotal,
     giftPerHourFreebie,
     giftPerHourFounder,
   ]);
+
+  const totalSushiPerHour = giftSushiPerHour + lootfrogSushiPerHour;
+  const sushiChartRows = useMemo(() => {
+    if (totalSushiPerHour <= 0) return [];
+    return [
+      { key: "gift", label: "Gift", value: giftSushiPerHour, color: "#1e88e5" },
+      { key: "lootfrog", label: "Lootfrog", value: lootfrogSushiPerHour, color: "#2e7d32" },
+    ].filter((r) => r.value > 0);
+  }, [totalSushiPerHour, giftSushiPerHour, lootfrogSushiPerHour]);
 
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
@@ -1630,7 +1660,7 @@ export function Fishing() {
     const anglerSuitExtra = anglerBaseTicksPerHour;
     const anglerBuffExtra = anglerBuffTicksPerHour;
     const baseTicksPerHour = effectiveTickSec > 0 ? 3600 / effectiveTickSec : 0;
-    const ticksWithoutAngler = baseTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour;
+    const ticksWithoutAngler = baseTicksPerHour + lootbugFishing12TicksProcsPerHour + giftSushiTicksPerHour + lootfrogSushiTicksPerHour;
 
     let totalBase = 0;
     let totalAnglerSuit = 0;
@@ -1720,6 +1750,7 @@ export function Fishing() {
     expectedShinyMulti,
     lootbugFishing12TicksProcsPerHour,
     giftSushiTicksPerHour,
+    lootfrogSushiTicksPerHour,
     effectiveTicksByDock,
   ]);
 
@@ -3108,17 +3139,23 @@ export function Fishing() {
                 label="?"
               />
             </p>
-            <p className="small" style={{ marginBottom: 8, opacity: 0.85 }}>
-              Sushi per hour: <span className="mono">{giftSushiPerHour.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
-              <Tooltip
-                content={{
-                  title: "Sushi per hour",
-                  lines: [
-                    <>Sushi from Gifts per hour. Value comes from <strong>Gem EV Calculator</strong> (Gifts/h); open <strong>Gem EV Calculator</strong> to refresh. EV (fish per Sushi) uses the same formula as Average EV below.</>,
-                  ],
-                }}
-                label="?"
-              />
+            <p className="small" style={{ marginBottom: 8, opacity: 0.85, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              Sushi per hour: <span className="mono">{(giftSushiPerHour + lootfrogSushiPerHour).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
+              {sushiChartRows.length > 0 ? (
+                <button
+                  type="button"
+                  className="fishingTickChartBtn"
+                  onClick={() => setSushiChartOpen(true)}
+                  title="Sushi per hour breakdown"
+                  aria-label="Open Sushi per hour breakdown"
+                >
+                  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <rect x="5" y="14" width="4" height="6" rx="1.5" fill="currentColor" opacity={0.7} />
+                    <rect x="11" y="10" width="4" height="10" rx="1.5" fill="currentColor" opacity={0.85} />
+                    <rect x="17" y="6" width="4" height="14" rx="1.5" fill="currentColor" />
+                  </svg>
+                </button>
+              ) : null}
             </p>
             <div className="fishingFishCardsGrid fishingSushiCardGrid">
               <div className="fishingFishCardCell">
@@ -3361,6 +3398,56 @@ export function Fishing() {
                                     {row.tooltip ? (
                                       <Tooltip content={{ title: row.tooltip.title, lines: row.tooltip.lines }} label="?" />
                                     ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>,
+                    document.body
+                  )
+                : null}
+              {sushiChartOpen && sushiChartRows.length > 0
+                ? createPortal(
+                    <div
+                      className="modalOverlay"
+                      onMouseDown={() => setSushiChartOpen(false)}
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="fishing-sushi-chart-modal-title"
+                    >
+                      <div className="modalWindow fishingTickChartModal" onMouseDown={(e) => e.stopPropagation()}>
+                        <div className="modalHeader fishingTickChartModalHeader">
+                          <div id="fishing-sushi-chart-modal-title" className="mono" style={{ fontWeight: 900 }}>
+                            Sushi per hour breakdown
+                          </div>
+                          <button className="btn btnSecondary" type="button" onClick={() => setSushiChartOpen(false)}>
+                            Close
+                          </button>
+                        </div>
+                        <div className="modalBody fishingTickChartModalBody">
+                          <div className="fishingTickContribBlock">
+                            <div className="fishingTickContribTitle">Sushi sources</div>
+                            <div className="fishingTickContribBars" role="img" aria-label="Sushi per hour contributions bar chart">
+                              {sushiChartRows.map((row) => {
+                                const pct = totalSushiPerHour > 0 ? (row.value / totalSushiPerHour) * 100 : 0;
+                                const maxVal = Math.max(...sushiChartRows.map((r) => r.value), 1);
+                                const widthPct = maxVal > 0 ? (row.value / maxVal) * 100 : 0;
+                                return (
+                                  <div key={row.key} className="fishingTickContribRow">
+                                    <div className="fishingTickContribLabel">{row.label}</div>
+                                    <div className="fishingTickContribBarTrack">
+                                      <div
+                                        className="fishingTickContribBarFill"
+                                        style={{ width: `${widthPct}%`, backgroundColor: row.color }}
+                                      />
+                                    </div>
+                                    <span className="mono fishingTickContribValue" title={`${row.value.toFixed(2)}/h (${pct.toFixed(1)}%)`}>
+                                      {row.value.toFixed(2)}
+                                      <span className="fishingTickContribPct"> ({pct.toFixed(1)}%)</span>
+                                    </span>
                                   </div>
                                 );
                               })}

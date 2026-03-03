@@ -112,6 +112,7 @@ export function Items() {
     stonksRelicChestsPerHour?: number;
     founderSupplyDropItemChestsPerHour?: number;
     founderSupplyDropRelicChestsPerHour?: number;
+    lootfrogRelicChestsPerHour?: number;
     chaosTotemImpact?: number;
     chaosTotem100FromBombs?: boolean;
     total10xMinPerHour?: number;
@@ -136,7 +137,8 @@ export function Items() {
   const stonksRelicChestsPerHour = typeof ext?.stonksRelicChestsPerHour === "number" ? ext.stonksRelicChestsPerHour : 0;
   /** Founder Supply Drop: from Gem EV (relic chests/h). Fallback: itemChests/h ÷ 2 when external not yet updated (6 item, 3 relic per drop). */
   const founderRelicChestsPerHour = typeof ext?.founderSupplyDropRelicChestsPerHour === "number" ? ext.founderSupplyDropRelicChestsPerHour : founderSupplyDropItemChestsPerHour / 2;
-  const relicChestsPerHour = lootbugRelicChestsPerHour + giftRelicChestsPerHour + freebieRelicChestsPerHour + stonksRelicChestsPerHour + founderRelicChestsPerHour;
+  const lootfrogRelicChestsPerHour = typeof ext?.lootfrogRelicChestsPerHour === "number" ? Math.max(0, ext.lootfrogRelicChestsPerHour) : 0;
+  const relicChestsPerHour = lootbugRelicChestsPerHour + giftRelicChestsPerHour + freebieRelicChestsPerHour + stonksRelicChestsPerHour + founderRelicChestsPerHour + lootfrogRelicChestsPerHour;
   /** In-game, one Relic Chest always gives 1 relic. */
   const relicsPerChest = 1;
   const relicsPerHourFromChests = relicsPerChest * relicChestsPerHour;
@@ -400,13 +402,18 @@ export function Items() {
                       lines: [
                         "Expected gem-equivalent from the Tier 1 items in one chest (Charge Magnet + Chaos Totem).",
                         "Same number as the contribution to Gem/h from one chest; shown here as Gems (one-hour equivalent).",
-                      ],
+                        chaosTotem100FromBombs
+                          ? "Chaos Totem 100% Uptime is set in Bombs: Chaos Totem value is excluded so the number reflects that extra chests do not add Chaos value."
+                          : "",
+                      ].filter(Boolean),
                     },
                     {
                       heading: "Formula",
                       lines: [
                         "Charge Magnet: items per chest × 2.6% × value of 1 Charge Magnet (in Gems).",
-                        "Chaos Totem: (Chaos Totem Gem EV per hour) ÷ chests per hour.",
+                        chaosTotem100FromBombs
+                          ? "Chaos Totem: excluded when 100% uptime (Bombs)."
+                          : "Chaos Totem: (Chaos Totem Gem EV per hour) ÷ chests per hour.",
                       ],
                     },
                   ],
@@ -414,9 +421,9 @@ export function Items() {
               />
             </span>
             <span className="itemsValue mono itemsValueWithIcon">
-              {Number.isFinite(valueOfOneChestGemPerHour) && valueOfOneChestGemPerHour > 0 ? (
+              {Number.isFinite(valueOfOneChestForLootbug) && valueOfOneChestForLootbug > 0 ? (
                 <>
-                  {valueOfOneChestGemPerHour.toFixed(1)}
+                  {valueOfOneChestForLootbug.toFixed(2)}
                   <img src={GEM_ICON} alt="" className="itemsGemIcon" aria-hidden />
                 </>
               ) : (
@@ -492,6 +499,13 @@ export function Items() {
                         title={`Founder Supply Drop: ${founderRelicChestsPerHour.toFixed(2)}/h`}
                       />
                     ) : null}
+                    {lootfrogRelicChestsPerHour > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarLootfrog"
+                        style={{ width: `${(lootfrogRelicChestsPerHour / relicChestsPerHour) * 100}%` }}
+                        title={`Lootfrog: ${lootfrogRelicChestsPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -531,6 +545,12 @@ export function Items() {
                   <span className="itemsChestsBarLegendItem">
                     <span className="itemsChestsBarLegendSwatch itemsChestsBarFounder" />
                     Founder Supply Drop
+                  </span>
+                ) : null}
+                {lootfrogRelicChestsPerHour > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarLootfrog" />
+                    Lootfrog
                   </span>
                 ) : null}
                 {relicChestsPerHour <= 0 ? (

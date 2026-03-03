@@ -21,7 +21,6 @@ import {
   calculateStonksRelicChestsPerHour,
   calculateTotalEvPerHour,
   defaultGameParameters,
-  getEffectiveFreebieTimerMinutes,
   getExpectedItemChestsPerGift,
   getExpectedRelicChestsPerGift,
   getEffectiveGameSpeedMultiplierForTime,
@@ -208,6 +207,7 @@ export function GemEv() {
   const [chartOpen, setChartOpen] = useState(false);
   const [giftChartOpen, setGiftChartOpen] = useState(false);
   const [giftsPerHourChartOpen, setGiftsPerHourChartOpen] = useState(false);
+  const [founderSupplyDropChartOpen, setFounderSupplyDropChartOpen] = useState(false);
   const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
   const [statueSopranoLevel, setStatueSopranoLevel] = useState<number>(initial.statue_soprano_level);
   const [bankedFreebies, setBankedFreebies] = useState<number>(initial.bankedFreebies);
@@ -261,6 +261,8 @@ export function GemEv() {
       chainBomberGoldenFloorBonusPct?: number;
       chainBomberBuffUptimeFraction?: number;
       w3_debuff_fish_pct_loss?: number;
+      lootfrogsUnlocked?: boolean;
+      lootfrogValuePerFrogspawn?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
@@ -288,8 +290,10 @@ export function GemEv() {
     const chainBomberGoldenFloorBonusPct = typeof ext?.chainBomberGoldenFloorBonusPct === "number" ? ext.chainBomberGoldenFloorBonusPct : undefined;
     const chainBomberBuffUptimeFraction = typeof ext?.chainBomberBuffUptimeFraction === "number" ? ext.chainBomberBuffUptimeFraction : undefined;
     const w3DebuffFishPctLoss = typeof ext?.w3_debuff_fish_pct_loss === "number" ? ext.w3_debuff_fish_pct_loss : undefined;
+    const lootfrogsUnlocked = Boolean(ext?.lootfrogsUnlocked);
+    const lootfrogValuePerFrogspawn = typeof ext?.lootfrogValuePerFrogspawn === "number" ? Math.max(0, ext.lootfrogValuePerFrogspawn) : 0;
     return {
-      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss,
+      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn,
     };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
@@ -404,9 +408,10 @@ export function GemEv() {
 
     p.chain_bomber_golden_floor_bonus_pct = external.chainBomberGoldenFloorBonusPct;
     p.chain_bomber_buff_uptime_fraction = external.chainBomberBuffUptimeFraction;
+    p.lootfrogs_unlocked = external.lootfrogsUnlocked;
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.chainBomberGoldenFloorBonusPct, external.chainBomberBuffUptimeFraction]);
+  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.chainBomberGoldenFloorBonusPct, external.chainBomberBuffUptimeFraction, external.lootfrogsUnlocked]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);
@@ -504,6 +509,24 @@ export function GemEv() {
     };
   }, [effectiveParams, freebieChestsPerHour, stonksChestsPerHour, giftItemChestsPerHour, founderSupplyDrop.itemChestsPerHour, chargeMagnetImpactResolved, chaosTotemImpactForChart]);
 
+  /** Founder supply drop: Frogspawn (1/500 × 5 per drop) → capacity Lootfrogs each with recursive EV. Value from Drone (lootfrogValuePerFrogspawn). */
+  const founderSupplyDropFrogspawnGemValue = founderSupplyDrop.frogspawnPerHour * (external.lootfrogValuePerFrogspawn ?? 0);
+
+  /** Rows for Founder Supply Drop breakdown chart (per hour). */
+  const founderSupplyDropChartRows = useMemo(() => {
+    const sd = founderSupplyDrop;
+    return [
+      { key: "itemChests", label: "Item Chests", value: sd.itemChestsPerHour, color: "#ffa726" },
+      { key: "relicChests", label: "Relic Chests", value: sd.relicChestsPerHour, color: "#ab47bc" },
+      { key: "cherry", label: "Cherry", value: sd.cherryChargesPerHour, color: "#ef5350" },
+      { key: "fuel", label: "Fuel", value: sd.fuelPerHour, color: "#5c6bc0" },
+      { key: "fishingTicks", label: "Fishing Ticks", value: sd.fishingTicksPerHour, color: "#42a5f5" },
+      { key: "archTicks", label: "Arch Ticks", value: sd.archaeologyTicksPerHour, color: "#66bb6a" },
+      { key: "frogspawn", label: "Frogspawn", value: sd.frogspawnPerHour, color: "#2e7d32" },
+      { key: "star2x", label: "Star 2× (min/h)", value: sd.starSpawn2xMinPerHour, color: "#ffeb3b" },
+    ];
+  }, [founderSupplyDrop]);
+
   useEffect(() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
@@ -537,6 +560,7 @@ export function GemEv() {
     ext.stonksChestsPerHour = stonksChestsPerHour;
     ext.founderSupplyDropItemChestsPerHour = founderSupplyDrop.itemChestsPerHour;
     ext.founderSupplyDropRelicChestsPerHour = founderSupplyDrop.relicChestsPerHour;
+    ext.founderSupplyDropFrogspawnPerHour = founderSupplyDrop.frogspawnPerHour;
     ext.game_speed_multiplier = getGameSpeedMultiplier(effectiveParams);
     (ext as Record<string, unknown>).w3_floor_debuff = Boolean(effectiveParams.w3_floor_debuff);
     ext.giftItemChestsPerHour = giftItemChestsPerHour;
@@ -544,7 +568,7 @@ export function GemEv() {
     ext.freebieRelicChestsPerHour = freebieRelicChestsPerHour;
     ext.stonksRelicChestsPerHour = stonksRelicChestsPerHour;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, founderSupplyDrop.relicChestsPerHour, giftItemChestsPerHour, giftRelicChestsPerHour, freebieRelicChestsPerHour, stonksRelicChestsPerHour, external.gemBombGemsPerHourFromBombs, external.chaosTotem100FromBombs]);
+  }, [effectiveParams, gemBomb10xImpact, freebiesPerHour, freebieChestsPerHour, chaosTotemImpact, stonksChestsPerHour, founderSupplyDrop.itemChestsPerHour, founderSupplyDrop.relicChestsPerHour, founderSupplyDrop.frogspawnPerHour, giftItemChestsPerHour, giftRelicChestsPerHour, freebieRelicChestsPerHour, stonksRelicChestsPerHour, external.gemBombGemsPerHourFromBombs, external.chaosTotem100FromBombs]);
 
   const STARGAZING_EXTERNAL_KEY = "obeliskfarm:web:stargazing_external.json";
   useEffect(() => {
@@ -941,10 +965,6 @@ export function GemEv() {
                 max={9999}
                 decimals={1}
               />
-              <div className="gemEvRow gemEvEffectiveTimerGlow">
-                <span className="mono small">→ Effective freebie timer</span>
-                <span className="mono small">{getEffectiveFreebieTimerMinutes(effectiveParams).toFixed(1)} min</span>
-              </div>
               <Stepper
                 label={
                   <>
@@ -1353,10 +1373,25 @@ export function GemEv() {
 
           <div className="gemEvSection tierHeader2" id="gemev-founder">
             <div className="gemEvSectionHeader gemEvFounderHeader">
-              <span className="gemEvSectionTitle">
+              <span className="gemEvSectionTitle" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 Founder / VIP
                 <Sprite path="sprites/event/founderbomb.png" alt="Founder" className="iconSmall" aria-hidden />
                 <Tooltip content={founderInfo} />
+                {params.founder_enabled ? (
+                  <button
+                    type="button"
+                    className="gemEvChartIconBtn"
+                    onClick={() => setFounderSupplyDropChartOpen(true)}
+                    title="Supply drop breakdown"
+                    aria-label="Open Supply drop breakdown"
+                  >
+                    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                      <rect x="5" y="14" width="4" height="6" rx="1.5" fill="currentColor" opacity={0.7} />
+                      <rect x="11" y="10" width="4" height="10" rx="1.5" fill="currentColor" opacity={0.85} />
+                      <rect x="17" y="6" width="4" height="14" rx="1.5" fill="currentColor" />
+                    </svg>
+                  </button>
+                ) : null}
               </span>
               <label className="toggle" style={{ margin: 0 }}>
                 <input
@@ -1381,6 +1416,54 @@ export function GemEv() {
               />
             </div>
           </div>
+          {founderSupplyDropChartOpen
+            ? createPortal(
+                <div
+                  className="modalOverlay"
+                  onMouseDown={() => setFounderSupplyDropChartOpen(false)}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="gemev-founder-supply-drop-chart-title"
+                >
+                  <div className="modalWindow gemEvFounderSupplyDropChartModal" onMouseDown={(e) => e.stopPropagation()}>
+                    <div className="modalHeader">
+                      <div id="gemev-founder-supply-drop-chart-title" className="mono" style={{ fontWeight: 900 }}>
+                        Supply drop (per hour)
+                      </div>
+                      <button className="btn btnSecondary" type="button" onClick={() => setFounderSupplyDropChartOpen(false)}>
+                        Close
+                      </button>
+                    </div>
+                    <div className="modalBody">
+                      <div className="gemEvFounderSupplyDropChartBlock">
+                        <div className="gemEvFounderSupplyDropChartTitle">From Founder Supply Drop</div>
+                        <div className="gemEvFounderSupplyDropChartBars" role="img" aria-label="Supply drop per hour bar chart">
+                          {founderSupplyDropChartRows.map((row) => {
+                            const maxVal = Math.max(...founderSupplyDropChartRows.map((r) => r.value), 1);
+                            const widthPct = maxVal > 0 ? (row.value / maxVal) * 100 : 0;
+                            return (
+                              <div key={row.key} className="gemEvFounderSupplyDropChartRow">
+                                <div className="gemEvFounderSupplyDropChartLabel">{row.label}</div>
+                                <div className="gemEvFounderSupplyDropChartBarTrack">
+                                  <div
+                                    className="gemEvFounderSupplyDropChartBarFill"
+                                    style={{ width: `${widthPct}%`, backgroundColor: row.color }}
+                                  />
+                                </div>
+                                <span className="mono gemEvFounderSupplyDropChartValue">
+                                  {row.value.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )
+            : null}
 
         {chartOpen ? (
           <div className="modalOverlay" onMouseDown={() => setChartOpen(false)}>
@@ -1421,6 +1504,7 @@ export function GemEv() {
                     chaosTotemImpact={chaosTotemForChart}
                     chargeMagnetImpact={chargeMagnetForChart}
                     founderSupplyDropItemsGemValue={founderSupplyDropItemsGemValue}
+                    founderSupplyDropFrogspawnGemValue={founderSupplyDropFrogspawnGemValue}
                     showJackpotRefresh={showJackpotRefresh}
                     skillShardsEnabled={skillShardsEnabled}
                   />

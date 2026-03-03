@@ -120,6 +120,9 @@ export type GameParameters = {
 
   /** W3 floor debuff: −30% game speed (70% effective) while on W3 floors. Only affects freebie cooldown and bomb recharge; not supply drop or Stargazing. */
   w3_floor_debuff?: boolean;
+
+  /** Lootfrogs unlocked (from Drone). When true, supply drop can roll 1/500 for 5 Frogspawn; relevant for Lootfrog. */
+  lootfrogs_unlocked?: boolean;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -237,10 +240,40 @@ export function getFounderDropIntervalMinutes(params: GameParameters): number {
 }
 
 /**
- * Per supply drop (before double/triple). Quantities may scale with built world monuments (e.g. W2, W3);
- * current values are for W2 + W3 monument — to be confirmed numerically. Jackpots (double/triple chance,
- * golden drop, bonus gems roll) may be unchanged.
- * Contents: 30 gems, 6 Item Chests, 3 Relic Chests, 720 Cherry, 3 Fuel, 28 fishing ticks (flat), 194 arch ticks (not in EV). No star buffs.
+ * Linear VIP multiplier for supply drop quantities (gems, chests, cherry, fuel, ticks, etc.).
+ * mult = 1 + (level - 1) * SUPPLY_DROP_QUANTITY_PER_LEVEL (level 1 → 1.0, 2 → 1+k, 3 → 1+2k, …).
+ * Same factor per level 1→2→3→4→…; once we know the 4→5 jump (ratio), solve:
+ * ratio_5_4 = (1 + 4*k) / (1 + 3*k)  =>  k = (ratio - 1) / (4 - 3*ratio).
+ */
+const SUPPLY_DROP_QUANTITY_PER_LEVEL = 0.05; // Placeholder until 4→5 jump is measured; then set k from formula above.
+
+export function getSupplyDropQuantityMultiplier(params: GameParameters): number {
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+  return 1.0 + (lvl - 1) * SUPPLY_DROP_QUANTITY_PER_LEVEL;
+}
+
+/** Per-drop quantities: base at VIP 1, then +135 Cherry, +4 Fishing, +9 Arch per VIP level. */
+const FOUNDER_SUPPLY_DROP_CHERRY_BASE = 315;
+const FOUNDER_SUPPLY_DROP_CHERRY_PER_LEVEL = 135;
+const FOUNDER_SUPPLY_DROP_FISHING_BASE = 16;
+const FOUNDER_SUPPLY_DROP_FISHING_PER_LEVEL = 4;
+const FOUNDER_SUPPLY_DROP_ARCH_BASE = 167;
+const FOUNDER_SUPPLY_DROP_ARCH_PER_LEVEL = 9;
+
+const FOUNDER_SUPPLY_DROP_CHERRY_PER_DROP = (lvl: number) =>
+  FOUNDER_SUPPLY_DROP_CHERRY_BASE + (lvl - 1) * FOUNDER_SUPPLY_DROP_CHERRY_PER_LEVEL;
+const FOUNDER_SUPPLY_DROP_FISHING_TICKS_PER_DROP = (lvl: number) =>
+  FOUNDER_SUPPLY_DROP_FISHING_BASE + (lvl - 1) * FOUNDER_SUPPLY_DROP_FISHING_PER_LEVEL;
+const FOUNDER_SUPPLY_DROP_ARCH_TICKS_PER_DROP = (lvl: number) =>
+  FOUNDER_SUPPLY_DROP_ARCH_BASE + (lvl - 1) * FOUNDER_SUPPLY_DROP_ARCH_PER_LEVEL;
+
+/** Star Spawn 2× rate: 12 min per drop (all VIP levels). */
+const FOUNDER_SUPPLY_DROP_STAR_2X_MIN_PER_DROP = 12;
+
+/**
+ * Per supply drop (before double/triple). Gems 30, Item Chests 6, Relic Chests 3, Fuel 3 (unchanged by VIP).
+ * Cherry / Fishing / Arch: base at VIP 1, then +135 / +4 / +9 per VIP level. Star 2× 12 min per drop at all levels.
+ * When lootfrogs_unlocked: 1/500 chance per supply drop for 5 Frogspawn (for Lootfrog).
  */
 export interface FounderSupplyDropPerHour {
   itemChestsPerHour: number;
@@ -249,6 +282,8 @@ export interface FounderSupplyDropPerHour {
   fuelPerHour: number;
   fishingTicksPerHour: number;
   archaeologyTicksPerHour: number;
+  /** Expected frogspawn per hour from supply drop (1/500 × 5 per drop), only when lootfrogs_unlocked. */
+  frogspawnPerHour: number;
   starSpawn2xMinPerHour: number;
   starAutoCatch100MinPerHour: number;
 }
@@ -261,6 +296,7 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
     fuelPerHour: 0,
     fishingTicksPerHour: 0,
     archaeologyTicksPerHour: 0,
+    frogspawnPerHour: 0,
     starSpawn2xMinPerHour: 0,
     starAutoCatch100MinPerHour: 0,
   };
@@ -272,14 +308,23 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
   const singleChance = 1.0 - doubleChance - tripleChance;
   const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
   const eventsPerHour = founderDropsPerHour * expectedDropsPerEvent;
+  const qtyMult = getSupplyDropQuantityMultiplier(params);
+  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+  const cherryPerDrop = FOUNDER_SUPPLY_DROP_CHERRY_PER_DROP(lvl);
+  const fishingPerDrop = FOUNDER_SUPPLY_DROP_FISHING_TICKS_PER_DROP(lvl);
+  const archPerDrop = FOUNDER_SUPPLY_DROP_ARCH_TICKS_PER_DROP(lvl);
+  const star2xMinPerDrop = FOUNDER_SUPPLY_DROP_STAR_2X_MIN_PER_DROP;
+  const lootfrogsUnlocked = Boolean(params.lootfrogs_unlocked);
+  const frogspawnPerHour = lootfrogsUnlocked ? eventsPerHour * (1 / 500) * 5 * qtyMult : 0;
   return {
-    itemChestsPerHour: eventsPerHour * 6,
-    cherryChargesPerHour: eventsPerHour * 720,
-    relicChestsPerHour: eventsPerHour * 3,
-    fuelPerHour: eventsPerHour * 3,
-    fishingTicksPerHour: eventsPerHour * 28,
-    archaeologyTicksPerHour: eventsPerHour * 194,
-    starSpawn2xMinPerHour: 0,
+    itemChestsPerHour: eventsPerHour * 6 * qtyMult,
+    cherryChargesPerHour: eventsPerHour * cherryPerDrop,
+    relicChestsPerHour: eventsPerHour * 3 * qtyMult,
+    fuelPerHour: eventsPerHour * 3 * qtyMult,
+    fishingTicksPerHour: eventsPerHour * fishingPerDrop,
+    archaeologyTicksPerHour: eventsPerHour * archPerDrop,
+    frogspawnPerHour,
+    starSpawn2xMinPerHour: eventsPerHour * star2xMinPerDrop,
     starAutoCatch100MinPerHour: 0,
   };
 }
@@ -792,7 +837,7 @@ export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftS
     const tripleChance = clamp01(getTripleDropChance(params));
     const singleChance = 1.0 - doubleChance - tripleChance;
     const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-    founderGiftsPerHour = founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10;
+    founderGiftsPerHour = founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10 * getSupplyDropQuantityMultiplier(params);
   }
 
   return {
@@ -828,7 +873,7 @@ export function calculateGift5xTickUptimeFraction(params: GameParameters): numbe
     const tripleChance = clamp01(getTripleDropChance(params));
     const singleChance = 1.0 - doubleChance - tripleChance;
     const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-    totalGiftsPerHour += founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10;
+    totalGiftsPerHour += founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10 * getSupplyDropQuantityMultiplier(params);
   }
   const obelisk = clampPositive(params.obelisk_level, 0);
   const probBasicRoll = getBasicRollProbability(obelisk);
@@ -847,19 +892,21 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   const singleChance = 1.0 - doubleChance - tripleChance;
   const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
 
+  const qtyMult = getSupplyDropQuantityMultiplier(params);
+
   const goldenChance = getGoldenSupplyDropChance(params); // 5× normal drops, not rare
   const baseGems =
-    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 30.0) * (1.0 + 4.0 * goldenChance);
+    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 30.0) * (1.0 + 4.0 * goldenChance) * qtyMult;
   const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
   const bonusGems =
-    founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop;
+    founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
 
   const giftChance = 1.0 / 1234.0;
   const giftsPerDrop = 10.0;
   const giftEvPerGift = calculateGiftEvPerGift(params);
-  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift;
+  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift * qtyMult;
 
-  const supplyDrop = getFounderSupplyDropPerHour(params);
+  const supplyDrop = getFounderSupplyDropPerHour(params); // already includes qtyMult for cherry/fuel/ticks
   const cherryGems = calculateCherryChargesGemsPerHour(params, supplyDrop.cherryChargesPerHour);
   const fuelGems = supplyDrop.fuelPerHour * (params.gift_drone_fuel_gems_per_fuel ?? 0);
   const fishingTickGems = supplyDrop.fishingTicksPerHour * (params.founder_fishing_tick_gem_value ?? 0);

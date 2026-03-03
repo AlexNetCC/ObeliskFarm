@@ -86,6 +86,22 @@
   margin-bottom: 10px;
 }
 
+.droneSection:has(.droneLootfrogParams) .droneSectionTitle {
+  margin-bottom: 6px;
+}
+
+.droneSection:has(.droneLootfrogParams) {
+  padding: 8px 10px;
+}
+
+.droneLabelGolden {
+  color: #9a7b0a !important;
+}
+
+.droneLabelBold {
+  font-weight: 700;
+}
+
 .droneRow {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -100,7 +116,8 @@
 
 /** Tight row spacing for Lootfrog params. */
 .droneLootfrogParams .droneRow {
-  margin-bottom: 3px;
+  margin-bottom: 2px;
+  gap: 6px;
 }
 
 .droneLootfrogTableWrap {

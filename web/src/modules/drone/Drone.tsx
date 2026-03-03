@@ -343,8 +343,9 @@ function NumInput(props: {
   decimals?: number;
   tooltip?: { title: string; lines: string[] };
   iconUrl?: string;
+  labelClassName?: string;
 }) {
-  const { label, value, onChange, min = 0, max = 1e6, step = 1, suffix, decimals = 2, tooltip, iconUrl } = props;
+  const { label, value, onChange, min = 0, max = 1e6, step = 1, suffix, decimals = 2, tooltip, iconUrl, labelClassName } = props;
   const isEditingRef = useRef(false);
   const [raw, setRaw] = useState<string>(() => (Number.isFinite(value) ? String(value) : ""));
 
@@ -369,7 +370,7 @@ function NumInput(props: {
     </>
   );
   const labelNode = (
-    <span className="droneLabel" style={iconUrl ? { display: "inline-flex", alignItems: "center", gap: 8 } : undefined}>
+    <span className={["droneLabel", labelClassName].filter(Boolean).join(" ")} style={iconUrl ? { display: "inline-flex", alignItems: "center", gap: 8 } : undefined}>
       {labelContent}
     </span>
   );
@@ -1032,9 +1033,10 @@ export function Drone() {
     return { froggerGemEvPerHour, totalBombTypesFromGemEv: totalBombTypes, froggerBombsChartData: { bombsPerTypeRows, gemEvPerTypeRows: gemEvRows, batteryCapIncreasesPerHour } };
   }, [froggerBombIntervalSecReal, froggerBombsPerAutofire, droneBomb10xMinPerHour, bombsBombCycle]);
 
-  /** Lootfrog gains: spawns/h per reward, gems/h for calculable rewards. Only when lootfrogsUnlocked. */
-  const { lootfrogGainsRows, lootfrogsPerHour } = useMemo(() => {
-    if (!state.lootfrogsUnlocked) return { lootfrogGainsRows: [], lootfrogsPerHour: 0 };
+  /** Lootfrog gains: spawns/h per reward, gems/h for calculable rewards. Only when lootfrogsUnlocked and Frogger Drone ON. */
+  /** Frogspawn = capacity Lootfrogs (recursive: those can drop Frogspawn again). EV per Lootfrog V = B*196/(196-cap), value per Frogspawn = capacity*V. */
+  const { lootfrogGainsRows, lootfrogsPerHour, lootfrogValuePerFrogspawn } = useMemo(() => {
+    if (!state.lootfrogsUnlocked || !state.froggerDroneOn) return { lootfrogGainsRows: [], lootfrogsPerHour: 0, lootfrogValuePerFrogspawn: 0 };
     const autofiresPerHour = 3600 / Math.max(0.1, froggerBombIntervalSecReal);
     const spawnChancePct = Math.min(
       state.froggerGradeLevel * FROGGER_LOOTFROG_CHANCE_PCT_PER_GRADE,
@@ -1051,17 +1053,26 @@ export function Drone() {
     const bigPct = state.bigLootfrogChancePct / 100;
     const bigMult = (1 - bigPct) + bigPct * state.bigLootfrogMultiplier;
     const rewardMult = lootMult * goldenMult * bigMult;
+    const baseEvPerLootfrog =
+      (1 / LOOTFROG_TOTAL_WEIGHT) *
+      LOOTFROG_REWARDS.reduce((s, r) => s + (r.gemEv != null ? r.weight * r.gemEv : 0), 0);
+    const cap = Math.min(state.lootfrogCapacity, LOOTFROG_TOTAL_WEIGHT - 1);
+    const evPerLootfrogRecursive = (baseEvPerLootfrog * LOOTFROG_TOTAL_WEIGHT) / (LOOTFROG_TOTAL_WEIGHT - cap);
+    const valuePerFrogspawn = cap * evPerLootfrogRecursive * rewardMult;
     const rows = LOOTFROG_REWARDS.map((r) => {
       const spawnsPerHour = lootfrogsPerHour * (r.weight / LOOTFROG_TOTAL_WEIGHT);
-      const gemsPerHour = r.gemEv != null ? spawnsPerHour * r.gemEv * rewardMult : null;
+      const effectiveEv = r.label === "1 Frogspawn" ? valuePerFrogspawn : r.gemEv;
+      const gemsPerHour = effectiveEv != null ? spawnsPerHour * effectiveEv : null;
       return { ...r, spawnsPerHour, gemsPerHour };
     });
-    return { lootfrogGainsRows: rows, lootfrogsPerHour };
+    return { lootfrogGainsRows: rows, lootfrogsPerHour, lootfrogValuePerFrogspawn: valuePerFrogspawn };
   }, [
     state.lootfrogsUnlocked,
+    state.froggerDroneOn,
     froggerBombIntervalSecReal,
     state.froggerGradeLevel,
     state.lootfrogLootMultiplier,
+    state.lootfrogCapacity,
     state.tripleLootfrogChancePct,
     state.lootfrog10xChancePct,
     state.goldenLootfrogChancePct,
@@ -1074,6 +1085,19 @@ export function Drone() {
     () => lootfrogGainsRows.reduce((s, r) => s + (r.gemsPerHour ?? 0), 0),
     [lootfrogGainsRows],
   );
+
+  /** Lootfrog relic chests and sushi per hour (for Items relic income and Fishing ticks). Derived from lootfrogGainsRows. */
+  const { lootfrogRelicChestsPerHour, lootfrogSushiPerHour } = useMemo(() => {
+    let relic = 0;
+    let sushi = 0;
+    for (const r of lootfrogGainsRows) {
+      if (r.label === "10–20 Relic Chests") relic += r.spawnsPerHour * 15;
+      else if (r.label === "100–150 Relic Chests") relic += r.spawnsPerHour * 125;
+      else if (r.label === "3–5 Sushi") sushi += r.spawnsPerHour * 4;
+      else if (r.label === "15–30 Sushi") sushi += r.spawnsPerHour * 22.5;
+    }
+    return { lootfrogRelicChestsPerHour: relic, lootfrogSushiPerHour: sushi };
+  }, [lootfrogGainsRows]);
 
   /** Gems/h spent on fuel for 100% fueled uptime: fuels/h × (1 − save chance) × 5 gems/fuel. Save chance = Coal and Upgrade Fuel Save combined multiplicatively. */
   const fuelGemsPerHour = useMemo(() => {
@@ -1136,8 +1160,11 @@ export function Drone() {
     ext.voidDroneOn = state.voidDroneOn;
     ext.voidPortalMult = state.voidDroneOn && state.voidFueled ? voidPortalMult : 0;
     ext.voidBuffUptimeFraction = voidBuffUptimeFraction;
+    ext.lootfrogsUnlocked = state.lootfrogsUnlocked;
+    ext.lootfrogRelicChestsPerHour = lootfrogRelicChestsPerHour;
+    ext.lootfrogValuePerFrogspawn = lootfrogValuePerFrogspawn;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, froggerGemEvPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, froggerGemEvPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked, state.lootfrogsUnlocked, lootfrogRelicChestsPerHour, lootfrogValuePerFrogspawn]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -1214,9 +1241,10 @@ export function Drone() {
     ext.anglerBuffUptimeFraction = state.anglerDroneOn && state.anglerFueled ? anglerBuffUptimeFraction : 0;
     const tickMult = typeof ext.tickMult === "number" && ext.tickMult >= 1 ? ext.tickMult : 1;
     ext.effectiveAnglerTicksPerHour = rawAngler * tickMult;
+    ext.lootfrogSushiPerHour = lootfrogSushiPerHour;
     saveJson(FISHING_EXTERNAL_KEY, ext);
     window.dispatchEvent(new CustomEvent("obelisk:fishing_external_updated"));
-  }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction, state.anglerDroneOn, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction]);
+  }, [elixir3xFishingTickSpeedMinPerHour, elixir3xFishingTickSpeedUptimeFraction, state.anglerDroneOn, state.anglerFueled, anglerTicksPerHour, anglerBaseTicksPerHour, anglerBuffTicksPerHour, anglerLegendaryBonusPct, anglerBuffUptimeFraction, lootfrogSushiPerHour]);
 
   /** Drone's share of Gem EV/h from 10× Bomb Recharge (from Gem EV module). */
   const drone10xGemEvPerHour = (() => {
@@ -2333,6 +2361,7 @@ export function Drone() {
             />
             <NumInput
               label="Golden Lootfrog Chance (%)"
+              labelClassName="droneLabelGolden"
               value={state.goldenLootfrogChancePct}
               onChange={(n) => update({ goldenLootfrogChancePct: clamp(n, 0, 100) })}
               min={0}
@@ -2346,6 +2375,7 @@ export function Drone() {
             />
             <NumInput
               label="Golden Lootfrog Multiplier"
+              labelClassName="droneLabelGolden"
               value={state.goldenLootfrogMultiplier}
               onChange={(n) => update({ goldenLootfrogMultiplier: clamp(n, 1, 20) })}
               min={1}
@@ -2359,6 +2389,7 @@ export function Drone() {
             />
             <NumInput
               label="Big Lootfrog Chance (%)"
+              labelClassName="droneLabelBold"
               value={state.bigLootfrogChancePct}
               onChange={(n) => update({ bigLootfrogChancePct: clamp(n, 0, 100) })}
               min={0}
@@ -2372,6 +2403,7 @@ export function Drone() {
             />
             <NumInput
               label="Big Lootfrog Multiplier"
+              labelClassName="droneLabelBold"
               value={state.bigLootfrogMultiplier}
               onChange={(n) => update({ bigLootfrogMultiplier: clamp(n, 1, 20) })}
               min={1}
@@ -2385,10 +2417,10 @@ export function Drone() {
             />
             </div>
 
-            <div className="droneRow droneFuelGemsRow droneBomb10xRow" style={{ marginTop: 6 }}>
+            <div className="droneRow droneFuelGemsRow droneBomb10xRow" style={{ marginTop: 4 }}>
               <span className="droneFuelGemsLabel">
                 <img src={GEM_ICON} alt="" className="droneSkillIcon" aria-hidden />
-                <span className="droneLabel">Lootfrog Gems/h (calculable)</span>
+                <span className="droneLabel">Lootfrog Gems/h</span>
               </span>
               <span className="droneFuelGemsValue droneBomb10xGemEvValue" aria-label={`${lootfrogTotalGemsPerHour.toFixed(1)} gems per hour from Lootfrog`}>
                 +{lootfrogTotalGemsPerHour.toFixed(1)}
