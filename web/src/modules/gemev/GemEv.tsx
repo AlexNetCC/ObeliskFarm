@@ -1448,26 +1448,18 @@ export function GemEv() {
                     <div className="modalBody">
                       <div className="gemEvFounderSupplyDropChartBlock">
                         <div className="gemEvFounderSupplyDropChartTitle">From Founder Supply Drop</div>
-                        <div className="gemEvFounderSupplyDropChartBars" role="img" aria-label="Supply drop per hour bar chart">
-                          {founderSupplyDropChartRows.map((row) => {
-                            const maxVal = Math.max(...founderSupplyDropChartRows.map((r) => r.value), 1);
-                            const widthPct = maxVal > 0 ? (row.value / maxVal) * 100 : 0;
-                            return (
-                              <div key={row.key} className="gemEvFounderSupplyDropChartRow">
-                                <div className="gemEvFounderSupplyDropChartLabel">{row.label}</div>
-                                <div className="gemEvFounderSupplyDropChartBarTrack">
-                                  <div
-                                    className="gemEvFounderSupplyDropChartBarFill"
-                                    style={{ width: `${widthPct}%`, backgroundColor: row.color }}
-                                  />
-                                </div>
-                                <span className="mono gemEvFounderSupplyDropChartValue">
+                        <table className="gemEvFounderSupplyDropTable">
+                          <tbody>
+                            {founderSupplyDropChartRows.map((row) => (
+                              <tr key={row.key}>
+                                <td className="gemEvFounderSupplyDropTableLabel">{row.label}</td>
+                                <td className="mono gemEvFounderSupplyDropTableValue">
                                   {row.value.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>

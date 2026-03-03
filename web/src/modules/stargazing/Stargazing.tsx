@@ -203,10 +203,11 @@ function Sprite(props: { paths: string[]; alt: string; className?: string; label
   const [idx, setIdx] = useState(0);
   const path = paths[idx] ?? null;
   if (!path) return <span className="iconPlaceholder" title={`Missing sprite: ${label ?? alt}`}>?</span>;
+  const src = path.startsWith("http") ? path : assetUrl(path);
   return (
     <img
       className={className ?? "icon"}
-      src={assetUrl(path)}
+      src={src}
       alt={alt}
       title={alt}
       onError={() => setIdx((s) => (s + 1 < paths.length ? s + 1 : s))}
@@ -856,6 +857,16 @@ export function Stargazing() {
                 />
                 <span>Do you catch manually? (like 100% auto-catch rate, online only)</span>
               </label>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={ctrlF}
+                  onChange={(e) => setCtrlF(e.target.checked)}
+                />
+                <Sprite paths={["sprites/stargazing/Ctrl+F_Stars.png"]} alt="CTRL+F Stars" className="iconSmall" label="sprites/stargazing/Ctrl+F_Stars.png" />
+                <span>CTRL+F Stars — Enabled (offline gains ×5)</span>
+                <Tooltip content={ctrlFInfo} />
+              </label>
               <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2 }}>
                 <input
                   type="checkbox"
@@ -1200,69 +1211,52 @@ export function Stargazing() {
 
         <Collapsible id="stargazing-your-stats" title="Your stats (from game)" defaultExpanded={false} className="sgLeftPanel" headerRight={<span className="small" style={{ opacity: 0.85 }}>Percent inputs are %.</span>}>
           <div className="sgGrid">
-            {/* CTRL+F should be at the very top (matches desktop emphasis). */}
-            <div className="sgSection" style={{ background: "rgba(227,242,253,0.55)" }}>
+            {/* Top: Floor clears/min. */}
+            <div className="sgSection tierHeader2">
               <div className="sgSectionHeader">
                 <div className="sgSectionTitle">
-                  <Sprite paths={["sprites/stargazing/Ctrl+F_Stars.png"]} alt="CTRL+F Stars" className="iconSmall" label="sprites/stargazing/Ctrl+F_Stars.png" />
-                  <span className="mono">CTRL+F Stars</span>
-                  <Tooltip content={ctrlFInfo} />
+                  <span className="mono">Floor clears / min</span>
                 </div>
               </div>
-              <label className="toggle">
-                <input type="checkbox" checked={ctrlF} onChange={(e) => setCtrlF(e.target.checked)} />
-                Enabled (offline gains ×5)
-              </label>
+              <div className="sgRows">
+                <Stepper
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Floor Clears / min
+                      <Tooltip content={{ title: "Floor Clears", lines: ["48/min default. ~1.25 bombs per min at this rate."] }} label="?" />
+                    </span>
+                  }
+                  value={ui.floor_clears_per_minute}
+                  onChange={(v) => setUi((s) => ({ ...s, floor_clears_per_minute: v }))}
+                  step={0.1}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
+              </div>
             </div>
 
             <div className="sgSection tierHeader2">
               <div className="sgSectionHeader">
                 <div className="sgSectionTitle">
-                  <span className="mono">Basic Stats</span>
+                  <span className="mono">Stats</span>
                 </div>
               </div>
               <div className="sgRows">
-                <div>
-                  <Stepper
-                    label={
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        Floor Clears / min
-                        <Tooltip content={{ title: "Floor Clears", lines: ["48/min default. ~1.25 bombs per min at this rate."] }} label="?" />
-                      </span>
-                    }
-                    value={ui.floor_clears_per_minute}
-                    onChange={(v) => setUi((s) => ({ ...s, floor_clears_per_minute: v }))}
-                    step={0.1}
-                    min={0}
-                    max={10_000}
-                    decimals={2}
-                  />
-                </div>
                 <Stepper
                   label={
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       Star Spawn Rate Multiplier (x)
                       <Tooltip
-                      content={{
-                        title: "Star Spawn Rate",
-                        sections: [
-                          {
-                            heading: "What to enter",
-                            lines: [
-                              "Enter the value from the game with Starburst Drone OFF (not active).",
-                              "Also enter without the 2× Star Spawn Rate buff.",
-                            ],
-                          },
-                          {
-                            heading: "Applied automatically",
-                            lines: [
-                              "2× Star Spawn Rate (Elixir, Lootbug, Founder) and Starburst Drone (when ON in Drone module) are applied by the calculator.",
-                            ],
-                          },
-                        ],
-                      }}
-                      label="?"
-                    />
+                        content={{
+                          title: "Star Spawn Rate",
+                          sections: [
+                            { heading: "What to enter", lines: ["Enter the value from the game with Starburst Drone OFF (not active).", "Also enter without the 2× Star Spawn Rate buff."] },
+                            { heading: "Applied automatically", lines: ["2× Star Spawn Rate (Elixir, Lootbug, Founder) and Starburst Drone (when ON in Drone module) are applied by the calculator."] },
+                          ],
+                        }}
+                        label="?"
+                      />
                     </span>
                   }
                   spritePaths={["sprites/stargazing/Star_Spawn_Rate_Multiplier.png"]}
@@ -1287,16 +1281,6 @@ export function Stargazing() {
                   max={100}
                   decimals={2}
                 />
-              </div>
-            </div>
-
-            <div className="sgSection tierHeader3">
-              <div className="sgSectionHeader">
-                <div className="sgSectionTitle">
-                  <span className="mono">⭐ Star Multipliers</span>
-                </div>
-              </div>
-              <div className="sgRows">
                 <Stepper
                   label="Double Star Chance (%)"
                   spritePaths={["sprites/stargazing/Star_Double_Spawn_Chance.png"]}
@@ -1311,6 +1295,9 @@ export function Stargazing() {
                 />
                 <Stepper
                   label="Triple Star Chance (%)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/8/81/Star_Triple_Spawn_Chance.png"]}
+                  spriteAlt="Triple Star Chance"
+                  spriteLabel="Star_Triple_Spawn_Chance.png"
                   value={ui.triple_star_chance}
                   onChange={(v) => setUi((s) => ({ ...s, triple_star_chance: v }))}
                   step={0.5}
@@ -1318,86 +1305,6 @@ export function Stargazing() {
                   max={100}
                   decimals={2}
                 />
-
-                <div className="row2">
-                  <Stepper
-                    label="Star Supernova Chance (%)"
-                    spritePaths={["sprites/stargazing/Star_Supernova_Chance.png"]}
-                    spriteAlt="Star Supernova Chance"
-                    spriteLabel="sprites/stargazing/Star_Supernova_Chance.png"
-                    value={ui.star_supernova_chance}
-                    onChange={(v) => setUi((s) => ({ ...s, star_supernova_chance: v }))}
-                    step={0.5}
-                    min={0}
-                    max={100}
-                    decimals={2}
-                  />
-                  <Stepper
-                    label="Supernova Multiplier (x)"
-                    value={ui.star_supernova_mult}
-                    onChange={(v) => setUi((s) => ({ ...s, star_supernova_mult: v }))}
-                    step={0.5}
-                    min={0}
-                    max={10_000}
-                    decimals={2}
-                  />
-                </div>
-
-                <div className="row2">
-                  <Stepper
-                    label="Star Supergiant Chance (%)"
-                    spritePaths={["sprites/stargazing/Star_Supergiant_Chance.png"]}
-                    spriteAlt="Star Supergiant Chance"
-                    spriteLabel="sprites/stargazing/Star_Supergiant_Chance.png"
-                    value={ui.star_supergiant_chance}
-                    onChange={(v) => setUi((s) => ({ ...s, star_supergiant_chance: v }))}
-                    step={0.5}
-                    min={0}
-                    max={100}
-                    decimals={2}
-                  />
-                  <Stepper
-                    label="Supergiant Multiplier (x)"
-                    value={ui.star_supergiant_mult}
-                    onChange={(v) => setUi((s) => ({ ...s, star_supergiant_mult: v }))}
-                    step={0.5}
-                    min={0}
-                    max={10_000}
-                    decimals={2}
-                  />
-                </div>
-
-                <div className="row2">
-                  <Stepper
-                    label="Star Radiant Chance (%)"
-                    value={ui.star_radiant_chance}
-                    onChange={(v) => setUi((s) => ({ ...s, star_radiant_chance: v }))}
-                    step={0.5}
-                    min={0}
-                    max={100}
-                    decimals={2}
-                  />
-                  <Stepper
-                    label="Radiant Multiplier (x)"
-                    value={ui.star_radiant_mult}
-                    onChange={(v) => setUi((s) => ({ ...s, star_radiant_mult: v }))}
-                    step={0.5}
-                    min={0}
-                    max={10_000}
-                    decimals={2}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="sgSection tierHeader1">
-              <div className="sgSectionHeader">
-                <div className="sgSectionTitle">
-                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
-                  <span className="mono">SS Stats</span>
-                </div>
-              </div>
-              <div className="sgRows">
                 <Stepper
                   label="SS Spawn Rate Multiplier (x)"
                   spritePaths={["sprites/stargazing/Super_Star_Spawn_Rate_Multiplier.png"]}
@@ -1412,6 +1319,9 @@ export function Stargazing() {
                 />
                 <Stepper
                   label="Triple SS Chance (%)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/6/66/Super_Star_Triple_Chance.png"]}
+                  spriteAlt="Triple SS Chance"
+                  spriteLabel="Super_Star_Triple_Chance.png"
                   value={ui.triple_super_star_chance}
                   onChange={(v) => setUi((s) => ({ ...s, triple_super_star_chance: v }))}
                   step={0.5}
@@ -1431,88 +1341,102 @@ export function Stargazing() {
                   max={100}
                   decimals={2}
                 />
-
-                <div className="row2">
-                  <Stepper
-                    label="SS Supernova Chance (%)"
-                    spritePaths={["sprites/stargazing/Star_Supernova_Chance.png"]}
-                    spriteAlt="Super Star Supernova Chance"
-                    spriteLabel="sprites/stargazing/Star_Supernova_Chance.png"
-                    value={ui.super_star_supernova_chance}
-                    onChange={(v) => setUi((s) => ({ ...s, super_star_supernova_chance: v }))}
-                    step={0.5}
-                    min={0}
-                    max={100}
-                    decimals={2}
-                  />
-                  <Stepper
-                    label="SS Nova Multiplier (x)"
-                    value={ui.super_star_supernova_mult}
-                    onChange={(v) => setUi((s) => ({ ...s, super_star_supernova_mult: v }))}
-                    step={0.5}
-                    min={0}
-                    max={10_000}
-                    decimals={2}
-                  />
-                </div>
-
-                <div className="row2">
-                  <Stepper
-                    label="SS Supergiant Chance (%)"
-                    spritePaths={["sprites/stargazing/Super_Star_Supergiant_Chance.png"]}
-                    spriteAlt="Super Star Supergiant Chance"
-                    spriteLabel="sprites/stargazing/Super_Star_Supergiant_Chance.png"
-                    value={ui.super_star_supergiant_chance}
-                    onChange={(v) => setUi((s) => ({ ...s, super_star_supergiant_chance: v }))}
-                    step={0.5}
-                    min={0}
-                    max={100}
-                    decimals={2}
-                  />
-                  <Stepper
-                    label="SS Giant Multiplier (x)"
-                    value={ui.super_star_supergiant_mult}
-                    onChange={(v) => setUi((s) => ({ ...s, super_star_supergiant_mult: v }))}
-                    step={0.5}
-                    min={0}
-                    max={10_000}
-                    decimals={2}
-                  />
-                </div>
-
-                <div className="row2">
-                  <Stepper
-                    label="SS Radiant Chance (%)"
-                    spritePaths={["sprites/stargazing/Super_Star_Radiant_Chance.png"]}
-                    spriteAlt="Super Star Radiant Chance"
-                    spriteLabel="sprites/stargazing/Super_Star_Radiant_Chance.png"
-                    value={ui.super_star_radiant_chance}
-                    onChange={(v) => setUi((s) => ({ ...s, super_star_radiant_chance: v }))}
-                    step={0.5}
-                    min={0}
-                    max={100}
-                    decimals={2}
-                  />
-                  <Stepper
-                    label="SS Radiant Multiplier (x)"
-                    value={ui.super_star_radiant_mult}
-                    onChange={(v) => setUi((s) => ({ ...s, super_star_radiant_mult: v }))}
-                    step={0.5}
-                    min={0}
-                    max={10_000}
-                    decimals={2}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="sgSection tierHeader4">
-              <div className="sgSectionHeader">
-                <div className="sgSectionTitle">
-                  <span className="mono">Global Multipliers</span>
-                </div>
-              </div>
-              <div className="sgRows">
+                <Stepper
+                  label="Star Supernova Chance (%)"
+                  spritePaths={["sprites/stargazing/Star_Supernova_Chance.png"]}
+                  spriteAlt="Star Supernova Chance"
+                  spriteLabel="sprites/stargazing/Star_Supernova_Chance.png"
+                  value={ui.star_supernova_chance}
+                  onChange={(v) => setUi((s) => ({ ...s, star_supernova_chance: v }))}
+                  step={0.5}
+                  min={0}
+                  max={100}
+                  decimals={2}
+                />
+                <Stepper
+                  label="Supernova Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/c/c4/Star_Supernova_Multiplier.png"]}
+                  spriteAlt="Supernova Multiplier"
+                  spriteLabel="Star_Supernova_Multiplier.png"
+                  value={ui.star_supernova_mult}
+                  onChange={(v) => setUi((s) => ({ ...s, star_supernova_mult: v }))}
+                  step={0.5}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
+                <Stepper
+                  label="SS Supernova Chance (%)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/4/49/Super_Star_Supernova_Chance.png"]}
+                  spriteAlt="Super Star Supernova Chance"
+                  spriteLabel="Super_Star_Supernova_Chance.png"
+                  value={ui.super_star_supernova_chance}
+                  onChange={(v) => setUi((s) => ({ ...s, super_star_supernova_chance: v }))}
+                  step={0.5}
+                  min={0}
+                  max={100}
+                  decimals={2}
+                />
+                <Stepper
+                  label="SS Nova Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/a/ae/Super_Star_Supernova_Multiplier.png"]}
+                  spriteAlt="SS Nova Multiplier"
+                  spriteLabel="Super_Star_Supernova_Multiplier.png"
+                  value={ui.super_star_supernova_mult}
+                  onChange={(v) => setUi((s) => ({ ...s, super_star_supernova_mult: v }))}
+                  step={0.5}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
+                <Stepper
+                  label="Star Supergiant Chance (%)"
+                  spritePaths={["sprites/stargazing/Star_Supergiant_Chance.png"]}
+                  spriteAlt="Star Supergiant Chance"
+                  spriteLabel="sprites/stargazing/Star_Supergiant_Chance.png"
+                  value={ui.star_supergiant_chance}
+                  onChange={(v) => setUi((s) => ({ ...s, star_supergiant_chance: v }))}
+                  step={0.5}
+                  min={0}
+                  max={100}
+                  decimals={2}
+                />
+                <Stepper
+                  label="Supergiant Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/3/31/Star_Supergiant_Multiplier.png"]}
+                  spriteAlt="Supergiant Multiplier"
+                  spriteLabel="Star_Supergiant_Multiplier.png"
+                  value={ui.star_supergiant_mult}
+                  onChange={(v) => setUi((s) => ({ ...s, star_supergiant_mult: v }))}
+                  step={0.5}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
+                <Stepper
+                  label="SS Supergiant Chance (%)"
+                  spritePaths={["sprites/stargazing/Super_Star_Supergiant_Chance.png"]}
+                  spriteAlt="Super Star Supergiant Chance"
+                  spriteLabel="sprites/stargazing/Super_Star_Supergiant_Chance.png"
+                  value={ui.super_star_supergiant_chance}
+                  onChange={(v) => setUi((s) => ({ ...s, super_star_supergiant_chance: v }))}
+                  step={0.5}
+                  min={0}
+                  max={100}
+                  decimals={2}
+                />
+                <Stepper
+                  label="SS Giant Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/f/fe/Super_Star_Supergiant_Multiplier.png"]}
+                  spriteAlt="SS Giant Multiplier"
+                  spriteLabel="Super_Star_Supergiant_Multiplier.png"
+                  value={ui.super_star_supergiant_mult}
+                  onChange={(v) => setUi((s) => ({ ...s, super_star_supergiant_mult: v }))}
+                  step={0.5}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
                 <Stepper
                   label="All Star Multiplier (x)"
                   spritePaths={["sprites/stargazing/All_Star_Multiplier.png"]}
@@ -1525,8 +1449,69 @@ export function Stargazing() {
                   max={10_000}
                   decimals={2}
                 />
+              </div>
+            </div>
+
+            <div className="sgSection tierHeader4">
+              <div className="sgSectionHeader">
+                <div className="sgSectionTitle">
+                  <span className="mono">Radiant & Novagiant</span>
+                </div>
+              </div>
+              <div className="sgRows">
+                <Stepper
+                  label="Star Radiant Chance (%)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/d/d7/Star_Radiant_Chance.png"]}
+                  spriteAlt="Star Radiant Chance"
+                  spriteLabel="Star_Radiant_Chance.png"
+                  value={ui.star_radiant_chance}
+                  onChange={(v) => setUi((s) => ({ ...s, star_radiant_chance: v }))}
+                  step={0.5}
+                  min={0}
+                  max={100}
+                  decimals={2}
+                />
+                <Stepper
+                  label="Radiant Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/8/80/Star_Radiant_Multi.png"]}
+                  spriteAlt="Radiant Multiplier"
+                  spriteLabel="Star_Radiant_Multi.png"
+                  value={ui.star_radiant_mult}
+                  onChange={(v) => setUi((s) => ({ ...s, star_radiant_mult: v }))}
+                  step={0.5}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
+                <Stepper
+                  label="SS Radiant Chance (%)"
+                  spritePaths={["sprites/stargazing/Super_Star_Radiant_Chance.png"]}
+                  spriteAlt="Super Star Radiant Chance"
+                  spriteLabel="sprites/stargazing/Super_Star_Radiant_Chance.png"
+                  value={ui.super_star_radiant_chance}
+                  onChange={(v) => setUi((s) => ({ ...s, super_star_radiant_chance: v }))}
+                  step={0.5}
+                  min={0}
+                  max={100}
+                  decimals={2}
+                />
+                <Stepper
+                  label="SS Radiant Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/f/f1/Super_Star_Radiant_Multi.png"]}
+                  spriteAlt="SS Radiant Multiplier"
+                  spriteLabel="Super_Star_Radiant_Multi.png"
+                  value={ui.super_star_radiant_mult}
+                  onChange={(v) => setUi((s) => ({ ...s, super_star_radiant_mult: v }))}
+                  step={0.5}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
                 <Stepper
                   label="Novagiant Combo Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/8/82/Novagiant_Combo_Multiplier.png"]}
+                  spriteAlt="Novagiant Combo Multiplier"
+                  spriteLabel="Novagiant_Combo_Multiplier.png"
                   value={ui.novagiant_combo_mult}
                   onChange={(v) => setUi((s) => ({ ...s, novagiant_combo_mult: v }))}
                   step={0.05}

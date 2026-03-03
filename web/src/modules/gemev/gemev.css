@@ -597,39 +597,21 @@
   color: rgba(226, 232, 240, 0.95);
   margin-bottom: 8px;
 }
-.gemEvFounderSupplyDropChartBars {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.gemEvFounderSupplyDropChartRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 24px;
-}
-.gemEvFounderSupplyDropChartLabel {
-  flex: 0 0 140px;
+.gemEvFounderSupplyDropTable {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 12px;
+}
+.gemEvFounderSupplyDropTable td {
+  padding: 4px 10px 4px 0;
+  vertical-align: middle;
   color: rgba(226, 232, 240, 0.88);
 }
-.gemEvFounderSupplyDropChartBarTrack {
-  flex: 1;
-  min-width: 0;
-  height: 14px;
-  background: rgba(0, 0, 0, 0.22);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+.gemEvFounderSupplyDropTableLabel {
+  color: rgba(226, 232, 240, 0.88);
 }
-.gemEvFounderSupplyDropChartBarFill {
-  height: 100%;
-  min-width: 2px;
-  border-radius: var(--radius-sm);
-  transition: width 0.15s ease;
-}
-.gemEvFounderSupplyDropChartValue {
-  flex: 0 0 auto;
-  font-size: 12px;
+.gemEvFounderSupplyDropTableValue {
+  text-align: right;
   font-variant-numeric: tabular-nums;
   font-family: var(--mono);
   color: rgba(226, 232, 240, 0.95);

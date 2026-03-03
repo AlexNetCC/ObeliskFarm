@@ -613,7 +613,7 @@ export function Drone() {
     s.gasolineGuzzler = typeof migrated.gasolineGuzzler === "boolean" ? migrated.gasolineGuzzler : DEFAULT.gasolineGuzzler;
     s.axolotlSkin = typeof migrated.axolotlSkin === "boolean" ? migrated.axolotlSkin : DEFAULT.axolotlSkin;
     s.platinumStatueOfAppetite = typeof migrated.platinumStatueOfAppetite === "boolean" ? migrated.platinumStatueOfAppetite : DEFAULT.platinumStatueOfAppetite;
-    s.fuelDurationWorld3Level = Math.max(0, Math.trunc(Number(s.fuelDurationWorld3Level ?? 0)));
+    s.fuelDurationWorld3Level = Math.max(0, clamp(Number(s.fuelDurationWorld3Level ?? 0), 0, 9999));
     s.elixirCritChanceFishing = typeof migrated.elixirCritChanceFishing === "boolean" ? migrated.elixirCritChanceFishing : DEFAULT.elixirCritChanceFishing;
     s.infernalElixirDroneCard = typeof migrated.infernalElixirDroneCard === "boolean" ? migrated.infernalElixirDroneCard : DEFAULT.infernalElixirDroneCard;
     s.elixirCritMult = clamp(migrated.elixirCritMult ?? DEFAULT.elixirCritMult, 1, 20);
@@ -1619,11 +1619,11 @@ export function Drone() {
               label="Fuel Duration"
               iconUrl="https://static.wikitide.net/shminerwiki/5/50/Drone_Fuel_Duration_Multiplier.png"
               value={state.fuelDurationWorld3Level}
-              onChange={(n) => update({ fuelDurationWorld3Level: Math.max(0, Math.trunc(n)) })}
+              onChange={(n) => update({ fuelDurationWorld3Level: Math.max(0, clamp(n, 0, 9999)) })}
               min={0}
               max={9999}
-              step={1}
-              decimals={0}
+              step={0.01}
+              decimals={2}
               suffix=" %"
               tooltip={{
                 title: "Fuel Duration",

@@ -15,6 +15,20 @@
   gap: 6px;
 }
 
+/* Your stats (from game): tighter spacing. */
+.sgLeftPanel .sgGrid {
+  gap: 4px;
+}
+.sgLeftPanel .sgSection {
+  padding: 4px 6px;
+}
+.sgLeftPanel .sgSectionHeader {
+  margin-bottom: 2px;
+}
+.sgLeftPanel .sgRows {
+  gap: 2px;
+}
+
 .sgSection {
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: var(--radius-xl);

@@ -3145,7 +3145,10 @@ export function Fishing() {
                 <button
                   type="button"
                   className="fishingTickChartBtn"
-                  onClick={() => setSushiChartOpen(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSushiChartOpen(true);
+                  }}
                   title="Sushi per hour breakdown"
                   aria-label="Open Sushi per hour breakdown"
                 >
@@ -3317,7 +3320,10 @@ export function Fishing() {
                   <button
                     type="button"
                     className="fishingTickChartBtn"
-                    onClick={() => setTickChartOpen(true)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTickChartOpen(true);
+                    }}
                     title="Effective ticks breakdown"
                     aria-label="Open effective ticks breakdown"
                   >
