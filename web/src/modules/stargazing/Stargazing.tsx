@@ -899,7 +899,7 @@ export function Stargazing() {
                   checked={w3DebuffRemovedFishing}
                   onChange={(e) => setW3DebuffRemovedFishing(e.target.checked)}
                 />
-                <span>W3 Debuff removed (Fishing)</span>
+                <span>W3 Debuff removed (by Fishing)</span>
                 <Tooltip
                   content={{
                     title: "W3 debuff removed",

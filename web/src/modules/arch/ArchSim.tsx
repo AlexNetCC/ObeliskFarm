@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import { Collapsible } from "../../components/Collapsible";
 import { Tooltip, type TooltipContent } from "../../components/Tooltip";
 import { assetUrl } from "../../lib/assets";
-import { formatInt } from "../../lib/format";
+import { formatInt, formatWithThinSpaces } from "../../lib/format";
 import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES, SKILL_BONUSES } from "../../lib/archaeology/constants";
@@ -275,6 +275,9 @@ export function ArchSim() {
   const [mcActiveMode, setMcActiveMode] = useState<null | "frag" | "XP" | "stage">(null);
   const [mcCalibrationMsPer100Sims, setMcCalibrationMsPer100Sims] = useState<number | null>(null);
   const [mcCalibrating, setMcCalibrating] = useState(false);
+  const [buildMcN, setBuildMcN] = useState(5000);
+  const [buildMcRunning, setBuildMcRunning] = useState(false);
+  const [buildMcProgress, setBuildMcProgress] = useState<string | null>(null);
   const [comparisonResult, setComparisonResult] = useState<null | {
     mode: "stage" | "XP" | "frag";
     methodResults: Array<{ methodId: McComparisonMethodId; label: string; build: ArchBuild; primary: number }>;
@@ -521,13 +524,6 @@ export function ArchSim() {
         {
           heading: "Why it’s optional",
           lines: ["If you only care about the optimizers, you can ignore this section."],
-        },
-        {
-          heading: "Match with in-game",
-          lines: [
-            "Formulas are reverse-engineered; some values may differ from in-game (e.g. armor pen, exp/loot mod chance, xp/fragment gain).",
-            "If your same build shows different numbers in-game, the game may use different formulas or the sim may be outdated.",
-          ],
         },
       ],
     }),
@@ -1978,6 +1974,214 @@ export function ArchSim() {
     return null;
   }
 
+  async function runBuildMc() {
+    if (mcRunning || buildMcRunning) return;
+    setBuildMcRunning(true);
+    setBuildMcProgress("Starting…");
+    const N = clampInt(buildMcN, 100, 500000);
+    const hc = typeof navigator !== "undefined" ? Number((navigator as any).hardwareConcurrency ?? 4) : 4;
+    const workerCount = clampInt(Math.max(1, hc - 1), 1, 8);
+    const pool = createWorkerPool(workerCount);
+    const seedBase = (Date.now() & 0x7fffffff) >>> 0;
+    const currentBuild = build;
+    const bestStats = getTotalStats(currentBuild);
+    const options = { use_crit: true, enrage_enabled: currentBuild.enrageEnabled, flurry_enabled: currentBuild.flurryEnabled, quake_enabled: currentBuild.quakeEnabled };
+    const cardCfg = { blockCards: currentBuild.blockCards, polychromeBonus: getPolychromeBonus() };
+    const FRAG_TYPES_REF = ["common", "rare", "epic", "legendary", "mythic"] as const;
+    try {
+      setBuildMcProgress(`Final sims (0/${N})…`);
+      const chunkSize = clampInt(Math.trunc(N / Math.max(1, pool.size * 4)), 10, 500);
+      let remaining = N;
+      let done = 0;
+      const objectiveSamples: number[] = [];
+      let sumFloors = 0,
+        sumFloorsSq = 0,
+        sumXp = 0,
+        sumXpSq = 0,
+        sumTotalFrags = 0,
+        sumDur = 0,
+        sumDurSq = 0,
+        sumHits = 0,
+        sumHitsSq = 0,
+        sumXph = 0,
+        sumXphSq = 0,
+        sumFph = 0,
+        sumFphSq = 0;
+      let sampleCount = 0;
+      const sumFragsByTypeRef: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
+      const staminaAtStageSumRef: Record<number, number> = {};
+      const staminaAtStageSumSqRef: Record<number, number> = {};
+      const staminaAtStageCountRef: Record<number, number> = {};
+      const staminaAtStageByRunRef: number[][] = [];
+      let submitted = 0;
+      const tasks: Promise<void>[] = [];
+      while (remaining > 0) {
+        const n = Math.min(chunkSize, remaining);
+        submitted += 1;
+        const seed = seedBase + 1_000_000 + submitted;
+        const t = pool
+          .run({
+            type: "stageLite",
+            payload: {
+              stats: bestStats,
+              starting_floor: 1,
+              n_sims: n,
+              options,
+              cardCfg,
+              seed,
+              targetFrag: null,
+              initialSpeedModHits: currentBuild.permanentSpeedModEnabled ? PERMANENT_SPEED_MOD_INITIAL_HITS : undefined,
+            },
+          })
+          .then((out) => {
+            const dur: number[] = out.run_duration_seconds_samples ?? [];
+            const xp: number[] = out.xp_per_run_samples ?? [];
+            const maxs: number[] = out.max_stage_samples ?? [];
+            const floors: number[] = out.floors_cleared_samples ?? [];
+            const totals: number[] = out.total_fragments_samples ?? [];
+            const hits: number[] = (out as { total_hits_samples?: number[] }).total_hits_samples ?? [];
+            const runFragsByType = (out as { run_fragments_by_type?: Record<string, number[]> }).run_fragments_by_type ?? {};
+            for (let i = 0; i < dur.length; i += 1) {
+              const d = Number(dur[i] ?? 1);
+              const runsPerHour = d > 0 ? 3600.0 / d : 0;
+              objectiveSamples.push(Number(maxs[i] ?? 0));
+              sumDur += d;
+              sumDurSq += d * d;
+              const xpVal = Number(xp[i] ?? 0);
+              const flVal = Number(floors[i] ?? 0);
+              const totVal = Number(totals[i] ?? 0);
+              sumXp += xpVal;
+              sumXpSq += xpVal * xpVal;
+              sumFloors += flVal;
+              sumFloorsSq += flVal * flVal;
+              sumTotalFrags += totVal;
+              const xph = xpVal * runsPerHour;
+              const fph = totVal * runsPerHour;
+              sumXph += xph;
+              sumXphSq += xph * xph;
+              sumFph += fph;
+              sumFphSq += fph * fph;
+              const h = Number(hits[i] ?? 0);
+              sumHits += h;
+              sumHitsSq += h * h;
+              for (const k of FRAG_TYPES_REF) sumFragsByTypeRef[k] += Number(runFragsByType[k]?.[i] ?? 0);
+              sampleCount += 1;
+            }
+            const sum = (out as { stamina_at_stage_sum?: Record<number, number> }).stamina_at_stage_sum;
+            const sumSq = (out as { stamina_at_stage_sum_sq?: Record<number, number> }).stamina_at_stage_sum_sq;
+            const cnt = (out as { stamina_at_stage_count?: Record<number, number> }).stamina_at_stage_count;
+            const byRun = (out as { stamina_at_stage_by_run?: number[][] }).stamina_at_stage_by_run;
+            if (sum) for (const [s, v] of Object.entries(sum)) { const k = Math.trunc(Number(s)); staminaAtStageSumRef[k] = (staminaAtStageSumRef[k] ?? 0) + Number(v); }
+            if (sumSq) for (const [s, v] of Object.entries(sumSq)) { const k = Math.trunc(Number(s)); staminaAtStageSumSqRef[k] = (staminaAtStageSumSqRef[k] ?? 0) + Number(v); }
+            if (cnt) for (const [s, v] of Object.entries(cnt)) { const k = Math.trunc(Number(s)); staminaAtStageCountRef[k] = (staminaAtStageCountRef[k] ?? 0) + Number(v); }
+            if (byRun && Array.isArray(byRun)) staminaAtStageByRunRef.push(...byRun);
+            done += n;
+            setBuildMcProgress(`Final sims (${done}/${N})…`);
+          });
+        tasks.push(t);
+        remaining -= n;
+      }
+      await Promise.all(tasks);
+
+      setBuildMcProgress("Block breakdown…");
+      let blockBreakdown: McLogEntry["metrics"]["blockBreakdown"] = undefined;
+      try {
+        const bb = await pool.run({
+          type: "blockBreakdown",
+          payload: { stats: bestStats, starting_floor: 1, n_sims: 100, options, cardCfg, seed: seedBase + 999_999 },
+        });
+        if (bb?.by_type && Object.keys(bb.by_type).length > 0) blockBreakdown = bb;
+      } catch {
+        // non-fatal
+      }
+
+      const avgFloors = sampleCount > 0 ? sumFloors / sampleCount : 0;
+      const avgXp = sampleCount > 0 ? sumXp / sampleCount : 0;
+      const avgTotalFrags = sampleCount > 0 ? sumTotalFrags / sampleCount : 0;
+      const avgDur = sampleCount > 0 ? sumDur / sampleCount : 1;
+      const avgAttacksPerRun = sampleCount > 0 ? sumHits / sampleCount : 0;
+      const durationSecondsStdRef = sampleCount > 1 ? Math.sqrt(Math.max(0, sumDurSq / sampleCount - avgDur * avgDur)) : undefined;
+      const attacksPerRunStdRef = sampleCount > 1 ? Math.sqrt(Math.max(0, sumHitsSq / sampleCount - avgAttacksPerRun * avgAttacksPerRun)) : undefined;
+      const floorsPerRunStdRef = sampleCount > 1 ? Math.sqrt(Math.max(0, sumFloorsSq / sampleCount - avgFloors * avgFloors)) : undefined;
+      const xpPerRunStdRef = sampleCount > 1 ? Math.sqrt(Math.max(0, sumXpSq / sampleCount - avgXp * avgXp)) : undefined;
+      const meanXphRef = sampleCount > 0 ? sumXph / sampleCount : 0;
+      const xpPerHourStdRef = sampleCount > 1 ? Math.sqrt(Math.max(0, sumXphSq / sampleCount - meanXphRef * meanXphRef)) : undefined;
+      const meanFphRef = sampleCount > 0 ? sumFph / sampleCount : 0;
+      const fragmentsPerHourStdRef = sampleCount > 1 ? Math.sqrt(Math.max(0, sumFphSq / sampleCount - meanFphRef * meanFphRef)) : undefined;
+      let xpPerHour = avgDur > 0 ? (avgXp * 3600.0) / avgDur : 0;
+      let fragmentsPerHour = avgDur > 0 ? (avgTotalFrags * 3600.0) / avgDur : 0;
+      const fragmentsPerHourByTypeRef: Record<string, number> = {};
+      if (sumDur > 0) for (const k of FRAG_TYPES_REF) fragmentsPerHourByTypeRef[k] = (sumFragsByTypeRef[k] ?? 0) * (3600.0 / sumDur);
+      const archExtRef = loadJson<{ lootbugArch600AttacksPerHour?: number }>(ARCH_EXTERNAL_KEY) ?? {};
+      const lootbugAttacksRef = typeof archExtRef?.lootbugArch600AttacksPerHour === "number" ? archExtRef.lootbugArch600AttacksPerHour : 0;
+      if (lootbugAttacksRef > 0 && bestStats.max_stamina > 0) {
+        const extraRunsPerHour = lootbugAttacksRef / bestStats.max_stamina;
+        xpPerHour += extraRunsPerHour * avgXp;
+        fragmentsPerHour += extraRunsPerHour * avgTotalFrags;
+        if (sampleCount > 0) for (const k of FRAG_TYPES_REF) fragmentsPerHourByTypeRef[k] = (fragmentsPerHourByTypeRef[k] ?? 0) + extraRunsPerHour * ((sumFragsByTypeRef[k] ?? 0) / sampleCount);
+      }
+      const avgStaminaAtEndOfStageRef: Record<number, number> = {};
+      const stdStaminaAtEndOfStageRef: Record<number, number> = {};
+      for (const s of Object.keys(staminaAtStageSumRef)) {
+        const stage = Math.trunc(Number(s));
+        const cnt = staminaAtStageCountRef[stage] ?? 0;
+        if (cnt > 0) {
+          const sum = staminaAtStageSumRef[stage] ?? 0;
+          const sumSq = staminaAtStageSumSqRef[stage] ?? 0;
+          avgStaminaAtEndOfStageRef[stage] = sum / cnt;
+          if (cnt > 1) stdStaminaAtEndOfStageRef[stage] = Math.sqrt(Math.max(0, sumSq / cnt - (sum / cnt) ** 2));
+        }
+      }
+      const entry: McLogEntry = {
+        id: `mc_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        createdAt: Date.now(),
+        label: `Build MC (N=${N})`,
+        mcType: "stage",
+        build: currentBuild,
+        metrics: {
+          floorsPerRun: avgFloors,
+          xpPerRun: avgXp,
+          durationSeconds: avgDur,
+          durationSecondsStd: durationSecondsStdRef,
+          fragmentsPerRunTotal: avgTotalFrags,
+          xpPerHour,
+          fragmentsPerHour,
+          floorsPerRunStd: floorsPerRunStdRef,
+          xpPerRunStd: xpPerRunStdRef,
+          xpPerHourStd: xpPerHourStdRef,
+          fragmentsPerHourStd: fragmentsPerHourStdRef,
+          attacksPerRun: avgAttacksPerRun,
+          attacksPerRunStd: attacksPerRunStdRef,
+          fragmentsPerHourByType: fragmentsPerHourByTypeRef,
+          blockBreakdown,
+        },
+        mc: {
+          archLevel: clampInt(Number(currentBuild.archLevel ?? 0), 0, 999),
+          screeningSims: 0,
+          refinementSims: N,
+          objective: "stage",
+          objectiveSamples,
+          ...(Object.keys(avgStaminaAtEndOfStageRef).length > 0
+            ? {
+                avgStaminaAtEndOfStage: avgStaminaAtEndOfStageRef,
+                stdStaminaAtEndOfStage: Object.keys(stdStaminaAtEndOfStageRef).length > 0 ? stdStaminaAtEndOfStageRef : undefined,
+                staminaAtStageByRun: staminaAtStageByRunRef.length > 0 ? staminaAtStageByRunRef : undefined,
+              }
+            : {}),
+        },
+      };
+      setMcLog((xs) => [entry, ...xs]);
+      setActiveLogId(entry.id);
+      setOpenLogId(entry.id);
+    } catch (e) {
+      setBuildMcProgress(e instanceof Error ? e.message : String(e));
+    } finally {
+      pool.terminate();
+      setBuildMcRunning(false);
+      setBuildMcProgress(null);
+    }
+  }
+
   async function runComparison(mode: "frag" | "XP" | "stage") {
     if (mcRunning) return;
     cancelRef.current.cancelled = false;
@@ -2553,9 +2757,12 @@ export function ArchSim() {
     const { samples, kind, title, xLabel, ariaLabel, gradientIdPrefix, onFlameClick } = args;
     if (!samples.length) return null;
     const W = 560;
-    const H = 184; // extra space for x-axis labels
     const pad = 10;
     const axisH = 26;
+    const labelAreaH = kind === "stage" ? 72 : 0; // space above bars for rotated labels
+    const H = 184 + labelAreaH;
+    const plotTop = pad + labelAreaH;
+    const plotH = H - pad * 2 - axisH - labelAreaH;
 
     const xs = samples.map((x) => Number(x)).filter((x) => Number.isFinite(x));
     if (!xs.length) return null;
@@ -2592,7 +2799,6 @@ export function ArchSim() {
 
     const maxC = Math.max(1, ...counts);
     const barW = (W - pad * 2) / counts.length;
-    const plotH = H - pad * 2 - axisH;
     const totalSamples = xs.length;
     // Rightmost (highest-stage) bar with count > 0: show flame above it when kind === "stage"
     let highlightBarIndex = -1;
@@ -2608,7 +2814,7 @@ export function ArchSim() {
     const bars = counts.map((c, i) => {
       const h = (plotH * c) / maxC;
       const x = pad + i * barW;
-      const y = H - pad - axisH - h;
+      const y = plotTop + plotH - h;
       const binStart = bins[i] ?? 0;
       const binEnd = binStart + step;
       const titleText =
@@ -2628,22 +2834,22 @@ export function ArchSim() {
             if (c <= 0) return null;
             const h = (plotH * c) / maxC;
             const cx = pad + (i + 0.5) * barW;
+            const yBarTop = plotTop + plotH - h;
             const pct = (100 * c) / totalSamples;
-            const inside = h >= 14;
-            const cy = inside ? H - pad - axisH - h / 2 : H - pad - axisH - h - 4;
-            const useLight = inside && h > plotH * 0.35;
+            const labelText = `${formatWithThinSpaces(c, 0)} (${pct.toFixed(1)}%)`;
             return (
               <text
                 key={i}
                 x={cx}
-                y={cy}
+                y={yBarTop - 2}
                 textAnchor="middle"
-                dominantBaseline={inside ? "middle" : "hanging"}
+                dominantBaseline="hanging"
                 fontSize="9"
                 fontWeight="700"
-                fill={useLight ? "rgba(255,255,255,0.95)" : "rgba(15,23,42,0.9)"}
+                fill="rgba(15,23,42,0.9)"
+                transform={`rotate(-90, ${cx}, ${yBarTop - 2})`}
               >
-                {`${c} (${pct.toFixed(1)}%)`}
+                {labelText}
               </text>
             );
           })
@@ -2691,7 +2897,7 @@ export function ArchSim() {
               const i = highlightBarIndex;
               const c = counts[i]!;
               const barH = (plotH * c) / maxC;
-              const barTop = H - pad - axisH - barH;
+              const barTop = plotTop + plotH - barH;
               const barCenterX = pad + (i + 0.5) * barW;
               const flameW = 28;
               const flameH = 32;
@@ -3185,6 +3391,52 @@ export function ArchSim() {
               );
             })}
 
+            <div className="sectionTitle" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              Run MC Simulation of above build
+              <Tooltip
+                content={{
+                  title: "Build MC",
+                  lines: [
+                    "Runs N Monte Carlo runs with the current player stats (no optimization).",
+                    "Results show the same metrics and plots as the Stage/XP/Frag optimizer results.",
+                  ],
+                }}
+              />
+            </div>
+            <div className="small" style={{ marginBottom: 6 }}>
+              Run <span className="mono">N</span> Monte Carlo runs with the current player stats. Results open in the same results window as the Stage/XP/Frag optimizers.
+            </div>
+            <div className="row" style={{ marginBottom: 8, flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span className="mono">N</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={100}
+                  max={500000}
+                  step={500}
+                  value={buildMcN}
+                  onChange={(e) => setBuildMcN(clampInt(Number(e.target.value) || 5000, 100, 500000))}
+                  className="mono"
+                  style={{ width: 88, padding: "4px 6px" }}
+                  disabled={buildMcRunning}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => runBuildMc()}
+                disabled={buildMcRunning || mcRunning}
+              >
+                Run Simulation
+              </button>
+              {buildMcProgress != null ? (
+                <span className="small mono" style={{ color: "var(--muted)" }}>
+                  {buildMcProgress}
+                </span>
+              ) : null}
+            </div>
+
             <div className="sectionTitle">Derived stats</div>
             {(() => {
               const bb = getBlockBonkerBonus(build);
@@ -3375,11 +3627,11 @@ export function ArchSim() {
           </Collapsible>
 
           <Collapsible
-            id="arch-fragment-upgrades"
-            title="Fragment upgrades"
+            id="arch-upgrade-recommendations"
+            title="Upgrade recommendations"
             defaultExpanded={false}
           >
-            <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
+            <div className="panel" style={{ background: "var(--tier2)", padding: "6px 8px" }}>
               <Collapsible
                 id="arch-which-upgrade-next"
                 title="Which Fragment Upgrade next to maximize Stage Push?"
@@ -3918,7 +4170,15 @@ export function ArchSim() {
                   )}
                 </div>
               </Collapsible>
+            </div>
+          </Collapsible>
 
+          <Collapsible
+            id="arch-fragment-upgrades"
+            title="Fragment upgrades"
+            defaultExpanded={false}
+          >
+            <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
               {(["common", "rare", "epic", "legendary", "mythic"] as const).map((ct) => {
               const entries = fragmentGroups[ct] ?? [];
               const color = BLOCK_COLORS[ct];
@@ -4733,9 +4993,9 @@ export function ArchSim() {
                                       <span className={`mcTypePill mcTypePill_${e.mcType}`}>{e.mcType.toUpperCase()}</span>{" "}
                                       <span className="label">{e.label}</span>
                                     </td>
-                                    <td className="mono num">{e.metrics.floorsPerRun.toFixed(2)}</td>
-                                    <td className="mono num">{Math.round(e.metrics.xpPerHour)}</td>
-                                    <td className="mono num">{e.metrics.fragmentsPerHour.toFixed(1)}</td>
+                                    <td className="mono num">{formatWithThinSpaces(e.metrics.floorsPerRun, 2)}</td>
+                                    <td className="mono num">{formatWithThinSpaces(Math.round(e.metrics.xpPerHour), 0)}</td>
+                                    <td className="mono num">{formatWithThinSpaces(e.metrics.fragmentsPerHour, 1)}</td>
                                     <td className="actions" />
                                   </tr>
                                   <tr key={`${e.id}:actions`} className={`${rowClass} mcActionsRow`.trim()}>
@@ -4821,46 +5081,50 @@ export function ArchSim() {
             <div className="modalBody">
               {openLog.mc ? (
                 <p className="small" style={{ marginBottom: 8, opacity: 0.9 }}>
-                  Mean and SD below are from the final sims (N≈3000) of the winning build (top1), not from all candidates.
+                  {openLog.mc.refinementSims != null && openLog.mc.screeningSims === 0
+                    ? `Mean and SD below are from the final sims (N=${openLog.mc.refinementSims}).`
+                    : "Mean and SD below are from the final sims (N≈3000) of the winning build (top1), not from all candidates."}
                 </p>
               ) : null}
               <div className="kv">
                 <kbd>Goal stage</kbd>
-                <div className="mono">{Number(openLog.build.goalStage).toFixed(1)}</div>
+                <div className="mono">{formatWithThinSpaces(Number(openLog.build.goalStage), 1)}</div>
                 <kbd>Unlocked</kbd>
-                <div className="mono">{Number(openLog.build.unlockedStage).toFixed(1)}</div>
+                <div className="mono">{formatWithThinSpaces(Number(openLog.build.unlockedStage), 1)}</div>
                 <kbd>Arch level</kbd>
-                <div className="mono">{Number(openLog.build.archLevel).toFixed(1)}</div>
+                <div className="mono">{formatWithThinSpaces(Number(openLog.build.archLevel), 1)}</div>
                 <kbd>Floors/run</kbd>
                 <div className="mono">
                   {openLog.metrics.floorsPerRunStd != null
-                    ? `${openLog.metrics.floorsPerRun.toFixed(1)} ± ${openLog.metrics.floorsPerRunStd.toFixed(1)}`
-                    : openLog.metrics.floorsPerRun.toFixed(1)}
+                    ? `${formatWithThinSpaces(openLog.metrics.floorsPerRun, 1)} ± ${formatWithThinSpaces(openLog.metrics.floorsPerRunStd, 1)}`
+                    : formatWithThinSpaces(openLog.metrics.floorsPerRun, 1)}
                 </div>
                 <kbd>XP/run</kbd>
                 <div className="mono">
                   {openLog.metrics.xpPerRunStd != null
-                    ? `${openLog.metrics.xpPerRun.toFixed(1)} ± ${openLog.metrics.xpPerRunStd.toFixed(1)}`
-                    : openLog.metrics.xpPerRun.toFixed(1)}
+                    ? `${formatWithThinSpaces(openLog.metrics.xpPerRun, 1)} ± ${formatWithThinSpaces(openLog.metrics.xpPerRunStd, 1)}`
+                    : formatWithThinSpaces(openLog.metrics.xpPerRun, 1)}
                 </div>
                 <kbd>XP/h</kbd>
                 <div className="mono">
                   {openLog.metrics.xpPerHourStd != null
-                    ? `${openLog.metrics.xpPerHour.toFixed(1)} ± ${openLog.metrics.xpPerHourStd.toFixed(1)}`
-                    : openLog.metrics.xpPerHour.toFixed(1)}
+                    ? `${formatWithThinSpaces(openLog.metrics.xpPerHour, 1)} ± ${formatWithThinSpaces(openLog.metrics.xpPerHourStd, 1)}`
+                    : formatWithThinSpaces(openLog.metrics.xpPerHour, 1)}
                 </div>
+                <kbd>Fragments/run</kbd>
+                <div className="mono">{formatWithThinSpaces(openLog.metrics.fragmentsPerRunTotal, 1)}</div>
                 <kbd>Frag/h</kbd>
                 <div className="mono">
                   {openLog.metrics.fragmentsPerHourStd != null
-                    ? `${openLog.metrics.fragmentsPerHour.toFixed(1)} ± ${openLog.metrics.fragmentsPerHourStd.toFixed(1)}`
-                    : openLog.metrics.fragmentsPerHour.toFixed(1)}
+                    ? `${formatWithThinSpaces(openLog.metrics.fragmentsPerHour, 1)} ± ${formatWithThinSpaces(openLog.metrics.fragmentsPerHourStd, 1)}`
+                    : formatWithThinSpaces(openLog.metrics.fragmentsPerHour, 1)}
                 </div>
                 <kbd>Attacks/run</kbd>
                 <div className="mono">
                   {openLog.metrics.attacksPerRun != null
                     ? openLog.metrics.attacksPerRunStd != null
-                      ? `${Number(openLog.metrics.attacksPerRun).toFixed(1)} ± ${Number(openLog.metrics.attacksPerRunStd).toFixed(1)}`
-                      : Number(openLog.metrics.attacksPerRun).toFixed(1)
+                      ? `${formatWithThinSpaces(Number(openLog.metrics.attacksPerRun), 1)} ± ${formatWithThinSpaces(Number(openLog.metrics.attacksPerRunStd), 1)}`
+                      : formatWithThinSpaces(Number(openLog.metrics.attacksPerRun), 1)
                     : "—"}
                 </div>
                 <kbd>Run duration</kbd>
@@ -4869,17 +5133,16 @@ export function ArchSim() {
                   {openLog.metrics.durationSecondsStd != null ? ` ± ${formatDurationMinSec(openLog.metrics.durationSecondsStd)}` : ""}
                 </div>
                 {(() => {
-                  // fragmentsPerHourByType is optional; narrow once so TS is happy inside .map()
                   const byType = openLog.metrics.fragmentsPerHourByType;
                   if (!byType) return null;
                   return (
                     <>
-                      <kbd>Frag/h by type</kbd>
+                      <kbd>Fragment distribution (Frag/h)</kbd>
                       <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", alignItems: "center" }}>
                         {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => (
                           <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                             <Sprite path={getFragIconPath(t)} alt={t} className="iconSmall" />
-                            = {(byType[t] ?? 0).toFixed(1)}
+                            = {formatWithThinSpaces(byType[t] ?? 0, 1)}
                           </span>
                         ))}
                       </div>
@@ -4926,10 +5189,10 @@ export function ArchSim() {
                                 <Sprite path={`sprites/archaeology/block_${blockType}_t${tier}.png`} alt={`${blockType} T${tier}`} className="iconSmall" />
                               </td>
                               <td>{blockType.charAt(0).toUpperCase() + blockType.slice(1)} T{tier}</td>
-                              <td className="num mono">{v.blocks_destroyed_per_run.toFixed(1)}</td>
-                              <td className="num mono">{v.time_seconds_per_run.toFixed(0)}</td>
-                              <td className="num mono">{(v.time_share * 100).toFixed(1)}%</td>
-                              <td className="num mono">{v.avg_hits_per_block.toFixed(1)}</td>
+                              <td className="num mono">{formatWithThinSpaces(v.blocks_destroyed_per_run, 1)}</td>
+                              <td className="num mono">{formatWithThinSpaces(v.time_seconds_per_run, 0)}</td>
+                              <td className="num mono">{formatWithThinSpaces(v.time_share * 100, 1)}%</td>
+                              <td className="num mono">{formatWithThinSpaces(v.avg_hits_per_block, 1)}</td>
                             </tr>
                           ));
                         })()}

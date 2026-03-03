@@ -1,3 +1,16 @@
+/** Comma used as thousands separator in numeric displays. */
+const THOUSANDS_SEP = ",";
+
+/** Format a number with commas as thousands separators. Optional decimals for fractional part. */
+export function formatWithThinSpaces(n: number, decimals?: number): string {
+  if (!Number.isFinite(n)) return String(n);
+  const d = decimals ?? 1;
+  const fixed = d <= 0 ? String(Math.round(n)) : n.toFixed(d);
+  const [intPart, decPart] = fixed.split(".");
+  const withSeparators = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, THOUSANDS_SEP);
+  return decPart != null ? `${withSeparators}.${decPart}` : withSeparators;
+}
+
 export function formatInt(n: number): string {
   if (!Number.isFinite(n)) return String(n);
   return Math.trunc(n).toLocaleString("en-US");
