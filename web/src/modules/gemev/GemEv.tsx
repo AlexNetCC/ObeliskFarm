@@ -38,6 +38,8 @@ type SavedStateV1 = {
   skill_shards_enabled: boolean;
   show_jackpot_refresh?: boolean;
   statue_soprano_level?: number;
+  /** Banked freebies cap (for overnight). Written to gemev_external for Overnight Gains. */
+  bankedFreebies?: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -68,6 +70,18 @@ function fmt1(n: number): string {
 function fmtPct(n: number, total: number): string {
   if (!Number.isFinite(n) || !Number.isFinite(total) || total <= 0) return "0.0%";
   return `${((n / total) * 100).toFixed(1)}%`;
+}
+
+/** Format decimal minutes as MM:SS min (e.g. 7.2 → "07:12 min"). */
+function formatMinSecWithUnit(minDecimal: number): string {
+  if (!Number.isFinite(minDecimal) || minDecimal < 0) return "00:00 min";
+  let m = Math.floor(minDecimal);
+  let s = Math.round((minDecimal - m) * 60);
+  if (s >= 60) {
+    s = 0;
+    m += 1;
+  }
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min`;
 }
 
 function Sprite(props: { path: string | null; alt: string; className?: string; label?: string }) {
@@ -184,7 +198,8 @@ export function GemEv() {
     const skill_shards_enabled = saved?.skill_shards_enabled ?? true;
     const show_jackpot_refresh = saved?.show_jackpot_refresh ?? true;
     const statue_soprano_level = Math.max(0, Math.min(3, saved?.statue_soprano_level ?? 0));
-    return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh, statue_soprano_level };
+    const bankedFreebies = Math.max(0, Math.min(999, saved?.bankedFreebies ?? 0));
+    return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh, statue_soprano_level, bankedFreebies };
   }, []);
 
   const [params, setParams] = useState<GameParameters>(initial.params);
@@ -195,6 +210,7 @@ export function GemEv() {
   const [giftsPerHourChartOpen, setGiftsPerHourChartOpen] = useState(false);
   const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
   const [statueSopranoLevel, setStatueSopranoLevel] = useState<number>(initial.statue_soprano_level);
+  const [bankedFreebies, setBankedFreebies] = useState<number>(initial.bankedFreebies);
   const [lootbugNetGemsPerHour, setLootbugNetGemsPerHour] = useState(0);
   useEffect(() => {
     const ext = loadJson<{ lootbugNetGemsPerHour?: number }>(GEMEV_EXTERNAL_KEY);
@@ -203,11 +219,11 @@ export function GemEv() {
   // autosave
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled, show_jackpot_refresh: showJackpotRefresh, statue_soprano_level: statueSopranoLevel };
+      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled, show_jackpot_refresh: showJackpotRefresh, statue_soprano_level: statueSopranoLevel, bankedFreebies };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [params, stonksEnabled, skillShardsEnabled, showJackpotRefresh, statueSopranoLevel]);
+  }, [params, stonksEnabled, skillShardsEnabled, showJackpotRefresh, statueSopranoLevel, bankedFreebies]);
 
   useEffect(() => {
     function onKeyDown(ev: KeyboardEvent) {
@@ -323,7 +339,6 @@ export function GemEv() {
     p.total_bomb_types = 10 + (includeFounder ? 1 : 0) + (hasVeinmorph ? 1 : 0) + (hasMegabomb ? 1 : 0);
 
     // Clamp common percent inputs
-    p.freebie_claim_percentage = clamp(p.freebie_claim_percentage, 0, 100);
     p.skill_shard_chance = clamp(p.skill_shard_chance, 0, 1);
     p.jackpot_chance = clamp(p.jackpot_chance, 0, 1);
     p.instant_refresh_chance = clamp(p.instant_refresh_chance, 0, 1);
@@ -557,8 +572,9 @@ export function GemEv() {
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.totalGemsPerHour = totalWithLootbugAndDroneFuel;
+    ext.bankedFreebies = bankedFreebies;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [totalWithLootbugAndDroneFuel]);
+  }, [totalWithLootbugAndDroneFuel, bankedFreebies]);
 
   const evForChart = useMemo(() => ({
     ...ev,
@@ -581,7 +597,7 @@ export function GemEv() {
     () => ({
       title: "FREEBIE Parameters",
       sections: [
-        { heading: "Base", lines: ["Freebie Gems (Base), Freebie Timer, Claim % (per day)."] },
+        { heading: "Base", lines: ["Freebie Gems (Base), Freebie Timer."] },
         {
           heading: "Special drops",
           lines: [
@@ -929,30 +945,48 @@ export function GemEv() {
                 <span className="mono small">→ Effective freebie timer</span>
                 <span className="mono small">{getEffectiveFreebieTimerMinutes(effectiveParams).toFixed(1)} min</span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ flex: "1", minWidth: 0 }}>
-                  <Stepper
-                    label="Freebie Claim (% per Day)"
-                    value={params.freebie_claim_percentage}
-                    onChange={(v) => setParams((s) => ({ ...s, freebie_claim_percentage: v }))}
-                    step={1}
-                    min={0}
-                    max={100}
-                    decimals={1}
-                    showButtons={false}
-                  />
+              <Stepper
+                label={
+                  <>
+                    Banked freebies
+                    <Tooltip
+                      content={{
+                        title: "Banked freebies",
+                        lines: [
+                          "Cap for banked freebies (like Lootbug cap). Used by Overnight Gains: banked count × freebie EV per claim.",
+                          "Set this in Gem EV; Overnight reads it from here.",
+                        ],
+                      }}
+                      label="?"
+                    />
+                  </>
+                }
+                value={bankedFreebies}
+                onChange={(v) => setBankedFreebies(Math.max(0, Math.min(999, v)))}
+                step={1}
+                min={0}
+                max={999}
+                decimals={0}
+              />
+              {freebiesPerHour > 0 && bankedFreebies > 0 && (
+                <div className="gemEvRow gemEvEffectiveTimerGlow">
+                  <span className="mono small">Time to hit Freebie cap</span>
+                  <span className="mono small">
+                    {(() => {
+                      const totalMinutes = (bankedFreebies / freebiesPerHour) * 60;
+                      const hours = totalMinutes / 60;
+                      if (hours >= 1) {
+                        const h = Math.floor(hours);
+                        const remainderMinutes = (hours - h) * 60;
+                        return remainderMinutes >= 0.01
+                          ? `${h} h ${formatMinSecWithUnit(remainderMinutes)}`
+                          : `${h} h`;
+                      }
+                      return formatMinSecWithUnit(totalMinutes);
+                    })()}
+                  </span>
                 </div>
-                <Tooltip
-                  content={{
-                    title: "Freebie Claim %",
-                    lines: [
-                      "Affects only the Freebie Gems (base) bar. Other bars use full freebie rate.",
-                      "Example: enter 66 if you do not claim freebies at night (premise: 8 h sleep → 16 h claim per day ≈ 66%).",
-                    ],
-                  }}
-                  label="?"
-                />
-              </div>
+              )}
 
               <div className="gemEvDivider" />
 

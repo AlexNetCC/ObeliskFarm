@@ -139,6 +139,7 @@
   min-width: 28px;
   font-size: 14px;
   line-height: 1;
+  border-radius: 8px;
 }
 .fishingStepperLevelInput {
   width: 4ch;

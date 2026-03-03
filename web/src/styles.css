@@ -1846,6 +1846,15 @@ a:hover {
   font-size: 13px;
 }
 
+/* Only +/- and ±5 stepper buttons: always rounded (ignore global --radius-*). */
+.gemEvStepBtn,
+.fishingStepperMinusBtn,
+.fishingStepperPlusBtn,
+.droneStepperBtn,
+.lootbugStepBtn {
+  border-radius: 8px;
+}
+
 .btn:hover {
   background: rgba(25, 118, 210, 0.16);
 }

@@ -11,7 +11,6 @@ export type GameParameters = {
   // Base freebie parameters
   freebie_gems_base: number;
   freebie_timer_minutes: number;
-  freebie_claim_percentage: number; // 0..100
   /** Game speed as × (e.g. 2 = 2×). 1 = use VIP T10–T12; >1 = override. Freebie/bomb time = base / multiplier. */
   game_speed_multiplier: number;
 
@@ -128,7 +127,6 @@ export function defaultGameParameters(): GameParameters {
     founder_enabled: true,
     freebie_gems_base: 9.0,
     freebie_timer_minutes: 7.0,
-    freebie_claim_percentage: 100.0,
     game_speed_multiplier: 1.0,
     skill_shard_chance: 0.12,
     skill_shard_value_gems: 12.5,
@@ -396,10 +394,9 @@ export function calculateFreebieRelicChestsPerHour(params: GameParameters): numb
 
 export function calculateGemsBasePerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
-  const claim = clampPositive(params.freebie_claim_percentage, 100.0) / 100.0; // Claim % only affects gems_base bar
   const expectedRolls = calculateExpectedRollsPerClaim(params);
   const refreshMult = calculateRefreshMultiplier(params);
-  return freebiesPerHour * claim * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
+  return freebiesPerHour * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
 }
 
 export function calculateStonksEvPerHour(params: GameParameters): number {
@@ -1051,14 +1048,13 @@ export type EvBreakdown = Record<
 
 export function calculateEvBreakdown(params: GameParameters): EvBreakdown {
   const freebiesPerHour = calculateFreebiesPerHour(params);
-  const claim = clampPositive(params.freebie_claim_percentage, 100.0) / 100.0; // Only gems_base bar uses claim
   const baseRolls = 1.0;
   const expectedRolls = calculateExpectedRollsPerClaim(params);
   const refreshMult = calculateRefreshMultiplier(params);
 
-  // Gems base (only bar affected by Freebie Claim %)
-  const baseGems = freebiesPerHour * claim * baseRolls * clampPositive(params.freebie_gems_base, 9.0);
-  const jackpotGems = freebiesPerHour * claim * (expectedRolls - baseRolls) * clampPositive(params.freebie_gems_base, 9.0);
+  // Gems base
+  const baseGems = freebiesPerHour * baseRolls * clampPositive(params.freebie_gems_base, 9.0);
+  const jackpotGems = freebiesPerHour * (expectedRolls - baseRolls) * clampPositive(params.freebie_gems_base, 9.0);
   const refreshGemsBase = baseGems * (refreshMult - 1.0);
   const refreshGemsJackpot = jackpotGems * (refreshMult - 1.0);
 

@@ -36,6 +36,8 @@ type LootbugState = {
   gemCostReduction: number;
   lootMultiplier: number;
   activeGemBuffs: string[];
+  /** Banked Lootbugs cap (max capacity). In-game this is called "Banked Lootbugs". Used for time to full from 0. */
+  bankCap: number;
 };
 
 const DEFAULT: LootbugState = {
@@ -45,6 +47,7 @@ const DEFAULT: LootbugState = {
   gemCostReduction: 0,
   lootMultiplier: 1,
   activeGemBuffs: DEFAULT_ACTIVE_GEM_BUFFS,
+  bankCap: 10,
 };
 
 function clamp(n: number, min: number, max: number): number {
@@ -323,6 +326,7 @@ export function Lootbug() {
     s.goldenChancePct = clamp(s.goldenChancePct, 0, 100);
     s.gemCostReduction = clampInt(s.gemCostReduction, 0, 999);
     s.lootMultiplier = clamp(s.lootMultiplier, 0.1, 5);
+    s.bankCap = clampInt(s.bankCap ?? 10, 1, 999);
     const validNames = new Set(GEM_BUFFS.map((b) => b.name));
     s.activeGemBuffs = Array.isArray(s.activeGemBuffs)
       ? s.activeGemBuffs.filter((name) => validNames.has(name))
@@ -720,6 +724,7 @@ export function Lootbug() {
       lootbug10xGemEvPerHour?: number;
       lootbugChestGemEvPerHour?: number;
       lootbugTotalGemCostPerHour?: number;
+      bankedLootbugs?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
     ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
@@ -738,8 +743,9 @@ export function Lootbug() {
     ext.lootbug10xGemEvPerHour = lootbug10xGemEvPerHour;
     ext.lootbugChestGemEvPerHour = lootbugChestGemEvPerHour;
     ext.lootbugTotalGemCostPerHour = totalGemCostPerHour;
+    ext.bankedLootbugs = state.bankCap;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbugNetEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  }, [state.bankCap, bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbugNetEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};
@@ -951,6 +957,56 @@ export function Lootbug() {
             min={0}
             max={999}
           />
+          <IntStepper
+            label={
+              <span className="lootbugStatLabel">
+                <span className="lootbugLabel">
+                  Banked Lootbugs{" "}
+                  <Tooltip
+                    content={{
+                      title: "Banked Lootbugs (cap)",
+                      lines: [
+                        "Lootbug bank capacity. In-game this value is shown as Banked Lootbugs.",
+                        "Increased by Lootbug Lantern (+1 each, cap +25), Banker's Bundle, Saving For A Rainy Day.",
+                      ],
+                    }}
+                  />
+                </span>
+              </span>
+            }
+            value={state.bankCap}
+            onChange={(n) => update({ bankCap: Math.max(1, Math.min(999, n)) })}
+            min={1}
+            max={999}
+          />
+          {lootbugsPerHour > 0 && (
+            <div className="lootbugRow">
+              <span className="lootbugLabel">
+                Time to lootbug cap{" "}
+                <Tooltip
+                  content={{
+                    title: "Time to hit Lootbug cap",
+                    lines: ["Time from 0 banked until the bank is full, at current lootbugs/h."],
+                  }}
+                />
+              </span>
+              <span className="lootbugValue mono">
+                {(() => {
+                  const cap = state.bankCap;
+                  const hours = cap / lootbugsPerHour;
+                  const totalMinutes = hours * 60;
+                  if (hours >= 1) {
+                    const h = Math.floor(hours);
+                    const remainderMinutes = (hours - h) * 60;
+                    return remainderMinutes >= 0.01
+                      ? `${h} h ${formatMinSecWithUnit(remainderMinutes)}`
+                      : `${h} h`;
+                  }
+                  return formatMinSecWithUnit(totalMinutes);
+                })()}
+              </span>
+            </div>
+          )}
         </div>
       </Collapsible>
 
