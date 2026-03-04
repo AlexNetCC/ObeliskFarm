@@ -944,7 +944,7 @@ export function GemEv() {
                 label={
                   <>
                     Freebie Gems (Base)
-                    <span className="gemEvMarginal">+1 EV: {fmt1(marginal)} Gems/h</span>
+                    <span className="gemEvMarginal">+1 Freebie Base Gem adds {fmt1(marginal)} Gems/h</span>
                   </>
                 }
                 value={params.freebie_gems_base}
@@ -1373,9 +1373,8 @@ export function GemEv() {
                       decimals={1}
                     />
                   </div>
-                  <div className="gemEvRow" style={{ marginTop: 4 }}>
-                    <span className="mono small">→ Relic Chests/h (Freebie)</span>
-                    <span className="mono small">{freebieRelicChestsPerHour.toFixed(2)}</span>
+                  <div className="gemEvRow" style={{ marginTop: 4, flexWrap: "nowrap", alignItems: "baseline" }}>
+                    <span className="mono small">→ Relic Chests/h (Freebie) <span className="mono">{freebieRelicChestsPerHour.toFixed(2)}</span></span>
                   </div>
                 </div>
               </Collapsible>

@@ -2842,10 +2842,7 @@ export function Fishing() {
                       className="fishingFishIcon"
                     />
                     <span className="fishingGainsFishName">
-                      {fish.name}
-                    </span>
-                    <span className="small fishingGainsDockName">
-                      {dockName}
+                      {fish.name} ({dockName})
                     </span>
                     {state.showPolyShardDroprate && (state.fishCardTier[fish.id] ?? 0) === 2 && (() => {
                       const odds = getFishPolyShardOdds(fish.id);
@@ -4492,7 +4489,7 @@ export function Fishing() {
                     ...((state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs) != null
                       ? [{ type: "rod" as const, id: "fishing_rod_power", effic: (state.useGemIncomeForCostEffic ? fishingRodCardGildCostEffic : fishingRodCardGildCostEfficGemAbs)! }]
                       : []),
-                    ...((state.mrNibblesCardTier ?? 0) >= 1 && (state.mrNibblesCardTier ?? 0) < 3
+                    ...((state.mrNibblesCardTier ?? 0) >= 1 && (state.mrNibblesCardTier ?? 0) < 2
                       ? [{ type: "mrNibbles" as const, id: "mr_nibbles_card", effic: -1 }]
                       : []),
                   ]
