@@ -5498,7 +5498,7 @@ export function Fishing() {
               </div>
               <StepperRow
                 label="Fishing Drone Power (World 3)"
-                iconUrl="https://static.wikitide.net/shminerwiki/2/21/Fishing_Drone_Base_Power.png"
+                iconUrl="https://static.wikitide.net/shminerwiki/b/bc/Dynamite_Bar.png"
                 value={state.droneBasePowerWorld3Upgrade}
                 min={0}
                 max={999}
