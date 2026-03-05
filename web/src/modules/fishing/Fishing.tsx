@@ -2915,9 +2915,20 @@ export function Fishing() {
                     {state.showPolyShardDroprate && (state.fishCardTier[fish.id] ?? 0) === 2 && (() => {
                       const odds = getFishPolyShardOdds(fish.id);
                       const polyShardsPerHour = Number.isFinite(odds) && odds > 0 && isActive ? fishPerHour / odds : null;
+                      const hoursPerShard = polyShardsPerHour != null && polyShardsPerHour > 0 ? 1 / polyShardsPerHour : null;
+                      const label =
+                        hoursPerShard != null
+                          ? (() => {
+                              const totalMin = Math.round(hoursPerShard * 60);
+                              const h = Math.floor(totalMin / 60);
+                              const m = totalMin % 60;
+                              const timeStr = `${h}:${String(m).padStart(2, "0")}`;
+                              return `1 Shard ~ ${timeStr} ${hoursPerShard < 1 ? "hour" : "hours"}`;
+                            })()
+                          : "—";
                       return (
-                        <span className="small mono fishingGainsPolyShards" title="Expected Polychrome shards per hour (1 in N per catch, Polychrome column from wiki). Only shown when this fish has a Gilded card.">
-                          Shards/h: {polyShardsPerHour != null ? polyShardsPerHour.toFixed(2) : "—"}
+                        <span className="small mono fishingGainsPolyShards" title="Expected time for 1 Polychrome shard (1 in N per catch, Polychrome column from wiki). Only shown when this fish has a Gilded card.">
+                          {label}
                         </span>
                       );
                     })()}
