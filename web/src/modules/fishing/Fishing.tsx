@@ -320,7 +320,7 @@ function heatmapColor(t: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-/** Format "current→next" for the stat this upgrade changes. Used under upgrade name. Pass upgradeLevels so Fish Multiplier shows only this upgrade's factor (1+0.03×level), not total. */
+/** Format "current→next" for the stat this upgrade changes. Used under upgrade name. Always show only this upgrade's own value (from 0), e.g. 0→1, 1.00×→1.05×. Pass upgradeLevels for level. */
 function formatUpgradeNextEffect(
   upgradeId: FishingUpgradeId,
   current: ComputedFishingStats,
@@ -328,8 +328,13 @@ function formatUpgradeNextEffect(
   upgradeLevels?: Partial<Record<FishingUpgradeId, number>>,
 ): string | null {
   switch (upgradeId) {
-    case "fishing_rod":
-      return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
+    case "fishing_rod": {
+      const lvl = Math.floor(Number(upgradeLevels?.fishing_rod ?? 0));
+      const base = 10;
+      const cur = Math.round(base * Math.pow(1.16, lvl));
+      const next = Math.round(base * Math.pow(1.16, lvl + 1));
+      return `${cur}→${next}`;
+    }
     case "fishing_drone": {
       const lvl = Math.floor(Number(upgradeLevels?.fishing_drone ?? 0));
       const perLvl = 1;
@@ -340,10 +345,14 @@ function formatUpgradeNextEffect(
       const perLvl = 2;
       return `${lvl * perLvl}→${(lvl + 1) * perLvl}`;
     }
-    case "upgrade_boat":
-      return `${current.boat_level}→${next.boat_level}`;
-    case "upgrade_t2_boat":
-      return `${current.t2_boat_level}→${next.t2_boat_level}`;
+    case "upgrade_boat": {
+      const lvl = Math.floor(Number(upgradeLevels?.upgrade_boat ?? 0));
+      return `${lvl}→${lvl + 1}`;
+    }
+    case "upgrade_t2_boat": {
+      const lvl = Math.floor(Number(upgradeLevels?.upgrade_t2_boat ?? 0));
+      return `${lvl}→${lvl + 1}`;
+    }
     case "tick_speed": {
       const lvl = Math.floor(Number(upgradeLevels?.tick_speed ?? 0));
       const perLvl = -0.5;
@@ -361,26 +370,34 @@ function formatUpgradeNextEffect(
       const nextFactor = 1 + 0.04 * (lvl + 1);
       return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
-    case "drone_multiplier":
-      return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
+    case "drone_multiplier": {
+      const lvl = Math.floor(Number(upgradeLevels?.drone_multiplier ?? 0));
+      const curFactor = 1 + 0.06 * lvl;
+      const nextFactor = 1 + 0.06 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
     case "drone_base_power": {
       const lvl = Math.floor(Number(upgradeLevels?.drone_base_power ?? 0));
       const perLvl = 0.25;
       return `${(perLvl * lvl).toFixed(2)}→${(perLvl * (lvl + 1)).toFixed(2)}`;
     }
-    case "drone_cloner":
-      return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
+    case "drone_cloner": {
+      const lvl = Math.floor(Number(upgradeLevels?.drone_cloner ?? 0));
+      const curFactor = Math.pow(1.05, lvl);
+      const nextFactor = Math.pow(1.05, lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
     case "shiny_multiplier": {
-      const cur = current.shiny_multiplier;
-      const nxt = next.shiny_multiplier;
-      const ratio = cur > 0 ? nxt / cur : 1;
-      return `1→${ratio.toFixed(2)}×`;
+      const lvl = Math.floor(Number(upgradeLevels?.shiny_multiplier ?? 0));
+      const curFactor = 1 + 0.05 * lvl;
+      const nextFactor = 1 + 0.05 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
     case "poly_card_multi": {
-      const cur = current.super_shiny_multiplier;
-      const nxt = next.super_shiny_multiplier;
-      const ratio = cur > 0 ? nxt / cur : 1;
-      return `1→${ratio.toFixed(2)}×`;
+      const lvl = Math.floor(Number(upgradeLevels?.poly_card_multi ?? 0));
+      const curFactor = 1 + 0.08 * lvl;
+      const nextFactor = 1 + 0.08 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
     case "double_tick_chance": {
       const lvl = Math.floor(Number(upgradeLevels?.double_tick_chance ?? 0));
@@ -397,8 +414,12 @@ function formatUpgradeNextEffect(
       const pct = 0.35;
       return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
     }
-    case "tier2_dock_power":
-      return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
+    case "tier2_dock_power": {
+      const lvl = Math.floor(Number(upgradeLevels?.tier2_dock_power ?? 0));
+      const curFactor = 1 + 0.05 * lvl;
+      const nextFactor = 1 + 0.05 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
     case "super_shiny_chance": {
       const lvl = Math.floor(Number(upgradeLevels?.super_shiny_chance ?? 0));
       const pct = 1;
@@ -409,7 +430,7 @@ function formatUpgradeNextEffect(
   }
 }
 
-/** Format "current→next" for the stat this enhancement changes. Used under enhancement name. Pass enhanceLevels so Fish Multiplier shows only this enhancement's factor (1+0.05×level), not total. */
+/** Format "current→next" for the stat this enhancement changes. Used under enhancement name. Always show only this enhancement's own value (from 0), e.g. 0→1, 1.00×→1.05×. Pass enhanceLevels for level. New enhancements must follow this pattern. */
 function formatEnhanceNextEffect(
   enhanceId: EnhanceId,
   current: ComputedFishingStats,
@@ -472,13 +493,28 @@ function formatEnhanceNextEffect(
       const pct = 0.4;
       return `${(pct * lvl).toFixed(1)}→${(pct * (lvl + 1)).toFixed(2)}%`;
     }
-    case "enhance_tier2_dock_power":
-      return `${current.tier2_dock_power_mult.toFixed(2)}×→${next.tier2_dock_power_mult.toFixed(2)}×`;
+    case "enhance_tier2_dock_power": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_tier2_dock_power ?? 0));
+      const curFactor = 1 + 0.05 * lvl;
+      const nextFactor = 1 + 0.05 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
+    case "enhance_tier2_dock_ticks": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_tier2_dock_ticks ?? 0));
+      const perLvl = -1;
+      return `${lvl * perLvl}→${(lvl + 1) * perLvl}`;
+    }
     case "enhance_super_shiny_multi": {
-      const cur = current.super_shiny_multiplier;
-      const nxt = next.super_shiny_multiplier;
-      const ratio = cur > 0 ? nxt / cur : 1;
-      return `1→${ratio.toFixed(2)}×`;
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_super_shiny_multi ?? 0));
+      const curFactor = 1 + 0.15 * lvl;
+      const nextFactor = 1 + 0.15 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
+    case "enhance_poly_card_multi": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_poly_card_multi ?? 0));
+      const curFactor = 1 + 0.1 * lvl;
+      const nextFactor = 1 + 0.1 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
     case "enhance_tiny_notice_chance": {
       const lvl = Math.floor(Number(enhanceLevels?.enhance_tiny_notice_chance ?? 0));
