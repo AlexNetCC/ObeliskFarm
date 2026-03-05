@@ -4772,76 +4772,107 @@ export function Fishing() {
                   return (
                     <tr
                       key={def.id}
-                      className={"fishingUpgradeRow" + (isFriendshipEnded ? " fishingSkillRowNoticeFarming" : "")}
+                      className={
+                        "fishingUpgradeRow" +
+                        (isFriendshipEnded ? " fishingSkillRowNoticeFarming" : "") +
+                        (isMaxed ? " fishingUpgradeRowMaxed" : "")
+                      }
                     >
                       <td className="fishingUpgradeTdName">
-                        <img src={fishIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
-                        <div className="fishingUpgradeNameBlock">
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                            <span className="fishingUpgradeName">{def.name}</span>
-                            {isFriendshipEnded ? (
-                              <Tooltip
-                                content={{
-                                  title: "Notice farming",
-                                  sections: [
-                                    {
-                                      heading: "Indirect gains",
-                                      lines: [
-                                        "Notice Fish Req -10% means you need 10% less fish per notice.",
-                                        "Notice Fish Req -10% per level (additive; 3 levels = -30% → 0.70x). First level: 1→0.9 ≈ +11.1% effective gains when notice farming.",
-                                        "Fish/h does not change; the gain is in completing notices faster.",
-                                        "Cost efficiency value is shown but excluded from the heatmap (indirect gain).",
+                        {isMaxed ? (
+                          <span className="fishingUpgradeName fishingUpgradeNameMaxed">{def.name}</span>
+                        ) : (
+                          <>
+                            <img src={fishIconUrl(def.iconFile)} alt="" className="fishingUpgradeIcon" />
+                            <div className="fishingUpgradeNameBlock">
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                <span className="fishingUpgradeName">{def.name}</span>
+                                {isFriendshipEnded ? (
+                                  <Tooltip
+                                    content={{
+                                      title: "Notice farming",
+                                      sections: [
+                                        {
+                                          heading: "Indirect gains",
+                                          lines: [
+                                            "Notice Fish Req -10% means you need 10% less fish per notice.",
+                                            "Notice Fish Req -10% per level (additive; 3 levels = -30% → 0.70x). First level: 1→0.9 ≈ +11.1% effective gains when notice farming.",
+                                            "Fish/h does not change; the gain is in completing notices faster.",
+                                            "Cost efficiency value is shown but excluded from the heatmap (indirect gain).",
+                                          ],
+                                        },
                                       ],
-                                    },
-                                  ],
-                                }}
-                                label="?"
-                              />
-                            ) : null}
-                          </span>
-                          <div className="small" style={{ marginTop: 2, opacity: 0.9 }}>
-                            {def.effectLines.map((line, i) => (
-                              <div key={i}>{line}</div>
-                            ))}
-                          </div>
-                        </div>
+                                    }}
+                                    label="?"
+                                  />
+                                ) : null}
+                              </span>
+                              <div className="small" style={{ marginTop: 2, opacity: 0.9 }}>
+                                {def.effectLines.map((line, i) => (
+                                  <div key={i}>{line}</div>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="fishingUpgradeTdLvl">
-                        <span className="fishingUpgradeLevelLabel">
-                          <span className="mono">{lvl}</span> / {maxLvl}
-                        </span>
-                        <div className="btnRow fishingUpgradeButtons">
-                          <button
-                            type="button"
-                            className="btn btnSecondary"
-                            onClick={() => setSkillTreeLevel(def.id, -1)}
-                            disabled={lvl <= 0}
-                            aria-label="Decrease level"
-                          >
-                            −
-                          </button>
-                          {!isMaxed ? (
-                            <button
-                              type="button"
-                              className="btn"
-                              onClick={() => setSkillTreeLevel(def.id, 1)}
-                              aria-label="Increase level"
-                            >
-                              +
-                            </button>
-                          ) : null}
-                        </div>
-                        {def.id === "with_this_fish_i_summon_two_more_fish" ? (
-                          <div className="small" style={{ marginTop: 4, opacity: 0.9 }}>
-                            Your Cards:{" "}
-                            <span className="mono">
-                              {Object.values(state.fishCardTier ?? {}).reduce<number>(
-                                (sum, t) => sum + (t === 1 ? 1 : t === 2 ? 2 : t === 3 ? 3 : 0),
-                                0,
-                              )}
+                        {isMaxed ? (
+                          <div className="fishingUpgradeLvlInline">
+                            <span className="fishingUpgradeLevelLabel">
+                              <span className="mono">{lvl}</span> / {maxLvl}
                             </span>
+                            <div className="btnRow fishingUpgradeButtons">
+                              <button
+                                type="button"
+                                className="btn btnSecondary"
+                                onClick={() => setSkillTreeLevel(def.id, -1)}
+                                disabled={lvl <= 0}
+                                aria-label="Decrease level"
+                              >
+                                −
+                              </button>
+                            </div>
                           </div>
-                        ) : null}
+                        ) : (
+                          <>
+                            <span className="fishingUpgradeLevelLabel">
+                              <span className="mono">{lvl}</span> / {maxLvl}
+                            </span>
+                            <div className="btnRow fishingUpgradeButtons">
+                              <button
+                                type="button"
+                                className="btn btnSecondary"
+                                onClick={() => setSkillTreeLevel(def.id, -1)}
+                                disabled={lvl <= 0}
+                                aria-label="Decrease level"
+                              >
+                                −
+                              </button>
+                              {!isMaxed ? (
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  onClick={() => setSkillTreeLevel(def.id, 1)}
+                                  aria-label="Increase level"
+                                >
+                                  +
+                                </button>
+                              ) : null}
+                            </div>
+                            {def.id === "with_this_fish_i_summon_two_more_fish" ? (
+                              <div className="small" style={{ marginTop: 4, opacity: 0.9 }}>
+                                Your Cards:{" "}
+                                <span className="mono">
+                                  {Object.values(state.fishCardTier ?? {}).reduce<number>(
+                                    (sum, t) => sum + (t === 1 ? 1 : t === 2 ? 2 : t === 3 ? 3 : 0),
+                                    0,
+                                  )}
+                                </span>
+                              </div>
+                            ) : null}
+                          </>
+                        )}
                       </td>
                       <td className="fishingUpgradeTdCostEffic">
                         {costEffic != null ? (

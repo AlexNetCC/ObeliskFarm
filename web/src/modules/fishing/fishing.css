@@ -1104,6 +1104,34 @@
   background: rgba(255, 255, 255, 0.98);
 }
 
+.fishingUpgradeTable tbody tr.fishingUpgradeRowMaxed .fishingUpgradeTdName {
+  font-size: 12px;
+}
+
+.fishingUpgradeNameMaxed {
+  display: block;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fishingUpgradeLvlInline {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.fishingUpgradeLvlInline .fishingUpgradeLevelLabel {
+  display: inline;
+  margin-bottom: 0;
+  margin-right: 0;
+}
+
+.fishingUpgradeLvlInline .fishingUpgradeButtons {
+  flex-shrink: 0;
+}
+
 .fishingUpgradeTable td {
   padding: 4px 6px;
   vertical-align: middle;
