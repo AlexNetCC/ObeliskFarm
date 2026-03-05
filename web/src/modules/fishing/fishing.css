@@ -1263,6 +1263,14 @@
   gap: 6px;
 }
 
+.fishingFishCardsSubregionHeader {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
 /* Sushi: single card row full width of section (no wrap) */
 .fishingSushiCardGrid {
   grid-template-columns: 1fr;
@@ -1291,6 +1299,13 @@
 .fishingFishCardsTable .fishingFishCardIcon {
   width: 20px;
   height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.fishingFishCardIconLegendary {
+  width: 16px;
+  height: 16px;
   object-fit: contain;
   flex-shrink: 0;
 }

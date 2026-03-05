@@ -330,23 +330,37 @@ function formatUpgradeNextEffect(
   switch (upgradeId) {
     case "fishing_rod":
       return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
-    case "fishing_drone":
-    case "fishing_drone_2":
-      return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
+    case "fishing_drone": {
+      const lvl = Math.floor(Number(upgradeLevels?.fishing_drone ?? 0));
+      const perLvl = 1;
+      return `${lvl * perLvl}→${(lvl + 1) * perLvl}`;
+    }
+    case "fishing_drone_2": {
+      const lvl = Math.floor(Number(upgradeLevels?.fishing_drone_2 ?? 0));
+      const perLvl = 2;
+      return `${lvl * perLvl}→${(lvl + 1) * perLvl}`;
+    }
     case "upgrade_boat":
       return `${current.boat_level}→${next.boat_level}`;
     case "upgrade_t2_boat":
       return `${current.t2_boat_level}→${next.t2_boat_level}`;
-    case "tick_speed":
-      return `${current.fishing_tick_reduction.toFixed(1)}s→${next.fishing_tick_reduction.toFixed(1)}s`;
+    case "tick_speed": {
+      const lvl = Math.floor(Number(upgradeLevels?.tick_speed ?? 0));
+      const perLvl = -0.5;
+      return `${(perLvl * lvl).toFixed(1)}s→${(perLvl * (lvl + 1)).toFixed(1)}s`;
+    }
     case "fish_multiplier": {
       const lvl = Math.floor(Number(upgradeLevels?.fish_multiplier ?? 0));
       const curFactor = 1 + 0.03 * lvl;
       const nextFactor = 1 + 0.03 * (lvl + 1);
       return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
-    case "rod_multiplier":
-      return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
+    case "rod_multiplier": {
+      const lvl = Math.floor(Number(upgradeLevels?.rod_multiplier ?? 0));
+      const curFactor = 1 + 0.04 * lvl;
+      const nextFactor = 1 + 0.04 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
     case "drone_multiplier":
       return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
     case "drone_base_power": {
@@ -409,26 +423,44 @@ function formatEnhanceNextEffect(
       const nextFactor = 1 + 0.05 * (lvl + 1);
       return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
-    case "enhance_fishing_drone":
-    case "enhance_fishing_drone_3":
-      return `${current.fishing_drone_cap.toFixed(1)}→${next.fishing_drone_cap.toFixed(1)}`;
-    case "enhance_rod_multiplier":
-      return `${Math.round(current.fishing_rod_power)}→${Math.round(next.fishing_rod_power)}`;
-    case "enhance_tick_speed":
-      return `${current.fishing_tick_reduction.toFixed(1)}s→${next.fishing_tick_reduction.toFixed(1)}s`;
-    case "enhance_drone_multiplier":
-      return `${current.drone_power_multiplier.toFixed(2)}×→${next.drone_power_multiplier.toFixed(2)}×`;
+    case "enhance_fishing_drone": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_fishing_drone ?? 0));
+      const perLvl = 1;
+      return `${lvl * perLvl}→${(lvl + 1) * perLvl}`;
+    }
+    case "enhance_fishing_drone_3": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_fishing_drone_3 ?? 0));
+      const perLvl = 3;
+      return `${lvl * perLvl}→${(lvl + 1) * perLvl}`;
+    }
+    case "enhance_rod_multiplier": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_rod_multiplier ?? 0));
+      const curFactor = 1 + 0.05 * lvl;
+      const nextFactor = 1 + 0.05 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
+    case "enhance_tick_speed": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_tick_speed ?? 0));
+      const perLvl = -0.5;
+      return `${(perLvl * lvl).toFixed(1)}s→${(perLvl * (lvl + 1)).toFixed(1)}s`;
+    }
+    case "enhance_drone_multiplier": {
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_drone_multiplier ?? 0));
+      const curFactor = 1 + 0.08 * lvl;
+      const nextFactor = 1 + 0.08 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+    }
     case "enhance_token_multiplier": {
-      const cur = current.token_gain_multi;
-      const nxt = next.token_gain_multi;
-      const ratio = cur > 0 ? nxt / cur : 1;
-      return `1→${ratio.toFixed(2)}×`;
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_token_multiplier ?? 0));
+      const curFactor = 1 + 0.05 * lvl;
+      const nextFactor = 1 + 0.05 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
     case "enhance_shiny_multiplier": {
-      const cur = current.shiny_multiplier;
-      const nxt = next.shiny_multiplier;
-      const ratio = cur > 0 ? nxt / cur : 1;
-      return `1→${ratio.toFixed(2)}×`;
+      const lvl = Math.floor(Number(enhanceLevels?.enhance_shiny_multiplier ?? 0));
+      const curFactor = 1 + 0.05 * lvl;
+      const nextFactor = 1 + 0.05 * (lvl + 1);
+      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
     }
     case "enhance_double_tick_chance": {
       const lvl = Math.floor(Number(enhanceLevels?.enhance_double_tick_chance ?? 0));
@@ -4688,6 +4720,28 @@ export function Fishing() {
                 );
               })}
             </div>
+            <Collapsible id="fishing-legendary-fish-cards" title="Legendary Fish Cards" defaultExpanded={false}>
+              <div className="small" style={{ marginBottom: 6, opacity: 0.85 }}>
+                Count for With This Fish I Summon (Fish Multi +1% per card per level, Shiny +0.1% per card per level). Card / Gilded / Poly same as regular fish cards.
+              </div>
+              <div className="fishingFishCardsGrid">
+                {LEGENDARY_FISH.map((leg) => {
+                  const tier = (state.fishCardTier[leg.id] ?? 0) as FishCardTier;
+                  return (
+                    <div key={leg.id} className="fishingFishCardCell">
+                      <div className="fishingFishCardCellTop">
+                        <img src={leg.iconUrl} alt="" className="fishingFishCardIcon fishingFishCardIconLegendary" />
+                        <span className="mono">{leg.name}</span>
+                      </div>
+                      <FishCardTierToggles
+                        value={tier}
+                        onChange={(t) => setState((prev) => ({ ...prev, fishCardTier: { ...prev.fishCardTier, [leg.id]: t } }))}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </Collapsible>
             <div className="small" style={{ marginTop: 6, opacity: 0.85 }}>
               Card: 50% second fish (1.5×). Gilded: 100% second fish (2×). Poly: 4× base. Poly multi from upgrades and Polychrome Potency Bundle applies on top.
             </div>

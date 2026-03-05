@@ -3,11 +3,14 @@
  * Source: https://shminer.miraheze.org/wiki/Fishing#Upgrades and #Enhancements
  */
 
-import { ALL_FISH } from "./constants";
+import { ALL_FISH, LEGENDARY_FISH } from "./constants";
 import type { DockDef, EnhanceId, FishingSkillId, FishingUpgradeId } from "./types";
 
-/** Fish ids only (excludes misc cards: Fishing Rod Power, Mr Nibbles). Used for With This Fish I Summon card count. */
-const FISH_IDS = new Set(ALL_FISH.map((f) => f.id));
+/** Fish ids (regular + legendary). Used for With This Fish I Summon card count. Excludes misc cards: Fishing Rod Power, Mr Nibbles. */
+const FISH_IDS = new Set([
+  ...ALL_FISH.map((f) => f.id),
+  ...LEGENDARY_FISH.map((f) => f.id),
+]);
 
 /** Options for effective dock tick requirement (reduces fills per hour = more fish/h). */
 export interface EffectiveTicksOptions {
