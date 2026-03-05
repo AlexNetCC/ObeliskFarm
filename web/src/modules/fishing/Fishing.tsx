@@ -190,6 +190,55 @@ type FishingState = {
 
 const STORAGE_KEY = "obeliskfarm:web:fishing_save.json:v1";
 const FISHING_EXTERNAL_KEY = "obeliskfarm:web:fishing_external.json";
+
+function getDefaultFishingState(): FishingState {
+  const upgradeLevels: Partial<Record<FishingUpgradeId, number>> = {};
+  const enhanceLevels: Partial<Record<EnhanceId, number>> = {};
+  const computed = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels);
+  const dronesPerDock: Record<DockId, number> = {} as Record<DockId, number>;
+  DOCKS.forEach((d, i) => {
+    dronesPerDock[d.id] = i === 0 ? Math.max(0, Math.round(computed.fishing_drone_cap)) : 0;
+  });
+  return {
+    dronesPerDock,
+    showDisabledFishGrayed: false,
+    showPolyShardDroprate: true,
+    useGemIncomeForCostEffic: true,
+    activeDockId: "lake",
+    upgradeLevels,
+    enhanceLevels,
+    fishCardTier: {},
+    sushiCardTier: 0,
+    fishingRodCardTier: 0,
+    mrNibblesCardTier: 0,
+    valuePackPotencyPoly: false,
+    skillTreeLevels: {},
+    legendaryFishFound: 0,
+    abyssLegendaryCaught: false,
+    divineRelic5xPoints: 0,
+    mcHours: 8,
+    mcRuns: 10000,
+    mrNibblesLevel: 0,
+    mrNibblesQuestRank: 0,
+    poseidonIdolLevel: 0,
+    tethysIdolLevel: 0,
+    astraeusIdolLevel: 0,
+    droneBasePowerWorld3Upgrade: 0,
+    fishingDroneBasePowerWorld3: 0,
+    workshopSushiTicksWorld3: 0,
+    legendaryHaulerBundle: false,
+    fishersBundle: false,
+    anglerBundle: false,
+    divineChallengeCoinLevel: 0,
+    constructStatue: "none",
+    cetusLevel: 0,
+    blackHoleBonus: false,
+    infernalMrNibblesPct: 0,
+    infernalMrNibblesLevel: 0,
+    infernalAnglerDronePct: 0,
+    infernalAnglerDroneLevel: 0,
+  };
+}
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 const LOOTBUG_STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -2805,15 +2854,28 @@ export function Fishing() {
         </div>
       </div>
 
-      <div className="fishingGemIncomeToggleWrap">
-        <label className="fishingGemIncomeToggle">
-          <input
-            type="checkbox"
-            checked={state.useGemIncomeForCostEffic}
-            onChange={(e) => setState((prev) => ({ ...prev, useGemIncomeForCostEffic: e.target.checked }))}
-          />
-          <span className="fishingGemIncomeToggleLabel">Use Gem Income for Cost Efficiency calculations</span>
-        </label>
+      <div className="fishingTopBar">
+        <button
+          type="button"
+          className="btn btnSecondary"
+          onClick={() => {
+            if (window.confirm("Reset all Fishing data (upgrades, enhancements, cards, options)? This cannot be undone.")) {
+              setState(getDefaultFishingState());
+            }
+          }}
+        >
+          Reset all
+        </button>
+        <div className="fishingGemIncomeToggleWrap">
+          <label className="fishingGemIncomeToggle">
+            <input
+              type="checkbox"
+              checked={state.useGemIncomeForCostEffic}
+              onChange={(e) => setState((prev) => ({ ...prev, useGemIncomeForCostEffic: e.target.checked }))}
+            />
+            <span className="fishingGemIncomeToggleLabel">Use Gem Income for Cost Efficiency calculations</span>
+          </label>
+        </div>
       </div>
 
       <div className="fishingLayoutGrid">

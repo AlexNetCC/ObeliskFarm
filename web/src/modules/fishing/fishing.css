@@ -792,9 +792,18 @@
 
 /* Toggle above fish-per-hour list */
 /* Gem income toggle: prominent at top of module */
+.fishingTopBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.fishingTopBar .btn {
+  flex-shrink: 0;
+}
 .fishingGemIncomeToggleWrap {
   padding: 10px 12px;
-  margin-bottom: 12px;
   background: rgba(15, 23, 42, 0.06);
   border-radius: var(--radius-ml);
   border: 1px solid rgba(15, 23, 42, 0.1);
