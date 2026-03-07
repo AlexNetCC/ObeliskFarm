@@ -3185,7 +3185,7 @@ export function ArchSim() {
           </svg>
         </span>
         <div className="archWarningText">
-          Since 2.1 (end of February 2026) block spawn odds have changed. The arch sim will be updated once the new rates are known. Luck has already been updated in the sim; until then, block spawn rates in the sim are outdated. The Golden Crosshair is not implemented (active play).
+          Since 2.1 (end of February 2026) block spawn odds have changed. Changes according to wiki are so far implemented! (No Ascension here, tho)
         </div>
       </div>
 
@@ -3198,17 +3198,6 @@ export function ArchSim() {
         </div>
 
         <div className="archSetupGrid">
-          <div className="archSetupCell" style={{ background: "var(--tier1)" }}>
-            <div className="label">
-              <span>
-                Goal stage
-                <Tooltip content={{ title: "Goal stage", lines: ["Calculations use (goal stage - 1)."] }} />
-              </span>
-              <span className="mono">{build.goalStage}</span>
-            </div>
-            <input className="input" type="number" min={1} step={1} value={build.goalStage} onChange={(e) => setBuild((s) => ({ ...s, goalStage: clampInt(Number(e.target.value), 1, 999) }))} />
-          </div>
-
           <div className="archSetupCell" style={{ background: "var(--tier2)" }}>
             <div className="label">
               <span>
@@ -3478,7 +3467,31 @@ export function ArchSim() {
               <div className="mono">{stats.ultra_crit_dmg_mult.toFixed(3)}x</div>
               <kbd>Ability Instacharge</kbd>
               <div className="mono">{formatPct(stats.ability_instacharge, 2)}</div>
-              <kbd>Exp Gain</kbd>
+              <kbd>
+                Arch Exp Gain (ingame)
+                <Tooltip
+                  content={{
+                    title: "Arch Exp Gain (ingame)",
+                    lines: [
+                      "Matches the game’s Stats menu: Archaeology Exp Gain from fragment upgrades only.",
+                      "Total XP mult below also includes gem upgrades, 2× stat cap, and Intellect.",
+                    ],
+                  }}
+                />
+              </kbd>
+              <div className="mono">{stats.arch_xp_mult.toFixed(3)}x</div>
+              <kbd>
+                Total XP mult
+                <Tooltip
+                  content={{
+                    title: "Total XP mult",
+                    lines: [
+                      "Arch Exp Gain × gem XP × 2× stat cap upgrade × Intellect skill. Used for sim XP/h.",
+                      "In-game only shows the Arch Exp Gain part.",
+                    ],
+                  }}
+                />
+              </kbd>
               <div className="mono">{stats.xp_gain_total.toFixed(3)}x</div>
               <kbd>Fragment Gain</kbd>
               <div className="mono">{stats.fragment_mult.toFixed(3)}x</div>
@@ -5101,8 +5114,6 @@ export function ArchSim() {
                 </p>
               ) : null}
               <div className="kv">
-                <kbd>Goal stage</kbd>
-                <div className="mono">{formatWithThinSpaces(Number(openLog.build.goalStage), 1)}</div>
                 <kbd>Unlocked</kbd>
                 <div className="mono">{formatWithThinSpaces(Number(openLog.build.unlockedStage), 1)}</div>
                 <kbd>Arch level</kbd>

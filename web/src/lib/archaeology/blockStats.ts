@@ -31,7 +31,7 @@ export const BLOCK_DATA: BlockData[] = [
   { tier: 2, block_type: "mythic", health: 10500, xp: 22.5, armor: 262, fragment: 0.02, floor_min: 36, floor_max: 49 },
 
   // Tier 3
-  { tier: 3, block_type: "dirt", health: 900, xp: 0.45, armor: 0, fragment: 0.04, floor_min: 24, floor_max: Number.POSITIVE_INFINITY },
+  { tier: 3, block_type: "dirt", health: 900, xp: 0.45, armor: 0, fragment: 0, floor_min: 24, floor_max: Number.POSITIVE_INFINITY },
   { tier: 3, block_type: "common", health: 2250, xp: 1.35, armor: 15, fragment: 0.04, floor_min: 30, floor_max: Number.POSITIVE_INFINITY },
   { tier: 3, block_type: "rare", health: 4950, xp: 3.15, armor: 37, fragment: 0.04, floor_min: 36, floor_max: Number.POSITIVE_INFINITY },
   { tier: 3, block_type: "epic", health: 10350, xp: 9.0, armor: 77, fragment: 0.04, floor_min: 42, floor_max: Number.POSITIVE_INFINITY },

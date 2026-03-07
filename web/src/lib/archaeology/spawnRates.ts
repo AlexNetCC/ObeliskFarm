@@ -1,5 +1,6 @@
 import type { BlockType } from "./types";
 
+/** Boss floors with a single block type (24 blocks). */
 export const BOSS_FLOORS: Record<number, BlockType> = {
   11: "dirt",
   17: "common",
@@ -10,7 +11,13 @@ export const BOSS_FLOORS: Record<number, BlockType> = {
   35: "rare",
   41: "epic",
   44: "legendary",
-  99: "mythic",
+  98: "mythic",
+};
+
+/** Boss floors with mixed block layout (24 blocks total). Wiki: stage → count per type. */
+const MIXED_BOSS_FLOORS: Record<number, Record<BlockType, number>> = {
+  34: { dirt: 0, common: 20 / 24 * 100, rare: 0, epic: 0, legendary: 4 / 24 * 100, mythic: 0 },
+  49: { dirt: 25, common: 25, rare: 25, epic: 0, legendary: 0, mythic: 25 },
 };
 
 export const BLOCK_TYPES: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
@@ -34,6 +41,9 @@ const RANGES: Array<{ key: StageRangeKey; range: StageRange; rates: Record<Block
 ];
 
 export function getSpawnRatesForStage(stage: number, ignoreBoss = false): Record<BlockType, number> {
+  if (!ignoreBoss && MIXED_BOSS_FLOORS[stage]) {
+    return { ...MIXED_BOSS_FLOORS[stage] };
+  }
   if (!ignoreBoss && BOSS_FLOORS[stage]) {
     const b = BOSS_FLOORS[stage];
     return { dirt: b === "dirt" ? 100 : 0, common: b === "common" ? 100 : 0, rare: b === "rare" ? 100 : 0, epic: b === "epic" ? 100 : 0, legendary: b === "legendary" ? 100 : 0, mythic: b === "mythic" ? 100 : 0 };
