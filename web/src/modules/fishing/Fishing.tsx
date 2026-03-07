@@ -3232,25 +3232,7 @@ export function Fishing() {
               <span className="fishingSectionTitle">Sushi</span>
             </div>
             <p className="small" style={{ marginBottom: 4, opacity: 0.85 }}>
-              Sushi gives <span className="mono">{ticksPerSushi}</span> fishing ticks. Effective: <span className="mono">{(ticksPerSushi * tickMult).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
-              {((state.workshopSushiTicksWorld3 ?? 0) > 0) ? (
-                <>
-                  {" "}
-                  <span style={{ whiteSpace: "nowrap" }}>
-                    Workshop (W3): +<span className="mono">{state.workshopSushiTicksWorld3}</span> ticks/h
-                    <Tooltip
-                      content={{
-                        title: "Workshop Sushi (World 3)",
-                        lines: [
-                          "Diverse Fishing Upgrades → Workshop: Sushi Fishing Ticks (World 3).",
-                          "+1 sushi tick/h per level (0–99). Included in raw and effective ticks per hour above.",
-                        ],
-                      }}
-                      label="?"
-                    />
-                  </span>
-                </>
-              ) : null}
+              Sushi gives <span className="mono">{ticksPerSushi + (state.workshopSushiTicksWorld3 ?? 0)}</span> fishing ticks. Effective: <span className="mono">{((ticksPerSushi + (state.workshopSushiTicksWorld3 ?? 0)) * tickMult).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
               <Tooltip
                 content={{
                   title: "Effective Fishing Ticks",
@@ -3258,7 +3240,7 @@ export function Fishing() {
                     {
                       heading: "Formula",
                       lines: [
-                        "Raw ticks per Sushi × tick mult. Sushi gives raw tick-bar units; the mult is from Your stats (2×, 3×, 5× tick chance).",
+                        "First number: ticks per Sushi (base + card) + Workshop (W3) ticks/h. Effective = that value × tick mult (2×, 3×, 5× from Your stats).",
                       ],
                     },
                     {

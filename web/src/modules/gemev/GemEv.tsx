@@ -83,6 +83,32 @@ function formatMinSecWithUnit(minDecimal: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} min`;
 }
 
+/** Decimal minutes → "m:ss" for input display (e.g. 6.5 → "6:30"). */
+function decimalMinutesToMinSecStr(minDecimal: number): string {
+  if (!Number.isFinite(minDecimal) || minDecimal < 0) return "0:00";
+  const m = Math.floor(minDecimal);
+  const s = Math.round((minDecimal - m) * 60);
+  return s < 60 ? `${m}:${String(s).padStart(2, "0")}` : `${m + 1}:00`;
+}
+
+/** Parse "m:ss" or "m" string to decimal minutes, or null if invalid. */
+function parseMinSecStr(str: string): number | null {
+  const t = str.trim().replaceAll(",", ".");
+  if (!t) return null;
+  const parts = t.split(/[:\s]+/);
+  if (parts.length === 1) {
+    const n = Number(parts[0]);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  if (parts.length >= 2) {
+    const min = Number(parts[0]);
+    const sec = Number(parts[1]);
+    if (!Number.isFinite(min) || !Number.isFinite(sec) || min < 0 || sec < 0 || sec >= 60) return null;
+    return min + sec / 60;
+  }
+  return null;
+}
+
 function Sprite(props: { path: string | null; alt: string; className?: string; label?: string }) {
   const { path, alt, className, label } = props;
   const [ok, setOk] = useState(true);
@@ -160,6 +186,75 @@ function Stepper(props: {
             +
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function MinSecStepper(props: {
+  label: React.ReactNode;
+  value: number;
+  onChange: (next: number) => void;
+  min?: number;
+  max?: number;
+  stepMinutes?: number;
+  disabled?: boolean;
+}) {
+  const { label, value, onChange, min = 0.1, max = 9999, stepMinutes = 0.5, disabled = false } = props;
+  const isEditingRef = useRef(false);
+  const [raw, setRaw] = useState<string>(() => decimalMinutesToMinSecStr(value));
+
+  useEffect(() => {
+    if (isEditingRef.current) return;
+    setRaw(decimalMinutesToMinSecStr(value));
+  }, [value]);
+
+  function commit() {
+    const parsed = parseMinSecStr(raw);
+    if (parsed != null) {
+      const next = clamp(parsed, min, max);
+      onChange(next);
+      setRaw(decimalMinutesToMinSecStr(next));
+    } else {
+      setRaw(decimalMinutesToMinSecStr(value));
+    }
+    isEditingRef.current = false;
+  }
+
+  return (
+    <div className="gemEvRow">
+      <div className="label">
+        <span>{label}</span>
+        <span className="mono">{Number.isFinite(value) ? formatMinSecWithUnit(value) : "—"}</span>
+      </div>
+      <div className="gemEvStepper">
+        <button className="btn btnSecondary gemEvStepBtn" type="button" disabled={disabled} onClick={() => onChange(clamp(value - stepMinutes, min, max))}>
+          −
+        </button>
+        <input
+          className="input gemEvInput"
+          inputMode="numeric"
+          placeholder="min:sec"
+          value={raw}
+          disabled={disabled}
+          onFocus={() => {
+            isEditingRef.current = true;
+          }}
+          onChange={(e) => {
+            isEditingRef.current = true;
+            setRaw(e.target.value);
+          }}
+          onBlur={() => commit()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+          }}
+        />
+        <button className="btn gemEvStepBtn" type="button" disabled={disabled} onClick={() => onChange(clamp(value + stepMinutes, min, max))}>
+          +
+        </button>
       </div>
     </div>
   );
@@ -957,14 +1052,13 @@ export function GemEv() {
               <div className="gemEvInlineHead">
                 <span className="mono">Freebie timer</span>
               </div>
-              <Stepper
-                label="Freebie Timer (min) base"
+              <MinSecStepper
+                label="Freebie Timer (min:sec) base"
                 value={params.freebie_timer_minutes}
                 onChange={(v) => setParams((s) => ({ ...s, freebie_timer_minutes: v }))}
-                step={0.5}
                 min={0.1}
                 max={9999}
-                decimals={1}
+                stepMinutes={0.5}
               />
               <Stepper
                 label={
