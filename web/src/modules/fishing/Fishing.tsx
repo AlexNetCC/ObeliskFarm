@@ -3000,20 +3000,22 @@ export function Fishing() {
                           {showLegendaryXY ? `${legendaryChanceNum}/${denomStr}` : `${Math.round(catchPct)}%`}
                         </span>
                       )}
-                      <span
-                        className="mono fishingGainsRate"
-                        style={rateColor ? { backgroundColor: rateColor, color: heatT > 0.5 ? "#0a0a0a" : "#fff" } : undefined}
-                      >
-                        {isActive
-                          ? fishPerHour.toLocaleString(undefined, fishPerHour > 1000
-                              ? { maximumFractionDigits: 0, minimumFractionDigits: 0 }
-                              : { maximumFractionDigits: 2, minimumFractionDigits: 2 })
-                          : "—"}
-                        /h
-                      </span>
+                      {!isLegendary && (
+                        <span
+                          className="mono fishingGainsRate"
+                          style={rateColor ? { backgroundColor: rateColor, color: heatT > 0.5 ? "#0a0a0a" : "#fff" } : undefined}
+                        >
+                          {isActive
+                            ? fishPerHour.toLocaleString(undefined, fishPerHour > 1000
+                                ? { maximumFractionDigits: 0, minimumFractionDigits: 0 }
+                                : { maximumFractionDigits: 2, minimumFractionDigits: 2 })
+                            : "—"}
+                          /h
+                        </span>
+                      )}
                       {isLegendary && hoursToCatchOne != null && (
                         <span className="small mono fishingGainsHoursToCatch" title="Expected hours to catch one (based on current effective ticks/h)">
-                          : Will take ~ {hoursToCatchOne >= 1 ? hoursToCatchOne.toFixed(1) : hoursToCatchOne.toFixed(2)} h for 1 catch
+                          ⇒ Will take ~ {hoursToCatchOne >= 1 ? hoursToCatchOne.toFixed(1) : hoursToCatchOne.toFixed(2)} h for 1 catch
                         </span>
                       )}
                     </span>
