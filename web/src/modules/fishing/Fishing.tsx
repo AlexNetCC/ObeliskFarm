@@ -3259,7 +3259,7 @@ export function Fishing() {
             <div className="fishingSushiBarBlock">
               <div className="fishingSushiBarHeader">
                 <span className="fishingSushiBarLabel">
-                  Sushi per hour
+                  Sushi income per hour
                   <Tooltip
                     content={{
                       title: "Sushi per hour",
