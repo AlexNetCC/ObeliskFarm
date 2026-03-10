@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { assetUrl } from "./lib/assets";
 import { Tooltip } from "./components/Tooltip";
+import { isEasterIconMonth } from "./lib/event/icons";
 import { loadJson, saveJson } from "./lib/storage";
 import { EventSim } from "./modules/event/EventSim";
 import { ArchSim } from "./modules/arch/ArchSim";
@@ -15,8 +16,9 @@ import { OvernightGains } from "./modules/overnight/OvernightGains";
 import "./modules/overnight/overnight.css";
 type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight" | "about";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
+const EVENT_EASTER_ICON = "https://static.wikitide.net/shminerwiki/c/cd/Event_Button_Easter.png";
 /** Obelisk level for “tested up to” in About and README. Update README when this changes. */
-const OB_LEVEL = 57;
+const OB_LEVEL = 60;
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 const SHOW_BACKUP_KEY = "obeliskfarm:web:about_show_backup";
 const BACKUP_INTERVAL_MIN_KEY = "obeliskfarm:web:backup_interval_min";
@@ -44,7 +46,7 @@ function MoonStarsIcon() {
 }
 
 export function App() {
-  const [active, setActive] = useState<ModuleId>("event");
+  const [active, setActive] = useState<ModuleId>("gemev");
   const [navExpanded, setNavExpanded] = useState(false);
   const [headerMinimized, setHeaderMinimized] = useState(() => loadJson<boolean>(HEADER_MINIMIZED_KEY) ?? false);
   const [showBackup, setShowBackup] = useState(() => loadJson<boolean>(SHOW_BACKUP_KEY) ?? false);
@@ -161,14 +163,9 @@ export function App() {
               className={`navTile ${active === m.id ? "navTileActive" : ""} ${m.id === "overnight" ? "navTileOvernight" : ""}`}
               onClick={() => setActive(m.id)}
             >
-              {m.id === "overnight" ? <MoonStarsIcon /> : <Sprite path={m.icon} alt={m.label} className="icon" />}
+              {m.id === "overnight" ? <MoonStarsIcon /> : <Sprite path={m.id === "event" && isEasterIconMonth() ? EVENT_EASTER_ICON : m.icon} alt={m.label} className="icon" />}
               <span className="navTileLabel">
                 <span>{m.label}</span>
-                {(m.id === "event" || m.id === "arch") && (
-                  <span className="navWorkingHorse" aria-hidden="true" title="Main module">
-                    ❤
-                  </span>
-                )}
                 {m.id === "overnight" && (
                   <span className="navBetaBadge">
                     <Tooltip

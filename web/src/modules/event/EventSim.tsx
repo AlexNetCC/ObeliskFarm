@@ -152,10 +152,11 @@ function Sprite(props: { path: string | null; alt: string; className?: string; l
   if (!path || !ok) {
     return <span className="iconPlaceholder" title={`Missing sprite: ${label ?? alt}`}>?</span>;
   }
+  const src = path.startsWith("http://") || path.startsWith("https://") ? path : assetUrl(path);
   return (
     <img
       className={className ?? "icon"}
-      src={assetUrl(path)}
+      src={src}
       alt={alt}
       onError={() => setOk(false)}
       title={alt}
@@ -904,7 +905,7 @@ export function EventSim() {
               const v = (tier === 1 ? ui.budget1 : tier === 2 ? ui.budget2 : tier === 3 ? ui.budget3 : ui.budget4) as string;
               return (
                 <div className="budgetRow" key={tier}>
-                  <Sprite path={icon ? `sprites/event/${icon}` : null} alt={`Currency ${tier}`} className="iconSmall" label={icon ?? ""} />
+                  <Sprite path={icon ? (icon.startsWith("http") ? icon : `sprites/event/${icon}`) : null} alt={`Currency ${tier}`} className="iconSmall" label={icon ?? ""} />
                   <input
                     className="input"
                     inputMode="decimal"
@@ -1286,7 +1287,7 @@ export function EventSim() {
                                       return (
                                         <span key={tier} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                           <Sprite
-                                            path={icon ? `sprites/event/${icon}` : null}
+                                            path={icon ? (icon.startsWith("http") ? icon : `sprites/event/${icon}`) : null}
                                             alt={`Currency ${tier}`}
                                             className="iconSmall"
                                             label={icon ?? ""}

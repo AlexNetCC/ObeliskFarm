@@ -314,13 +314,6 @@ body {
   gap: 8px;
 }
 
-.navWorkingHorse {
-  font-weight: 1000;
-  color: rgba(245, 124, 0, 0.98);
-  text-shadow: 0 0 14px rgba(245, 124, 0, 0.30);
-  animation: navWorkingHorseBlink 0.95s steps(2, end) infinite;
-}
-
 .navBetaBadge {
   display: inline-flex;
   align-items: center;
@@ -346,21 +339,6 @@ body {
   color: #fff;
   border-color: rgba(25, 118, 210, 0.4);
   background: rgba(25, 118, 210, 0.18);
-}
-
-@keyframes navWorkingHorseBlink {
-  0% {
-    opacity: 0.25;
-    transform: scale(0.98);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-  100% {
-    opacity: 0.25;
-    transform: scale(0.98);
-  }
 }
 
 .navTileSupportLabel {
@@ -390,11 +368,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .navTileDonation {
     animation: none;
-  }
-  .navWorkingHorse {
-    animation: none;
-    opacity: 1;
-    transform: none;
   }
 }
 

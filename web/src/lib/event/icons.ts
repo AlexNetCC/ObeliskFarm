@@ -1,5 +1,18 @@
 // Mirrors ObeliskGemEV/event/gui_budget.py:_load_upgrade_icons mapping.
 
+/** March (2) or April (3); used to show Easter icons in the event module and nav. */
+export function isEasterIconMonth(): boolean {
+  const m = new Date().getMonth();
+  return m === 2 || m === 3;
+}
+
+const EASTER_CURRENCY_ICON_URLS: Record<number, string> = {
+  1: "https://static.wikitide.net/shminerwiki/thumb/e/ec/Easter_Event_Currency_1.png/30px-Easter_Event_Currency_1.png",
+  2: "https://static.wikitide.net/shminerwiki/thumb/0/01/Easter_Event_Currency_2.png/30px-Easter_Event_Currency_2.png",
+  3: "https://static.wikitide.net/shminerwiki/thumb/6/67/Easter_Event_Currency_3.png/30px-Easter_Event_Currency_3.png",
+  4: "https://static.wikitide.net/shminerwiki/thumb/c/c0/Easter_Event_Currency_4.png/30px-Easter_Event_Currency_4.png",
+};
+
 export function upgradeIconFilename(tier: number, idx: number): string | null {
   const map: Record<string, string> = {
     // Tier 1
@@ -44,7 +57,9 @@ export function upgradeIconFilename(tier: number, idx: number): string | null {
 }
 
 export function currencyIconFilename(tier: number): string | null {
-  if (tier >= 1 && tier <= 4) return `currency_${tier}.png`;
+  if (tier >= 1 && tier <= 4) {
+    return EASTER_CURRENCY_ICON_URLS[tier] ?? null;
+  }
   return null;
 }
 

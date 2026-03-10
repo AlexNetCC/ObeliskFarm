@@ -1,1 +1,1 @@
-Tested up to Obelisk level 48.
+Tested up to Obelisk level 60.
