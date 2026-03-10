@@ -901,6 +901,12 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   const bonusGems =
     founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
 
+  /** Rare: 1/100 per drop → 650 Gems. */
+  const FOUNDER_RARE_650_GEMS_CHANCE = 1.0 / 100.0;
+  const FOUNDER_RARE_650_GEMS_AMOUNT = 650.0;
+  const rare650Gems =
+    founderDropsPerHour * expectedDropsPerEvent * FOUNDER_RARE_650_GEMS_CHANCE * FOUNDER_RARE_650_GEMS_AMOUNT * qtyMult;
+
   const giftChance = 1.0 / 1234.0;
   const giftsPerDrop = 10.0;
   const giftEvPerGift = calculateGiftEvPerGift(params);
@@ -911,7 +917,34 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   const fuelGems = supplyDrop.fuelPerHour * (params.gift_drone_fuel_gems_per_fuel ?? 0);
   const fishingTickGems = supplyDrop.fishingTicksPerHour * (params.founder_fishing_tick_gem_value ?? 0);
 
-  return baseGems + bonusGems + giftGems + cherryGems + fuelGems + fishingTickGems;
+  return baseGems + bonusGems + rare650Gems + giftGems + cherryGems + fuelGems + fishingTickGems;
+}
+
+/** Gems EV per hour from supply drop only (base + bonus roll + rare 650 + gifts). For breakdown modal; excludes cherry/fuel/fishing tick value. */
+export function getFounderSupplyDropGemsEvPerHour(params: GameParameters): number {
+  if (!params.founder_enabled) return 0;
+  const founderDropInterval = getFounderDropIntervalMinutes(params);
+  const founderDropsPerHour = 60.0 / founderDropInterval;
+  const doubleChance = clamp01(getDoubleDropChance(params));
+  const tripleChance = clamp01(getTripleDropChance(params));
+  const singleChance = 1.0 - doubleChance - tripleChance;
+  const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
+  const qtyMult = getSupplyDropQuantityMultiplier(params);
+  const goldenChance = getGoldenSupplyDropChance(params);
+  const baseGems =
+    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 30.0) * (1.0 + 4.0 * goldenChance) * qtyMult;
+  const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
+  const bonusGems =
+    founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
+  const FOUNDER_RARE_650_GEMS_CHANCE = 1.0 / 100.0;
+  const FOUNDER_RARE_650_GEMS_AMOUNT = 650.0;
+  const rare650Gems =
+    founderDropsPerHour * expectedDropsPerEvent * FOUNDER_RARE_650_GEMS_CHANCE * FOUNDER_RARE_650_GEMS_AMOUNT * qtyMult;
+  const giftChance = 1.0 / 1234.0;
+  const giftsPerDrop = 10.0;
+  const giftEvPerGift = calculateGiftEvPerGift(params);
+  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift * qtyMult;
+  return baseGems + bonusGems + rare650Gems + giftGems;
 }
 
 /** Extra clicks per hour per bomb type (e.g. 20 each for Charge Magnet). Omit or use number to add same to all. */

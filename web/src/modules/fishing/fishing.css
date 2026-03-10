@@ -396,6 +396,82 @@
   color: rgba(15, 23, 42, 0.9);
 }
 
+/** Sushi per hour bar (Chests-per-hour style): label + ? + total, segmented bar, legend. */
+.fishingSushiBarBlock {
+  margin-bottom: 8px;
+}
+.fishingSushiBarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.fishingSushiBarLabel {
+  font-size: 13px;
+  color: var(--text, rgba(15, 23, 42, 0.88));
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fishingSushiBarValue {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fishingSushiBarWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fishingSushiBarBg {
+  height: 20px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+}
+.fishingSushiBarSeg {
+  height: 100%;
+  min-width: 2px;
+  transition: width 0.2s ease;
+}
+.fishingSushiBarGift {
+  background: rgba(30, 136, 229, 0.88);
+}
+.fishingSushiBarLootfrog {
+  background: rgba(46, 125, 50, 0.8);
+}
+.fishingSushiBarLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text, rgba(15, 23, 42, 0.88));
+}
+.fishingSushiBarLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.fishingSushiBarLegendSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+}
+.fishingSushiBarLegendSwatch.fishingSushiBarGift {
+  background: rgba(30, 136, 229, 0.88);
+}
+.fishingSushiBarLegendSwatch.fishingSushiBarLootfrog {
+  background: rgba(46, 125, 50, 0.8);
+}
+
+/** Chart modals (effective ticks): above tooltips and other content. */
+.fishingChartModalOverlay {
+  z-index: 500;
+}
+
 /** Modal: effective ticks breakdown — Stargazing-style gray header/body. */
 .fishingTickChartModal {
   width: min(420px, 96vw);

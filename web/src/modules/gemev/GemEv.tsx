@@ -24,6 +24,7 @@ import {
   getExpectedItemChestsPerGift,
   getExpectedRelicChestsPerGift,
   getEffectiveGameSpeedMultiplierForTime,
+  getFounderSupplyDropGemsEvPerHour,
   getFounderSupplyDropPerHour,
   getGameSpeedMultiplier,
   type GameParameters,
@@ -610,7 +611,9 @@ export function GemEv() {
   /** Rows for Founder Supply Drop breakdown chart (per hour). */
   const founderSupplyDropChartRows = useMemo(() => {
     const sd = founderSupplyDrop;
+    const gemsEv = getFounderSupplyDropGemsEvPerHour(effectiveParams);
     return [
+      { key: "gems", label: "Gems (EV)", value: gemsEv, color: "#ffc107" },
       { key: "itemChests", label: "Item Chests", value: sd.itemChestsPerHour, color: "#ffa726" },
       { key: "relicChests", label: "Relic Chests", value: sd.relicChestsPerHour, color: "#ab47bc" },
       { key: "cherry", label: "Cherry", value: sd.cherryChargesPerHour, color: "#ef5350" },
@@ -620,7 +623,7 @@ export function GemEv() {
       { key: "frogspawn", label: "Frogspawn", value: sd.frogspawnPerHour, color: "#2e7d32" },
       { key: "star2x", label: "Star 2× (min/h)", value: sd.starSpawn2xMinPerHour, color: "#ffeb3b" },
     ];
-  }, [founderSupplyDrop]);
+  }, [founderSupplyDrop, effectiveParams]);
 
   useEffect(() => {
     const ext = loadJson<{
@@ -744,7 +747,7 @@ export function GemEv() {
             "T12: Gem Bomb Gem Chance +0.5%.",
           ],
         },
-        { heading: "Rewards (assumptions)", lines: ["Founder per-drop amounts may scale with built world monuments (current values: W2+W3); jackpots may be unchanged.", "Founder Gems: 30/drop (base); bonus roll 50+10×Level when chance hits", "Founder Speed: 2× for 5 minutes (time saved → more freebies)", "1/1234 chance: 10 gifts per supply drop"] },
+        { heading: "Rewards (assumptions)", lines: ["Founder per-drop amounts may scale with built world monuments (current values: W2+W3); jackpots may be unchanged.", "Founder Gems: 30/drop (base); bonus roll 50+10×Level when chance hits; 1/100 rare: 650 Gems.", "Founder Speed: 2× for 5 minutes (time saved → more freebies)", "1/1234 chance: 10 gifts per supply drop"] },
       ],
     }),
     [],

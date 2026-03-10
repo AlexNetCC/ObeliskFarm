@@ -88,6 +88,7 @@ function getW3FloorsMult(selectedCardId: string): number {
 /** 2× Star Spawn Rate buff icon (Elixir/Lootbug/Founder). */
 const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spawn_Rate_Buff.png";
 const ICON_STARFISH_QUEST = "https://static.wikitide.net/shminerwiki/thumb/d/de/Starfish_Quest.png/36px-Starfish_Quest.png";
+const ICON_DIVINE_CHALLENGE = "https://static.wikitide.net/shminerwiki/thumb/a/ab/Divine_Challenge_Coin.png/24px-Divine_Challenge_Coin.png";
 
 /** Starfruit: All Star Multi +30%, Star Supernova Chance +10%, 140s. */
 const ICON_STARFRUIT = "https://static.wikitide.net/shminerwiki/d/db/Starfruit.png";
@@ -932,6 +933,28 @@ export function Stargazing() {
                 </span>
               </kbd>
               <div className="mono sgResultValueBlue">{fmt1(summaryOffline.stars_per_hour_offline_gains * resultsCardMult)}</div>
+              {stats.star_supergiant_chance > 0 && stats.star_supernova_chance > 0 && (
+                <>
+                  <kbd>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <img src={ICON_DIVINE_CHALLENGE} alt="" width={18} height={18} className="iconSmall" aria-hidden />
+                      <span>Supernova Supergiants / h for Divine Challenge</span>
+                      <Tooltip
+                        content={{
+                          title: "Supernova Supergiants / h for Divine Challenge",
+                          lines: [
+                            <span key="novagiant" style={{ fontWeight: "bold", fontSize: "1.15em" }}>Supergiant and Supernova together are called Novagiant.</span>,
+                            "Normal Stars (not Super Stars) that roll both Supernova and Supergiant on the same star count for Divine Challenge. Higher rate than SS Novagiants.",
+                            "Shown for current Online setup.",
+                          ],
+                        }}
+                        label="?"
+                      />
+                    </span>
+                  </kbd>
+                  <div className="mono sgResultValueBlue">{fmt2(starContributions.supernovaSupergiant)}</div>
+                </>
+              )}
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />

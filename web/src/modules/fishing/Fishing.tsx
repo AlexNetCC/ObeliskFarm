@@ -1146,7 +1146,6 @@ export function Fishing() {
   /** Bump when Drone (or other module) updates fishing_external so we re-read and re-render. */
   const [fishingExternalRevision, setFishingExternalRevision] = useState(0);
   const [tickChartOpen, setTickChartOpen] = useState(false);
-  const [sushiChartOpen, setSushiChartOpen] = useState(false);
   /** When user edits drone count in the input: { dockId, input }. On blur/Enter we parse and apply (capped to max). */
   const [editingDroneCount, setEditingDroneCount] = useState<{ dockId: DockId; input: string } | null>(null);
   useEffect(() => {
@@ -1555,13 +1554,6 @@ export function Fishing() {
   ]);
 
   const totalSushiPerHour = giftSushiPerHour + lootfrogSushiPerHour;
-  const sushiChartRows = useMemo(() => {
-    if (totalSushiPerHour <= 0) return [];
-    return [
-      { key: "gift", label: "Gift", value: giftSushiPerHour, color: "#1e88e5" },
-      { key: "lootfrog", label: "Lootfrog", value: lootfrogSushiPerHour, color: "#2e7d32" },
-    ].filter((r) => r.value > 0);
-  }, [totalSushiPerHour, giftSushiPerHour, lootfrogSushiPerHour]);
 
   const fishingGainsRows = useMemo(() => {
     const dockIds = new Set(availableDocks.map((d) => d.id));
@@ -1982,6 +1974,7 @@ export function Fishing() {
       fishId: r.fish.id,
       fishName: r.fish.name,
       iconFile: r.fish.iconFile,
+      iconUrl: "iconUrl" in r.fish ? r.fish.iconUrl : undefined,
       fishPerSushiEv: rawTicksPerHour > 0 ? (ticksPerSushi * r.fishPerHour) / rawTicksPerHour : 0,
     }));
     return { totalFishPerHour, fishPerSushiEv, fishPerSushiEvPerFish };
@@ -3263,27 +3256,65 @@ export function Fishing() {
                 label="?"
               />
             </p>
-            <p className="small" style={{ marginBottom: 8, opacity: 0.85, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              Sushi per hour: <span className="mono">{(giftSushiPerHour + lootfrogSushiPerHour).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
-              {sushiChartRows.length > 0 ? (
-                <button
-                  type="button"
-                  className="fishingTickChartBtn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSushiChartOpen(true);
-                  }}
-                  title="Sushi per hour breakdown"
-                  aria-label="Open Sushi per hour breakdown"
-                >
-                  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                    <rect x="5" y="14" width="4" height="6" rx="1.5" fill="currentColor" opacity={0.7} />
-                    <rect x="11" y="10" width="4" height="10" rx="1.5" fill="currentColor" opacity={0.85} />
-                    <rect x="17" y="6" width="4" height="14" rx="1.5" fill="currentColor" />
-                  </svg>
-                </button>
+            <div className="fishingSushiBarBlock">
+              <div className="fishingSushiBarHeader">
+                <span className="fishingSushiBarLabel">
+                  Sushi per hour
+                  <Tooltip
+                    content={{
+                      title: "Sushi per hour",
+                      sections: [
+                        {
+                          heading: "Sources",
+                          lines: [
+                            "Gift: Sushi from Statue of Soprano (freebie gift chance) and Founder supply drop (1/1234 × 10 gifts).",
+                            "Lootfrog: Sushi from Lootfrog (Drone module). Same ticks per Sushi as Gift Sushi.",
+                          ],
+                        },
+                      ],
+                    }}
+                    label="?"
+                  />
+                </span>
+                <span className="mono fishingSushiBarValue">
+                  {(giftSushiPerHour + lootfrogSushiPerHour).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {totalSushiPerHour > 0 ? (
+                <div className="fishingSushiBarWrap">
+                  <div className="fishingSushiBarBg" role="img" aria-label="Sushi per hour by source">
+                    {giftSushiPerHour > 0 ? (
+                      <div
+                        className="fishingSushiBarSeg fishingSushiBarGift"
+                        style={{ width: `${(giftSushiPerHour / totalSushiPerHour) * 100}%` }}
+                        title={`Gift: ${giftSushiPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                    {lootfrogSushiPerHour > 0 ? (
+                      <div
+                        className="fishingSushiBarSeg fishingSushiBarLootfrog"
+                        style={{ width: `${(lootfrogSushiPerHour / totalSushiPerHour) * 100}%` }}
+                        title={`Lootfrog: ${lootfrogSushiPerHour.toFixed(2)}/h`}
+                      />
+                    ) : null}
+                  </div>
+                  <div className="fishingSushiBarLegend">
+                    {giftSushiPerHour > 0 ? (
+                      <span className="fishingSushiBarLegendItem">
+                        <span className="fishingSushiBarLegendSwatch fishingSushiBarGift" />
+                        Gift
+                      </span>
+                    ) : null}
+                    {lootfrogSushiPerHour > 0 ? (
+                      <span className="fishingSushiBarLegendItem">
+                        <span className="fishingSushiBarLegendSwatch fishingSushiBarLootfrog" />
+                        Lootfrog
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               ) : null}
-            </p>
+            </div>
             <div className="fishingFishCardsGrid fishingSushiCardGrid">
               <div className="fishingFishCardCell">
                 <div className="fishingFishCardCellTop">
@@ -3313,15 +3344,18 @@ export function Fishing() {
               </div>
               {sushiEvAndTotal.fishPerSushiEvPerFish.length > 0 && (
                 <div className="fishingSushiEvPerFish">
-                  {sushiEvAndTotal.fishPerSushiEvPerFish.map(({ fishId, fishName, iconFile, fishPerSushiEv }) => (
+                  {sushiEvAndTotal.fishPerSushiEvPerFish.map(({ fishId, fishName, iconFile, iconUrl, fishPerSushiEv }) => {
+                    const iconSrc = iconUrl ?? fishIconUrl(iconFile ?? "Gem.png");
+                    return (
                     <div key={fishId} className="fishingSushiStatRow fishingSushiEvPerFishRow">
                       <span className="fishingSushiStatLabel">
-                        <img src={fishIconUrl(iconFile ?? "Gem.png")} alt="" className="fishingSushiEvFishIcon" aria-hidden />
+                        <img src={iconSrc} alt="" className="fishingSushiEvFishIcon" aria-hidden />
                         {fishName}
                       </span>
                       <span className="mono">{fishPerSushiEv.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -3445,6 +3479,7 @@ export function Fishing() {
                     type="button"
                     className="fishingTickChartBtn"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       setTickChartOpen(true);
                     }}
@@ -3479,7 +3514,7 @@ export function Fishing() {
               {tickChartOpen
                 ? createPortal(
                     <div
-                      className="modalOverlay"
+                      className="modalOverlay fishingChartModalOverlay"
                       onMouseDown={() => setTickChartOpen(false)}
                       role="dialog"
                       aria-modal="true"
@@ -3528,56 +3563,6 @@ export function Fishing() {
                                     {row.tooltip ? (
                                       <Tooltip content={{ title: row.tooltip.title, lines: row.tooltip.lines }} label="?" />
                                     ) : null}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>,
-                    document.body
-                  )
-                : null}
-              {sushiChartOpen && sushiChartRows.length > 0
-                ? createPortal(
-                    <div
-                      className="modalOverlay"
-                      onMouseDown={() => setSushiChartOpen(false)}
-                      role="dialog"
-                      aria-modal="true"
-                      aria-labelledby="fishing-sushi-chart-modal-title"
-                    >
-                      <div className="modalWindow fishingTickChartModal" onMouseDown={(e) => e.stopPropagation()}>
-                        <div className="modalHeader fishingTickChartModalHeader">
-                          <div id="fishing-sushi-chart-modal-title" className="mono" style={{ fontWeight: 900 }}>
-                            Sushi per hour breakdown
-                          </div>
-                          <button className="btn btnSecondary" type="button" onClick={() => setSushiChartOpen(false)}>
-                            Close
-                          </button>
-                        </div>
-                        <div className="modalBody fishingTickChartModalBody">
-                          <div className="fishingTickContribBlock">
-                            <div className="fishingTickContribTitle">Sushi sources</div>
-                            <div className="fishingTickContribBars" role="img" aria-label="Sushi per hour contributions bar chart">
-                              {sushiChartRows.map((row) => {
-                                const pct = totalSushiPerHour > 0 ? (row.value / totalSushiPerHour) * 100 : 0;
-                                const maxVal = Math.max(...sushiChartRows.map((r) => r.value), 1);
-                                const widthPct = maxVal > 0 ? (row.value / maxVal) * 100 : 0;
-                                return (
-                                  <div key={row.key} className="fishingTickContribRow">
-                                    <div className="fishingTickContribLabel">{row.label}</div>
-                                    <div className="fishingTickContribBarTrack">
-                                      <div
-                                        className="fishingTickContribBarFill"
-                                        style={{ width: `${widthPct}%`, backgroundColor: row.color }}
-                                      />
-                                    </div>
-                                    <span className="mono fishingTickContribValue" title={`${row.value.toFixed(2)}/h (${pct.toFixed(1)}%)`}>
-                                      {row.value.toFixed(2)}
-                                      <span className="fishingTickContribPct"> ({pct.toFixed(1)}%)</span>
-                                    </span>
                                   </div>
                                 );
                               })}

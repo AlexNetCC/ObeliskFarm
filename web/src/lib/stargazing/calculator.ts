@@ -328,6 +328,8 @@ export class StargazingCalculator {
     supernova: number;
     supergiant: number;
     radiant: number;
+    /** Stars that roll both Supernova and Supergiant (Novagiant) per hour; for Divine Challenge. */
+    supernovaSupergiant: number;
   } {
     const spawns = this.calculate_star_spawn_rate_per_hour();
     const mult = this.calculate_star_multiplier_per_star();
@@ -360,8 +362,9 @@ export class StargazingCalculator {
     const supernova = (sn_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
     const supergiant = (sg_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
     const radiant = (rad_contrib - 1) * slice;
+    const supernovaSupergiant = spawns * stars_per_spawn * p_sn * p_sg;
 
-    return { doubleStar, tripleStar, supernova, supergiant, radiant };
+    return { doubleStar, tripleStar, supernova, supergiant, radiant, supernovaSupergiant };
   }
 
   /**
