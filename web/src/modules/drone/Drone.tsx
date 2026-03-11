@@ -84,13 +84,13 @@ const ANGLER_BUFF_DURATION_BASE_SEC = 105; // 1:45
 const ANGLER_BUFF_DURATION_SEC_PER_GRADE = 5.25; // +0:05.25
 const ANGLER_BUFF_DURATION_MAX_SEC = 189; // 3:09
 
-/** Starburst Drone: Stargazing. Suit: Triple Star Chance 6% base + 1% per level. Fuel buff: +100% Auto-catch (always), +15% Star Spawn Rate at grade 0, +1% per grade; duration 2:20 at grade 0, +0:09 per grade. */
+/** Starburst Drone: Stargazing. Suit: Triple Star Chance 6% base + 1% per level. Fuel buff: +100% Auto-catch (always), +15% Star Spawn Rate at grade 0, +3% per grade; duration 2:20 at grade 0, +0:09 per grade. */
 const STARBURST_TRIPLE_STAR_PCT_BASE = 6;
 const STARBURST_TRIPLE_STAR_PCT_PER_LEVEL = 1;
 const STARBURST_FUEL_DURATION_BASE_SEC = 140; // 2:20
 const STARBURST_FUEL_DURATION_SEC_PER_GRADE = 9;
 const STARBURST_STAR_SPAWN_PCT_BASE = 15;
-const STARBURST_STAR_SPAWN_PCT_PER_GRADE = 1;
+const STARBURST_STAR_SPAWN_PCT_PER_GRADE = 3;
 
 /** Void Drone: +3× Portal Resource Multi / 3:00 at grade 0, +1× / +0:09 per grade. Max +23× / 6:00 (Polychrome). */
 const VOID_PORTAL_MULT_BASE = 3;
@@ -829,7 +829,7 @@ export function Drone() {
     fuelDurationRelicMult,
   );
   const starburstFuelDurationSecReal = starburstFuelDurationGameSec / gameSpeedMult;
-  /** When fueled: +15% at grade 0, +1% per grade. Applied as mult (1 + pct/100) for uptime fraction in Stargazing. */
+  /** When fueled: +15% at grade 0, +3% per grade. Applied as mult (1 + pct/100) for uptime fraction in Stargazing. */
   const starburstStarSpawnRatePct = state.starburstDroneOn && state.starburstFueled
     ? STARBURST_STAR_SPAWN_PCT_BASE + state.starburstGradeLevel * STARBURST_STAR_SPAWN_PCT_PER_GRADE
     : 0;
@@ -3198,7 +3198,7 @@ export function Drone() {
                 tooltip={{
                   title: "Starburst grade (fuel buff)",
                   lines: [
-                    "Buff: +100% Auto-catch (always), +15% Star Spawn Rate at grade 0, +1% per grade. Duration: 2:20 at grade 0, +0:09 per grade.",
+                    "Buff: +100% Auto-catch (always), +15% Star Spawn Rate at grade 0, +3% per grade. Duration: 2:20 at grade 0, +0:09 per grade.",
                     "Same fuel duration multipliers (Coal, Cards, etc.) as other drones.",
                   ],
                 }}

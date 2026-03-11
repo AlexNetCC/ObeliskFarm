@@ -84,8 +84,18 @@ function GiftRewardMultipliersTable(props: { obeliskMult: number; luckyMult: num
               </td>
             </tr>
             <tr>
-              <td className="mono" style={{ padding: "2px 0", color: textColor }}>
+              <td className="mono" style={{ padding: "2px 0", color: textColor, display: "flex", alignItems: "center", gap: 6 }}>
                 Lucky (3× / 50× rolls): <strong>{fmt1(luckyMult)}×</strong>
+                <Tooltip
+                  content={{
+                    title: "Lucky roll odds",
+                    sections: [
+                      { heading: "3× roll", lines: ["1 in 20 chance per gift (5%)."] },
+                      { heading: "50× roll", lines: ["1 in 2,500 chance per gift (0.04%)."] },
+                      { heading: "Both rolls", lines: ["The two rolls are independent. If both hit, multiplier is 150×."] },
+                    ],
+                  }}
+                />
               </td>
             </tr>
           </tbody>
