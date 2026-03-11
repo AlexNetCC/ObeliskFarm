@@ -23,6 +23,7 @@ const RARE_ENTRIES = [
   { key: "rare_gems" as const, label: "Rare Roll Gems", color: "#2196f3", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
   { key: "drone_fuel" as const, label: "Drone Fuel", color: "#42a5f5", qtyUnit: "fuel", icon: `${WIKI}/4/44/Fuel.png` },
   { key: "skin" as const, label: "Skin or Gems", color: "#90caf9", qtyUnit: "gems", icon: undefined, showTooltip: true },
+  { key: "ob60_gem_chest" as const, label: "ob60 Gem Chest", color: "#9c27b0", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
   { key: "recursive_gifts" as const, label: "Recursive Gifts", color: "#1e88e5", qtyUnit: "gifts", icon: `${WIKI}/2/24/Gift.png` },
 ] as const;
 

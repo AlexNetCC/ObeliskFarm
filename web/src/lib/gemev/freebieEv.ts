@@ -667,6 +667,12 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
   const droneFuelEv = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
   const skinEv = rare.skin * 105.0 * obeliskMult; // Skins: no Lucky mult
 
+  // 2b) ob60 Gem Chest: from ob60, ~0.1% chance per gift for ~22,500 gems (flat, no Obelisk/Lucky mult)
+  const OB60_GEM_CHEST_LEVEL = 60;
+  const OB60_GEM_CHEST_PROB = 0.001;
+  const OB60_GEM_CHEST_GEMS = 22500;
+  const ob60GemChestEv = obelisk >= OB60_GEM_CHEST_LEVEL ? OB60_GEM_CHEST_PROB * OB60_GEM_CHEST_GEMS : 0;
+
   // 3) Apply multipliers to base
   const baseGemsWithMult = baseRollGems * obeliskMult * luckyMult;
   const baseShardsWithMult = baseRollShards * obeliskMult * luckyMult;
@@ -675,7 +681,8 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
   const chargeMagnetWithMult = chargeMagnetEv * obeliskMult * luckyMult;
   const fishingTickWithMult = fishingTickEv * obeliskMult * luckyMult;
 
-  // 4) Recursion: GiftEV = A + B * GiftEV (3 Gifts and 25 Gifts from Gilded Skin)
+  // 4) Recursion: GiftEV = A + recursiveCoeff * GiftEV (3 Gifts and 25 Gifts from Gilded Skin).
+  // Every component in A (including ob60 Gem Chest) is amplified by 1/(1 - recursiveCoeff).
   const recursiveCoeff =
     rare.gifts3 * 3.0 * obeliskMult * luckyMult + rare.gildedSkin * 25.0 * obeliskMult * luckyMult;
   const A =
@@ -687,7 +694,8 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
     fishingTickWithMult +
     rareGemsEv +
     droneFuelEv +
-    skinEv;
+    skinEv +
+    ob60GemChestEv;
   if (recursiveCoeff >= 1.0) return A * 10.0;
   return A / (1.0 - recursiveCoeff);
 }
@@ -728,6 +736,8 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const drone_fuel_final = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
   const skin_final = rare.skin * 105.0 * obeliskMult;
 
+  const ob60_gem_chest_final = obelisk >= 60 ? 0.001 * 22500 : 0;
+
   const fishPerSushi = params.gift_sushi_fish_per_sushi ?? 0;
   const sushi_fish_final =
     (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult * fishPerSushi;
@@ -743,7 +753,8 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
     fishing_tick_final +
     rare_gems_final +
     drone_fuel_final +
-    skin_final;
+    skin_final +
+    ob60_gem_chest_final;
   const recursiveGiftsContribution = giftEvTotal - A;
 
   /** Expected quantity per gift (for chart labels): gems, shards, chests, totems, magnets, fuel, sushi, etc. */
@@ -761,6 +772,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const skin_qty = rare.skin * 105 * obeliskMult;
   const sushi_qty = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
   const recursiveGifts_qty = rare.gifts3 * 3 * obeliskMult * luckyMult + rare.gildedSkin * 25 * obeliskMult * luckyMult;
+  const ob60_gem_chest_qty = ob60_gem_chest_final;
 
   return {
     gems_20_40: gems20_40_final,
@@ -773,6 +785,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
     rare_gems: rare_gems_final,
     drone_fuel: drone_fuel_final,
     skin: skin_final,
+    ob60_gem_chest: ob60_gem_chest_final,
     sushi_fish: sushi_fish_final,
     recursive_gifts: recursiveGiftsContribution,
     total: giftEvTotal,
@@ -790,6 +803,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
       skin: skin_qty,
       sushi_fish: sushi_qty,
       recursive_gifts: recursiveGifts_qty,
+      ob60_gem_chest: ob60_gem_chest_qty,
     } as Record<string, number>,
     _multipliers: {
       obeliskMult,

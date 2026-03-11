@@ -396,9 +396,13 @@
   color: rgba(15, 23, 42, 0.9);
 }
 
-/** Sushi per hour bar (Chests-per-hour style): label + ? + total, segmented bar, legend. */
+/** Sushi per hour bar (Chests-per-hour style): label + ? + total, segmented bar, legend. Light background like Sushi Misc Card. */
 .fishingSushiBarBlock {
   margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: rgba(15, 23, 42, 0.04);
 }
 .fishingSushiBarHeader {
   display: flex;

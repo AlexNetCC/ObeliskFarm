@@ -84,7 +84,7 @@ type SavedState = {
   divineRelic5xPoints?: number;
   /** Variance (MC) simulation: hours to simulate. Default 8. */
   mcHours?: number;
-  /** Variance (MC) simulation: number of runs. Default 10000. */
+  /** Variance (MC) simulation: number of runs. Default 1000. */
   mcRuns?: number;
   /** Pets: Mr Nibbles level. */
   mrNibblesLevel?: number;
@@ -146,7 +146,7 @@ type FishingState = {
   divineRelic5xPoints: number;
   /** Variance (MC) simulation: hours to simulate. Default 8. */
   mcHours: number;
-  /** Variance (MC) simulation: number of runs. Default 10000. */
+  /** Variance (MC) simulation: number of runs. Default 1000. */
   mcRuns: number;
   /** Pets: Mr Nibbles level. +0.03× Shiny Multi per level (own mult), +1% Triple Tick Chance per level (flat). */
   mrNibblesLevel: number;
@@ -217,7 +217,7 @@ function getDefaultFishingState(): FishingState {
     abyssLegendaryCaught: false,
     divineRelic5xPoints: 0,
     mcHours: 8,
-    mcRuns: 10000,
+    mcRuns: 1000,
     mrNibblesLevel: 0,
     mrNibblesQuestRank: 0,
     poseidonIdolLevel: 0,
@@ -246,8 +246,6 @@ const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 /** Sushi: base 90 ticks. Sushi Misc card: Card +5, Gilded +10, Poly +20. */
 const SUSHI_BASE_TICKS = 90;
 const SUSHI_CARD_TICKS: Record<FishCardTier, number> = { 0: 0, 1: 5, 2: 10, 3: 20 };
-const SUSHI_MC_RUNS = 10000;
-
 /** Fishing Rod card: Fishing Rod Power. Card 1.02×, Gilded 1.05×, Poly 1.10×. */
 const FISHING_ROD_CARD_MULT: Record<FishCardTier, number> = { 0: 1, 1: 1.02, 2: 1.05, 3: 1.1 };
 
@@ -1115,7 +1113,7 @@ export function Fishing() {
     const mrNibblesCardTier = clamp(Math.trunc(Number(saved?.mrNibblesCardTier ?? 0)), 0, 3) as FishCardTier;
     const divineRelic5xPoints = Math.max(0, Math.trunc(Number(saved?.divineRelic5xPoints ?? 0)));
     const mcHours = clamp(Number(saved?.mcHours ?? 8), 0.1, 720);
-    const mcRuns = clamp(Math.trunc(Number(saved?.mcRuns ?? 10000)), 1000, 100000);
+    const mcRuns = clamp(Math.trunc(Number(saved?.mcRuns ?? 1000)), 1000, 100000);
     const rawMrLvl = Number(saved?.mrNibblesLevel ?? 0);
     const mrNibblesLevel = Number.isFinite(rawMrLvl) ? Math.max(0, Math.trunc(rawMrLvl)) : 0;
     const rawMrQuest = Number(saved?.mrNibblesQuestRank ?? 0);
@@ -2020,7 +2018,7 @@ export function Fishing() {
       const probsNorm = sumEv > 0 ? fishPerSushiEvPerFish.map((f) => f.fishPerSushiEv / sumEv) : fishPerSushiEvPerFish.map(() => 0);
       const samplesPerFish: Record<string, number[]> = {};
       for (const id of fishIds) samplesPerFish[id] = [];
-      for (let i = 0; i < SUSHI_MC_RUNS; i++) {
+      for (let i = 0; i < state.mcRuns; i++) {
         const totalFish = samplePoisson(rng, meanFishPerSushi);
         const runPerFish: Record<string, number> = {};
         for (const id of fishIds) runPerFish[id] = 0;
@@ -3379,7 +3377,7 @@ export function Fishing() {
             <Collapsible id="fishing-sushi-mc" title="Variance (MC simulation)" defaultExpanded={false}>
               <div className="fishingSushiMcSection">
                 <p className="small" style={{ marginBottom: 8 }}>
-                  Simulate opening N={SUSHI_MC_RUNS.toLocaleString()} sushis; histogram of total fish per Sushi.
+                  Simulate opening N={state.mcRuns.toLocaleString()} sushis; histogram of total fish per Sushi.
                 </p>
                 <button
                   type="button"
