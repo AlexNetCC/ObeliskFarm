@@ -1076,6 +1076,21 @@ const boxplotStatsTooltip = {
   ],
 };
 
+/** Legendary fish card effects by id (FYI only; not used in any calculations). */
+const LEGENDARY_FISH_CARD_EFFECTS: Record<string, { title: string; standard: string; gilded: string; polychrome: string }> = {
+  lake_legendary: { title: "Rainbow Trout", standard: "Rainbow Floor Multi +25%", gilded: "+50%", polychrome: "+100%" },
+  desert_legendary: { title: "Dune's Eelworm", standard: "Golden Portal Multi +40%", gilded: "+80%", polychrome: "+140%" },
+  tundra_legendary: { title: "Glacial Shellstealer", standard: "Rainbow Vein Multi +30%", gilded: "+60%", polychrome: "+100%" },
+  ocean_legendary: { title: "Megalodon", standard: "Star Supernova Multi +35%", gilded: "+70%", polychrome: "+125%" },
+  nuclear_legendary: { title: "Radioactive Slug", standard: "Bomb Damage / Exp Gain +300%", gilded: "+500%", polychrome: "+1100%" },
+  abyss_legendary: { title: "Cthulhu", standard: "Divine Relics Cap +1", gilded: "+2", polychrome: "+4" },
+  cave_legendary: { title: "Glimmering Geoduck", standard: "Banked Freebie Cap +16%", gilded: "+32%", polychrome: "+64%" },
+  volcano_legendary: { title: "Laviathan", standard: "Bar Output Multiplier +40%", gilded: "+80%", polychrome: "+140%" },
+  sky_legendary: { title: "Storm Serpent", standard: "Super Stonks Multiplier +14%", gilded: "+28%", polychrome: "+56%" },
+  solaris_legendary: { title: "Melting Gibbous", standard: "Gems From Freebie +10%", gilded: "+20%", polychrome: "+30%" },
+  galaxy_legendary: { title: "Blackened Basker", standard: "Super Stonks Chance +0.15%", gilded: "+0.30%", polychrome: "+0.60%" },
+};
+
 export function Fishing() {
   const [state, setState] = useState<FishingState>(() => {
     const saved = loadJson<SavedState>(STORAGE_KEY);
@@ -1747,10 +1762,10 @@ export function Fishing() {
     return 100 * 0.3 * freebieShare;
   }, [visibleGainsRows, totalEffectiveTicksPerHour, giftSushiFreebieTicksPerHour, tickMult]);
 
-  /** Any fish card in Card (ungilded) state, regardless of dock power. Used for "no un-gilded" banner. */
+  /** Any non-legendary fish card in Card (ungilded) state. Used for "no un-gilded" banner; leg fish excluded (not upgraded for fishing gains). */
   const hasUngildedFishCard = useMemo(() => {
-    const ids = new Set(fishingGainsRows.map((r) => r.fish.id));
-    return [...ids].some((id) => (state.fishCardTier[id] ?? 0) === 1);
+    const legIds = new Set(LEGENDARY_FISH.map((leg) => leg.id));
+    return fishingGainsRows.some((r) => !legIds.has(r.fish.id) && (state.fishCardTier[r.fish.id] ?? 0) === 1);
   }, [fishingGainsRows, state.fishCardTier]);
 
   const hasUngildedRodCard = (state.fishingRodCardTier ?? 0) === 1;
@@ -2724,8 +2739,10 @@ export function Fishing() {
     }
     const cardToGildedRatio = 2 / 1.5; // Card 1.5× → Gilded 2×
     const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints, mrNibblesLevel: state.mrNibblesLevel, mrNibblesQuestRank: state.mrNibblesQuestRank, poseidonIdolLevel: state.poseidonIdolLevel, tethysIdolLevel: state.tethysIdolLevel, astraeusIdolLevel: state.astraeusIdolLevel, droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3, mrNibblesCardTier: state.mrNibblesCardTier, legendaryHaulerBundle: state.legendaryHaulerBundle, fishersBundle: state.fishersBundle, anglerBundle: state.anglerBundle, divineChallengeCoinLevel: state.divineChallengeCoinLevel, infernalMrNibblesPct: state.infernalMrNibblesPct, infernalMrNibblesLevel: state.infernalMrNibblesLevel, infernalAnglerDronePct: state.infernalAnglerDronePct, infernalAnglerDroneLevel: state.infernalAnglerDroneLevel, constructStatue: state.constructStatue, cetusLevel: state.cetusLevel, blackHoleBonus: state.blackHoleBonus };
+    const legFishIds = new Set(LEGENDARY_FISH.map((leg) => leg.id));
     for (const row of visibleGainsRows) {
       if (!row.hasPower || row.fishPerHour <= 0) continue;
+      if (legFishIds.has(row.fish.id)) continue;
       const tier = (state.fishCardTier[row.fish.id] ?? 0) as FishCardTier;
       if (tier !== 1) continue;
       const totalAfterDirect = total - row.fishPerHour + row.fishPerHour * cardToGildedRatio;
@@ -4586,7 +4603,7 @@ export function Fishing() {
                 <tbody>
                   {[
                     ...fishingGainsRows
-                      .filter((r) => (state.fishCardTier[r.fish.id] ?? 0) === 1)
+                      .filter((r) => (state.fishCardTier[r.fish.id] ?? 0) === 1 && !LEGENDARY_FISH.some((leg) => leg.id === r.fish.id))
                       .map((row) => ({
                         type: "fish" as const,
                         id: `${row.dockId}-${row.fish.id}`,
@@ -4805,11 +4822,25 @@ export function Fishing() {
               <div className="fishingFishCardsGrid">
                 {LEGENDARY_FISH.map((leg) => {
                   const tier = (state.fishCardTier[leg.id] ?? 0) as FishCardTier;
+                  const effects = LEGENDARY_FISH_CARD_EFFECTS[leg.id];
                   return (
                     <div key={leg.id} className="fishingFishCardCell">
                       <div className="fishingFishCardCellTop">
                         <img src={leg.iconUrl} alt="" className="fishingFishCardIcon fishingFishCardIconLegendary" />
                         <span className="mono">{leg.name}</span>
+                        {effects ? (
+                          <Tooltip
+                            content={{
+                              title: effects.title,
+                              sections: [
+                                { heading: "Standard", lines: [effects.standard] },
+                                { heading: "Gilded", lines: [effects.gilded] },
+                                { heading: "Polychrome", lines: [effects.polychrome] },
+                              ],
+                            }}
+                            label="?"
+                          />
+                        ) : null}
                       </div>
                       <FishCardTierToggles
                         value={tier}

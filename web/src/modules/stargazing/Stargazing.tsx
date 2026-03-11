@@ -93,6 +93,8 @@ const ICON_DIVINE_CHALLENGE = "https://static.wikitide.net/shminerwiki/thumb/a/a
 /** Starfruit: All Star Multi +30%, Star Supernova Chance +10%, 140s. */
 const ICON_STARFRUIT = "https://static.wikitide.net/shminerwiki/d/db/Starfruit.png";
 /** Ice Cream: Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140s. */
+/** Cosmic Star Candy: 3× All Star Multi (applies to all star gains). */
+const ICON_COSMIC_CANDY = "https://static.wikitide.net/shminerwiki/d/de/Cosmic_Candy.png";
 const ICON_ICE_CREAM = "https://static.wikitide.net/shminerwiki/5/5d/Ice_Cream.png";
 
 /** Star card ids that have sprites in sprites/stargazing (from main Python/assets). */
@@ -123,6 +125,7 @@ type SavedStateV1 = {
   catch_manually?: boolean;
   starfruit?: boolean;
   ice_cream?: boolean;
+  cosmic_candy?: boolean;
   w3_debuff_removed_fishing?: boolean;
   star_cards?: Partial<StarCardsState>;
 };
@@ -374,13 +377,14 @@ export function Stargazing() {
     const catch_manually = saved?.catch_manually ?? false;
     const starfruit = saved?.starfruit ?? false;
     const ice_cream = saved?.ice_cream ?? false;
+    const cosmic_candy = saved?.cosmic_candy ?? false;
     const w3_debuff_removed_fishing = saved?.w3_debuff_removed_fishing ?? false;
     const star_cards: StarCardsState = {
       ...defaultStarCards(),
       ...(saved?.star_cards ?? {}),
       selected_card_for_results: saved?.star_cards?.selected_card_for_results ?? "aries",
     };
-    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, starfruit, ice_cream, w3_debuff_removed_fishing, star_cards };
+    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, starfruit, ice_cream, cosmic_candy, w3_debuff_removed_fishing, star_cards };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
@@ -389,6 +393,7 @@ export function Stargazing() {
   const [catchManually, setCatchManually] = useState<boolean>(initial.catch_manually ?? false);
   const [starfruit, setStarfruit] = useState<boolean>(initial.starfruit ?? false);
   const [iceCream, setIceCream] = useState<boolean>(initial.ice_cream ?? false);
+  const [cosmicCandy, setCosmicCandy] = useState<boolean>(initial.cosmic_candy ?? false);
   const [w3DebuffRemovedFishing, setW3DebuffRemovedFishing] = useState<boolean>(initial.w3_debuff_removed_fishing ?? false);
   const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
   const [resetArmed, setResetArmed] = useState(false);
@@ -404,11 +409,11 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, starfruit, ice_cream: iceCream, w3_debuff_removed_fishing: w3DebuffRemovedFishing, star_cards: starCards };
+      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, starfruit, ice_cream: iceCream, cosmic_candy: cosmicCandy, w3_debuff_removed_fishing: w3DebuffRemovedFishing, star_cards: starCards };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF, spoonStrat, catchManually, starfruit, iceCream, w3DebuffRemovedFishing, starCards]);
+  }, [ui, ctrlF, spoonStrat, catchManually, starfruit, iceCream, cosmicCandy, w3DebuffRemovedFishing, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -540,9 +545,10 @@ export function Stargazing() {
       s.all_star_mult *= 1.3;
       s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
     }
+    if (cosmicCandy) s.all_star_mult *= 3;
     if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
     return s;
-  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, cosmicCandy, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst (no Lootbug, no Founder). */
   const statsOnlineAfk = useMemo<PlayerStats>(() => {
@@ -586,9 +592,10 @@ export function Stargazing() {
       s.all_star_mult *= 1.3;
       s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
     }
+    if (cosmicCandy) s.all_star_mult *= 3;
     if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
     return s;
-  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, cosmicCandy, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Offline Gains: no spoon strat, no external buffs (Lootbug, Founder, Elixir, Starburst off). */
   const statsOffline = useMemo<PlayerStats>(() => {
@@ -631,9 +638,10 @@ export function Stargazing() {
       s.all_star_mult *= 1.3;
       s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
     }
+    if (cosmicCandy) s.all_star_mult *= 3;
     if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
     return s;
-  }, [ui, ctrlF, starfruit, iceCream, w3FloorsMult, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
+  }, [ui, ctrlF, starfruit, iceCream, cosmicCandy, w3FloorsMult, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
 
   /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
   const statsWithoutStarburst = useMemo<PlayerStats>(() => {
@@ -883,7 +891,7 @@ export function Stargazing() {
                   onChange={(e) => setStarfruit(e.target.checked)}
                 />
                 <img src={ICON_STARFRUIT} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
-                <span>Starfruit (All Star Multi +30%, Star Supernova Chance +10%, 140s)</span>
+                <span>Starfruit (All Star Multi +30%, Star Supernova Chance +10%, 140)</span>
               </label>
               <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
                 <input
@@ -892,7 +900,16 @@ export function Stargazing() {
                   onChange={(e) => setIceCream(e.target.checked)}
                 />
                 <img src={ICON_ICE_CREAM} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
-                <span>Ice Cream (Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140s)</span>
+                <span>Ice Cream (Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140)</span>
+              </label>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={cosmicCandy}
+                  onChange={(e) => setCosmicCandy(e.target.checked)}
+                />
+                <img src={ICON_COSMIC_CANDY} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
+                <span>Cosmic Star Candy (3× All Star Multi)</span>
               </label>
               <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
                 <input
@@ -942,10 +959,21 @@ export function Stargazing() {
                       <Tooltip
                         content={{
                           title: "Supernova Supergiants / h for Divine Challenge",
-                          lines: [
-                            <span key="novagiant" style={{ fontWeight: "bold", fontSize: "1.15em" }}>Supergiant and Supernova together are called Novagiant.</span>,
-                            "Normal Stars (not Super Stars) that roll both Supernova and Supergiant on the same star count for Divine Challenge. Higher rate than SS Novagiants.",
-                            "Shown for current Online setup.",
+                          sections: [
+                            {
+                              heading: "What counts",
+                              lines: [
+                                <span key="novagiant" style={{ fontWeight: "bold", fontSize: "1.15em" }}>Supergiant and Supernova together are called Novagiant.</span>,
+                                "Normal Stars (not Super Stars) that roll both Supernova and Supergiant on the same star count for Divine Challenge. Higher rate than SS Novagiants.",
+                                "Shown for current Online setup.",
+                              ],
+                            },
+                            {
+                              heading: "Divine Challenge DC 2",
+                              lines: [
+                                "You need to catch 14,144 Supernova Supergiant Stars to complete this challenge.",
+                              ],
+                            },
                           ],
                         }}
                         label="?"

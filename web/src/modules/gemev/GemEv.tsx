@@ -67,6 +67,13 @@ function fmt1(n: number): string {
   return n.toFixed(1);
 }
 
+/** Like fmt1, but ≥1000: no decimals, thousands separator; <1000: one decimal. */
+function fmt1OrIntOver1k(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  if (n >= 1000) return Math.round(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return n.toFixed(1);
+}
+
 function fmtPct(n: number, total: number): string {
   if (!Number.isFinite(n) || !Number.isFinite(total) || total <= 0) return "0.0%";
   return `${((n / total) * 100).toFixed(1)}%`;
@@ -773,7 +780,7 @@ export function GemEv() {
                 TOTAL
               </kbd>
               <div className="mono" style={{ fontWeight: 900 }}>
-                {fmt1(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
+                {fmt1OrIntOver1k(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
               </div>
               <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
@@ -793,7 +800,7 @@ export function GemEv() {
                 </button>
               </kbd>
               <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 900 }}>{fmt1(giftEv)} Gems per Gift</span>
+                <span style={{ fontWeight: 900 }}>{fmt1OrIntOver1k(giftEv)} Gems per Gift</span>
               </div>
               {totalGiftsPerHour > 0 ? (
                 <>
@@ -1620,7 +1627,7 @@ export function GemEv() {
                   <div className="modalHeader">
                     <div>
                       <div id="gift-ev-modal-title" className="mono" style={{ fontWeight: 900 }}>
-                        Gift EV breakdown — {fmt1(giftEv)} Gems per Gift
+                        Gift EV breakdown — {fmt1OrIntOver1k(giftEv)} Gems per Gift
                       </div>
                       <div className="small">Bars sorted by Gem EV (descending). All values include Obelisk × Lucky multipliers.</div>
                     </div>
