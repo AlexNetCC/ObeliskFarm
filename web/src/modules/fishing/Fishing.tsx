@@ -2237,6 +2237,82 @@ export function Fishing() {
     availableT2Enhancements,
   ]);
 
+  /** +% effective fish gain for +1 Tethys Idol at current build (for tooltip). */
+  const tethysIdolMarginalFishPct = useMemo(() => {
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+      abyssLegendaryCaught: state.abyssLegendaryCaught,
+      fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      astraeusIdolLevel: state.astraeusIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      anglerBundle: state.anglerBundle,
+      divineChallengeCoinLevel: state.divineChallengeCoinLevel,
+      infernalMrNibblesPct: state.infernalMrNibblesPct,
+      infernalMrNibblesLevel: state.infernalMrNibblesLevel,
+      infernalAnglerDronePct: state.infernalAnglerDronePct,
+      infernalAnglerDroneLevel: state.infernalAnglerDroneLevel,
+      constructStatue: state.constructStatue,
+      cetusLevel: state.cetusLevel,
+      blackHoleBonus: state.blackHoleBonus,
+    };
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      skillOpts,
+      extraTicksPerHour,
+    );
+    const newTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      { ...skillOpts, tethysIdolLevel: state.tethysIdolLevel + 1 },
+      extraTicksPerHour,
+    );
+    return currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.dronesPerDock,
+    state.activeDockId,
+    state.tethysIdolLevel,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    state.abyssLegendaryCaught,
+    state.fishingRodCardTier,
+    state.mrNibblesCardTier,
+    state.poseidonIdolLevel,
+    state.astraeusIdolLevel,
+    state.droneBasePowerWorld3Upgrade,
+    state.fishingDroneBasePowerWorld3,
+    state.legendaryHaulerBundle,
+    state.fishersBundle,
+    state.anglerBundle,
+    state.divineChallengeCoinLevel,
+    state.infernalMrNibblesPct,
+    state.infernalMrNibblesLevel,
+    state.infernalAnglerDronePct,
+    state.infernalAnglerDroneLevel,
+    state.constructStatue,
+    state.cetusLevel,
+    state.blackHoleBonus,
+    elixir3xFishingExternal,
+    extraTicksPerHour,
+  ]);
+
   /** Store bundles: expected +% gain for each package (same basis as upgrades: effective total fish/h). Polychrome uses displayed total with card multis. */
   const storeBundleMarginalPct = useMemo(() => {
     const skillOpts = {
@@ -5318,6 +5394,14 @@ export function Fishing() {
                       lines: [
                         "Each point: Tier 2 dock power +0.05% (T2 docks only), Drone power multi +0.05%, Super shiny multi +0.05%.",
                         "Drone and super shiny multis apply to all docks. Tier 2 dock power applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
+                      ],
+                    },
+                    {
+                      heading: "+1 level (effective fish gain)",
+                      lines: [
+                        tethysIdolMarginalFishPct != null
+                          ? `About +${Math.abs(tethysIdolMarginalFishPct) < 0.01 ? tethysIdolMarginalFishPct.toFixed(4) : Math.abs(tethysIdolMarginalFishPct) < 0.1 ? tethysIdolMarginalFishPct.toFixed(3) : tethysIdolMarginalFishPct.toFixed(2)}% total fish/h at your current build.`
+                          : "No active docks with fish gain; +% cannot be computed.",
                       ],
                     },
                   ],

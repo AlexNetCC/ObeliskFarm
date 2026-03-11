@@ -779,8 +779,43 @@ export function GemEv() {
                 <Sprite path="sprites/common/gem.png" alt="" className="iconSmall" />
                 TOTAL
               </kbd>
-              <div className="mono" style={{ fontWeight: 900 }}>
+              <div className="mono" style={{ fontWeight: 900, display: "flex", alignItems: "center", gap: 6 }}>
                 {fmt1OrIntOver1k(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
+                <Tooltip
+                  content={{
+                    title: "What the total assumes",
+                    sections: [
+                      {
+                        heading: "Elixir Drone (Drone module)",
+                        lines: [
+                          "When Elixir is ON and fueled, it adds 10× Bomb Recharge buff min/h to the bomb cycle.",
+                          "That uptime speeds up bomb recharge → more Gem Bomb clicks → more gems. Open Drone to sync; if Elixir is OFF or not fueled, the calc uses 0 min/h from Drone.",
+                        ],
+                      },
+                      {
+                        heading: "Lootbug",
+                        lines: [
+                          "10× Bomb Recharge min/h is only counted when you buy that buff with gems in Lootbug (Gem Buffs).",
+                          "Lootbug spawn rate and weights set how often you get the buff; duration is 2 min (gem). Open Lootbug and enable \"10x Bomb Recharge\" in Gem Buffs so the calc includes it.",
+                        ],
+                      },
+                      {
+                        heading: "Chaos Totem",
+                        lines: [
+                          "When active: 2× Bomb Recharge Rate. Uptime comes from Items (Tier 1 Chaos Totems/h) or from Bombs (\"Chaos Totem 100% from Bombs\" = recharge times already reflect 2×, so no extra % here).",
+                          "If you do not have near-100% Chaos uptime in-game, the total can overstate gem gain from bombs.",
+                        ],
+                      },
+                      {
+                        heading: "If your actual gems are lower",
+                        lines: [
+                          "Check: claim every freebie on cooldown? Game speed and bomb recharge times match your Stats? Elixir ON + fueled, Lootbug 10× bought, Chaos Totem uptime correct.",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
               </div>
               <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={14} height={14} style={{ display: "block" }} />
@@ -828,7 +863,7 @@ export function GemEv() {
               ) : null}
             </div>
 
-            <div className="btnRow" style={{ marginTop: 12, alignItems: "center" }}>
+            <div className="btnRow" style={{ marginTop: 12, alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <span className="gemEvChartArrow" aria-hidden>→</span>
               <button className="btn gemEvOverviewChartBtn" type="button" onClick={() => setChartOpen(true)}>
                 Overview chart
@@ -837,6 +872,33 @@ export function GemEv() {
                 content={{
                   title: "Overview chart",
                   lines: ["Opens the stacked contributions bar chart (Base / Jackpot / Refresh). Bars left to right for readability on mobile."],
+                }}
+                label="?"
+              />
+              <Tooltip
+                content={{
+                  title: "Rare rolls (variance)",
+                  sections: [
+                    {
+                      heading: "Founder supply drop",
+                      lines: [
+                        "1/100 per drop: 650 Gems (rare). 1% per drop: bonus gems (50 + 10× Obelisk). 1/1234 per drop: 10 Gifts (huge EV when it hits).",
+                      ],
+                    },
+                    {
+                      heading: "Freebie",
+                      lines: [
+                        "Jackpot ~8%: 5 rolls instead of 1 (more chests, gems, skill shards). Stonks 1%: 200 Gems + 20 Item Chests (and Super/Ultra if enabled).",
+                      ],
+                    },
+                    {
+                      heading: "Gifts (per gift)",
+                      lines: [
+                        "Rare chain (order matters): 3 Gifts (1/40), 80–130 Gems (1/45), Skin or 105 Gems (1/200), Gilded Skin → 25 Gifts (1/2000), ob60 Gem Chest ~0.1% → ~22,500 Gems.",
+                        "Gilded Skin and ob60 Gem Chest are very rare. At low Gifts/h (e.g. 0.3/h) you may not see them for a long time; then your actual Gems can sit below the EV.",
+                      ],
+                    },
+                  ],
                 }}
                 label="?"
               />
