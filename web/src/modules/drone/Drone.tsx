@@ -3026,9 +3026,22 @@ export function Drone() {
                       <Tooltip
                         content={{
                           title: "Angler ticks and fish gains",
-                          lines: [
-                            "Each Angler tick adds one fill to every dock. Fills are multiplied by your double/triple/5× tick chance in Fishing.",
-                            "The Extra fish by type values already include that multiplier.",
+                          sections: [
+                            {
+                              heading: "Ticks and fills",
+                              lines: [
+                                "Each Angler tick adds one fill to every dock. Fills are multiplied by your double/triple/5× tick chance in Fishing.",
+                                "The Extra fish by type values already include that multiplier.",
+                              ],
+                            },
+                            {
+                              heading: "Same +% at every dock",
+                              lines: [
+                                "The +% is the same for Lake, Abyss, etc. because Angler adds a fixed number of ticks per hour.",
+                                "Each dock turns those ticks into fills at its own rate (Lake needs fewer ticks per fill than Abyss).",
+                                "So extra fills = Angler ticks ÷ ticks per fill; base fills = other ticks ÷ ticks per fill. The ratio extra÷base = Angler ticks÷other ticks does not depend on the dock.",
+                              ],
+                            },
                           ],
                         }}
                       />
