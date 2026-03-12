@@ -982,7 +982,7 @@ export function Lootbug() {
             max={999}
           />
           {spawnsPerHour > 0 && (
-            <div className="lootbugRow">
+            <div className="lootbugRow lootbugRowCenter">
               <span className="lootbugLabel">
                 Time to lootbug cap{" "}
                 <Tooltip

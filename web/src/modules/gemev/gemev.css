@@ -6,10 +6,10 @@
 .gemEvGrid {
   max-width: 720px;
   margin: 0 auto;
-  padding: 10px 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   min-height: 200px;
   background: #f6f7fb;
 }
@@ -23,7 +23,7 @@
   border: 2px ridge var(--ridge);
   border-radius: var(--radius-lg);
   padding: 6px 8px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 /* Main GemEv Collapsibles (Freebie, Founder, Bombs): tier colors + margin, no extra padding */
@@ -34,14 +34,14 @@
   border-radius: var(--radius-ml) var(--radius-ml) 0 0;
 }
 .collapseWrap.gemEvSection .collapseBody {
-  padding-top: 6px;
+  padding-top: 4px;
 }
 
 .gemEvSectionHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .gemEvFounderHeader {
@@ -60,13 +60,13 @@
 
 .gemEvSectionBody {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .gemEvDivider {
   height: 1px;
   background: rgba(15, 23, 42, 0.12);
-  margin: 4px 0;
+  margin: 2px 0;
 }
 
 .gemEvGameSpeedWrap {
@@ -194,9 +194,9 @@
 /* Hologram-style glow for effective freebie timer line */
 .gemEvEffectiveTimerGlow {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-top: 2px;
   padding: 4px 8px;
   border-radius: var(--radius-ml);
@@ -243,32 +243,47 @@
 }
 
 .gemEvRow {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.gemEvRow .label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 var(--gemev-label-width, 170px);
+  min-width: 0;
 }
 
 .gemEvStepper {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 6px;
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
+  gap: 2px;
 }
 
 .gemEvStepperNoButtons {
-  grid-template-columns: 1fr;
+  flex: 0 1 auto;
 }
 
 .gemEvInput {
-  padding: 6px 8px;
+  padding: 4px 6px;
+  width: 4.5em;
+  min-width: 2.8em;
+  max-width: 8em;
+  box-sizing: border-box;
 }
 
 .gemEvStepBtn {
-  padding: 4px 8px;
-  min-width: 32px;
+  padding: 3px 6px;
+  min-width: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .gemEvMarginal {
@@ -373,6 +388,21 @@
 .gemEvGameObeliskSection {
   background: #fff8e1;
   border-color: rgba(255, 160, 0, 0.25);
+}
+
+.gemEvRowCompact {
+  margin-top: 2px;
+}
+
+.gemEvCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.gemEvCompactBlock {
+  margin-top: 4px;
 }
 
 /* Gift EV breakdown modal: distinct frame colors for Basic vs Rare Roll sections */

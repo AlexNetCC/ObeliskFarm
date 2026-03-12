@@ -136,8 +136,10 @@ function Stepper(props: {
   disabled?: boolean;
   /** When false, no −/+ buttons, only the number input. */
   showButtons?: boolean;
+  /** Rendered after the stepper (e.g. Tooltip ?) so it sits next to the value. */
+  tooltipAfter?: React.ReactNode;
 }) {
-  const { label, value, onChange, step = 1, min = -Infinity, max = Infinity, inputMode = "decimal", decimals = 2, disabled = false, showButtons = true } = props;
+  const { label, value, onChange, step = 1, min = -Infinity, max = Infinity, inputMode = "decimal", decimals = 2, disabled = false, showButtons = true, tooltipAfter } = props;
   const isEditingRef = useRef(false);
   const formatDisplay = (v: number) => (Number.isFinite(v) ? v.toFixed(decimals) : "");
   const [raw, setRaw] = useState<string>(() => formatDisplay(value));
@@ -161,7 +163,6 @@ function Stepper(props: {
     <div className="gemEvRow">
       <div className="label">
         <span>{label}</span>
-        <span className="mono">{Number.isFinite(value) ? value.toFixed(decimals) : "—"}</span>
       </div>
       <div className={`gemEvStepper ${!showButtons ? "gemEvStepperNoButtons" : ""}`}>
         {showButtons && (
@@ -195,6 +196,7 @@ function Stepper(props: {
           </button>
         )}
       </div>
+      {tooltipAfter}
     </div>
   );
 }
@@ -233,7 +235,6 @@ function MinSecStepper(props: {
     <div className="gemEvRow">
       <div className="label">
         <span>{label}</span>
-        <span className="mono">{Number.isFinite(value) ? formatMinSecWithUnit(value) : "—"}</span>
       </div>
       <div className="gemEvStepper">
         <button className="btn btnSecondary gemEvStepBtn" type="button" disabled={disabled} onClick={() => onChange(clamp(value - stepMinutes, min, max))}>
@@ -488,6 +489,7 @@ export function GemEv() {
 
     // Ensure positive time values
     p.freebie_timer_minutes = clamp(p.freebie_timer_minutes, 0.1, 10_000);
+    p.freebie_timer_upgrade_level = Math.max(0, Math.min(999, Math.trunc(p.freebie_timer_upgrade_level ?? 0)));
     p.gem_bomb_recharge_seconds = clamp(p.gem_bomb_recharge_seconds, 0.1, 10_000);
     p.cherry_bomb_recharge_seconds = clamp(p.cherry_bomb_recharge_seconds, 0.1, 10_000);
     p.battery_bomb_recharge_seconds = clamp(p.battery_bomb_recharge_seconds, 0.1, 10_000);
@@ -907,62 +909,60 @@ export function GemEv() {
 
         <div id="gemev-game-speed" className="gemEvSection gemEvGameObeliskSection">
             <div className="gemEvSectionHeader">
-              <span className="gemEvSectionTitle">Game speed</span>
-              <Tooltip
-                content={{
-                  title: "Game Speed",
-                  sections: [
-                    {
-                      heading: "Stats value",
-                      lines: [
-                        "Game speed as × (e.g. 2× = half freebie timer). Same value as in the Stats screen (Stats button).",
-                        "Decimals allowed (e.g. 2.1×). Multiplicative with freebie cooldown and all bomb recharge times (not supply drop).",
-                        "1× = use VIP T10–T12; set >1 to override.",
-                      ],
-                    },
-                    {
-                      heading: "W3 floor debuff",
-                      lines: [
-                        "When active: 70% game speed on W3 floors.",
-                        "Slower / longer in real time (+42.9%): Freebie cooldown, Bomb recharge, Drone buff/fuel intervals, Lootbug spawn interval and buff duration.",
-                        "Not affected: Founder supply drop, Stargazing.",
-                      ],
-                    },
-                  ],
-                }}
-                label="?"
-              />
+              <span className="gemEvSectionTitle">Game Speed & Obelisk Level</span>
             </div>
             <div className="gemEvSectionBody gemEvGameSpeedSection">
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ flex: "1", minWidth: "200px" }}>
-                  <Stepper
-                    label={
-                      <>
-                        Game Speed
-                        <span className="mono" style={{ marginLeft: 4 }}>×</span>
-                      </>
-                    }
-                    value={getGameSpeedMultiplier(effectiveParams)}
-                    onChange={(v) => setParams((s) => ({ ...s, game_speed_multiplier: clamp(v, 1, 10) }))}
-                    step={0.01}
-                    min={1}
-                    max={10}
-                    decimals={2}
-                    showButtons={false}
+              <Stepper
+                label={
+                  <>
+                    Game Speed
+                    <span className="mono" style={{ marginLeft: 4 }}>×</span>
+                  </>
+                }
+                value={getGameSpeedMultiplier(effectiveParams)}
+                onChange={(v) => setParams((s) => ({ ...s, game_speed_multiplier: clamp(v, 1, 10) }))}
+                step={0.01}
+                min={1}
+                max={10}
+                decimals={2}
+                showButtons={false}
+                tooltipAfter={
+                  <Tooltip
+                    content={{
+                      title: "Game Speed",
+                      sections: [
+                        {
+                          heading: "Stats value",
+                          lines: [
+                            "Game speed as × (e.g. 2× = half freebie timer). Same value as in the Stats screen (Stats button).",
+                            "Decimals allowed (e.g. 2.1×). Multiplicative with freebie cooldown and all bomb recharge times (not supply drop).",
+                            "1× = use VIP T10–T12; set >1 to override.",
+                          ],
+                        },
+                        {
+                          heading: "W3 floor debuff",
+                          lines: [
+                            "When active: 70% game speed on W3 floors.",
+                            "Slower / longer in real time (+42.9%): Freebie cooldown, Bomb recharge, Drone buff/fuel intervals, Lootbug spawn interval and buff duration.",
+                            "Not affected: Founder supply drop, Stargazing.",
+                          ],
+                        },
+                      ],
+                    }}
+                    label="?"
                   />
-                </div>
-                <div style={{ flex: "1", minWidth: "200px", display: "flex", alignItems: "center", gap: 6 }}>
-                  <Stepper
-                    label="Obelisk Level"
-                    value={params.obelisk_level}
-                    onChange={(v) => setParams((s) => ({ ...s, obelisk_level: clampInt(v, 0, 999) }))}
-                    step={1}
-                    min={0}
-                    max={999}
-                    inputMode="numeric"
-                    decimals={0}
-                  />
+                }
+              />
+              <Stepper
+                label="Obelisk Level"
+                value={params.obelisk_level}
+                onChange={(v) => setParams((s) => ({ ...s, obelisk_level: clampInt(v, 0, 999) }))}
+                step={1}
+                min={0}
+                max={999}
+                inputMode="numeric"
+                decimals={0}
+                tooltipAfter={
                   <Tooltip
                     content={{
                       title: "Obelisk Level",
@@ -983,10 +983,10 @@ export function GemEv() {
                     }}
                     label="?"
                   />
-                </div>
-              </div>
-              <div className="gemEvRow" style={{ marginTop: 6, gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                }
+              />
+              <div className="gemEvRow gemEvRowCompact">
+                <label className="gemEvCheckboxLabel">
                   <input
                     type="checkbox"
                     checked={Boolean(params.w3_floor_debuff)}
@@ -1001,7 +1001,7 @@ export function GemEv() {
                 ) : null}
               </div>
               {params.w3_floor_debuff ? (
-                <div className="gemEvW3DebuffTableWrap" style={{ marginTop: 6 }}>
+                <div className="gemEvW3DebuffTableWrap gemEvCompactBlock">
                   <table className="gemEvW3DebuffTable">
                     <thead>
                       <tr>
@@ -1111,7 +1111,13 @@ export function GemEv() {
                 label={
                   <>
                     Freebie Gems (Base)
-                    <span className="gemEvMarginal">+1 Freebie Base Gem adds {fmt1(marginal)} Gems/h</span>
+                    <Tooltip
+                      content={{
+                        title: "Freebie Gems (Base)",
+                        lines: [`+1 Freebie Base Gem adds ${fmt1(marginal)} Gems/h at current build.`],
+                      }}
+                      label="?"
+                    />
                   </>
                 }
                 value={params.freebie_gems_base}
@@ -1121,9 +1127,6 @@ export function GemEv() {
                 max={9999}
                 decimals={1}
               />
-              <div className="gemEvInlineHead">
-                <span className="mono">Freebie timer</span>
-              </div>
               <MinSecStepper
                 label="Freebie Timer (min:sec) base"
                 value={params.freebie_timer_minutes}
@@ -1132,6 +1135,46 @@ export function GemEv() {
                 max={9999}
                 stepMinutes={0.5}
               />
+              <div className="gemEvRow" style={{ flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                <div className="label">
+                  <img src="https://static.wikitide.net/shminerwiki/4/4d/MVPD-1988_Bar.png" alt="" width={24} height={24} style={{ display: "block", objectFit: "contain" }} aria-hidden />
+                  <span>Freebie Timer Upgrades</span>
+                  <Tooltip
+                    content={{
+                      title: "Freebie Timer Upgrades",
+                      lines: ["Each level reduces the freebie timer by 1 second. Applied to the base timer before game speed."],
+                    }}
+                    label="?"
+                  />
+                </div>
+                <div className="gemEvStepper">
+                  <button className="btn btnSecondary gemEvStepBtn" type="button" onClick={() => setParams((s) => ({ ...s, freebie_timer_upgrade_level: Math.max(0, (s.freebie_timer_upgrade_level ?? 0) - 1) }))}>
+                    −
+                  </button>
+                  <input
+                    className="input gemEvInput"
+                    inputMode="numeric"
+                    value={String(Math.max(0, Math.trunc(params.freebie_timer_upgrade_level ?? 0)))}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value.replace(/\D/g, ""), 10);
+                      if (!Number.isFinite(v)) return;
+                      setParams((s) => ({ ...s, freebie_timer_upgrade_level: Math.max(0, Math.min(999, v)) }));
+                    }}
+                    onBlur={(e) => {
+                      const v = parseInt(e.target.value.replace(/\D/g, ""), 10);
+                      setParams((s) => ({ ...s, freebie_timer_upgrade_level: Number.isFinite(v) ? Math.max(0, Math.min(999, v)) : 0 }));
+                    }}
+                    style={{ width: "3em" }}
+                    aria-label="Freebie Timer Upgrade level"
+                  />
+                  <button className="btn gemEvStepBtn" type="button" onClick={() => setParams((s) => ({ ...s, freebie_timer_upgrade_level: Math.min(999, (s.freebie_timer_upgrade_level ?? 0) + 1) }))}>
+                    +
+                  </button>
+                </div>
+                <span className="mono small" style={{ marginLeft: 4 }}>
+                  → −{Math.max(0, Math.trunc(params.freebie_timer_upgrade_level ?? 0))}s freebie timer
+                </span>
+              </div>
               <Stepper
                 label={
                   <>

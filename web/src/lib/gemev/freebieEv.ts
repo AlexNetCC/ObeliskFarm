@@ -11,6 +11,8 @@ export type GameParameters = {
   // Base freebie parameters
   freebie_gems_base: number;
   freebie_timer_minutes: number;
+  /** Freebie timer upgrades: each level reduces the freebie timer by 1 second. Applied to base before game speed. */
+  freebie_timer_upgrade_level?: number;
   /** Game speed as × (e.g. 2 = 2×). 1 = use VIP T10–T12; >1 = override. Freebie/bomb time = base / multiplier. */
   game_speed_multiplier: number;
 
@@ -368,9 +370,11 @@ export function getEffectiveGameSpeedMultiplierForTime(params: GameParameters): 
   return base * (w3 ? 0.7 : 1.0);
 }
 
-/** Effective freebie timer (min): base / effective game speed (includes W3 debuff when active). */
+/** Effective freebie timer (min): (base − upgrade_level×1s) / effective game speed (includes W3 debuff when active). */
 export function getEffectiveFreebieTimerMinutes(params: GameParameters): number {
-  const base = clampPositive(params.freebie_timer_minutes, 7.0);
+  const baseMinutes = clampPositive(params.freebie_timer_minutes, 7.0);
+  const reductionSeconds = Math.max(0, Math.trunc(params.freebie_timer_upgrade_level ?? 0)) * 1;
+  const base = Math.max(0.1 / 60, baseMinutes - reductionSeconds / 60);
   const mult = getEffectiveGameSpeedMultiplierForTime(params);
   return base / mult;
 }
@@ -408,7 +412,9 @@ export function calculateTotalMultiplier(params: GameParameters): number {
 /** Freebie claims per hour at 100% claim rate (used for all bars except gems_base; gems_base applies claim %). */
 export function calculateFreebiesPerHour(params: GameParameters): number {
   const minutesPerHour = 60.0;
-  const timer = clampPositive(params.freebie_timer_minutes, 7.0);
+  const baseMinutes = clampPositive(params.freebie_timer_minutes, 7.0);
+  const reductionSeconds = Math.max(0, Math.trunc(params.freebie_timer_upgrade_level ?? 0)) * 1;
+  const timer = Math.max(0.1 / 60, baseMinutes - reductionSeconds / 60);
   const gameSpeedBonus = getGameSpeedBonus(params); // VIP T10+: shortens freebie cooldown multiplicatively
   const effectiveTimer = timer / (1.0 + gameSpeedBonus);
   return minutesPerHour / effectiveTimer;
