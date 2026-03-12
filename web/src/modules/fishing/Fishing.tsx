@@ -2313,6 +2313,158 @@ export function Fishing() {
     extraTicksPerHour,
   ]);
 
+  /** +% effective fish gain for +1 Poseidon Idol at current build (for tooltip). */
+  const poseidonIdolMarginalFishPct = useMemo(() => {
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+      abyssLegendaryCaught: state.abyssLegendaryCaught,
+      fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      astraeusIdolLevel: state.astraeusIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      anglerBundle: state.anglerBundle,
+      divineChallengeCoinLevel: state.divineChallengeCoinLevel,
+      infernalMrNibblesPct: state.infernalMrNibblesPct,
+      infernalMrNibblesLevel: state.infernalMrNibblesLevel,
+      infernalAnglerDronePct: state.infernalAnglerDronePct,
+      infernalAnglerDroneLevel: state.infernalAnglerDroneLevel,
+      constructStatue: state.constructStatue,
+      cetusLevel: state.cetusLevel,
+      blackHoleBonus: state.blackHoleBonus,
+    };
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      skillOpts,
+      extraTicksPerHour,
+    );
+    const newTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      { ...skillOpts, poseidonIdolLevel: state.poseidonIdolLevel + 1 },
+      extraTicksPerHour,
+    );
+    return currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.dronesPerDock,
+    state.activeDockId,
+    state.poseidonIdolLevel,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    state.abyssLegendaryCaught,
+    state.fishingRodCardTier,
+    state.mrNibblesCardTier,
+    state.tethysIdolLevel,
+    state.astraeusIdolLevel,
+    state.droneBasePowerWorld3Upgrade,
+    state.fishingDroneBasePowerWorld3,
+    state.legendaryHaulerBundle,
+    state.fishersBundle,
+    state.anglerBundle,
+    state.divineChallengeCoinLevel,
+    state.infernalMrNibblesPct,
+    state.infernalMrNibblesLevel,
+    state.infernalAnglerDronePct,
+    state.infernalAnglerDroneLevel,
+    state.constructStatue,
+    state.cetusLevel,
+    state.blackHoleBonus,
+    elixir3xFishingExternal,
+    extraTicksPerHour,
+  ]);
+
+  /** +% effective fish gain for +1 Astraeus Idol at current build (for tooltip). */
+  const astraeusIdolMarginalFishPct = useMemo(() => {
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+      abyssLegendaryCaught: state.abyssLegendaryCaught,
+      fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      astraeusIdolLevel: state.astraeusIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      anglerBundle: state.anglerBundle,
+      divineChallengeCoinLevel: state.divineChallengeCoinLevel,
+      infernalMrNibblesPct: state.infernalMrNibblesPct,
+      infernalMrNibblesLevel: state.infernalMrNibblesLevel,
+      infernalAnglerDronePct: state.infernalAnglerDronePct,
+      infernalAnglerDroneLevel: state.infernalAnglerDroneLevel,
+      constructStatue: state.constructStatue,
+      cetusLevel: state.cetusLevel,
+      blackHoleBonus: state.blackHoleBonus,
+    };
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      skillOpts,
+      extraTicksPerHour,
+    );
+    const newTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      { ...skillOpts, astraeusIdolLevel: state.astraeusIdolLevel + 1 },
+      extraTicksPerHour,
+    );
+    return currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.dronesPerDock,
+    state.activeDockId,
+    state.astraeusIdolLevel,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    state.abyssLegendaryCaught,
+    state.fishingRodCardTier,
+    state.mrNibblesCardTier,
+    state.poseidonIdolLevel,
+    state.tethysIdolLevel,
+    state.droneBasePowerWorld3Upgrade,
+    state.fishingDroneBasePowerWorld3,
+    state.legendaryHaulerBundle,
+    state.fishersBundle,
+    state.anglerBundle,
+    state.divineChallengeCoinLevel,
+    state.infernalMrNibblesPct,
+    state.infernalMrNibblesLevel,
+    state.infernalAnglerDronePct,
+    state.infernalAnglerDroneLevel,
+    state.constructStatue,
+    state.cetusLevel,
+    state.blackHoleBonus,
+    elixir3xFishingExternal,
+    extraTicksPerHour,
+  ]);
+
   /** Store bundles: expected +% gain for each package (same basis as upgrades: effective total fish/h). Polychrome uses displayed total with card multis. */
   const storeBundleMarginalPct = useMemo(() => {
     const skillOpts = {
@@ -5377,6 +5529,25 @@ export function Fishing() {
                 onChange={(n) => setState((prev) => ({ ...prev, poseidonIdolLevel: Math.max(0, n) }))}
                 effectText={`→ +${(state.poseidonIdolLevel * 0.25).toFixed(2)} base drone power`}
                 inputClassName="fishingStepperLevelInputWide"
+                tooltipContent={{
+                  title: "Poseidon Idol",
+                  sections: [
+                    {
+                      heading: "Effect",
+                      lines: [
+                        "Archaeology: +0.25 base drone power per level. Applies to all docks (adds to rod power on the dock you fish at).",
+                      ],
+                    },
+                    {
+                      heading: "+1 level (effective fish gain)",
+                      lines: [
+                        poseidonIdolMarginalFishPct != null
+                          ? `About +${Math.abs(poseidonIdolMarginalFishPct) < 0.01 ? poseidonIdolMarginalFishPct.toFixed(4) : Math.abs(poseidonIdolMarginalFishPct) < 0.1 ? poseidonIdolMarginalFishPct.toFixed(3) : poseidonIdolMarginalFishPct.toFixed(2)}% total fish/h at your current build.`
+                          : "No active docks with fish gain; +% cannot be computed.",
+                      ],
+                    },
+                  ],
+                }}
               />
               <StepperRow
                 label="Tethys Idol"
@@ -5428,6 +5599,14 @@ export function Fishing() {
                       heading: "Effect",
                       lines: [
                         "Archaeology: +0.03% Fishing double tick chance per level (flat, added on top of existing double tick chance).",
+                      ],
+                    },
+                    {
+                      heading: "+1 level (effective fish gain)",
+                      lines: [
+                        astraeusIdolMarginalFishPct != null
+                          ? `About +${Math.abs(astraeusIdolMarginalFishPct) < 0.01 ? astraeusIdolMarginalFishPct.toFixed(4) : Math.abs(astraeusIdolMarginalFishPct) < 0.1 ? astraeusIdolMarginalFishPct.toFixed(3) : astraeusIdolMarginalFishPct.toFixed(2)}% total fish/h at your current build.`
+                          : "No active docks with fish gain; +% cannot be computed.",
                       ],
                     },
                   ],
