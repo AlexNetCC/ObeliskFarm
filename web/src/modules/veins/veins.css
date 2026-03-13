@@ -1,0 +1,835 @@
+/* Veins module layout – compact spacing per workspace rules */
+
+.veinsPage {
+  min-height: 100%;
+  background: #f6f7fb;
+}
+
+/* Two-column layout: inputs left, results right (like Event module) */
+.veinsLayout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  padding: 10px 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .veinsLayout {
+    grid-template-columns: minmax(360px, 420px) 1fr;
+  }
+}
+
+.veinsLeft {
+  min-width: 0;
+}
+
+.veinsRight {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.veinsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.veinsSection {
+  border: 2px ridge var(--ridge);
+  border-radius: var(--radius-lg);
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.veinsSectionTitle {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+  margin-bottom: 4px;
+}
+
+.veinsRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.veinsRow:last-child {
+  margin-bottom: 0;
+}
+
+.veinsLabelWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.veinsInputWrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.veinsInput {
+  width: 88px;
+  padding: 4px 6px;
+  font-size: 13px;
+  text-align: right;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.veinsInput.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.veinsStepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.veinsStepBtn {
+  min-width: 28px;
+  padding: 3px 6px;
+  font-size: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  cursor: pointer;
+}
+
+.veinsStepBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.veinsStepperInput {
+  width: 56px;
+  text-align: center;
+}
+
+.veinsSuffix {
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.veinsResultSection .veinsResultRow {
+  margin-bottom: 4px;
+}
+
+.veinsResultRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.veinsResultLabel {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.veinsResultValue {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.veinsResultMain {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.veinsResultMainValue {
+  font-size: 15px;
+  color: var(--good);
+}
+
+/* Result card: distinct look */
+.veinsResultSection {
+  margin-top: 4px;
+}
+
+.veinsResultCard {
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.08) 0%, rgba(30, 41, 59, 0.12) 100%);
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.veinsResultCardFromSetup {
+  border-left: 3px solid rgba(30, 64, 175, 0.55);
+  background: linear-gradient(145deg, rgba(30, 64, 175, 0.06) 0%, rgba(15, 23, 42, 0.08) 50%, rgba(30, 41, 59, 0.1) 100%);
+}
+
+.veinsResultCardMc {
+  margin-top: 10px;
+  border-left: 3px solid rgba(88, 28, 135, 0.4);
+  background: linear-gradient(145deg, rgba(88, 28, 135, 0.04) 0%, rgba(15, 23, 42, 0.08) 50%, rgba(30, 41, 59, 0.1) 100%);
+}
+
+.collapseWrap.veinsResultCardFromSetup .collapseBody {
+  padding: 6px 0 0 0;
+}
+
+.veinsNoSimTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.veinsNoSimWarningIcon {
+  color: #ca8a04;
+  font-size: 1.1em;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.veinsResultFloorControl {
+  margin-bottom: 6px;
+}
+
+.veinsResultCardTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.75);
+  margin: 0 0 8px 0;
+  letter-spacing: 0.3px;
+}
+
+.veinsResultHero {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.veinsResultHeroValue {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--good);
+  text-shadow: 0 0 14px rgba(46, 125, 50, 0.35);
+}
+
+.veinsResultHeroUnit {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.veinsResultMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.veinsResultMetaSecondary {
+  margin-bottom: 6px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.veinsResultEffectiveRainbow {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.veinsResultFloor {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.veinsResultPerFloor {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.7);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.veinsResultOfflineBadge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.8);
+}
+
+/* Chart: by vein type */
+.veinsResultChart {
+  margin-top: 4px;
+}
+
+.veinsResultChartTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.6);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.veinsResultChartBars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.veinsChartRow {
+  display: grid;
+  grid-template-columns: 28px 1fr minmax(60px, 120px) 52px;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.veinsChartRow:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.veinsChartRowCurrent {
+  background: rgba(46, 125, 50, 0.08);
+  outline: 1px solid rgba(46, 125, 50, 0.25);
+}
+
+.veinsChartRowCurrent:hover {
+  background: rgba(46, 125, 50, 0.12);
+}
+
+.veinsChartIcon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 2px;
+}
+
+.veinsChartName {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.veinsChartBarWrap {
+  height: 14px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.veinsChartBar {
+  height: 100%;
+  min-width: 2px;
+  background: linear-gradient(90deg, rgba(46, 125, 50, 0.5), var(--good));
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.veinsChartRowCurrent .veinsChartBar {
+  background: linear-gradient(90deg, rgba(46, 125, 50, 0.7), #2e7d32);
+}
+
+.veinsMcPerVeinChartBars .veinsChartRow {
+  grid-template-columns: 28px 1fr minmax(60px, 120px) minmax(100px, 1fr);
+}
+
+.veinsChartValue {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+}
+
+.veinsCheckWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.veinsCheckWrap input {
+  cursor: pointer;
+}
+
+.veinsCheckLabel {
+  user-select: none;
+}
+
+.veinsCheckSmall {
+  font-size: 12px;
+}
+
+.veinsCardsTableWrap {
+  overflow-x: auto;
+  margin-top: 4px;
+}
+
+.veinsCardsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.veinsCardsTable th,
+.veinsCardsTable td {
+  padding: 4px 6px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.veinsCardsTable th {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.veinsCardName {
+  white-space: nowrap;
+}
+
+/* Card tier toggles (clickable like Stargazing star cards) */
+.veinsCardTierRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.veinsCardTierRow .veinsCardTierBtn {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+/* Best floors for vein (Void ON) */
+.veinsBestFloorsCard {
+  margin-top: 6px;
+}
+
+.veinsBestFloorsIntro {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.7);
+  margin: 0 0 8px 0;
+  line-height: 1.35;
+}
+
+.veinsBestFloorsRow {
+  margin-bottom: 8px;
+}
+
+.veinsSelect {
+  padding: 4px 6px;
+  font-size: 13px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  min-width: 140px;
+}
+
+/* Vein select dropdown with icons */
+.veinsVeinSelectWrap {
+  position: relative;
+  min-width: 160px;
+}
+
+.veinsVeinSelectTrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.veinsVeinSelectTrigger:hover {
+  border-color: rgba(15, 23, 42, 0.4);
+}
+
+.veinsVeinSelectIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.veinsVeinSelectLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.veinsVeinSelectChevron {
+  font-size: 10px;
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.veinsVeinSelectList {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.veinsVeinSelectOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.veinsVeinSelectOption:hover,
+.veinsVeinSelectOptionSelected {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.veinsVeinSelectOption .veinsVeinSelectIcon {
+  width: 20px;
+  height: 20px;
+}
+
+.veinsBestFloorsList {
+  margin-top: 4px;
+}
+
+.veinsBestFloorsOl {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.veinsBestFloorsLi {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.veinsBestFloorsLi:last-child {
+  margin-bottom: 0;
+}
+
+.veinsMcControlsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 6px;
+}
+
+.veinsMcControlGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.veinsMcOfflineWrap .veinsCheckWrap {
+  margin-bottom: 0;
+}
+
+.veinsMcRow {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.veinsMcBtn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.veinsMcResults {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.veinsMcSummary {
+  margin: 0 0 4px 0;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.8);
+}
+
+.veinsMcStats {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+/* MC results panel (after run) */
+.veinsMcResultsPanel {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.veinsMcResultsPanel .veinsMcCollapsibleContent {
+  padding-top: 6px;
+}
+
+.veinsMcResultsTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.85);
+  margin: 0 0 10px 0;
+  letter-spacing: 0.2px;
+}
+
+/* Per floor – box plot (same scale) */
+.veinsMcBoxplots {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.05);
+  border-radius: var(--radius-ml);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.veinsMcBoxplotsHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.8);
+  margin-bottom: 6px;
+}
+
+.veinsMcBoxplotRow {
+  margin-bottom: 6px;
+}
+
+.veinsMcBoxplotRow:last-child {
+  margin-bottom: 0;
+}
+
+.veinsMcBoxplotRowRank1 {
+  background: rgba(46, 125, 50, 0.09);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  margin: 0 -8px 4px -8px;
+  border-left: 3px solid rgba(46, 125, 50, 0.65);
+}
+
+.veinsMcBoxplotRowRank2 {
+  background: rgba(30, 64, 175, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  margin: 0 -8px 4px -8px;
+  border-left: 3px solid rgba(30, 64, 175, 0.55);
+}
+
+.veinsMcBoxplotRowRank3 {
+  background: rgba(88, 28, 135, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  margin: 0 -8px 4px -8px;
+  border-left: 3px solid rgba(88, 28, 135, 0.5);
+}
+
+.veinsMcBoxplotRow:last-child {
+  margin-bottom: 0;
+}
+
+.veinsMcBoxplotRow .veinsMcBoxplotAxis {
+  margin-top: 2px;
+}
+
+.veinsMcBoxplotHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.veinsMcBoxplotHead .veinsMcVeinIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.veinsMcVeinIconPlaceholder {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.veinsMcBoxplotName {
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.9);
+  min-width: 80px;
+}
+
+.veinsMcChartBtn {
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: rgba(15, 23, 42, 0.8);
+  cursor: pointer;
+}
+
+.veinsMcChartBtn:hover {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.35);
+}
+
+.veinsMcBoxplotStats {
+  font-size: 11px;
+  color: rgba(15, 23, 42, 0.6);
+  margin-left: auto;
+}
+
+.veinsMcBoxplotTrack {
+  position: relative;
+  height: 20px;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: var(--radius-sm);
+  overflow: visible;
+}
+
+.veinsMcBoxplotMeanRow {
+  position: relative;
+  min-height: 22px;
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+.veinsMcBoxplotMeanLabel {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.veinsMcBoxplotMeanArrow {
+  font-size: 8px;
+  line-height: 1;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.veinsMcBoxplotMeanValue {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.veinsMcBoxplotWhiskerLeft,
+.veinsMcBoxplotWhiskerRight {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 3px;
+  background: rgba(46, 125, 50, 0.45);
+  border-radius: var(--radius-2xs);
+}
+
+.veinsMcBoxplotBox {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: rgba(46, 125, 50, 0.55);
+  border-radius: var(--radius-xs);
+}
+
+.veinsMcBoxplotMedian {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: var(--radius-2xs);
+}
+
+/* Total veins row: blue tint like second series */
+.veinsMcBoxplotRow:nth-child(even) .veinsMcBoxplotWhiskerLeft,
+.veinsMcBoxplotRow:nth-child(even) .veinsMcBoxplotWhiskerRight {
+  background: rgba(30, 64, 175, 0.45);
+}
+
+.veinsMcBoxplotRow:nth-child(even) .veinsMcBoxplotBox {
+  background: rgba(30, 64, 175, 0.55);
+}
+
+.veinsMcBoxplotAxisTicks {
+  display: flex;
+  width: 100%;
+  margin-top: 2px;
+  font-size: 10px;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.veinsMcBoxplotAxisTicks span {
+  flex: 1;
+  text-align: center;
+}
+
+.veinsMcBoxplotAxisTicks span:first-child {
+  text-align: left;
+}
+
+.veinsMcBoxplotAxisTicks span:last-child {
+  text-align: right;
+}
+
+.veinsResultNoVein {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}

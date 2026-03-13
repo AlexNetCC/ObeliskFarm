@@ -13,8 +13,9 @@ import { Lootbug } from "./modules/lootbug/Lootbug";
 import { Items } from "./modules/items/Items";
 import { Bombs } from "./modules/bombs/Bombs";
 import { OvernightGains } from "./modules/overnight/OvernightGains";
+import { Veins } from "./modules/veins/Veins";
 import "./modules/overnight/overnight.css";
-type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "items" | "overnight" | "about";
+type ModuleId = "event" | "arch" | "gemev" | "bombs" | "stargazing" | "fishing" | "drone" | "lootbug" | "veins" | "items" | "overnight" | "about";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 const EVENT_EASTER_ICON = "https://static.wikitide.net/shminerwiki/c/cd/Event_Button_Easter.png";
 /** Obelisk level for “tested up to” in About and README. Update README when this changes. */
@@ -124,6 +125,7 @@ export function App() {
         { id: "fishing" as const, label: "Fishing", icon: "https://static.wikitide.net/shminerwiki/f/fb/Fishing_Button.png" },
         { id: "drone" as const, label: "Drone", icon: "https://static.wikitide.net/shminerwiki/d/d1/Drones_Button.png" },
         { id: "lootbug" as const, label: "Lootbug", icon: "https://static.wikitide.net/shminerwiki/8/86/Lootbug_Default.png" },
+        { id: "veins" as const, label: "Veins", icon: "https://static.wikitide.net/shminerwiki/0/04/Stone_Vein.png" },
         { id: "items" as const, label: "Items / Chests", icon: "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png" },
         { id: "overnight" as const, label: "Overnight Gains", icon: "" },
       ] as const,
@@ -166,7 +168,7 @@ export function App() {
               {m.id === "overnight" ? <MoonStarsIcon /> : <Sprite path={m.id === "event" && isEasterIconMonth() ? EVENT_EASTER_ICON : m.icon} alt={m.label} className="icon" />}
               <span className="navTileLabel">
                 <span>{m.label}</span>
-                {m.id === "overnight" && (
+                {m.id === "veins" && (
                   <span className="navBetaBadge">
                     <Tooltip
                       content={{ title: "Beta", lines: ["This module is in beta. Numbers and behaviour may change."] }}
@@ -308,6 +310,8 @@ export function App() {
         <Drone />
       ) : active === "lootbug" ? (
         <Lootbug />
+      ) : active === "veins" ? (
+        <Veins />
       ) : active === "items" ? (
         <Items />
       ) : active === "fishing" ? (
