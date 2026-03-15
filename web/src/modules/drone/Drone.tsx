@@ -12,6 +12,8 @@ const ELIXIR_FUEL_BUFF_BASE_PCT = 60;
 const ELIXIR_FUEL_BUFF_PCT_PER_GRADE = 6;
 /** No cap: coal upgrades can go beyond former max 20. */
 const COAL_UPGRADE_MAX = 9999;
+/** No cap: drone grade levels (was 45). */
+const DRONE_GRADE_MAX = 9999;
 /** 2× Game Speed buff: 2 min base; halved in real time when 2× Game Speed is active. */
 const GAME_SPEED_2X_BUFF_DURATION_SEC = 120;
 const ELIXIR_NUM_BUFFS_WITH_FISHING = 10;
@@ -57,10 +59,10 @@ const LOOTFROG_REWARDS: Array<{ label: string; weight: number; gemEv: number | n
   { label: "15–30 Sushi", weight: 2, gemEv: null, iconFile: "Sushi.png" },
 ];
 
-/** Bomb Bear Drone: +30% Lootbug Spawn Rate / 4:00 at grade 0, +3% / +0:12 per grade. Max +90% / 8:00 (Polychrome). */
+/** Bomb Bear Drone: +30% Lootbug Spawn Rate / 4:00 at grade 0, +3% / +0:12 per grade (no spawn rate cap). */
+/** Bomb Bear: +30% Lootbug spawn rate at grade 0, +3% per grade (no cap). E.g. grade 25 = +105% → 2.05×. */
 const BOMB_BEAR_LOOTBUG_SPAWN_PCT_BASE = 30;
 const BOMB_BEAR_LOOTBUG_SPAWN_PCT_PER_GRADE = 3;
-const BOMB_BEAR_LOOTBUG_SPAWN_PCT_MAX = 90;
 const BOMB_BEAR_FUEL_DURATION_BASE_SEC = 240; // 4:00
 const BOMB_BEAR_FUEL_DURATION_SEC_PER_GRADE = 12; // +0:12
 
@@ -493,7 +495,7 @@ function migrateFromV1(saved: Record<string, unknown>): Partial<ElixirState> {
     out.elixirGradeLevel = Math.round(
       (saved.fueledBuffDurationPct - ELIXIR_FUEL_BUFF_BASE_PCT) / ELIXIR_FUEL_BUFF_PCT_PER_GRADE,
     );
-    out.elixirGradeLevel = clamp(out.elixirGradeLevel, 0, 45);
+    out.elixirGradeLevel = clamp(out.elixirGradeLevel, 0, DRONE_GRADE_MAX);
   }
   if (typeof saved.numRandomBuffs === "number" && typeof saved.fishingUnlocked !== "boolean") {
     out.fishingUnlocked = saved.numRandomBuffs >= ELIXIR_NUM_BUFFS_WITH_FISHING;
@@ -513,7 +515,7 @@ function migrateFromV2(migrated: Partial<ElixirState>): Partial<ElixirState> {
   return {
     ...migrated,
     bombBearDroneOn: typeof migrated.bombBearDroneOn === "boolean" ? migrated.bombBearDroneOn : DEFAULT.bombBearDroneOn,
-    bombBearGradeLevel: clamp(migrated.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, 45),
+    bombBearGradeLevel: clamp(migrated.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, DRONE_GRADE_MAX),
     bombBearFueled: typeof migrated.bombBearFueled === "boolean" ? migrated.bombBearFueled : DEFAULT.bombBearFueled,
   };
 }
@@ -523,7 +525,7 @@ function migrateFromV3(migrated: Partial<ElixirState>): Partial<ElixirState> {
     ...migrated,
     anglerDroneOn: typeof migrated.anglerDroneOn === "boolean" ? migrated.anglerDroneOn : DEFAULT.anglerDroneOn,
     anglerSuitLevel: clamp(migrated.anglerSuitLevel ?? DEFAULT.anglerSuitLevel, 0, 20),
-    anglerGradeLevel: clamp(migrated.anglerGradeLevel ?? DEFAULT.anglerGradeLevel, 0, 45),
+    anglerGradeLevel: clamp(migrated.anglerGradeLevel ?? DEFAULT.anglerGradeLevel, 0, DRONE_GRADE_MAX),
     anglerFueled: typeof migrated.anglerFueled === "boolean" ? migrated.anglerFueled : DEFAULT.anglerFueled,
   };
 }
@@ -533,7 +535,7 @@ function migrateFromV4(migrated: Partial<ElixirState>): Partial<ElixirState> {
     ...migrated,
     starburstDroneOn: typeof migrated.starburstDroneOn === "boolean" ? migrated.starburstDroneOn : DEFAULT.starburstDroneOn,
     starburstSuitLevel: clamp(migrated.starburstSuitLevel ?? DEFAULT.starburstSuitLevel, 0, 20),
-    starburstGradeLevel: clamp(migrated.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, 45),
+    starburstGradeLevel: clamp(migrated.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, DRONE_GRADE_MAX),
     starburstFueled: typeof migrated.starburstFueled === "boolean" ? migrated.starburstFueled : DEFAULT.starburstFueled,
   };
 }
@@ -549,7 +551,7 @@ function migrateFromV7(migrated: Partial<ElixirState>): Partial<ElixirState> {
   return {
     ...migrated,
     voidDroneOn: typeof migrated.voidDroneOn === "boolean" ? migrated.voidDroneOn : DEFAULT.voidDroneOn,
-    voidGradeLevel: clamp(migrated.voidGradeLevel ?? DEFAULT.voidGradeLevel, 0, 45),
+    voidGradeLevel: clamp(migrated.voidGradeLevel ?? DEFAULT.voidGradeLevel, 0, DRONE_GRADE_MAX),
     voidFueled: typeof migrated.voidFueled === "boolean" ? migrated.voidFueled : DEFAULT.voidFueled,
   };
 }
@@ -558,7 +560,7 @@ function migrateFromV8(migrated: Partial<ElixirState>): Partial<ElixirState> {
   return {
     ...migrated,
     veinseekerDroneOn: typeof migrated.veinseekerDroneOn === "boolean" ? migrated.veinseekerDroneOn : DEFAULT.veinseekerDroneOn,
-    veinseekerGradeLevel: clamp(migrated.veinseekerGradeLevel ?? DEFAULT.veinseekerGradeLevel, 0, 45),
+    veinseekerGradeLevel: clamp(migrated.veinseekerGradeLevel ?? DEFAULT.veinseekerGradeLevel, 0, DRONE_GRADE_MAX),
     veinseekerFueled: typeof migrated.veinseekerFueled === "boolean" ? migrated.veinseekerFueled : DEFAULT.veinseekerFueled,
   };
 }
@@ -618,29 +620,29 @@ export function Drone() {
     s.infernalElixirDroneCard = typeof migrated.infernalElixirDroneCard === "boolean" ? migrated.infernalElixirDroneCard : DEFAULT.infernalElixirDroneCard;
     s.elixirCritMult = clamp(migrated.elixirCritMult ?? DEFAULT.elixirCritMult, 1, 20);
     s.froggerSuitLevel = clamp(s.froggerSuitLevel ?? DEFAULT.froggerSuitLevel, 0, 20);
-    s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, 45);
+    s.froggerGradeLevel = clamp(s.froggerGradeLevel ?? DEFAULT.froggerGradeLevel, 0, DRONE_GRADE_MAX);
     s.froggerDroneOn = typeof migrated.froggerDroneOn === "boolean" ? migrated.froggerDroneOn : DEFAULT.froggerDroneOn;
     s.froggerFueled = typeof migrated.froggerFueled === "boolean" ? migrated.froggerFueled : DEFAULT.froggerFueled;
     s.lootfrogsUnlocked = typeof migrated.lootfrogsUnlocked === "boolean" ? migrated.lootfrogsUnlocked : DEFAULT.lootfrogsUnlocked;
     s.bombBearDroneOn = typeof migrated.bombBearDroneOn === "boolean" ? migrated.bombBearDroneOn : DEFAULT.bombBearDroneOn;
-    s.bombBearGradeLevel = clamp(s.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, 45);
+    s.bombBearGradeLevel = clamp(s.bombBearGradeLevel ?? DEFAULT.bombBearGradeLevel, 0, DRONE_GRADE_MAX);
     s.bombBearFueled = typeof migrated.bombBearFueled === "boolean" ? migrated.bombBearFueled : DEFAULT.bombBearFueled;
     s.anglerDroneOn = typeof migrated.anglerDroneOn === "boolean" ? migrated.anglerDroneOn : DEFAULT.anglerDroneOn;
     s.anglerSuitLevel = clamp(s.anglerSuitLevel ?? DEFAULT.anglerSuitLevel, 0, 20);
-    s.anglerGradeLevel = clamp(s.anglerGradeLevel ?? DEFAULT.anglerGradeLevel, 0, 45);
+    s.anglerGradeLevel = clamp(s.anglerGradeLevel ?? DEFAULT.anglerGradeLevel, 0, DRONE_GRADE_MAX);
     s.anglerFueled = typeof migrated.anglerFueled === "boolean" ? migrated.anglerFueled : DEFAULT.anglerFueled;
     s.starburstDroneOn = typeof migrated.starburstDroneOn === "boolean" ? migrated.starburstDroneOn : DEFAULT.starburstDroneOn;
     s.starburstSuitLevel = clamp(s.starburstSuitLevel ?? DEFAULT.starburstSuitLevel, 0, 20);
-    s.starburstGradeLevel = clamp(s.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, 45);
+    s.starburstGradeLevel = clamp(s.starburstGradeLevel ?? DEFAULT.starburstGradeLevel, 0, DRONE_GRADE_MAX);
     s.starburstFueled = typeof migrated.starburstFueled === "boolean" ? migrated.starburstFueled : DEFAULT.starburstFueled;
     s.chainBomberDroneOn = typeof migrated.chainBomberDroneOn === "boolean" ? migrated.chainBomberDroneOn : DEFAULT.chainBomberDroneOn;
-    s.chainBomberGradeLevel = clamp(s.chainBomberGradeLevel ?? DEFAULT.chainBomberGradeLevel, 0, 45);
+    s.chainBomberGradeLevel = clamp(s.chainBomberGradeLevel ?? DEFAULT.chainBomberGradeLevel, 0, DRONE_GRADE_MAX);
     s.chainBomberFueled = typeof migrated.chainBomberFueled === "boolean" ? migrated.chainBomberFueled : DEFAULT.chainBomberFueled;
     s.voidDroneOn = typeof migrated.voidDroneOn === "boolean" ? migrated.voidDroneOn : DEFAULT.voidDroneOn;
-    s.voidGradeLevel = clamp(s.voidGradeLevel ?? DEFAULT.voidGradeLevel, 0, 45);
+    s.voidGradeLevel = clamp(s.voidGradeLevel ?? DEFAULT.voidGradeLevel, 0, DRONE_GRADE_MAX);
     s.voidFueled = typeof migrated.voidFueled === "boolean" ? migrated.voidFueled : DEFAULT.voidFueled;
     s.veinseekerDroneOn = typeof migrated.veinseekerDroneOn === "boolean" ? migrated.veinseekerDroneOn : DEFAULT.veinseekerDroneOn;
-    s.veinseekerGradeLevel = clamp(s.veinseekerGradeLevel ?? DEFAULT.veinseekerGradeLevel, 0, 45);
+    s.veinseekerGradeLevel = clamp(s.veinseekerGradeLevel ?? DEFAULT.veinseekerGradeLevel, 0, DRONE_GRADE_MAX);
     s.veinseekerFueled = typeof migrated.veinseekerFueled === "boolean" ? migrated.veinseekerFueled : DEFAULT.veinseekerFueled;
     const sgExt = loadJson<{ starburstDroneOn?: boolean }>("obeliskfarm:web:stargazing_external.json");
     if (typeof sgExt?.starburstDroneOn === "boolean") s.starburstDroneOn = sgExt.starburstDroneOn;
@@ -778,10 +780,7 @@ export function Drone() {
   /** Bomb Bear Lootbug spawn rate multiplier when ON and fueled: 1 + min(90%, 30% + 3%×grade). Applied multiplicatively in Lootbug. */
   const bombBearLootbugSpawnRateMult = useMemo(() => {
     if (!state.bombBearDroneOn || !state.bombBearFueled) return 1;
-    const pct = Math.min(
-      BOMB_BEAR_LOOTBUG_SPAWN_PCT_MAX,
-      BOMB_BEAR_LOOTBUG_SPAWN_PCT_BASE + state.bombBearGradeLevel * BOMB_BEAR_LOOTBUG_SPAWN_PCT_PER_GRADE,
-    );
+    const pct = BOMB_BEAR_LOOTBUG_SPAWN_PCT_BASE + state.bombBearGradeLevel * BOMB_BEAR_LOOTBUG_SPAWN_PCT_PER_GRADE;
     return 1 + pct / 100;
   }, [state.bombBearDroneOn, state.bombBearFueled, state.bombBearGradeLevel]);
 
@@ -1813,7 +1812,7 @@ export function Drone() {
                 value={state.elixirGradeLevel}
                 onChange={(n) => update({ elixirGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{
@@ -2214,7 +2213,7 @@ export function Drone() {
                 value={state.froggerGradeLevel}
                 onChange={(n) => update({ froggerGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{
@@ -2693,7 +2692,7 @@ export function Drone() {
                 value={state.bombBearGradeLevel}
                 onChange={(n) => update({ bombBearGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{
@@ -2958,7 +2957,7 @@ export function Drone() {
                 value={state.anglerGradeLevel}
                 onChange={(n) => update({ anglerGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{
@@ -3205,7 +3204,7 @@ export function Drone() {
                 value={state.starburstGradeLevel}
                 onChange={(n) => update({ starburstGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{
@@ -3359,7 +3358,7 @@ export function Drone() {
                 value={state.chainBomberGradeLevel}
                 onChange={(n) => update({ chainBomberGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{
@@ -3498,7 +3497,7 @@ export function Drone() {
                 value={state.voidGradeLevel}
                 onChange={(n) => update({ voidGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{
@@ -3635,7 +3634,7 @@ export function Drone() {
                 value={state.veinseekerGradeLevel}
                 onChange={(n) => update({ veinseekerGradeLevel: n })}
                 min={0}
-                max={45}
+                max={DRONE_GRADE_MAX}
                 step={1}
                 stepLarge={5}
                 tooltip={{

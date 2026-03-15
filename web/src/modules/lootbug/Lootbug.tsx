@@ -23,6 +23,8 @@ import { LootbugEvChart, type LootbugEvBreakdown } from "./LootbugEvChart";
 const DEFAULT_ACTIVE_GEM_BUFFS = ["10x Bomb Recharge"];
 
 const LOOTBUG_BASE_SPAWN_MIN = 20;
+/** Bomb Bear Drone icon (same as in Drone module). */
+const BOMB_BEAR_ICON = "https://static.wikitide.net/shminerwiki/6/6c/Drone_Bear.png";
 const STORAGE_KEY = "obeliskfarm:web:lootbug_save.json:v1";
 const GEMEV_STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
 const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
@@ -261,11 +263,10 @@ const STATS: Array<{
 }> = [
   {
     id: "spawnRateMultiplier",
-    label: "Lootbug Spawn Rate (x)",
-    description: "Increases the rate at which Lootbugs appear. Base: once every 20 in-game minutes.",
+    label: "Lootbug Spawn Rate (×) without Bomb Bear",
+    description: "Spawn rate multiplier from all sources except Bomb Bear Drone. Base: once every 20 in-game minutes. Effective rate = this × Bomb Bear (from Drone: on + fueled + grade).",
     sources: [
       "Base: once every 20 in-game minutes",
-      "Drones: Fueled Bomb Bear Drone",
       "Items: Bread (Eros idol buff) × Lootbug Lantern",
       "Challenges: Extreme Challenge Upgrade",
       "Cards: Duck Card",
@@ -360,7 +361,7 @@ export function Lootbug() {
   const BOMB_RECHARGE_ICON = "https://static.wikitide.net/shminerwiki/b/ba/Bomb_Recharge_Speed_10x_Buff.png";
   const CHEST_ICON = "https://static.wikitide.net/shminerwiki/a/a8/Item_Chest.png";
 
-  /** Bomb Bear Drone: when fueled in Drone module, multiplies Lootbug spawn rate. Only used for Drone's "Gem EV/h from Bomb Bear" delta; not applied to Lootbug gains (user enters spawn rate manually). */
+  /** Bomb Bear Drone: from Drone module. When on and fueled: 1 + min(90%, 30% + 3%×grade). Used to compute effective spawn rate = base × this. */
   const bombBearLootbugSpawnRateMult = (() => {
     const ext = loadJson<{ bombBearLootbugSpawnRateMult?: number }>(GEMEV_EXTERNAL_KEY);
     const v = ext?.bombBearLootbugSpawnRateMult;
@@ -368,7 +369,7 @@ export function Lootbug() {
   })();
 
   const spawnRateMult = clamp(state.spawnRateMultiplier, 0.1, 20);
-  const effectiveSpawnRateMult = spawnRateMult;
+  const effectiveSpawnRateMult = spawnRateMult * bombBearLootbugSpawnRateMult;
   const triplePct = clamp(state.tripleChancePct, 0, 100) / 100;
   const effectiveSpawnMinGame = effectiveSpawnRateMult > 0 ? LOOTBUG_BASE_SPAWN_MIN / effectiveSpawnRateMult : 0;
   const effectiveSpawnMinReal =
@@ -829,7 +830,7 @@ export function Lootbug() {
           <div className="lootbugSection">
             <div className="lootbugSectionTitle">Your stats</div>
           {effectiveSpawnMinReal > 0 && (
-            <div className="lootbugRow">
+            <div className="lootbugRow lootbugRowSpawnStats">
               <span className="lootbugLabel">
                 Spawn time & occurrence rate
                 <Tooltip
@@ -843,13 +844,20 @@ export function Lootbug() {
                   }}
                 />
               </span>
-              <span className="lootbugValue">
-                {effectiveSpawnMinReal >= 1
-                  ? effectiveSpawnMinReal.toFixed(1) + " min"
-                  : (effectiveSpawnMinReal * 60).toFixed(1) + " s"}
-                {" · "}
-                <span className="mono">{spawnsPerHour.toFixed(1)}</span> spawns/h · <span className="mono">{lootbugsPerHour.toFixed(1)}</span> lootbugs/h
-              </span>
+              <div className="lootbugValue lootbugSpawnStatsValue">
+                <div>
+                  {effectiveSpawnMinReal >= 1
+                    ? effectiveSpawnMinReal.toFixed(1) + " min"
+                    : (effectiveSpawnMinReal * 60).toFixed(1) + " s"}
+                  {" · "}
+                  <span className="mono">{spawnsPerHour.toFixed(1)}</span> spawns/h · <span className="mono">{lootbugsPerHour.toFixed(1)}</span> lootbugs/h
+                </div>
+                {bombBearLootbugSpawnRateMult > 1 && (
+                  <div>
+                    Effective rate <span className="mono">{effectiveSpawnRateMult.toFixed(2)}×</span> (Bomb Bear from Drone)
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {STATS.map((stat) =>
@@ -886,7 +894,11 @@ export function Lootbug() {
                 label={
                   <span className="lootbugStatLabel">
                     <span className="lootbugLabel">
-                      {stat.label}{" "}
+                      {stat.label}
+                      {stat.id === "spawnRateMultiplier" && (
+                        <img src={BOMB_BEAR_ICON} alt="" className="lootbugStatIcon" aria-hidden style={{ marginLeft: 4, verticalAlign: "middle" }} />
+                      )}
+                      {" "}
                       <Tooltip
                         content={{
                           title: stat.label,
@@ -899,16 +911,16 @@ export function Lootbug() {
                                 ...(stat.id === "spawnRateMultiplier"
                               ? [
                                   {
-                                    heading: "Enter value",
+                                    heading: "Without Bomb Bear",
                                     lines: [
-                                      "Enter your spawn rate as measured in-game. If you measure with Bomb Bear ON, use that value and keep Bomb Bear ON in the Drone module.",
+                                      "Enter spawn rate from all sources except Bomb Bear Drone (e.g. Bread, Lootbug Lantern, Duck, Sagittarius).",
                                     ],
                                   },
                                   {
-                                    heading: "Bomb Bear flow",
+                                    heading: "Effective rate",
                                     lines: [
-                                      "Lootbug gains below use this value directly (your actual gains).",
-                                      "Drone module computes extra from Bomb Bear: gains × (Bomb Bear mult − 1) ÷ mult. That shows how much gain comes from the Drone alone.",
+                                      "Effective spawn rate = this value × Bomb Bear multiplier from Drone module (when Bomb Bear is on and fueled; depends on grade).",
+                                      "All Lootbug gains below use the effective rate. Drone module shows Gem EV/h from Bomb Bear (the extra from the Drone).",
                                     ],
                                   },
                                 ]

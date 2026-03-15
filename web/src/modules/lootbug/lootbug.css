@@ -56,6 +56,17 @@
   margin-bottom: 0;
 }
 
+.lootbugRowSpawnStats {
+  align-items: start;
+}
+
+.lootbugSpawnStatsValue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: right;
+}
+
 .lootbugRowCenter {
   display: flex;
   justify-content: center;
