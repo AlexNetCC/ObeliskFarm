@@ -277,6 +277,16 @@
   box-sizing: border-box;
 }
 
+/* No native number stepper (spinner); type the value directly */
+.gemEvInputNoSpinner::-webkit-outer-spin-button,
+.gemEvInputNoSpinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.gemEvInputNoSpinner {
+  -moz-appearance: textfield;
+}
+
 .gemEvStepBtn {
   padding: 3px 6px;
   min-width: 28px;
@@ -645,4 +655,240 @@
   font-variant-numeric: tabular-nums;
   font-family: var(--mono);
   color: rgba(226, 232, 240, 0.95);
+}
+
+/* Variance (MC simulation) */
+.gemEvVarianceTableWrap {
+  overflow-x: auto;
+}
+.gemEvVarianceTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.gemEvVarianceTable th,
+.gemEvVarianceTable td {
+  padding: 4px 6px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+.gemEvVarianceTable th {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.75);
+}
+.gemEvVarianceTable td.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.gemEvVarianceTable td:not(:first-child) {
+  text-align: right;
+}
+
+.gemEvVarianceTable th.gemEvVarianceColMeanSd,
+.gemEvVarianceTable td.gemEvVarianceColMeanSd {
+  background: rgba(30, 64, 175, 0.08);
+  color: rgba(15, 23, 42, 0.88);
+}
+.gemEvVarianceTable th.gemEvVarianceColMeanSd {
+  border-left: 1px solid rgba(15, 23, 42, 0.12);
+}
+.gemEvVarianceTable td.gemEvVarianceColMeanSd {
+  border-left: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.gemEvVarianceTable th.gemEvVarianceColCV,
+.gemEvVarianceTable td.gemEvVarianceColCV {
+  min-width: 2.2em;
+  text-align: right;
+}
+.gemEvVarianceTable th.gemEvVarianceColCV {
+  background: rgba(15, 23, 42, 0.06);
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.gemEvVarianceFreebieBreakdown {
+  margin: 0;
+}
+.gemEvVarianceFreebieBreakdown .collapseHeader {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.75);
+}
+.gemEvVarianceFreebieBreakdownContent {
+  padding: 4px 8px 6px;
+}
+.gemEvVarianceFreebieBreakdownRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.gemEvVarianceFreebieBreakdownRow:last-child {
+  margin-bottom: 0;
+}
+.gemEvVarianceFreebieBreakdownLabel {
+  flex-shrink: 0;
+  min-width: 90px;
+  color: rgba(15, 23, 42, 0.8);
+}
+
+/* Sample hour (1h) reporting chart */
+.gemEvVarianceSampleBlock {
+  padding-top: 6px;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+}
+.gemEvSampleHourChart {
+  margin-top: 6px;
+}
+.gemEvSampleHourTitle {
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.8);
+  margin-bottom: 6px;
+}
+.gemEvSampleHourBars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gemEvSampleHourRow {
+  display: grid;
+  grid-template-columns: 1fr 180px auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.gemEvSampleHourLabel {
+  color: rgba(15, 23, 42, 0.85);
+}
+.gemEvSampleHourBarTrack {
+  height: 14px;
+  width: 180px;
+  min-width: 180px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.gemEvSampleHourBarFill {
+  height: 100%;
+  border-radius: 4px;
+  min-width: 2px;
+  transition: width 0.2s ease;
+}
+.gemEvSampleHourValue {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  min-width: 4em;
+  text-align: right;
+}
+
+/* Variance box plots (per factor) */
+.gemEvVarianceBoxplotsCollapse {
+  margin-top: 8px;
+}
+.gemEvVarianceBoxplots {
+  margin-top: 4px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: var(--radius-ml);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+.gemEvVarianceBoxplotsHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.8);
+  margin-bottom: 6px;
+}
+.gemEvVarianceBoxplotRow {
+  margin-bottom: 6px;
+}
+.gemEvVarianceBoxplotRow:last-child {
+  margin-bottom: 0;
+}
+.gemEvVarianceBoxplotRowTotal {
+  background: rgba(30, 136, 229, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  margin: 0 -8px 4px -8px;
+  border-left: 3px solid rgba(30, 136, 229, 0.6);
+}
+.gemEvVarianceBoxplotHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.gemEvVarianceBoxplotName {
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.9);
+  min-width: 100px;
+}
+.gemEvVarianceBoxplotStats {
+  font-size: 11px;
+  color: rgba(15, 23, 42, 0.6);
+  margin-left: auto;
+}
+.gemEvVarianceBoxplotMeanRow {
+  position: relative;
+  min-height: 20px;
+  width: 100%;
+  margin-bottom: 2px;
+}
+.gemEvVarianceBoxplotMeanLabel {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+.gemEvVarianceBoxplotMeanArrow {
+  font-size: 8px;
+  line-height: 1;
+  color: rgba(15, 23, 42, 0.7);
+}
+.gemEvVarianceBoxplotMeanValue {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.gemEvVarianceBoxplotTrack {
+  position: relative;
+  height: 18px;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: var(--radius-sm);
+  overflow: visible;
+}
+.gemEvVarianceBoxplotWhiskerLeft,
+.gemEvVarianceBoxplotWhiskerRight {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 3px;
+  background: rgba(46, 125, 50, 0.45);
+  border-radius: var(--radius-2xs);
+}
+.gemEvVarianceBoxplotBox {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: rgba(46, 125, 50, 0.5);
+  border-radius: var(--radius-xs);
+}
+.gemEvVarianceBoxplotMedian {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: var(--radius-2xs);
 }

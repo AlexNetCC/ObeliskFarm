@@ -728,6 +728,7 @@ export function Lootbug() {
       bankedLootbugs?: number;
     }>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
+    ext.lootbugSpawnsPerHour = spawnsPerHour;
     ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
     ext.lootbugRelicChestsPerHour = lootbugRelicChestsPerHour;
     ext.lootbugRelicChestsPerHourFree = lootbugRelicChestsPerHourFree;
@@ -746,7 +747,7 @@ export function Lootbug() {
     ext.lootbugTotalGemCostPerHour = totalGemCostPerHour;
     ext.bankedLootbugs = state.bankCap;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [state.bankCap, bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbugNetEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  }, [state.bankCap, spawnsPerHour, bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbugNetEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};

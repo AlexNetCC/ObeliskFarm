@@ -29,6 +29,7 @@ import {
   getGameSpeedMultiplier,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
+import { getSampleHourReport, runVarianceSim, type SampleHourReport, type VarianceMetricStats, type VarianceOverviewInputs, type VarianceSimResult } from "../../lib/gemev/gemevVarianceSim";
 import { ContribBarChart, ContribLegend } from "./ContribBarChart";
 import { GiftEvChart } from "./GiftEvChart";
 
@@ -312,6 +313,11 @@ export function GemEv() {
   const [giftChartOpen, setGiftChartOpen] = useState(false);
   const [giftsPerHourChartOpen, setGiftsPerHourChartOpen] = useState(false);
   const [founderSupplyDropChartOpen, setFounderSupplyDropChartOpen] = useState(false);
+  const [varianceSimRuns, setVarianceSimRuns] = useState(10000);
+  const [varianceSimResult, setVarianceSimResult] = useState<(VarianceSimResult & { sampleReport?: SampleHourReport }) | null>(null);
+  const [varianceSimRunning, setVarianceSimRunning] = useState(false);
+  const [varianceShowPercentiles, setVarianceShowPercentiles] = useState(false);
+  const [sampleHourReport, setSampleHourReport] = useState<SampleHourReport | null>(null);
   const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
   const [statueSopranoLevel, setStatueSopranoLevel] = useState<number>(initial.statue_soprano_level);
   const [bankedFreebies, setBankedFreebies] = useState<number>(initial.bankedFreebies);
@@ -340,6 +346,7 @@ export function GemEv() {
   const external = (() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
+      lootbugSpawnsPerHour?: number;
       droneBomb10xMinPerHour?: number;
       lootbugNetGemsPerHour?: number;
       lootbugGainsGross?: number;
@@ -369,6 +376,7 @@ export function GemEv() {
       lootfrogValuePerFrogspawn?: number;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
+    const lootbugSpawnsPerHour = typeof ext?.lootbugSpawnsPerHour === "number" ? ext.lootbugSpawnsPerHour : 0;
     const drone10x = typeof ext?.droneBomb10xMinPerHour === "number" ? ext.droneBomb10xMinPerHour : 0;
     const lootbugNetGemsPerHour = typeof ext?.lootbugNetGemsPerHour === "number" ? ext.lootbugNetGemsPerHour : 0;
     const lootbugGainsGross = typeof ext?.lootbugGainsGross === "number" ? ext.lootbugGainsGross : undefined;
@@ -397,7 +405,7 @@ export function GemEv() {
     const lootfrogsUnlocked = Boolean(ext?.lootfrogsUnlocked);
     const lootfrogValuePerFrogspawn = typeof ext?.lootfrogValuePerFrogspawn === "number" ? Math.max(0, ext.lootfrogValuePerFrogspawn) : 0;
     return {
-      lootbug10x, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn,
+      lootbug10x, lootbugSpawnsPerHour, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn,
     };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
@@ -701,6 +709,23 @@ export function GemEv() {
     : (external.lootbugNetGemsPerHour ?? 0);
   const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + lootbugNetContribution - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
 
+  /** Inputs for Variance MC so the sim can compute total (Overview chart). */
+  const varianceOverviewInputs = useMemo((): VarianceOverviewInputs => {
+    const totalChests = freebieChestsPerHour + stonksChestsPerHour + (external.lootbugItemChestsPerHour ?? 0) + giftItemChestsPerHour + founderSupplyDrop.itemChestsPerHour;
+    return {
+      expectedTotalChestsPerHour: totalChests,
+      chargeMagnetImpact: chargeMagnetImpactResolved,
+      expectedGemBombPerHour: bombContribution,
+      expected10xMinPerHour: external.total10x ?? 0,
+      gemBomb10xImpact: gemBomb10xImpactForChart,
+      droneFuelCostPerHour: external.droneFuelGemsPerHour ?? 0,
+      drone10xMinPerHour: external.drone10x ?? 0,
+      expectedItemChestsPerGift: getExpectedItemChestsPerGift(effectiveParams),
+      lootbugItemChestsPerHour: external.lootbugItemChestsPerHour ?? 0,
+      itemsPerChest: external.itemsPerChest ?? 1,
+    };
+  }, [freebieChestsPerHour, stonksChestsPerHour, external.lootbugItemChestsPerHour, giftItemChestsPerHour, founderSupplyDrop.itemChestsPerHour, chargeMagnetImpactResolved, bombContribution, external.total10x, gemBomb10xImpactForChart, external.droneFuelGemsPerHour, external.drone10x, effectiveParams, external.itemsPerChest]);
+
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.totalGemsPerHour = totalWithLootbugAndDroneFuel;
@@ -865,6 +890,488 @@ export function GemEv() {
               ) : null}
             </div>
 
+            <Collapsible
+              id="gemev-variance"
+              title="Variance (MC Simulation)"
+              defaultExpanded={false}
+              className="gemEvSection gemEvVarianceSection"
+              headerRight={
+                <Tooltip
+                  content={{
+                    title: "Variance (MC simulation)",
+                    sections: [
+                      {
+                        heading: "What it simulates",
+                        lines: [
+                          "Full game in one hour: freebies (jackpot, refresh, stonks, gifts), Founder supply drop (gems, 10 gifts 1/1234, frogspawn 1/500), Lootbug (spawns, 10× min, net gems), gifts opened (Soprano + Founder), Item chests → Charge Magnet, Gem Bomb gems (scaled by simulated 10× min), Drone fuel cost.",
+                          "Same components as the Overview chart. Open Lootbug, Drone, Items, and Bombs so rates are synced.",
+                        ],
+                      },
+                      {
+                        heading: "Results",
+                        lines: [
+                          "Percentiles per simulated hour. Total = freebie + founder + gift + lootfrog + lootbug net + charge magnet + gem bomb − drone fuel.",
+                        ],
+                      },
+                    ],
+                  }}
+                  label="?"
+                />
+              }
+            >
+              <div className="gemEvSectionBody" style={{ paddingTop: 4, paddingBottom: 8 }}>
+                <p className="small" style={{ margin: "0 0 6px", color: "rgba(15,23,42,0.7)" }}>
+                  1 Run = 1 Realtime Hour
+                </p>
+                <div className="gemEvRow" style={{ flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <label className="small" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>Runs</span>
+                    <input
+                      type="number"
+                      className="input gemEvInput gemEvInputNoSpinner"
+                      inputMode="numeric"
+                      min={1}
+                      max={100000}
+                      step={1}
+                      value={varianceSimRuns}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value.replace(/\D/g, ""), 10);
+                        if (Number.isFinite(v)) setVarianceSimRuns(Math.max(1, Math.min(100000, v)));
+                      }}
+                      style={{ width: "6em" }}
+                      aria-label="Number of simulation runs"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btnSecondary"
+                    disabled={varianceSimRunning}
+                    onClick={() => {
+                      setVarianceSimRunning(true);
+                      setVarianceSimResult(null);
+                      requestAnimationFrame(() => {
+                        const result = runVarianceSim(
+                          effectiveParams,
+                          varianceSimRuns,
+                          giftEv,
+                          external.lootfrogValuePerFrogspawn ?? 0,
+                          {
+                            lootbug10xMinPerHour: external.lootbug10x ?? 0,
+                            lootbugSpawnsPerHour: external.lootbugSpawnsPerHour ?? 0,
+                            lootbugNetGemsPerHour: external.lootbugNetGemsPerHour ?? 0,
+                          },
+                          varianceOverviewInputs
+                        );
+                        setVarianceSimResult(result);
+                        setSampleHourReport(result.sampleReport ?? null);
+                        setVarianceSimRunning(false);
+                      });
+                    }}
+                  >
+                    {varianceSimRunning ? "Running…" : "Run simulation"}
+                  </button>
+                </div>
+                <div className="gemEvRow" style={{ flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <label className="small" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={varianceShowPercentiles}
+                      onChange={(e) => setVarianceShowPercentiles(e.target.checked)}
+                      aria-label="Show percentiles (P10–P90) in table"
+                    />
+                    Show probabilities
+                  </label>
+                </div>
+                {varianceSimResult ? (
+                  <>
+                  {(() => {
+                    const cv = (s: VarianceMetricStats) => (s.mean !== 0 && Number.isFinite(s.mean) ? s.sd / s.mean : 0);
+                    const metrics: Array<{ key: string; s: VarianceMetricStats }> = [
+                      { key: "freebieGems", s: varianceSimResult.freebieGems },
+                      { key: "giftsCount", s: varianceSimResult.giftsCount },
+                      { key: "giftGems", s: varianceSimResult.giftGems },
+                      { key: "lootfrogGems", s: varianceSimResult.lootfrogGems },
+                      { key: "lootbugNetGems", s: varianceSimResult.lootbugNetGems },
+                      { key: "founderGems", s: varianceSimResult.founderGems },
+                      { key: "chargeMagnetGems", s: varianceSimResult.chargeMagnetGems },
+                      { key: "gemBombGems", s: varianceSimResult.gemBombGems },
+                      { key: "droneFuelCost", s: varianceSimResult.droneFuelCost },
+                      { key: "totalGems", s: varianceSimResult.totalGems },
+                    ];
+                    const cvs = metrics.map((m) => cv(m.s));
+                    const maxCV = Math.max(0, ...cvs.filter((n) => Number.isFinite(n)));
+                    const cvToBg = (cvVal: number) => {
+                      const t = maxCV > 0 ? Math.min(1, Math.max(0, cvVal / maxCV)) : 0;
+                      const r = Math.round(255 * (1 - t) + 220 * t);
+                      const g = Math.round(255 * (1 - t) + 38 * t);
+                      const b = Math.round(255 * (1 - t) + 38 * t);
+                      return `rgb(${r},${g},${b})`;
+                    };
+                    const formatCvPct = (cvVal: number, mean: number) => {
+                      if (mean === 0) return "—";
+                      const absCv = Math.abs(cvVal);
+                      return absCv >= 1 ? ">100% (unreliable!)" : `${Math.round(absCv * 100).toFixed(0)}%`;
+                    };
+                    return (
+                    <div className="gemEvVarianceTableWrap gemEvCompactBlock">
+                      <table className="gemEvVarianceTable">
+                        <thead>
+                          <tr>
+                            <th></th>
+                            <th className="mono gemEvVarianceColMeanSd">Mean</th>
+                            <th className="mono gemEvVarianceColMeanSd">SD</th>
+                            <th className="mono gemEvVarianceColCV">
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                CV%
+                                <Tooltip
+                                  content={{
+                                    title: "CV%",
+                                    lines: [
+                                      "Coefficient of variation (SD ÷ mean) as %. Measures relative variability (spread relative to the average).",
+                                      "Higher CV% = more variable from run to run. >100% (unreliable!) = very high variability. Color: white = low, red = highest in this table.",
+                                    ],
+                                  }}
+                                  label="?"
+                                />
+                              </span>
+                            </th>
+                            {varianceShowPercentiles && (
+                              <>
+                                <th className="mono">P10</th>
+                                <th className="mono">P25</th>
+                                <th className="mono">P50</th>
+                                <th className="mono">P75</th>
+                                <th className="mono">P90</th>
+                              </>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                Freebie gems
+                                <Tooltip
+                                  content={{
+                                    title: "Where Freebie gems come from",
+                                    lines: [
+                                      "Base gems: every roll (1 per claim, or more on jackpot) adds the base gem value.",
+                                      ...(skillShardsEnabled ? ["Skill shards: when the roll hits, its gem value is added (Obelisk/Lucky applied)."] : []),
+                                      "Stonks: on the first roll per claim only, chance for Stonks (and Super/Ultra) bonus gems.",
+                                    ],
+                                  }}
+                                  label="?"
+                                />
+                              </span>
+                            </td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieGems.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[0]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[0], varianceSimResult.freebieGems.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p90)}</td>
+                              </>
+                            )}
+                          </tr>
+                          <tr>
+                            <td>Gifts (count)</td>
+                            <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.mean.toFixed(1)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.sd.toFixed(1)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[1]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[1], varianceSimResult.giftsCount.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{varianceSimResult.giftsCount.p10.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.giftsCount.p25.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.giftsCount.p50.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.giftsCount.p75.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.giftsCount.p90.toFixed(0)}</td>
+                              </>
+                            )}
+                          </tr>
+                          <tr>
+                            <td>Gift gems</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[2]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[2], varianceSimResult.giftGems.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftGems.p90)}</td>
+                              </>
+                            )}
+                          </tr>
+                          {external.lootfrogsUnlocked && (
+                            <tr>
+                              <td>Lootfrog gems</td>
+                              <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.mean)}</td>
+                              <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.sd)}</td>
+                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[3]) }} title="CV% (SD/mean)">
+                                {formatCvPct(cvs[3], varianceSimResult.lootfrogGems.mean)}
+                              </td>
+                              {varianceShowPercentiles && (
+                                <>
+                                  <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.p10)}</td>
+                                  <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.p25)}</td>
+                                  <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.p50)}</td>
+                                  <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.p75)}</td>
+                                  <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.p90)}</td>
+                                </>
+                              )}
+                            </tr>
+                          )}
+                          <tr>
+                            <td>Lootbug net gems</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[4]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[4], varianceSimResult.lootbugNetGems.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.p90)}</td>
+                              </>
+                            )}
+                          </tr>
+                          <tr>
+                            <td>Founder gems</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[5]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[5], varianceSimResult.founderGems.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.founderGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.founderGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.founderGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.founderGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.founderGems.p90)}</td>
+                              </>
+                            )}
+                          </tr>
+                          <tr>
+                            <td>Charge Magnet</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[6]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[6], varianceSimResult.chargeMagnetGems.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.p90)}</td>
+                              </>
+                            )}
+                          </tr>
+                          <tr>
+                            <td>Gem Bomb gems</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[7]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[7], varianceSimResult.gemBombGems.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.p90)}</td>
+                              </>
+                            )}
+                          </tr>
+                          <tr>
+                            <td>Drone fuel cost</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[8]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[8], varianceSimResult.droneFuelCost.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p90)}</td>
+                              </>
+                            )}
+                          </tr>
+                          <tr style={{ fontWeight: 700 }}>
+                            <td>Total</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[9]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[9], varianceSimResult.totalGems.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.totalGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.totalGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.totalGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.totalGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.totalGems.p90)}</td>
+                              </>
+                            )}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                    );
+                  })()}
+                  {(() => {
+                      const rows: Array<{ key: string; label: string; s: VarianceMetricStats; isCount?: boolean }> = [
+                        { key: "freebieGems", label: "Freebie gems", s: varianceSimResult.freebieGems },
+                        { key: "giftsCount", label: "Gifts (count)", s: varianceSimResult.giftsCount, isCount: true },
+                        { key: "giftGems", label: "Gift gems", s: varianceSimResult.giftGems },
+                        ...(external.lootfrogsUnlocked ? [{ key: "lootfrogGems" as const, label: "Lootfrog gems", s: varianceSimResult.lootfrogGems }] : []),
+                        { key: "lootbugNetGems", label: "Lootbug net gems", s: varianceSimResult.lootbugNetGems },
+                        { key: "founderGems", label: "Founder gems", s: varianceSimResult.founderGems },
+                        { key: "chargeMagnetGems", label: "Charge Magnet", s: varianceSimResult.chargeMagnetGems },
+                        { key: "gemBombGems", label: "Gem Bomb gems", s: varianceSimResult.gemBombGems },
+                        { key: "droneFuelCost", label: "Drone fuel cost", s: varianceSimResult.droneFuelCost },
+                        { key: "totalGems", label: "Total", s: varianceSimResult.totalGems },
+                      ];
+                      const fmtVal = (v: number, isCount?: boolean) => (isCount ? v.toFixed(1) : fmt1OrIntOver1k(v));
+                      return (
+                        <Collapsible id="gemev-variance-boxplots" title={<><span>Box plot (per factor)</span><Tooltip content={{ title: "Box plot", lines: ["min, Q1 (25th), median, Q3 (75th), max from the simulation. Triangle marks the mean.", "Each row uses its own scale so the distribution shape is visible."] }} label="?" /></>} defaultExpanded={false} className="gemEvVarianceBoxplotsCollapse">
+                          <div className="gemEvVarianceBoxplots gemEvCompactBlock">
+                          {rows.map(({ key, label, s, isCount }) => {
+                            const { min, max } = s;
+                            const span = max - min || 1;
+                            const toPct = (v: number) => ((v - min) / span) * 100;
+                            const pctMin = toPct(min);
+                            const pctQ1 = toPct(s.p25);
+                            const pctMed = toPct(s.p50);
+                            const pctQ3 = toPct(s.p75);
+                            const pctMax = toPct(max);
+                            const pctMean = toPct(s.mean);
+                            const isTotal = key === "totalGems";
+                            return (
+                              <div key={key} className={`gemEvVarianceBoxplotRow ${isTotal ? "gemEvVarianceBoxplotRowTotal" : ""}`}>
+                                <div className="gemEvVarianceBoxplotHead">
+                                  <span className="gemEvVarianceBoxplotName">{label}</span>
+                                  <span className="gemEvVarianceBoxplotStats mono">
+                                    min {fmtVal(s.min, isCount)} · Q1 {fmtVal(s.p25, isCount)} · mean {fmtVal(s.mean, isCount)} · Q3 {fmtVal(s.p75, isCount)} · max {fmtVal(s.max, isCount)}
+                                  </span>
+                                </div>
+                                <div className="gemEvVarianceBoxplotMeanRow" role="presentation">
+                                  <div className="gemEvVarianceBoxplotMeanLabel" style={{ left: `${pctMean}%` }} title={`mean ${fmtVal(s.mean, isCount)}`}>
+                                    <span className="gemEvVarianceBoxplotMeanValue mono">{fmtVal(s.mean, isCount)}</span>
+                                    <span className="gemEvVarianceBoxplotMeanArrow" aria-hidden>▼</span>
+                                  </div>
+                                </div>
+                                <div className="gemEvVarianceBoxplotTrack">
+                                  <div className="gemEvVarianceBoxplotWhiskerLeft" style={{ left: `${pctMin}%`, width: `${pctQ1 - pctMin}%` }} />
+                                  <div className="gemEvVarianceBoxplotBox" style={{ left: `${pctQ1}%`, width: `${pctQ3 - pctQ1}%` }}>
+                                    <div className="gemEvVarianceBoxplotMedian" style={{ left: `${(pctQ3 - pctQ1 > 0 ? (pctMed - pctQ1) / (pctQ3 - pctQ1) : 0.5) * 100}%` }} />
+                                  </div>
+                                  <div className="gemEvVarianceBoxplotWhiskerRight" style={{ left: `${pctQ3}%`, width: `${pctMax - pctQ3}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                          </div>
+                        </Collapsible>
+                      );
+                    })()}
+                  </>
+                ) : null}
+                <Collapsible id="gemev-variance-sample-hour" title="One random hour (draw sample)" defaultExpanded={false} className="gemEvVarianceSampleBlock">
+                  <div className="gemEvRow" style={{ flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <button
+                      type="button"
+                      className="btn btnSecondary"
+                      onClick={() => {
+                        const report = getSampleHourReport(
+                          effectiveParams,
+                          giftEv,
+                          external.lootfrogValuePerFrogspawn ?? 0,
+                          {
+                            lootbug10xMinPerHour: external.lootbug10x ?? 0,
+                            lootbugSpawnsPerHour: external.lootbugSpawnsPerHour ?? 0,
+                            lootbugNetGemsPerHour: external.lootbugNetGemsPerHour ?? 0,
+                          },
+                          varianceOverviewInputs
+                        );
+                        setSampleHourReport(report);
+                      }}
+                    >
+                      Draw sample hour
+                    </button>
+                  </div>
+                  {sampleHourReport ? (
+                    <div className="gemEvSampleHourChart gemEvCompactBlock">
+                      <div className="gemEvSampleHourTitle">What this 1h had</div>
+                      <div className="gemEvSampleHourBars" role="img" aria-label="Sample hour breakdown">
+                        {(() => {
+                          const barColorNeg = "#dc2626";
+                          const barColorPos = "#16a34a";
+                          const allRows = [
+                            { label: "Freebie claims", value: sampleHourReport.freebieClaims, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Freebie gems", value: sampleHourReport.freebieGems, fmt: fmt1OrIntOver1k },
+                            { label: "Jackpots", value: sampleHourReport.jackpotCount, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Stonks procs", value: sampleHourReport.stonksProcs, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Gifts (freebie)", value: sampleHourReport.giftsFromFreebie, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Supply drop events", value: sampleHourReport.supplyDropEvents, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Founder drops", value: sampleHourReport.founderDrops ?? 0, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Founder gems", value: sampleHourReport.founderGems ?? 0, fmt: fmt1OrIntOver1k },
+                            { label: "Founder gifts", value: sampleHourReport.founderGifts, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Frogspawn", value: sampleHourReport.frogspawn, fmt: (v: number) => v.toFixed(1) },
+                            { label: "Lootfrog gems", value: sampleHourReport.lootfrogGems, fmt: fmt1OrIntOver1k },
+                            { label: "Total gifts", value: sampleHourReport.totalGifts, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Gift gems", value: sampleHourReport.giftGems, fmt: fmt1OrIntOver1k },
+                            { label: "Item chests", value: sampleHourReport.totalChests ?? 0, fmt: (v: number) => v.toFixed(0) },
+                            { label: "Charge Magnet", value: sampleHourReport.chargeMagnetGems ?? 0, fmt: fmt1OrIntOver1k },
+                            { label: "Lootbug net gems", value: sampleHourReport.lootbugNetGems, fmt: fmt1OrIntOver1k },
+                            { label: "Gem Bomb gems", value: sampleHourReport.gemBombGems ?? 0, fmt: fmt1OrIntOver1k },
+                            { label: "Drone fuel cost", value: sampleHourReport.droneFuelCost ?? 0, fmt: fmt1OrIntOver1k },
+                            { label: "Total", value: sampleHourReport.totalGems ?? 0, fmt: fmt1OrIntOver1k },
+                          ];
+                          const rows = external.lootfrogsUnlocked ? allRows : allRows.filter((row) => row.label !== "Frogspawn" && row.label !== "Lootfrog gems");
+                          const r = sampleHourReport!;
+                          const maxAbsVal = Math.max(1, ...rows.map((row) => Math.abs(row.value)));
+                          return rows.map(({ label, value, fmt }) => {
+                            const widthPct = maxAbsVal > 0 ? (Math.abs(value) / maxAbsVal) * 100 : 0;
+                            const barColor = value < 0 ? barColorNeg : barColorPos;
+                            return (
+                              <div key={label} className="gemEvSampleHourRow">
+                                <span className="gemEvSampleHourLabel">{label}</span>
+                                <div className="gemEvSampleHourBarTrack">
+                                  <div className="gemEvSampleHourBarFill" style={{ width: `${widthPct}%`, backgroundColor: barColor }} />
+                                </div>
+                                <span className="mono gemEvSampleHourValue">{fmt(value)}</span>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  ) : null}
+                </Collapsible>
+              </div>
+            </Collapsible>
+
             <div className="btnRow" style={{ marginTop: 12, alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <span className="gemEvChartArrow" aria-hidden>→</span>
               <button className="btn gemEvOverviewChartBtn" type="button" onClick={() => setChartOpen(true)}>
@@ -874,33 +1381,6 @@ export function GemEv() {
                 content={{
                   title: "Overview chart",
                   lines: ["Opens the stacked contributions bar chart (Base / Jackpot / Refresh). Bars left to right for readability on mobile."],
-                }}
-                label="?"
-              />
-              <Tooltip
-                content={{
-                  title: "Rare rolls (variance)",
-                  sections: [
-                    {
-                      heading: "Founder supply drop",
-                      lines: [
-                        "1/100 per drop: 650 Gems (rare). 1% per drop: bonus gems (50 + 10× Obelisk). 1/1234 per drop: 10 Gifts (huge EV when it hits).",
-                      ],
-                    },
-                    {
-                      heading: "Freebie",
-                      lines: [
-                        "Jackpot ~8%: 5 rolls instead of 1 (more chests, gems, skill shards). Stonks 1%: 200 Gems + 20 Item Chests (and Super/Ultra if enabled).",
-                      ],
-                    },
-                    {
-                      heading: "Gifts (per gift)",
-                      lines: [
-                        "Rare chain (order matters): 3 Gifts (1/40), 80–130 Gems (1/45), Skin or 105 Gems (1/200), Gilded Skin → 25 Gifts (1/2000), ob60 Gem Chest ~0.1% → ~22,500 Gems.",
-                        "Gilded Skin and ob60 Gem Chest are very rare. At low Gifts/h (e.g. 0.3/h) you may not see them for a long time; then your actual Gems can sit below the EV.",
-                      ],
-                    },
-                  ],
                 }}
                 label="?"
               />
@@ -1200,7 +1680,7 @@ export function GemEv() {
               />
               {freebiesPerHour > 0 && bankedFreebies > 0 && (
                 <div className="gemEvRow gemEvEffectiveTimerGlow">
-                  <span className="mono small">Time to hit Freebie cap</span>
+                  <span className="mono small">Time to hit Freebie cap:  </span>
                   <span className="mono small">
                     {(() => {
                       const totalMinutes = (bankedFreebies / freebiesPerHour) * 60;
