@@ -1022,31 +1022,32 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   const gemsPerDropBase = w >= 1 && params.founder_worlds_unlocked != null
     ? 10 * w
     : clampPositive(params.founder_gems_base, 30.0) * qtyMult;
+  const cratesPerHour = founderDropsPerHour * expectedDropsPerEvent;
   const baseGems =
-    founderDropsPerHour * expectedDropsPerEvent * gemsPerDropBase * goldenMult;
+    cratesPerHour * gemsPerDropBase * goldenMult;
 
   const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
   const bonusGems =
-    founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
+    cratesPerHour * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
 
   const FOUNDER_RARE_GEMS_CHANCE = 1.0 / 100.0;
   const founderRareGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 0);
   const rareGemsJackpot =
-    founderDropsPerHour * FOUNDER_RARE_GEMS_CHANCE * founderRareGemsPerDrop;
+    cratesPerHour * FOUNDER_RARE_GEMS_CHANCE * founderRareGemsPerDrop;
 
   const giftChance = 1.0 / 1234.0;
   const giftsPerDrop = 10.0;
   const giftEvPerGift = calculateGiftEvPerGift(params);
-  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift;
+  const giftGems = cratesPerHour * giftChance * giftsPerDrop * giftEvPerGift;
 
   const mythicChestEv =
-    founderDropsPerHour * (1 / 2000) * (params.founder_mythic_chest_gem_value ?? 0);
+    cratesPerHour * (1 / 2000) * (params.founder_mythic_chest_gem_value ?? 0);
   const megaJackpotGems =
-    founderDropsPerHour * (1 / 69696) * 1000;
+    cratesPerHour * (1 / 69696) * 1000;
   const megaJackpotRelicEv =
-    founderDropsPerHour * (1 / 69696) * 100 * (params.founder_relic_chest_gem_value ?? 0);
+    cratesPerHour * (1 / 69696) * 100 * (params.founder_relic_chest_gem_value ?? 0);
   const megaJackpotDivineEv =
-    founderDropsPerHour * (1 / 69696) * 1 * (params.founder_divine_chest_gem_value ?? 0);
+    cratesPerHour * (1 / 69696) * 1 * (params.founder_divine_chest_gem_value ?? 0);
 
   const supplyDrop = getFounderSupplyDropPerHour(params); // already includes qtyMult for cherry/fuel/ticks
   const cherryGems = calculateCherryChargesGemsPerHour(params, supplyDrop.cherryChargesPerHour);
@@ -1072,27 +1073,28 @@ export function getFounderSupplyDropGemsEvPerHour(params: GameParameters): numbe
   const gemsPerDropBase = w >= 1 && params.founder_worlds_unlocked != null
     ? 10 * w
     : clampPositive(params.founder_gems_base, 30.0) * qtyMult;
+  const cratesPerHour = founderDropsPerHour * expectedDropsPerEvent;
   const baseGems =
-    founderDropsPerHour * expectedDropsPerEvent * gemsPerDropBase * goldenMult;
+    cratesPerHour * gemsPerDropBase * goldenMult;
   const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
   const bonusGems =
-    founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
+    cratesPerHour * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
   const FOUNDER_RARE_GEMS_CHANCE = 1.0 / 100.0;
   const founderRareGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 0);
   const rareGemsJackpot =
-    founderDropsPerHour * FOUNDER_RARE_GEMS_CHANCE * founderRareGemsPerDrop;
+    cratesPerHour * FOUNDER_RARE_GEMS_CHANCE * founderRareGemsPerDrop;
   const giftChance = 1.0 / 1234.0;
   const giftsPerDrop = 10.0;
   const giftEvPerGift = calculateGiftEvPerGift(params);
-  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift;
+  const giftGems = cratesPerHour * giftChance * giftsPerDrop * giftEvPerGift;
   const mythicChestEv =
-    founderDropsPerHour * (1 / 2000) * (params.founder_mythic_chest_gem_value ?? 0);
+    cratesPerHour * (1 / 2000) * (params.founder_mythic_chest_gem_value ?? 0);
   const megaJackpotGems =
-    founderDropsPerHour * (1 / 69696) * 1000;
+    cratesPerHour * (1 / 69696) * 1000;
   const megaJackpotRelicEv =
-    founderDropsPerHour * (1 / 69696) * 100 * (params.founder_relic_chest_gem_value ?? 0);
+    cratesPerHour * (1 / 69696) * 100 * (params.founder_relic_chest_gem_value ?? 0);
   const megaJackpotDivineEv =
-    founderDropsPerHour * (1 / 69696) * 1 * (params.founder_divine_chest_gem_value ?? 0);
+    cratesPerHour * (1 / 69696) * 1 * (params.founder_divine_chest_gem_value ?? 0);
   return baseGems + bonusGems + rareGemsJackpot + giftGems + mythicChestEv + megaJackpotGems + megaJackpotRelicEv + megaJackpotDivineEv;
 }
 

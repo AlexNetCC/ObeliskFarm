@@ -821,7 +821,7 @@ export function GemEv() {
           ],
         },
         {
-          heading: "Jackpots (per collect)",
+          heading: "Jackpots (per crate)",
           lines: [
             "1/100: Level×10+50 Gems. 1/500: Relic Level×3+10, or Frogspawn 5 (Lootfrogs). 1/750: 100 Sushi (Fishing). 1/1234: 10 Gifts.",
             "1/2000: 1 Mythic Chest. 1/69696: 1 Divine, 100 Relic, 1000 Gems.",
