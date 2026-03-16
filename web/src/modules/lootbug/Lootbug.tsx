@@ -708,6 +708,7 @@ export function Lootbug() {
   useEffect(() => {
     const ext = loadJson<{
       lootbugBomb10xMinPerHour?: number;
+      lootbugSpawnsPerHour?: number;
       droneBomb10xMinPerHour?: number;
       lootbugItemChestsPerHour?: number;
       lootbugRelicChestsPerHour?: number;

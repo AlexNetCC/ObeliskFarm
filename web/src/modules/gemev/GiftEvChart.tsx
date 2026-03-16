@@ -148,6 +148,8 @@ type GiftChartRow = {
   qtyVal: number;
   qtyVal2?: number;
   qtyUnit2?: string;
+  /** Effective drop chance per gift (0–100). */
+  dropChancePct?: number;
 };
 
 function buildRows(
@@ -155,14 +157,17 @@ function buildRows(
   breakdown: GiftBreakdown
 ): GiftChartRow[] {
   const qty = (breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty ?? {};
+  const dropChancePct = (breakdown as GiftBreakdown & { _dropChancePct?: Record<string, number> })._dropChancePct ?? {};
   return entries
     .map((e): GiftChartRow => {
       const qtyVal2 = e.key === "fishing_tick" ? Number(qty.fishing_tick_fish ?? 0) : undefined;
+      const pct = dropChancePct[e.key];
       return {
         ...e,
         value: Number(breakdown[e.key] ?? 0),
         qtyVal: Number(qty[e.key] ?? 0),
         ...(qtyVal2 != null && qtyVal2 > 0 ? { qtyVal2, qtyUnit2: "fish" } : {}),
+        ...(typeof pct === "number" && pct >= 0 ? { dropChancePct: pct } : {}),
       };
     })
     .filter((r) => r.value > 0)
@@ -207,7 +212,7 @@ function GiftChartSvg(props: {
   const gemIconUrl = assetUrl("sprites/common/gem.png");
   const iconX = padL - 8 - 16 - 4;
   /** X position for tooltip "?" so it sits to the right of the label text (not over the bar/value). */
-  const tooltipQuestionX = (label: string) => labelPad + 4 + label.length * 8 + 6;
+  const tooltipQuestionX = (label: string) => labelPad + 4 + label.length * 6.5 + 4;
   const titleColor = darkTheme ? CHART_DARK.text : "rgba(71,85,105,0.85)";
   const subtitleColor = darkTheme ? CHART_DARK.textMuted : "rgba(71,85,105,0.65)";
   const svgBg = darkTheme ? CHART_DARK.bg : "#ffffff";
@@ -223,8 +228,8 @@ function GiftChartSvg(props: {
     <div style={{ marginTop: 8 }}>
       {title ? (
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: titleColor }}>{title}</div>
-          <div style={{ fontSize: 12, color: subtitleColor, marginTop: 2 }}>Fish with your current Docks/Power setup</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: titleColor }}>{title}</div>
+          <div style={{ fontSize: 11, color: subtitleColor, marginTop: 2 }}>Fish with your current Docks/Power setup</div>
         </div>
       ) : null}
       <div style={{ position: "relative", display: "inline-block", minWidth: W }}>
@@ -245,7 +250,7 @@ function GiftChartSvg(props: {
             return (
               <g key={v}>
                 <line x1={x} y1={padT} x2={x} y2={padT + plotH} stroke={gridStroke} strokeDasharray="4 4" />
-                <text x={x} y={padT + plotH + 14} textAnchor="middle" fontSize={13} fill={textFill} fontFamily="var(--mono)">
+                <text x={x} y={padT + plotH + 14} textAnchor="middle" fontSize={11} fill={textFill} fontFamily="var(--mono)">
                   {fmtInt(v)}
                 </text>
               </g>
@@ -256,13 +261,13 @@ function GiftChartSvg(props: {
 
           <g aria-hidden="true">
             <image href={gemIconUrl} x={W / 2 - 18} y={H - 14} width={16} height={16} />
-            <text x={W / 2 - 2} y={H - 2} textAnchor="start" fontSize={13} fontWeight={800} fill={textFill} fontFamily="var(--mono)">
+            <text x={W / 2 - 2} y={H - 2} textAnchor="start" fontSize={11} fontWeight={800} fill={textFill} fontFamily="var(--mono)">
               per Gift
             </text>
           </g>
 
           {rows.length === 0 ? (
-            <text x={padL + plotW / 2} y={padT + plotH / 2} textAnchor="middle" fontSize={15} fill={noDataFill}>
+            <text x={padL + plotW / 2} y={padT + plotH / 2} textAnchor="middle" fontSize={12} fill={noDataFill}>
               No contributions
             </text>
           ) : (
@@ -287,12 +292,12 @@ function GiftChartSvg(props: {
                     strokeWidth={0.8}
                     rx={2}
                   />
-                  <text x={labelStartX} y={labelY} textAnchor="start" fontSize={14} fontWeight={700} fill={labelFill}>
+                  <text x={labelStartX} y={labelY} textAnchor="start" fontSize={12} fontWeight={700} fill={labelFill}>
                     {row.label}
                   </text>
                   {row.icon ? <image href={row.icon} x={iconX} y={y0} width={16} height={16} /> : null}
                   {hasTooltip ? (
-                    <text x={tooltipQuestionX(row.label)} y={labelY} textAnchor="start" fontSize={13} fontWeight={700} fill={textFill}>
+                    <text x={tooltipQuestionX(row.label)} y={labelY} textAnchor="start" fontSize={11} fontWeight={700} fill={textFill}>
                       ?
                     </text>
                   ) : null}
@@ -300,14 +305,17 @@ function GiftChartSvg(props: {
                     x={barEndX + 12}
                     y={labelY}
                     textAnchor="start"
-                    fontSize={14}
-                    fontWeight={800}
+                    fontSize={11}
+                    fontWeight={700}
                     fill={textFill}
                     fontFamily="var(--mono)"
                   >
                     {row.qtyVal2 != null && row.qtyVal2 > 0 && row.qtyUnit2
                       ? `${fmt1(row.qtyVal)} ${row.qtyUnit}, ${fmt1(row.qtyVal2)} ${row.qtyUnit2} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`
                       : `${fmt1(row.qtyVal)} ${row.qtyUnit} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`}
+                    {row.dropChancePct != null && row.dropChancePct >= 0
+                      ? ` · ${row.dropChancePct < 0.1 ? row.dropChancePct.toFixed(2) : fmt1(row.dropChancePct)}% drop`
+                      : ""}
                   </text>
                 </g>
               );
@@ -360,6 +368,8 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown; darkTheme?: boole
   const rareRows = buildRows(RARE_ENTRIES, breakdown);
   const allValues = [...basicRows, ...rareRows].map((r) => r.value);
   const maxVal = Math.max(1, ...allValues);
+  /** Axis extended by 30% so labels on the right (%, drop, etc.) are not cut off; bars shift left. */
+  const maxValAxis = maxVal * 1.3;
 
   const mult = (breakdown as GiftBreakdown & { _multipliers?: { obeliskMult: number; luckyMult: number; obeliskLevel: number } })._multipliers;
   const fishTextColor = darkTheme ? "rgba(226,232,240,0.9)" : "rgba(71,85,105,0.85)";
@@ -380,10 +390,10 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown; darkTheme?: boole
       ) : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
         <div className="gemEvGiftChartBlockBasic">
-          <GiftChartSvg title="Basic Rewards" rows={basicRows} total={total} maxVal={maxVal} darkTheme={darkTheme} />
+          <GiftChartSvg title="Basic Rewards" rows={basicRows} total={total} maxVal={maxValAxis} darkTheme={darkTheme} />
         </div>
         <div className="gemEvGiftChartBlockRare">
-          <GiftChartSvg title="Rare Roll Rewards" rows={rareRows} total={total} maxVal={maxVal} darkTheme={darkTheme} />
+          <GiftChartSvg title="Rare Roll Rewards" rows={rareRows} total={total} maxVal={maxValAxis} darkTheme={darkTheme} />
         </div>
         {(() => {
           const qty = (breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty ?? {};

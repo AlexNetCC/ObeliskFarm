@@ -337,7 +337,7 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
     typeof params.founder_worlds_unlocked === "number" &&
     params.founder_worlds_unlocked >= 1 &&
     params.founder_worlds_unlocked <= 4;
-  const w = useWiki ? Math.max(1, Math.min(4, Math.trunc(params.founder_worlds_unlocked))) : 1;
+  const w = useWiki ? Math.max(1, Math.min(4, Math.trunc(params.founder_worlds_unlocked ?? 2))) : 1;
 
   let itemChestsPerDrop: number;
   let relicBasePerDrop: number;
@@ -855,6 +855,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const recursiveGifts_qty = rare.gifts3 * 3 * obeliskMult * luckyMult + rare.gildedSkin * 25 * obeliskMult * luckyMult;
   const gems15k25k_qty = rare.gems15k_25k * 20000 * obeliskMult * luckyMult;
 
+  const basicDropPct = (probBasicRoll * 100) / 12;
   return {
     gems_20_40: gems20_40_final,
     gems_20_50: gems20_50_final,
@@ -894,6 +895,23 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
       luckyMult,
       obeliskLevel: obelisk,
     },
+    _dropChancePct: {
+      gems_20_40: basicDropPct,
+      gems_20_50: basicDropPct,
+      skill_shards: basicDropPct,
+      item_chests: basicDropPct,
+      chaos_totem: basicDropPct,
+      charge_magnet: basicDropPct,
+      fishing_tick: basicDropPct,
+      rare_gems: rare.gems80_130 * 100,
+      drone_fuel: rare.droneFuel * 100,
+      skin: rare.skin * 100,
+      gems_15k_25k: rare.gems15k_25k * 100,
+      frogspawn: rare.frogspawn * 100,
+      forbidden_sushi: rare.forbiddenSushi * 100,
+      cosmic_candy: rare.cosmicCandy * 100,
+      recursive_gifts: rare.gifts3 * 100,
+    } as Record<string, number>,
   } as unknown as Record<string, number>;
 }
 
@@ -903,6 +921,10 @@ export interface GiftSushiPerHourBySource {
   founder: number;
   /** Gifts per hour from Statue of Soprano (freebie). */
   giftPerHourFreebie: number;
+  /** Gifts per hour from Statue of Soprano normal roll (1 gift). */
+  giftPerHourFreebieNormal: number;
+  /** Gifts per hour from Statue of Soprano 100× roll. */
+  giftPerHourFreebie100: number;
   /** Gifts per hour from Founder supply drop. */
   giftPerHourFounder: number;
 }
@@ -916,6 +938,8 @@ export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftS
   let freebieGiftsPerHour = 0;
   let founderGiftsPerHour = 0;
 
+  let freebieGiftsPerHourNormal = 0;
+  let freebieGiftsPerHour100 = 0;
   // Statue of Soprano (freebie gift chance)
   const level = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
   const cfg = STATUE_SOPRANO_CONFIG[level];
@@ -923,8 +947,9 @@ export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftS
     const freebiesPerHour = calculateFreebiesPerHour(params);
     const refreshMult = calculateRefreshMultiplier(params);
     const giftRollsPerHour = freebiesPerHour * refreshMult;
-    const expectedGiftsPerClaim = cfg.freebieGiftChance * 1 + cfg.freebie100xChance * 100;
-    freebieGiftsPerHour = giftRollsPerHour * expectedGiftsPerClaim;
+    freebieGiftsPerHourNormal = giftRollsPerHour * cfg.freebieGiftChance * 1;
+    freebieGiftsPerHour100 = giftRollsPerHour * cfg.freebie100xChance * 100;
+    freebieGiftsPerHour = freebieGiftsPerHourNormal + freebieGiftsPerHour100;
   }
 
   // Founder supply drop: jackpot 1/1234 per collect event → 10 Gifts (wiki); 1/750 per event → 100 Sushi when Fishing unlocked
@@ -944,6 +969,8 @@ export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftS
     freebie: freebieGiftsPerHour * sushiPerGift,
     founder: founderSushiPerHour,
     giftPerHourFreebie: freebieGiftsPerHour,
+    giftPerHourFreebieNormal: freebieGiftsPerHourNormal,
+    giftPerHourFreebie100: freebieGiftsPerHour100,
     giftPerHourFounder: founderGiftsPerHour,
   };
 }

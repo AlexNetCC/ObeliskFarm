@@ -2298,13 +2298,18 @@ export function GemEv() {
                       <div className="gemEvGiftsContribTitle">Gifts/h</div>
                       <div className="gemEvGiftsContribBars" role="img" aria-label="Gifts per hour by source bar chart">
                         {[
-                          { label: "Statue of Soprano (freebie)", value: giftsPerHourBySource.giftPerHourFreebie, color: "#fff59d" },
-                          { label: "Founder supply drop", value: giftsPerHourBySource.giftPerHourFounder, color: "#ffeb3b" },
+                          { label: "Statue of Soprano (normal roll)", value: giftsPerHourBySource.giftPerHourFreebieNormal ?? 0, color: "#fff59d" },
+                          { label: "Statue of Soprano (100× roll)", value: giftsPerHourBySource.giftPerHourFreebie100 ?? 0, color: "#ffeb3b" },
+                          { label: "Founder supply drop", value: giftsPerHourBySource.giftPerHourFounder, color: "#ffc107" },
                         ]
                           .filter((r) => r.value > 0)
                           .map(({ label, value, color }) => {
                             const pct = totalGiftsPerHour > 0 ? (value / totalGiftsPerHour) * 100 : 0;
-                            const maxVal = Math.max(giftsPerHourBySource.giftPerHourFreebie, giftsPerHourBySource.giftPerHourFounder, 1);
+                            const maxVal = Math.max(
+                              giftsPerHourBySource.giftPerHourFreebie ?? 0,
+                              giftsPerHourBySource.giftPerHourFounder,
+                              1
+                            );
                             const widthPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
                             return (
                               <div key={label} className="gemEvGiftsContribRow">
