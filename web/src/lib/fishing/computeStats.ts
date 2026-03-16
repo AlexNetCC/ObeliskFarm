@@ -57,6 +57,8 @@ export interface ComputedFishingStats {
   drone_base_power_base_rounded: number;
   /** Multiplier on Drone Base Power (from drone_multiplier + enhance). */
   drone_power_multiplier: number;
+  /** Per-factor breakdown for Drone Power Multi (upgrade × enhance × fwf × completionist × workshop × tethys). */
+  drone_power_multiplier_breakdown?: { upgrade: number; enhance: number; fwf: number; completionist: number; workshop: number; tethys: number };
   fish_income_multi: number;
   fishing_tick_reduction: number;
   /** Double Fish Tick Chance (%). When tick bar fills, chance to get 2 ticks at once. */
@@ -101,8 +103,12 @@ export interface SkillTreeOptions {
   relic5xPoints?: number;
   /** Pets: Mr Nibbles level. +0.03× Shiny Fish Multi per level (own mult), +1% Triple Tick Chance per level (flat). */
   mrNibblesLevel?: number;
-  /** Pets: Mr Nibbles Quest rank. Tier 2 Dock Power +5% per rank (own mult: 1 + 0.05×rank). */
+  /** Pets: Mr Nibbles Quest. When unlocked, rank 0 = +5% T2 Dock Power (own mult); each rank adds +5%. */
+  mrNibblesQuestUnlocked?: boolean;
+  /** Pets: Mr Nibbles Quest rank (0-based). Only applies when mrNibblesQuestUnlocked. Mult = 1 + 0.05×(rank+1). */
   mrNibblesQuestRank?: number;
+  /** Pets: Mr Nibbles Pet Skin. +2% Shiny Fish Chance (flat). */
+  mrNibblesSkin?: boolean;
   /** Archaeology: Poseidon Idol level. +0.25 base fishing drone power per level (adds to base 3). */
   poseidonIdolLevel?: number;
   /** Archaeology: Tethys Idol level. Each point: Tier 2 dock power +0.05%, Drone power multi +0.05%, Super shiny multi +0.05% (each separate mult). */
@@ -202,14 +208,20 @@ export function computeFishingStatsFromLevels(
   const droneMultiUpgrade = 1 + 0.06 * u("drone_multiplier");
   const droneMultiEnhance = 1 + 0.08 * e("enhance_drone_multiplier");
   const legendary = Math.max(0, Math.min(6, options?.legendaryFishFound ?? 0));
-  const droneMultiSkill =
-    1 +
-    0.1 * skill("fishing_with_friends") +
-    0.02 * skill("completionist_gatekeeper") * legendary;
+  const droneMultFwf = 1 + 0.1 * skill("fishing_with_friends");
+  const droneMultCompletionist = 1 + 0.02 * skill("completionist_gatekeeper") * legendary;
   const workshopDroneMultiWorld3 = 1 + 0.02 * Math.max(0, Math.floor(options?.fishingDroneBasePowerWorld3 ?? 0));
   const tethysIdol = Math.max(0, Math.floor(options?.tethysIdolLevel ?? 0));
   const tethysDroneMult = 1 + 0.0005 * tethysIdol; // +0.05% per level; applies to all docks
-  const drone_power_multiplier = droneMultiUpgrade * droneMultiEnhance * droneMultiSkill * workshopDroneMultiWorld3 * tethysDroneMult;
+  const drone_power_multiplier = droneMultiUpgrade * droneMultiEnhance * droneMultFwf * droneMultCompletionist * workshopDroneMultiWorld3 * tethysDroneMult;
+  const drone_power_multiplier_breakdown = {
+    upgrade: droneMultiUpgrade,
+    enhance: droneMultiEnhance,
+    fwf: droneMultFwf,
+    completionist: droneMultCompletionist,
+    workshop: workshopDroneMultiWorld3,
+    tethys: tethysDroneMult,
+  };
   /** Used for gains: raw base (no rounding) so e.g. 3.25 gives more power than 3. */
   const drone_base_power = droneBaseRaw * drone_power_multiplier;
   /** Raw base (unrounded) for display and gains. */
@@ -254,10 +266,11 @@ export function computeFishingStatsFromLevels(
     (options?.legendaryHaulerBundle ? 3 : 0) +
     infernalPct * infernalLvl;
 
-  // Shiny / Super Shiny chances (%): shiny_fish_chance +0.5% per level; super_shiny_chance +1% per level; tiny notice +0.5% (enhance). Skill: With This Fish I Summon +0.1% shiny per fish card per level; Completionist +1% super shiny per level per legendary.
+  // Shiny / Super Shiny chances (%): shiny_fish_chance +0.5% per level; super_shiny_chance +1% per level; tiny notice +0.5% (enhance). Skill: With This Fish I Summon +0.1% shiny per fish card per level; Completionist +1% super shiny per level per legendary. Pets: Mr Nibbles Skin +2% (flat).
   const shiny_fish_chance_pct =
     0.5 * u("shiny_fish_chance") +
-    0.1 * skill("with_this_fish_i_summon_two_more_fish") * effectiveFishCardCount;
+    0.1 * skill("with_this_fish_i_summon_two_more_fish") * effectiveFishCardCount +
+    (options?.mrNibblesSkin ? 2 : 0);
   const super_shiny_chance_pct =
     1 * u("super_shiny_chance") +
     1 * skill("completionist_gatekeeper") * legendary;
@@ -270,19 +283,21 @@ export function computeFishingStatsFromLevels(
     0.05 * u("tier2_dock_power") +
     0.05 * e("enhance_tier2_dock_power") +
     0.03 * skill("completionist_gatekeeper") * legendary;
+  const mrNibblesQuestUnlocked = Boolean(options?.mrNibblesQuestUnlocked);
   const mrNibblesQuestRank = Math.max(0, Math.floor(options?.mrNibblesQuestRank ?? 0));
+  const mrNibblesQuestMult = mrNibblesQuestUnlocked ? 1 + 0.05 * (mrNibblesQuestRank + 1) : 1;
   const infernalAnglerPct = Math.max(0, Number(options?.infernalAnglerDronePct ?? 0));
   const infernalAnglerLvl = Math.max(0, Math.floor(options?.infernalAnglerDroneLevel ?? 0));
   const tier2_dock_power_mult =
     tier2DockBase *
     (1 + 0.0005 * tethysIdol) *
     (options?.legendaryHaulerBundle ? 1.1 : 1) *
-    (1 + 0.05 * mrNibblesQuestRank) *
+    mrNibblesQuestMult *
     (1 + (infernalAnglerPct * infernalAnglerLvl) / 100) *
     (options?.blackHoleBonus ? 1.25 : 1);
 
-  // Shiny Multiplier: base 5×, +5% per level (T2 upgrade and enhance; multiplicative so each step is 1.05×). Pets: Mr Nibbles +0.03× per level (own mult). Divine Challenge Coin: +10% per level (own mult).
-  const shinyBase = 5 * Math.pow(1.05, u("shiny_multiplier")) * Math.pow(1.05, e("enhance_shiny_multiplier"));
+  // Shiny Multiplier: base 5×, +5% per level (T2 upgrade and enhance; additive mult: 1 + 0.05×level each). Pets: Mr Nibbles +0.03× per level (own mult). Divine Challenge Coin: +10% per level (own mult).
+  const shinyBase = 5 * (1 + 0.05 * u("shiny_multiplier")) * (1 + 0.05 * e("enhance_shiny_multiplier"));
   const divineChallengeCoinLevel = Math.max(0, Math.floor(options?.divineChallengeCoinLevel ?? 0));
   const shiny_multiplier = shinyBase * (1 + 0.03 * mrNibblesLevel) * (1 + 0.1 * divineChallengeCoinLevel);
 
@@ -307,6 +322,7 @@ export function computeFishingStatsFromLevels(
     drone_base_power_base,
     drone_base_power_base_rounded,
     drone_power_multiplier,
+    drone_power_multiplier_breakdown,
     fish_income_multi,
     fishing_tick_reduction,
     double_tick_chance_pct,

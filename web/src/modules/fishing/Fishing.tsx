@@ -88,8 +88,12 @@ type SavedState = {
   mcRuns?: number;
   /** Pets: Mr Nibbles level. */
   mrNibblesLevel?: number;
-  /** Pets: Mr Nibbles Quest rank. */
+  /** Pets: Mr Nibbles Quest unlocked (rank 0 = +5% T2 Dock Power). */
+  mrNibblesQuestUnlocked?: boolean;
+  /** Pets: Mr Nibbles Quest rank (0-based; only when unlocked). */
   mrNibblesQuestRank?: number;
+  /** Pets: Mr Nibbles Pet Skin. +2% Shiny Fish Chance (flat). */
+  mrNibblesSkin?: boolean;
   poseidonIdolLevel?: number;
   tethysIdolLevel?: number;
   astraeusIdolLevel?: number;
@@ -150,8 +154,12 @@ type FishingState = {
   mcRuns: number;
   /** Pets: Mr Nibbles level. +0.03× Shiny Multi per level (own mult), +1% Triple Tick Chance per level (flat). */
   mrNibblesLevel: number;
-  /** Pets: Mr Nibbles Quest rank. Tier 2 Dock Power +5% per rank (own mult). */
+  /** Pets: Mr Nibbles Quest unlocked. When true, rank 0 = +5% T2 Dock Power (own mult). */
+  mrNibblesQuestUnlocked: boolean;
+  /** Pets: Mr Nibbles Quest rank (0-based). Mult = 1 + 0.05×(rank+1) when unlocked. */
   mrNibblesQuestRank: number;
+  /** Pets: Mr Nibbles Pet Skin. +2% Shiny Fish Chance (flat). */
+  mrNibblesSkin: boolean;
   /** Archaeology: Poseidon Idol level. +0.25 base drone power per level. */
   poseidonIdolLevel: number;
   /** Archaeology: Tethys Idol level. Tier 2 +0.05%, Drone multi +0.05%, Super shiny multi +0.05% per level. */
@@ -219,7 +227,9 @@ function getDefaultFishingState(): FishingState {
     mcHours: 8,
     mcRuns: 1000,
     mrNibblesLevel: 0,
+    mrNibblesQuestUnlocked: false,
     mrNibblesQuestRank: 0,
+    mrNibblesSkin: false,
     poseidonIdolLevel: 0,
     tethysIdolLevel: 0,
     astraeusIdolLevel: 0,
@@ -794,6 +804,43 @@ function NumberRow(props: {
   );
 }
 
+/** Inline rank stepper (minus, "rank", input, plus) with local input state. */
+function InlineRankStepper(props: { value: number; min: number; max: number; onChange: (v: number) => void }) {
+  const { value, min, max, onChange } = props;
+  const [focused, setFocused] = useState(false);
+  const [raw, setRaw] = useState(() => String(value));
+  useEffect(() => {
+    if (!focused) setRaw(String(value));
+  }, [value, focused]);
+  const commit = () => {
+    setFocused(false);
+    const parsed = parseInt(raw.trim().replaceAll(",", "."), 10);
+    if (!Number.isFinite(parsed)) {
+      setRaw(String(value));
+      return;
+    }
+    onChange(clamp(Math.floor(parsed), min, max));
+  };
+  return (
+    <div className="fishingStepperLvlBlock">
+      <button type="button" className="btn fishingStepperMinusBtn" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label="Decrease by 1">−</button>
+      <span className="fishingUpgradeLevelLabel">rank</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        className="input mono fishingStepperLevelInput fishingStepperLevelInputWide"
+        value={focused ? raw : String(value)}
+        onChange={(e) => setRaw(e.target.value)}
+        onFocus={() => { setFocused(true); setRaw(String(value)); }}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        aria-label="Quest rank"
+      />
+      <button type="button" className="btn fishingStepperPlusBtn" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label="Increase by 1">+</button>
+    </div>
+  );
+}
+
 /** Row with icon + label, editable level (no cap shown), single +1 button, optional effect text. */
 function StepperRow(props: {
   label: string;
@@ -1118,6 +1165,8 @@ export function Fishing() {
     const mrNibblesLevel = Number.isFinite(rawMrLvl) ? Math.max(0, Math.trunc(rawMrLvl)) : 0;
     const rawMrQuest = Number(saved?.mrNibblesQuestRank ?? 0);
     const mrNibblesQuestRank = Number.isFinite(rawMrQuest) ? Math.max(0, Math.trunc(rawMrQuest)) : 0;
+    const mrNibblesQuestUnlocked = saved?.mrNibblesQuestUnlocked === true || (saved?.mrNibblesQuestUnlocked === undefined && mrNibblesQuestRank > 0);
+    const mrNibblesSkin = Boolean(saved?.mrNibblesSkin ?? false);
     const poseidonIdolLevel = Math.max(0, Math.trunc(Number(saved?.poseidonIdolLevel ?? 0)));
     const tethysIdolLevel = Math.max(0, Math.trunc(Number(saved?.tethysIdolLevel ?? 0)));
     const astraeusIdolLevel = Math.max(0, Math.trunc(Number(saved?.astraeusIdolLevel ?? 0)));
@@ -1137,7 +1186,7 @@ export function Fishing() {
     const infernalMrNibblesLevel = Math.max(0, Math.trunc(Number(saved?.infernalMrNibblesLevel ?? 0)));
     const infernalAnglerDronePct = Math.max(0, Number(saved?.infernalAnglerDronePct ?? 0));
     const infernalAnglerDroneLevel = Math.max(0, Math.trunc(Number(saved?.infernalAnglerDroneLevel ?? 0)));
-    return { dronesPerDock, showDisabledFishGrayed, showPolyShardDroprate, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, abyssLegendaryCaught, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestRank, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
+    return { dronesPerDock, showDisabledFishGrayed, showPolyShardDroprate, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, abyssLegendaryCaught, divineRelic5xPoints, mcHours, mcRuns, mrNibblesLevel, mrNibblesQuestUnlocked, mrNibblesQuestRank, mrNibblesSkin, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
   });
 
   useEffect(() => {
@@ -1176,7 +1225,9 @@ export function Fishing() {
     legendaryFishFound: state.legendaryFishFound,
     relic5xPoints: state.divineRelic5xPoints,
     mrNibblesLevel: state.mrNibblesLevel,
+    mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
     mrNibblesQuestRank: state.mrNibblesQuestRank,
+    mrNibblesSkin: state.mrNibblesSkin,
     poseidonIdolLevel: state.poseidonIdolLevel,
     tethysIdolLevel: state.tethysIdolLevel,
     astraeusIdolLevel: state.astraeusIdolLevel,
@@ -2123,6 +2174,11 @@ export function Fishing() {
       abyssLegendaryCaught: state.abyssLegendaryCaught,
       fishingRodCardTier: state.fishingRodCardTier,
       mrNibblesCardTier: state.mrNibblesCardTier,
+      relic5xPoints: state.divineRelic5xPoints,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
       astraeusIdolLevel: state.astraeusIdolLevel,
@@ -2267,6 +2323,10 @@ export function Fishing() {
       abyssLegendaryCaught: state.abyssLegendaryCaught,
       fishingRodCardTier: state.fishingRodCardTier,
       mrNibblesCardTier: state.mrNibblesCardTier,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
       astraeusIdolLevel: state.astraeusIdolLevel,
@@ -2315,6 +2375,10 @@ export function Fishing() {
     state.abyssLegendaryCaught,
     state.fishingRodCardTier,
     state.mrNibblesCardTier,
+    state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
+    state.mrNibblesQuestRank,
+    state.mrNibblesSkin,
     state.poseidonIdolLevel,
     state.astraeusIdolLevel,
     state.droneBasePowerWorld3Upgrade,
@@ -2343,6 +2407,10 @@ export function Fishing() {
       abyssLegendaryCaught: state.abyssLegendaryCaught,
       fishingRodCardTier: state.fishingRodCardTier,
       mrNibblesCardTier: state.mrNibblesCardTier,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
       astraeusIdolLevel: state.astraeusIdolLevel,
@@ -2391,6 +2459,9 @@ export function Fishing() {
     state.abyssLegendaryCaught,
     state.fishingRodCardTier,
     state.mrNibblesCardTier,
+    state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
+    state.mrNibblesQuestRank,
     state.tethysIdolLevel,
     state.astraeusIdolLevel,
     state.droneBasePowerWorld3Upgrade,
@@ -2418,6 +2489,9 @@ export function Fishing() {
       legendaryFishFound: state.legendaryFishFound,
       abyssLegendaryCaught: state.abyssLegendaryCaught,
       fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
       mrNibblesCardTier: state.mrNibblesCardTier,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
@@ -2467,6 +2541,10 @@ export function Fishing() {
     state.abyssLegendaryCaught,
     state.fishingRodCardTier,
     state.mrNibblesCardTier,
+    state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
+    state.mrNibblesQuestRank,
+    state.mrNibblesSkin,
     state.poseidonIdolLevel,
     state.tethysIdolLevel,
     state.droneBasePowerWorld3Upgrade,
@@ -2497,7 +2575,9 @@ export function Fishing() {
       mrNibblesCardTier: state.mrNibblesCardTier,
       relic5xPoints: state.divineRelic5xPoints,
       mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
       mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
       astraeusIdolLevel: state.astraeusIdolLevel,
@@ -2643,7 +2723,9 @@ export function Fishing() {
     state.valuePackPotencyPoly,
     state.divineRelic5xPoints,
     state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
     state.mrNibblesQuestRank,
+    state.mrNibblesSkin,
     state.poseidonIdolLevel,
     state.tethysIdolLevel,
     state.astraeusIdolLevel,
@@ -2778,6 +2860,10 @@ export function Fishing() {
       abyssLegendaryCaught: state.abyssLegendaryCaught,
       fishingRodCardTier: state.fishingRodCardTier,
       mrNibblesCardTier: state.mrNibblesCardTier,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
       poseidonIdolLevel: state.poseidonIdolLevel,
       tethysIdolLevel: state.tethysIdolLevel,
       astraeusIdolLevel: state.astraeusIdolLevel,
@@ -2963,6 +3049,9 @@ export function Fishing() {
     state.fishCardTier,
     state.legendaryFishFound,
     state.fishingRodCardTier,
+    state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
+    state.mrNibblesQuestRank,
     effectiveRodPower,
     elixir3xFishingExternal,
     extraTicksPerHour,
@@ -2985,7 +3074,7 @@ export function Fishing() {
       return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishCardGildCostEfficGemAbs: efficMapGemAbs, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, fishingRodCardGildCostEfficGemAbs: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1, costEfficHeatMinFishCardGemAbs: 0, costEfficHeatMaxFishCardGemAbs: 1 };
     }
     const cardToGildedRatio = 2 / 1.5; // Card 1.5× → Gilded 2×
-    const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints, mrNibblesLevel: state.mrNibblesLevel, mrNibblesQuestRank: state.mrNibblesQuestRank, poseidonIdolLevel: state.poseidonIdolLevel, tethysIdolLevel: state.tethysIdolLevel, astraeusIdolLevel: state.astraeusIdolLevel, droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3, mrNibblesCardTier: state.mrNibblesCardTier, legendaryHaulerBundle: state.legendaryHaulerBundle, fishersBundle: state.fishersBundle, anglerBundle: state.anglerBundle, divineChallengeCoinLevel: state.divineChallengeCoinLevel, infernalMrNibblesPct: state.infernalMrNibblesPct, infernalMrNibblesLevel: state.infernalMrNibblesLevel, infernalAnglerDronePct: state.infernalAnglerDronePct, infernalAnglerDroneLevel: state.infernalAnglerDroneLevel, constructStatue: state.constructStatue, cetusLevel: state.cetusLevel, blackHoleBonus: state.blackHoleBonus };
+    const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints, mrNibblesLevel: state.mrNibblesLevel, mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked, mrNibblesQuestRank: state.mrNibblesQuestRank, mrNibblesSkin: state.mrNibblesSkin, poseidonIdolLevel: state.poseidonIdolLevel, tethysIdolLevel: state.tethysIdolLevel, astraeusIdolLevel: state.astraeusIdolLevel, droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3, mrNibblesCardTier: state.mrNibblesCardTier, legendaryHaulerBundle: state.legendaryHaulerBundle, fishersBundle: state.fishersBundle, anglerBundle: state.anglerBundle, divineChallengeCoinLevel: state.divineChallengeCoinLevel, infernalMrNibblesPct: state.infernalMrNibblesPct, infernalMrNibblesLevel: state.infernalMrNibblesLevel, infernalAnglerDronePct: state.infernalAnglerDronePct, infernalAnglerDroneLevel: state.infernalAnglerDroneLevel, constructStatue: state.constructStatue, cetusLevel: state.cetusLevel, blackHoleBonus: state.blackHoleBonus };
     const legFishIds = new Set(LEGENDARY_FISH.map((leg) => leg.id));
     for (const row of visibleGainsRows) {
       if (!row.hasPower || row.fishPerHour <= 0) continue;
@@ -3899,13 +3988,35 @@ export function Fishing() {
                     decimals={2}
                     suffix=""
                   />
-                  <StatRow
-                    label="Drone Power Multi"
-                    iconUrl={upgradeIconUrl("Drone_Power_Multiplier.png")}
-                    value={stats.drone_power_multiplier}
-                    decimals={2}
-                    suffix="×"
-                  />
+                  <div className="fishingRow fishingRowInline">
+                    <div className="fishingLabelLeft">
+                      <img src={upgradeIconUrl("Drone_Power_Multiplier.png")} alt="" className="iconSmall" style={{ width: 18, height: 18, objectFit: "contain" }} />
+                      <span className="fishingRowLabel">Drone Power Multi</span>
+                      <Tooltip
+                        content={{
+                          title: "Drone Power Multi",
+                          sections: stats.drone_power_multiplier_breakdown
+                            ? [
+                                {
+                                  heading: "Breakdown (compare with game)",
+                                  lines: [
+                                    `Upgrade (1 + 0.06×lvl): ×${stats.drone_power_multiplier_breakdown.upgrade.toFixed(2)}`,
+                                    `Enhance (1 + 0.08×lvl): ×${stats.drone_power_multiplier_breakdown.enhance.toFixed(2)}`,
+                                    `FWF (1 + 0.1×lvl): ×${stats.drone_power_multiplier_breakdown.fwf.toFixed(2)}`,
+                                    `Completionist (1 + 0.02×lvl×leg): ×${stats.drone_power_multiplier_breakdown.completionist.toFixed(2)}`,
+                                    `Workshop World 3 (1 + 0.02×lvl): ×${stats.drone_power_multiplier_breakdown.workshop.toFixed(2)}`,
+                                    `Tethys Idol (1 + 0.05%×lvl): ×${stats.drone_power_multiplier_breakdown.tethys.toFixed(4)}`,
+                                    `Total: ×${stats.drone_power_multiplier.toFixed(2)}`,
+                                  ],
+                                },
+                              ]
+                            : [{ heading: "Source", lines: ["Upgrade, Enhance, Skill, Workshop World 3, Tethys Idol."] }],
+                        }}
+                        label="?"
+                      />
+                    </div>
+                    <span className="mono fishingRowValue">{Number.isFinite(stats.drone_power_multiplier) ? stats.drone_power_multiplier.toFixed(2) : "—"}×</span>
+                  </div>
                   <StatRow
                     label="Fish Income Multi"
                     iconUrl={upgradeIconUrl("Fish_Income_Multiplier.png")}
@@ -5396,27 +5507,88 @@ export function Fishing() {
                 }
                 inputClassName="fishingStepperLevelInputWide"
               />
-              <StepperRow
-                label="Mr Nibbles Quest"
-                iconUrl="https://static.wikitide.net/shminerwiki/thumb/f/fa/Mr_Nibbles_Quest.png/36px-Mr_Nibbles_Quest.png"
-                value={state.mrNibblesQuestRank}
-                min={0}
-                max={999}
-                onChange={(n) => setState((prev) => ({ ...prev, mrNibblesQuestRank: Math.max(0, n) }))}
-                tooltipContent={{
-                  title: "Mr Nibbles Quest",
-                  sections: [
-                    {
-                      heading: "Effect",
-                      lines: [
-                        "Pets: Tier 2 Dock Power +5% per rank (own multiplier). Applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
-                      ],
-                    },
-                  ],
-                }}
-                effectText={`→ T2 Dock Power ×${(1 + 0.05 * state.mrNibblesQuestRank).toFixed(2)} (+${state.mrNibblesQuestRank * 5}%)`}
-                inputClassName="fishingStepperLevelInputWide"
-              />
+              <div className="fishingStepperRow">
+                <div className="fishingStepperNameBlock">
+                  <img src="https://static.wikitide.net/shminerwiki/thumb/f/fa/Mr_Nibbles_Quest.png/36px-Mr_Nibbles_Quest.png" alt="" className="fishingUpgradeIcon" aria-hidden />
+                  <div className="fishingStepperLabelBlock">
+                    <span className="fishingStepperRowLabel">Mr Nibbles Quest</span>
+                    <Tooltip
+                      content={{
+                        title: "Mr Nibbles Quest",
+                        sections: [
+                          {
+                            heading: "Effect",
+                            lines: [
+                              "Pets: when unlocked, Tier 2 Dock Power +5% at rank 0 (own multiplier); each rank adds +5%. Applies only on T2 docks (Cave, Volcano, Sky, Solaris, Galaxy).",
+                            ],
+                          },
+                        ],
+                      }}
+                      label="?"
+                    />
+                  </div>
+                </div>
+                <div className="fishingStepperLvlBlock" style={{ gap: 8 }}>
+                  <label className="fishingStepperCheckboxWrap" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      id="fishing-mr-nibbles-quest-unlocked"
+                      className="fishingCheckbox"
+                      checked={state.mrNibblesQuestUnlocked}
+                      onChange={(e) => setState((prev) => ({ ...prev, mrNibblesQuestUnlocked: e.target.checked }))}
+                    />
+                    <span className="fishingUpgradeLevelLabel">on</span>
+                  </label>
+                  {state.mrNibblesQuestUnlocked && (
+                    <InlineRankStepper
+                      value={state.mrNibblesQuestRank}
+                      min={0}
+                      max={999}
+                      onChange={(n) => setState((prev) => ({ ...prev, mrNibblesQuestRank: n }))}
+                    />
+                  )}
+                </div>
+                {state.mrNibblesQuestUnlocked ? (
+                  <span className="mono fishingStepperEffect">→ T2 Dock Power ×{(1 + 0.05 * (state.mrNibblesQuestRank + 1)).toFixed(2)} (+{(state.mrNibblesQuestRank + 1) * 5}%)</span>
+                ) : (
+                  <span className="fishingStepperEffect" style={{ opacity: 0.6 }}>—</span>
+                )}
+              </div>
+              <div className="fishingStepperRow">
+                <div className="fishingStepperNameBlock">
+                  <img src="https://static.wikitide.net/shminerwiki/thumb/e/eb/Mr_Nibbles_Skin.png/36px-Mr_Nibbles_Skin.png" alt="" className="fishingUpgradeIcon" aria-hidden />
+                  <div className="fishingStepperLabelBlock">
+                    <span className="fishingStepperRowLabel">Mr Nibbles Pet Skin</span>
+                    <Tooltip
+                      content={{
+                        title: "Mr Nibbles Pet Skin",
+                        sections: [
+                          {
+                            heading: "Effect",
+                            lines: [
+                              "Pets: +2% Shiny Fish Chance (flat).",
+                            ],
+                          },
+                        ],
+                      }}
+                      label="?"
+                    />
+                  </div>
+                </div>
+                <div className="fishingStepperLvlBlock">
+                  <label className="fishingStepperCheckboxWrap" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      id="fishing-mr-nibbles-skin"
+                      className="fishingCheckbox"
+                      checked={state.mrNibblesSkin}
+                      onChange={(e) => setState((prev) => ({ ...prev, mrNibblesSkin: e.target.checked }))}
+                    />
+                    <span className="fishingUpgradeLevelLabel">on</span>
+                  </label>
+                </div>
+                <span className="mono fishingStepperEffect">{state.mrNibblesSkin ? "→ +2% Shiny Fish Chance" : "—"}</span>
+              </div>
             </div>
 
             <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
@@ -5957,7 +6129,7 @@ export function Fishing() {
                 min={0}
                 max={999}
                 onChange={(n) => setState((prev) => ({ ...prev, fishingDroneBasePowerWorld3: Math.max(0, n) }))}
-                effectText={`→ +${(state.fishingDroneBasePowerWorld3 * 0.02).toFixed(2)}× multi`}
+                effectText={`→ ×${(1 + state.fishingDroneBasePowerWorld3 * 0.02).toFixed(2)} Drone Power multi`}
                 inputClassName="fishingStepperLevelInputWide"
               />
               <StepperRow
