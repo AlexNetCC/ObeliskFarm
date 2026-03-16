@@ -1034,7 +1034,7 @@ export function GemEv() {
                       onChange={(e) => setVarianceShowPercentiles(e.target.checked)}
                       aria-label="Show percentiles (P10–P90) in table"
                     />
-                    Show probabilities
+                    Show percentiles
                   </label>
                 </div>
                 {varianceSimResult ? (
