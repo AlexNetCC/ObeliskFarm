@@ -133,18 +133,18 @@ function sampleOneGiftGemValue(params: GiftSimParams, rng: () => number): number
       case 7:
         return 0;
       case 6:
-        return droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMultThis;
+        return droneFuelAvgQty * gemsPerFuel * luckyMultThis;
       case 8:
       case 9:
         return 0;
       case 10:
-        return gems15k25kAvg * obeliskMult * luckyMultThis;
+        return gems15k25kAvg * luckyMultThis;
       case 11:
         return params.gift_forbidden_sushi_gem_value ?? 0;
       case 12:
         return 1.5 * (params.gift_cosmic_candy_gem_value ?? 0);
       case 13:
-        return 105 * obeliskMult;
+        return 105 * luckyMultThis;
       case 14:
         return 25 * giftEvPerGift;
       case 15:
@@ -169,15 +169,15 @@ function sampleOneGiftGemValue(params: GiftSimParams, rng: () => number): number
     gems20_40 * obeliskMult * luckyMultThis,
     gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
-    itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
-    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
-    params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
+    itemChestsAvg * chestValue * luckyMultThis,
+    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * luckyMultThis,
+    params.gift_fishing_unlocked ? fishingTickValue * luckyMultThis : chargeMagnetAvg * magnetValue * luckyMultThis,
     gems20_40 * obeliskMult * luckyMultThis,
     gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
-    itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
-    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
-    params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
+    itemChestsAvg * chestValue * luckyMultThis,
+    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * luckyMultThis,
+    params.gift_fishing_unlocked ? fishingTickValue * luckyMultThis : chargeMagnetAvg * magnetValue * luckyMultThis,
   ];
   const which = Math.floor(rng() * 12);
   return basicValues[which] ?? 0;
@@ -219,15 +219,15 @@ function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { 
       case 2:
         return { gems: gems80_130_avg * obeliskMult * luckyMultThis, sushi: 0 };
       case 6:
-        return { gems: droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMultThis, sushi: 0 };
+        return { gems: droneFuelAvgQty * gemsPerFuel * luckyMultThis, sushi: 0 };
       case 8:
         return { gems: 0, sushi: (15 + rng() * 9) * luckyMultThis };
       case 9:
         return { gems: 0, sushi: (50 + rng() * 10) * luckyMultThis };
       case 10:
-        return { gems: gems15k25kAvg * obeliskMult * luckyMultThis, sushi: 0 };
+        return { gems: gems15k25kAvg * luckyMultThis, sushi: 0 };
       case 13:
-        return { gems: 105 * obeliskMult, sushi: 0 };
+        return { gems: 105 * luckyMultThis, sushi: 0 };
       case 14:
         return { gems: 25 * giftEvPerGift, sushi: 0 };
       default:
@@ -251,15 +251,15 @@ function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { 
     gems20_40 * obeliskMult * luckyMultThis,
     gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
-    itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
-    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
-    params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
+    itemChestsAvg * chestValue * luckyMultThis,
+    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * luckyMultThis,
+    params.gift_fishing_unlocked ? fishingTickValue * luckyMultThis : chargeMagnetAvg * magnetValue * luckyMultThis,
     gems20_40 * obeliskMult * luckyMultThis,
     gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
-    itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
-    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
-    params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
+    itemChestsAvg * chestValue * luckyMultThis,
+    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * luckyMultThis,
+    params.gift_fishing_unlocked ? fishingTickValue * luckyMultThis : chargeMagnetAvg * magnetValue * luckyMultThis,
   ];
   const which = Math.floor(rng() * 12);
   return { gems: basicValues[which] ?? 0, sushi: 0 };

@@ -85,6 +85,9 @@ function GiftRewardMultipliersTable(props: { obeliskMult: number; luckyMult: num
       <div style={{ fontSize: 14, fontWeight: 700, color: titleColor, marginBottom: 6 }}>
         Gift Reward Multipliers
       </div>
+      <div style={{ fontSize: 11, color: titleColor, opacity: 0.85, marginBottom: 4 }}>
+        Obelisk mult only for [1] outcomes (e.g. basic Gems, Shards, Relic; rare 80–130 Gems). Lucky applies to all.
+      </div>
       <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
         <table style={{ borderCollapse: "collapse", fontSize: 14 }}>
           <tbody>

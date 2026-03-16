@@ -619,15 +619,14 @@ export function convertTimeBoostToGemEquivalent(params: GameParameters, minutes2
   return additionalFreebies * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
 }
 
-/** Expected Item Chests per Gift (wiki Store#Gifts). One of 12 basic outcomes: 25–40 Item Chests (avg 32.5). [1] Obelisk and Lucky apply. */
+/** Expected Item Chests per Gift (wiki Store#Gifts). One of 12 basic outcomes: 25–40 Item Chests (avg 32.5). No [1] → Lucky only. */
 export function getExpectedItemChestsPerGift(params: GameParameters): number {
   const obelisk = clampPositive(params.obelisk_level ?? 0, 0);
   const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
-  const obeliskMult = calculateObeliskMultiplier(params);
   const luckyMult = calculateLuckyMultiplier();
   const chancePerItem = 1 / 12;
   const itemChestsAvg = 32.5;
-  return probBasicRoll * chancePerItem * itemChestsAvg * obeliskMult * luckyMult;
+  return probBasicRoll * chancePerItem * itemChestsAvg * luckyMult;
 }
 
 /** Expected Relic Chests per Gift from basic outcomes (wiki Store#Gifts). Two of 12 basic outcomes: 3–5 (avg 4) and 5–10 (avg 7.5). [1] Obelisk mult applies. */
@@ -739,25 +738,25 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
   const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
   const droneFuelAvgQty = 5 + 2 * obelisk;
   const rareGemsEv = rare.gems80_130 * 105.0 * obeliskMult * luckyMult;
-  const droneFuelEv = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
-  const skinEv = rare.skin * 105.0 * obeliskMult;
+  const droneFuelEv = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * luckyMult;
+  const skinEv = rare.skin * 105.0 * luckyMult;
 
   const gems15k25kAvg = 20000.0;
-  const gems15k25kEv = rare.gems15k_25k * gems15k25kAvg * obeliskMult * luckyMult;
+  const gems15k25kEv = rare.gems15k_25k * gems15k25kAvg * luckyMult;
   const frogspawnEv = rare.frogspawn * 1.5 * (params.gift_frogspawn_gem_value ?? 0);
   const forbiddenSushiEv = rare.forbiddenSushi * (params.gift_forbidden_sushi_gem_value ?? 0);
   const cosmicCandyAvgQty = 1.5;
   const cosmicCandyEv = rare.cosmicCandy * cosmicCandyAvgQty * (params.gift_cosmic_candy_gem_value ?? 0);
 
+  // Only [1] outcomes get Obelisk mult (1+Ob×0.08). Lucky (3×/50×) applies to all. Wiki Store#Gifts.
   const baseGemsWithMult = baseRollGems * obeliskMult * luckyMult;
   const baseShardsWithMult = baseRollShards * obeliskMult * luckyMult;
-  const itemChestsWithMult = itemChestsEv * obeliskMult * luckyMult;
-  const chaosTotemWithMult = chaosTotemEv * obeliskMult * luckyMult;
-  const chargeMagnetWithMult = chargeMagnetEv * obeliskMult * luckyMult;
-  const fishingTickWithMult = fishingTickEv * obeliskMult * luckyMult;
+  const itemChestsWithMult = itemChestsEv * luckyMult;
+  const chaosTotemWithMult = chaosTotemEv * luckyMult;
+  const chargeMagnetWithMult = chargeMagnetEv * luckyMult;
+  const fishingTickWithMult = fishingTickEv * luckyMult;
 
-  const recursiveCoeff =
-    rare.gifts3 * 3.0 * obeliskMult * luckyMult + rare.gildedSkin * 25.0 * obeliskMult * luckyMult;
+  const recursiveCoeff = rare.gifts3 * 3.0 * luckyMult + rare.gildedSkin * 25.0 * luckyMult;
   const A =
     baseGemsWithMult +
     baseShardsWithMult +
@@ -794,25 +793,25 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const gems20_50_final = probBasicRoll * chancePerItem * gems20_50 * obeliskMult * luckyMult;
   const skillShards_final = probBasicRoll * chancePerItem * skillShardsBase * skillShardValue * obeliskMult * luckyMult;
   const item_chests_final =
-    probBasicRoll * chancePerItem * itemChestsAvg * (params.gift_item_chest_value ?? 0) * obeliskMult * luckyMult;
+    probBasicRoll * chancePerItem * itemChestsAvg * (params.gift_item_chest_value ?? 0) * luckyMult;
   const chaos_totem_final = params.gift_chaos_totem_100_from_bombs
     ? 0
-    : probBasicRoll * chancePerItem * chaosTotemAvg * (params.gift_chaos_totem_value_per_totem ?? 0) * obeliskMult * luckyMult;
+    : probBasicRoll * chancePerItem * chaosTotemAvg * (params.gift_chaos_totem_value_per_totem ?? 0) * luckyMult;
   const charge_magnet_final = !params.gift_fishing_unlocked
-    ? probBasicRoll * chancePerItem * chargeMagnetAvg * (params.gift_charge_magnet_value_per_magnet ?? 0) * obeliskMult * luckyMult
+    ? probBasicRoll * chancePerItem * chargeMagnetAvg * (params.gift_charge_magnet_value_per_magnet ?? 0) * luckyMult
     : 0;
   const fishing_tick_final = params.gift_fishing_unlocked
-    ? probBasicRoll * chancePerItem * (params.gift_fishing_tick_value ?? 0) * obeliskMult * luckyMult
+    ? probBasicRoll * chancePerItem * (params.gift_fishing_tick_value ?? 0) * luckyMult
     : 0;
 
   const rare = computeRareRollWinProbs(obelisk, params.gift_black_hole_unlocked);
   const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
   const droneFuelAvgQty = 5 + 2 * obelisk;
   const rare_gems_final = rare.gems80_130 * 105.0 * obeliskMult * luckyMult;
-  const drone_fuel_final = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
-  const skin_final = rare.skin * 105.0 * obeliskMult;
+  const drone_fuel_final = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * luckyMult;
+  const skin_final = rare.skin * 105.0 * luckyMult;
 
-  const gems15k25k_final = rare.gems15k_25k * 20000.0 * obeliskMult * luckyMult;
+  const gems15k25k_final = rare.gems15k_25k * 20000.0 * luckyMult;
   const frogspawn_final = rare.frogspawn * 1.5 * (params.gift_frogspawn_gem_value ?? 0);
   const forbidden_sushi_final = rare.forbiddenSushi * (params.gift_forbidden_sushi_gem_value ?? 0);
   const cosmic_candy_final = rare.cosmicCandy * 1.5 * (params.gift_cosmic_candy_gem_value ?? 0);
@@ -842,18 +841,18 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const gems20_40_qty = probBasicRoll * chancePerItem * gems20_40 * obeliskMult * luckyMult;
   const gems20_50_qty = probBasicRoll * chancePerItem * gems20_50 * obeliskMult * luckyMult;
   const skillShards_qty = probBasicRoll * chancePerItem * skillShardsBase * obeliskMult * luckyMult;
-  const itemChests_qty = probBasicRoll * chancePerItem * itemChestsAvg * obeliskMult * luckyMult;
-  const chaosTotem_qty = params.gift_chaos_totem_100_from_bombs ? 0 : probBasicRoll * chancePerItem * chaosTotemAvg * obeliskMult * luckyMult;
-  const chargeMagnet_qty = !params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * chargeMagnetAvg * obeliskMult * luckyMult : 0;
-  const fishingTick_min = params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * 12.5 * obeliskMult * luckyMult : 0;
+  const itemChests_qty = probBasicRoll * chancePerItem * itemChestsAvg * luckyMult;
+  const chaosTotem_qty = params.gift_chaos_totem_100_from_bombs ? 0 : probBasicRoll * chancePerItem * chaosTotemAvg * luckyMult;
+  const chargeMagnet_qty = !params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * chargeMagnetAvg * luckyMult : 0;
+  const fishingTick_min = params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * 12.5 * luckyMult : 0;
   const fishPerHourDuring5x = params.gift_fish_per_hour_during_5x_buff ?? 0;
   const fishing_tick_fish = fishPerHourDuring5x > 0 ? (fishingTick_min / 60) * fishPerHourDuring5x : 0;
   const rareGems_qty = rare.gems80_130 * 105 * obeliskMult * luckyMult;
-  const droneFuel_qty = rare.droneFuel * droneFuelAvgQty * obeliskMult * luckyMult;
-  const skin_qty = rare.skin * 105 * obeliskMult;
+  const droneFuel_qty = rare.droneFuel * droneFuelAvgQty * luckyMult;
+  const skin_qty = rare.skin * 105 * luckyMult;
   const sushi_qty = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
-  const recursiveGifts_qty = rare.gifts3 * 3 * obeliskMult * luckyMult + rare.gildedSkin * 25 * obeliskMult * luckyMult;
-  const gems15k25k_qty = rare.gems15k_25k * 20000 * obeliskMult * luckyMult;
+  const recursiveGifts_qty = rare.gifts3 * 3 * luckyMult + rare.gildedSkin * 25 * luckyMult;
+  const gems15k25k_qty = rare.gems15k_25k * 20000 * luckyMult;
 
   const basicDropPct = (probBasicRoll * 100) / 12;
   return {
