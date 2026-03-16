@@ -1996,15 +1996,16 @@ export function Fishing() {
   /** Fish per hour during 5× Tick Chance buff. totalFishPerHour already includes 2×/3×/5× tick mult; gift adds one more 5× (multiplicative). For Gem EV Gift chart: effective min + fish from that buff. */
   const giftFishPerHourDuring5xBuff = 5 * sushiEvAndTotal.totalFishPerHour;
 
-  /** Export for Gem EV: fish EV per 1 Sushi; fish/h during 5× buff (for Gift chart); W3 debuff total fish/h % loss for table. */
+  /** Export for Gem EV: fish EV per 1 Sushi; fish/h during 5× buff (for Gift chart); W3 debuff; fishing tick reduction (Founder supply drop: 0.5× per drop). */
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.fishPerSushiEvForGift = sushiEvAndTotal.fishPerSushiEv;
     ext.giftFishPerHourDuring5xBuff = giftFishPerHourDuring5xBuff;
     if (w3FishPctLoss != null) ext.w3_debuff_fish_pct_loss = w3FishPctLoss;
     else delete ext.w3_debuff_fish_pct_loss;
+    ext.founder_fishing_tick_reduction = Math.max(0, -stats.fishing_tick_reduction);
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [sushiEvAndTotal.fishPerSushiEv, giftFishPerHourDuring5xBuff, w3FishPctLoss]);
+  }, [sushiEvAndTotal.fishPerSushiEv, giftFishPerHourDuring5xBuff, w3FishPctLoss, stats.fishing_tick_reduction]);
 
   function runSushiMc() {
     const { fishPerSushiEv, fishPerSushiEvPerFish } = sushiEvAndTotal;
@@ -2085,6 +2086,26 @@ export function Fishing() {
       ),
     [stats.boat_level, stats.t2_boat_level],
   );
+
+  /** Total gems spent on enhancements so far (sum of cost to reach each current level). */
+  const totalGemsSpentOnEnhancements = useMemo(() => {
+    let total = 0;
+    const enhanceCosts = (def: { id: EnhanceId }) => {
+      const t1 = ENHANCE_COSTS_T1[def.id as keyof typeof ENHANCE_COSTS_T1];
+      const t2 = ENHANCE_COSTS_T2[def.id as keyof typeof ENHANCE_COSTS_T2];
+      return t1 ?? t2;
+    };
+    for (const def of [...ENHANCEMENTS_T1, ...ENHANCEMENTS_T2]) {
+      const costs = enhanceCosts(def);
+      if (!costs?.length) continue;
+      const lvl = Math.max(0, Math.min(costs[costs.length - 1]!.level, Math.floor(enhanceLevels[def.id] ?? 0)));
+      for (let i = 1; i <= lvl; i++) {
+        const entry = costs.find((c) => c.level === i);
+        if (entry) total += entry.gems;
+      }
+    }
+    return total;
+  }, [enhanceLevels]);
 
   const { heatMin, heatMax } = useMemo(() => {
     const enabled = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0);
@@ -4458,6 +4479,11 @@ export function Fishing() {
             <p className="fishingEnhancementsIntro">
               Enhancements cost <img src={GEM_ICON_URL} alt="gems" className="fishingGemIcon" /> gems. They do not count toward completion. See{" "}
               <a href="https://shminer.miraheze.org/wiki/Fishing#Enhancements" target="_blank" rel="noopener noreferrer">Fishing § Enhancements</a>.
+            </p>
+            <p className="fishingEnhancementsIntro fishingEnhancementsTotalSpent">
+              Gems spent on enhancements so far:{" "}
+              <span className="mono" style={{ fontVariantNumeric: "tabular-nums" }}>{totalGemsSpentOnEnhancements.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              {" "}<img src={GEM_ICON_URL} alt="" className="fishingGemIcon" />
             </p>
             <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">

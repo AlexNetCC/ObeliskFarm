@@ -68,6 +68,37 @@
   gap: 2px;
 }
 
+.gemEvFounderWorldsRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gemEvFounderWorldsLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.gemEvFounderWorldsValue {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  min-width: 1ch;
+}
+
+.gemEvFounderWorldsButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.gemEvFounderWorldsButtons .btn {
+  min-width: 28px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
 .gemEvDivider {
   height: 1px;
   background: rgba(15, 23, 42, 0.12);

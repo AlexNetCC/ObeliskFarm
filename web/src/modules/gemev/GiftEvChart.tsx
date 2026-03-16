@@ -11,7 +11,7 @@ const FISH_TICK_ICON = `${WIKI}/8/8d/5x_Fish_Tick_Chance.png`;
 /* Basic: yellow/amber shades (like Stats Contributions Stars). Rare: blue shades (like Super Stars). */
 const BASIC_ENTRIES = [
   { key: "gems_20_40" as const, label: "Basic Gems Roll Type 1", color: "#fff59d", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
-  { key: "gems_30_65" as const, label: "Basic Gems Roll Type 2", color: "#ffeb3b", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
+  { key: "gems_20_50" as const, label: "Basic Gems Roll Type 2", color: "#ffeb3b", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
   { key: "skill_shards" as const, label: "Skill Shards", color: "#ffc107", qtyUnit: "shards", icon: assetUrl("sprites/common/skill_shard.png") },
   { key: "item_chests" as const, label: "Item Chests", color: "#ffa726", qtyUnit: "chests", icon: `${WIKI}/a/a8/Item_Chest.png` },
   { key: "chaos_totem" as const, label: "Chaos Totem", color: "#f57f17", qtyUnit: "totems", icon: `${WIKI}/a/a6/Chaos_Totem.png` },
@@ -23,7 +23,10 @@ const RARE_ENTRIES = [
   { key: "rare_gems" as const, label: "Rare Roll Gems", color: "#2196f3", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
   { key: "drone_fuel" as const, label: "Drone Fuel", color: "#42a5f5", qtyUnit: "fuel", icon: `${WIKI}/4/44/Fuel.png` },
   { key: "skin" as const, label: "Skin or Gems", color: "#90caf9", qtyUnit: "gems", icon: undefined, showTooltip: true },
-  { key: "ob60_gem_chest" as const, label: "ob60 Gem Chest", color: "#9c27b0", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
+  { key: "gems_15k_25k" as const, label: "15k–25k Gems (Ob≥60)", color: "#9c27b0", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
+  { key: "frogspawn" as const, label: "Frogspawn (Black Hole)", color: "#7e57c2", qtyUnit: "qty", icon: undefined },
+  { key: "forbidden_sushi" as const, label: "Forbidden Sushi", color: "#ab47bc", qtyUnit: "gems", icon: undefined },
+  { key: "cosmic_candy" as const, label: "Cosmic Candy", color: "#8e24aa", qtyUnit: "gems", icon: undefined },
   { key: "recursive_gifts" as const, label: "Recursive Gifts", color: "#1e88e5", qtyUnit: "gifts", icon: `${WIKI}/2/24/Gift.png` },
 ] as const;
 
@@ -32,6 +35,12 @@ type GiftBreakdown = Record<string, number>;
 function fmt1(x: number): string {
   if (!Number.isFinite(x)) return "—";
   return x.toFixed(1);
+}
+
+/** Number with 1 decimal and thousand separators (e.g. 1 120 360,8). */
+function fmtFish(x: number): string {
+  if (!Number.isFinite(x)) return "—";
+  return x.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
 function fmtInt(x: number): string {
@@ -405,7 +414,7 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown; darkTheme?: boole
                   >
                     <img src={SUSHI_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
                     <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: fishValueColor }}>
-                      {fmt1(Number(qty.sushi_fish ?? 0))} Sushi/Gift · {fmt1(sushiFish)} fish
+                      {fmt1(Number(qty.sushi_fish ?? 0))} Sushi/Gift · {fmtFish(sushiFish)} fish
                     </span>
                   </div>
                 </div>
@@ -427,7 +436,7 @@ export function GiftEvChart(props: { breakdown: GiftBreakdown; darkTheme?: boole
                   >
                     <img src={FISH_TICK_ICON} alt="" width={16} height={16} style={{ display: "block" }} />
                     <span className="mono" style={{ fontSize: 14, fontWeight: 800, color: fishValueColor }}>
-                      {fmt1(Number(qty.fishing_tick ?? 0))} min/Gift{fishingTickFish > 0 ? ` · ${fmt1(fishingTickFish)} fish` : ""}
+                      {fmt1(Number(qty.fishing_tick ?? 0))} min/Gift{fishingTickFish > 0 ? ` · ${fmtFish(fishingTickFish)} fish` : ""}
                     </span>
                   </div>
                 </div>

@@ -90,12 +90,8 @@ const ICON_2X_STAR_SPAWN = "https://static.wikitide.net/shminerwiki/5/5b/2x_Spaw
 const ICON_STARFISH_QUEST = "https://static.wikitide.net/shminerwiki/thumb/d/de/Starfish_Quest.png/36px-Starfish_Quest.png";
 const ICON_DIVINE_CHALLENGE = "https://static.wikitide.net/shminerwiki/thumb/a/ab/Divine_Challenge_Coin.png/24px-Divine_Challenge_Coin.png";
 
-/** Starfruit: All Star Multi +30%, Star Supernova Chance +10%, 140s. */
-const ICON_STARFRUIT = "https://static.wikitide.net/shminerwiki/d/db/Starfruit.png";
-/** Ice Cream: Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140s. */
 /** Cosmic Star Candy: 3× All Star Multi (applies to all star gains). */
 const ICON_COSMIC_CANDY = "https://static.wikitide.net/shminerwiki/d/de/Cosmic_Candy.png";
-const ICON_ICE_CREAM = "https://static.wikitide.net/shminerwiki/5/5d/Ice_Cream.png";
 
 /** Star card ids that have sprites in sprites/stargazing (from main Python/assets). */
 const STAR_CARD_IDS = [
@@ -108,7 +104,9 @@ const STAR_CARD_IDS = [
 export type StarCardTier = 0 | 1 | 2 | 3 | 4;
 
 type StarCardsState = {
-  happy_bot_rank: number; // 0 = none, 1–10
+  /** When true, Happy Bot Pet Quest is active and rank 0–10 applies (+2% per rank step; 0 = +2%, 10 = +22%). */
+  happy_bot_quest_active: boolean;
+  happy_bot_rank: number; // 0–10 when quest active
   polychrome_bundle: boolean; // Polychrome Potency Bundle 1.15x
   infernal_bonus: number; // Infernal bonus multiplier (e.g. 8.92 for 8.92x)
   /** Per-card tier (which card variant you have). */
@@ -123,8 +121,6 @@ type SavedStateV1 = {
   ctrl_f_stars_enabled: boolean;
   spoon_strat?: boolean;
   catch_manually?: boolean;
-  starfruit?: boolean;
-  ice_cream?: boolean;
   cosmic_candy?: boolean;
   w3_debuff_removed_fishing?: boolean;
   star_cards?: Partial<StarCardsState>;
@@ -306,6 +302,59 @@ function Stepper(props: {
   );
 }
 
+function HappyBotRankStepper(props: { value: number; onChange: (v: number) => void; min: number; max: number }) {
+  const { value, onChange, min, max } = props;
+  const [raw, setRaw] = useState<string>(() => String(value));
+  useEffect(() => {
+    setRaw(String(value));
+  }, [value]);
+  const clamped = clamp(value, min, max);
+  function commit() {
+    const n = Number(raw.trim());
+    if (!Number.isInteger(n) || n < min || n > max) {
+      setRaw(String(clamped));
+      return;
+    }
+    onChange(n);
+    setRaw(String(n));
+  }
+  return (
+    <>
+      <span className="small mono">Rank (0–10):</span>
+      <div className="sgStepperWrap">
+        <button
+          type="button"
+          className="btn sgStepperBtn"
+          disabled={clamped <= min}
+          onClick={() => onChange(clamped - 1)}
+          aria-label="Decrease rank"
+        >
+          −
+        </button>
+        <input
+          className="input mono sgStepperInput"
+          type="text"
+          inputMode="numeric"
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          onBlur={() => commit()}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          aria-label="Happy Bot Pet Quest rank 0 to 10"
+        />
+        <button
+          type="button"
+          className="btn sgStepperBtn"
+          disabled={clamped >= max}
+          onClick={() => onChange(clamped + 1)}
+          aria-label="Increase rank"
+        >
+          +
+        </button>
+      </div>
+    </>
+  );
+}
+
 function defaultUiStats(): UiStats {
   return {
     floor_clears_per_minute: 48, // 48/min fixed default; ~1.25 bombs/min
@@ -335,6 +384,7 @@ function defaultUiStats(): UiStats {
 
 export function Stargazing() {
   const defaultStarCards = (): StarCardsState => ({
+    happy_bot_quest_active: false,
     happy_bot_rank: 0,
     polychrome_bundle: false,
     infernal_bonus: 1,
@@ -345,16 +395,16 @@ export function Stargazing() {
   /** Card multiplier for star gain. Same tier structure for all cards (Aries values; others may differ in-game). */
   function getCardMultiplier(cardId: string, tier: StarCardTier): number {
     if (tier === 0) return 1;
-    const { happy_bot_rank, polychrome_bundle, infernal_bonus } = starCards;
+    const { happy_bot_quest_active, happy_bot_rank, polychrome_bundle, infernal_bonus } = starCards;
     switch (tier) {
       case 1:
         return 1.5; // Card: e.g. Aries Star Gain 1.50×
       case 2:
         return 2; // Gilded: 2×
       case 3: {
-        // Polychrome: 4×–6.62×; Happy Bot +2% per rank; bundle ×1.15
+        // Polychrome: 4×–6.62×; Happy Bot +2% per rank step (rank 0 = +2%, rank 10 = +22%); bundle ×1.15
         const base = 4;
-        const happyMult = 1 + 0.02 * happy_bot_rank; // +2% per rank
+        const happyMult = happy_bot_quest_active ? 1 + 0.02 * (happy_bot_rank + 1) : 1;
         const bundleMult = polychrome_bundle ? 1.15 : 1;
         return base * happyMult * bundleMult;
       }
@@ -375,24 +425,27 @@ export function Stargazing() {
     const ctrl_f_stars_enabled = saved?.ctrl_f_stars_enabled ?? false;
     const spoon_strat = saved?.spoon_strat ?? false;
     const catch_manually = saved?.catch_manually ?? false;
-    const starfruit = saved?.starfruit ?? false;
-    const ice_cream = saved?.ice_cream ?? false;
     const cosmic_candy = saved?.cosmic_candy ?? false;
     const w3_debuff_removed_fishing = saved?.w3_debuff_removed_fishing ?? false;
-    const star_cards: StarCardsState = {
+    const sc = saved?.star_cards ?? {};
+    const mergedCards: StarCardsState = {
       ...defaultStarCards(),
-      ...(saved?.star_cards ?? {}),
-      selected_card_for_results: saved?.star_cards?.selected_card_for_results ?? "aries",
+      ...sc,
+      selected_card_for_results: sc.selected_card_for_results ?? "aries",
     };
-    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, starfruit, ice_cream, cosmic_candy, w3_debuff_removed_fishing, star_cards };
+    // Migrate old format: happy_bot_rank 0 = none, 1–10 = rank → happy_bot_quest_active + rank 0–10 (rank 0 = +2%)
+    if (saved?.star_cards && !Object.prototype.hasOwnProperty.call(saved.star_cards, "happy_bot_quest_active")) {
+      const oldRank = mergedCards.happy_bot_rank;
+      mergedCards.happy_bot_quest_active = oldRank > 0;
+      mergedCards.happy_bot_rank = oldRank > 0 ? Math.min(10, oldRank) - 1 : 0; // old 1→0, old 10→9
+    }
+    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, cosmic_candy, w3_debuff_removed_fishing, star_cards: mergedCards };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
   const [ctrlF, setCtrlF] = useState<boolean>(initial.ctrl_f_stars_enabled);
   const [spoonStrat, setSpoonStrat] = useState<boolean>(initial.spoon_strat);
   const [catchManually, setCatchManually] = useState<boolean>(initial.catch_manually ?? false);
-  const [starfruit, setStarfruit] = useState<boolean>(initial.starfruit ?? false);
-  const [iceCream, setIceCream] = useState<boolean>(initial.ice_cream ?? false);
   const [cosmicCandy, setCosmicCandy] = useState<boolean>(initial.cosmic_candy ?? false);
   const [w3DebuffRemovedFishing, setW3DebuffRemovedFishing] = useState<boolean>(initial.w3_debuff_removed_fishing ?? false);
   const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
@@ -409,11 +462,11 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, starfruit, ice_cream: iceCream, cosmic_candy: cosmicCandy, w3_debuff_removed_fishing: w3DebuffRemovedFishing, star_cards: starCards };
+      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, cosmic_candy: cosmicCandy, w3_debuff_removed_fishing: w3DebuffRemovedFishing, star_cards: starCards };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF, spoonStrat, catchManually, starfruit, iceCream, cosmicCandy, w3DebuffRemovedFishing, starCards]);
+  }, [ui, ctrlF, spoonStrat, catchManually, cosmicCandy, w3DebuffRemovedFishing, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -541,14 +594,9 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-    if (starfruit) {
-      s.all_star_mult *= 1.3;
-      s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
-    }
     if (cosmicCandy) s.all_star_mult *= 3;
-    if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
     return s;
-  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, cosmicCandy, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, cosmicCandy, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst (no Lootbug, no Founder). */
   const statsOnlineAfk = useMemo<PlayerStats>(() => {
@@ -588,14 +636,9 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-    if (starfruit) {
-      s.all_star_mult *= 1.3;
-      s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
-    }
     if (cosmicCandy) s.all_star_mult *= 3;
-    if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
     return s;
-  }, [ui, ctrlF, spoonStrat, starfruit, iceCream, cosmicCandy, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
+  }, [ui, ctrlF, spoonStrat, cosmicCandy, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
   /** Stats for Offline Gains: no spoon strat, no external buffs (Lootbug, Founder, Elixir, Starburst off). */
   const statsOffline = useMemo<PlayerStats>(() => {
@@ -634,14 +677,9 @@ export function Stargazing() {
       novagiant_combo_mult: clamp(ui.novagiant_combo_mult, 0, 1_000_000),
       ctrl_f_stars_enabled: ctrlF,
     };
-    if (starfruit) {
-      s.all_star_mult *= 1.3;
-      s.star_supernova_chance = Math.min(1, s.star_supernova_chance + 0.10);
-    }
     if (cosmicCandy) s.all_star_mult *= 3;
-    if (iceCream) s.super_star_spawn_rate_mult *= 2.5;
     return s;
-  }, [ui, ctrlF, starfruit, iceCream, cosmicCandy, w3FloorsMult, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
+  }, [ui, ctrlF, cosmicCandy, w3FloorsMult, droneBuffsOffline.total2xUptimeFraction, droneBuffsOffline.drone3xSuperUptimeFraction, droneBuffsOffline.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOffline.starburstTripleStarChancePct, droneBuffsOffline.starburstStarSpawnRateUptimeFraction, droneBuffsOffline.starburstStarSpawnRatePct, ui.floor_clears_per_minute]);
 
   /** Stats with Starburst contributions zeroed (for Drone module to show +% gain). */
   const statsWithoutStarburst = useMemo<PlayerStats>(() => {
@@ -740,7 +778,7 @@ export function Stargazing() {
     const sel = starCards.selected_card_for_results;
     const tier = (starCards.card_tier[sel] ?? 0) as StarCardTier;
     return getCardMultiplier(sel, tier);
-  }, [starCards.selected_card_for_results, starCards.card_tier, starCards.happy_bot_rank, starCards.polychrome_bundle, starCards.infernal_bonus]);
+  }, [starCards.selected_card_for_results, starCards.card_tier, starCards.happy_bot_quest_active, starCards.happy_bot_rank, starCards.polychrome_bundle, starCards.infernal_bonus]);
 
   const onlineInfo = useMemo(
     () => ({
@@ -883,24 +921,6 @@ export function Stargazing() {
                   onChange={(e) => setSpoonStrat(e.target.checked)}
                 />
                 <span>Spoon Strat / Holding finger (+20% floor clears, online only)</span>
-              </label>
-              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={starfruit}
-                  onChange={(e) => setStarfruit(e.target.checked)}
-                />
-                <img src={ICON_STARFRUIT} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
-                <span>Starfruit (All Star Multi +30%, Star Supernova Chance +10%, 140)</span>
-              </label>
-              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={iceCream}
-                  onChange={(e) => setIceCream(e.target.checked)}
-                />
-                <img src={ICON_ICE_CREAM} alt="" width={20} height={20} style={{ objectFit: "contain" }} aria-hidden />
-                <span>Ice Cream (Super Star Spawn Rate 2.5×, Vein Income +0–90%, 140)</span>
               </label>
               <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
                 <input
@@ -1186,26 +1206,31 @@ export function Stargazing() {
                   height={36}
                   style={{ flexShrink: 0 }}
                 />
-                <span style={{ color: "var(--text, inherit)" }}>
-                  Happy Bot Pet Quest rank (0 = none)
-                  <Tooltip
-                    content={{
-                      title: "Happy Bot Pet Quest",
-                      lines: ["Rank Up at Level 225+. Ranks 1–10 XP: 150, 225, 335, 505, 760, 1,140, 1,710, 2,560, 3,845, 5,765. +2% poly card gain per rank."],
-                    }}
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={starCards.happy_bot_quest_active}
+                    onChange={(e) => setStarCards((s) => ({ ...s, happy_bot_quest_active: e.target.checked }))}
                   />
-                </span>
-                <span className="small mono">Rank:</span>
-                <input
-                  className="input mono"
-                  type="number"
-                  min={0}
-                  max={10}
-                  step={1}
-                  value={starCards.happy_bot_rank}
-                  onChange={(e) => setStarCards((s) => ({ ...s, happy_bot_rank: clamp(Number(e.target.value), 0, 10) }))}
-                  style={{ width: 56 }}
-                />
+                  <span style={{ color: "var(--text, inherit)" }}>
+                    Happy Bot Pet Quest active
+                    <Tooltip
+                      content={{
+                        title: "Happy Bot Pet Quest",
+                        lines: ["When active: rank 0 = +2%, rank 1 = +4%, … rank 10 = +22% poly card gain. Rank Up at Level 225+."],
+                      }}
+                      label="?"
+                    />
+                  </span>
+                </label>
+                {starCards.happy_bot_quest_active && (
+                  <HappyBotRankStepper
+                    value={starCards.happy_bot_rank}
+                    onChange={(v) => setStarCards((s) => ({ ...s, happy_bot_rank: v }))}
+                    min={0}
+                    max={10}
+                  />
+                )}
               </div>
               <div
                 className="fragmentUpgradeRow"
@@ -1345,7 +1370,21 @@ export function Stargazing() {
                   decimals={2}
                 />
                 <Stepper
-                  label="Triple Star Chance (%)"
+                  label={
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Triple Star Chance (%)
+                      <Tooltip
+                        content={{
+                          title: "Triple Star Chance",
+                          sections: [
+                            { heading: "What to enter", lines: ["Enter the value from the game with Starburst Drone OFF (not active)."] },
+                            { heading: "Applied automatically", lines: ["Starburst Drone (when ON in Drone module) is added by the calculator."] },
+                          ],
+                        }}
+                        label="?"
+                      />
+                    </span>
+                  }
                   spritePaths={["https://static.wikitide.net/shminerwiki/8/81/Star_Triple_Spawn_Chance.png"]}
                   spriteAlt="Triple Star Chance"
                   spriteLabel="Star_Triple_Spawn_Chance.png"

@@ -24,6 +24,7 @@ import {
   getExpectedItemChestsPerGift,
   getExpectedRelicChestsPerGift,
   getEffectiveGameSpeedMultiplierForTime,
+  getFounderDropIntervalMinutes,
   getFounderSupplyDropGemsEvPerHour,
   getFounderSupplyDropPerHour,
   getGameSpeedMultiplier,
@@ -305,7 +306,7 @@ export function GemEv() {
     const show_jackpot_refresh = saved?.show_jackpot_refresh ?? true;
     const statue_soprano_level = Math.max(0, Math.min(3, saved?.statue_soprano_level ?? 0));
     const bankedFreebies = Math.max(0, Math.min(999, saved?.bankedFreebies ?? 0));
-    const varianceSimRuns = Math.max(1, Math.min(100000, Math.trunc(saved?.varianceSimRuns ?? 10000)));
+    const varianceSimRuns = Math.max(1, Math.min(100000, Math.trunc(saved?.varianceSimRuns ?? 48)));
     return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh, statue_soprano_level, bankedFreebies, varianceSimRuns };
   }, []);
 
@@ -371,11 +372,15 @@ export function GemEv() {
       giftFishingTickValue?: number;
       giftFishPerHourDuring5xBuff?: number;
       fishPerSushiEvForGift?: number;
+      /** Fishing tick reduction (from Fishing). Founder supply drop wiki table: 0.5× this per drop. */
+      founder_fishing_tick_reduction?: number;
       chainBomberGoldenFloorBonusPct?: number;
       chainBomberBuffUptimeFraction?: number;
       w3_debuff_fish_pct_loss?: number;
       lootfrogsUnlocked?: boolean;
       lootfrogValuePerFrogspawn?: number;
+      /** When true, Gift rare 1/25 Frogspawn (wiki Store#Gifts) is included. Same as Lootfrogs unlocked (Black Hole = Lootfrogs). */
+      blackHoleUnlocked?: boolean;
     }>(GEMEV_EXTERNAL_KEY);
     const lootbug10x = typeof ext?.lootbugBomb10xMinPerHour === "number" ? ext.lootbugBomb10xMinPerHour : 0;
     const lootbugSpawnsPerHour = typeof ext?.lootbugSpawnsPerHour === "number" ? ext.lootbugSpawnsPerHour : 0;
@@ -401,13 +406,15 @@ export function GemEv() {
     const giftFishingTickValue = typeof ext?.giftFishingTickValue === "number" ? ext.giftFishingTickValue : undefined;
     const giftFishPerHourDuring5xBuff = typeof ext?.giftFishPerHourDuring5xBuff === "number" ? ext.giftFishPerHourDuring5xBuff : undefined;
     const fishPerSushiEvForGift = typeof ext?.fishPerSushiEvForGift === "number" ? ext.fishPerSushiEvForGift : undefined;
+    const founderFishingTickReduction = typeof ext?.founder_fishing_tick_reduction === "number" ? ext.founder_fishing_tick_reduction : undefined;
     const chainBomberGoldenFloorBonusPct = typeof ext?.chainBomberGoldenFloorBonusPct === "number" ? ext.chainBomberGoldenFloorBonusPct : undefined;
     const chainBomberBuffUptimeFraction = typeof ext?.chainBomberBuffUptimeFraction === "number" ? ext.chainBomberBuffUptimeFraction : undefined;
     const w3DebuffFishPctLoss = typeof ext?.w3_debuff_fish_pct_loss === "number" ? ext.w3_debuff_fish_pct_loss : undefined;
     const lootfrogsUnlocked = Boolean(ext?.lootfrogsUnlocked);
     const lootfrogValuePerFrogspawn = typeof ext?.lootfrogValuePerFrogspawn === "number" ? Math.max(0, ext.lootfrogValuePerFrogspawn) : 0;
+    const blackHoleUnlocked = Boolean(ext?.blackHoleUnlocked);
     return {
-      lootbug10x, lootbugSpawnsPerHour, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn,
+      lootbug10x, lootbugSpawnsPerHour, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, founderFishingTickReduction, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn, blackHoleUnlocked,
     };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
@@ -435,7 +442,10 @@ export function GemEv() {
     // Statue of Soprano
     p.statue_soprano_level = Math.max(0, Math.min(3, statueSopranoLevel));
 
-    // Fixed desktop constants
+    // Founder supply drop: wiki table (Founder#Founder_Supply_Drop) when founder_worlds_unlocked set; else legacy
+    p.founder_worlds_unlocked = typeof p.founder_worlds_unlocked === "number" && p.founder_worlds_unlocked >= 1 && p.founder_worlds_unlocked <= 4
+      ? Math.trunc(p.founder_worlds_unlocked)
+      : (p.founder_enabled ? 2 : undefined);
     p.founder_gems_base = 10.0;
     p.founder_gems_chance = 0.01;
     p.founder_speed_multiplier = 2.0;
@@ -515,6 +525,9 @@ export function GemEv() {
     p.gift_fishing_unlocked = external.fishingUnlocked;
     p.gift_fishing_tick_value = external.giftFishingTickValue;
     p.gift_fish_per_hour_during_5x_buff = external.giftFishPerHourDuring5xBuff;
+    if (typeof external.founderFishingTickReduction === "number") {
+      p.founder_fishing_tick_reduction = external.founderFishingTickReduction;
+    }
     p.gift_charge_magnet_value_per_magnet = !external.fishingUnlocked
       ? calculateChargeMagnetGemsPerHour(p, 20)
       : undefined;
@@ -524,9 +537,16 @@ export function GemEv() {
     p.chain_bomber_golden_floor_bonus_pct = external.chainBomberGoldenFloorBonusPct;
     p.chain_bomber_buff_uptime_fraction = external.chainBomberBuffUptimeFraction;
     p.lootfrogs_unlocked = external.lootfrogsUnlocked;
+    // Black Hole unlocked = Lootfrogs unlocked (same unlock). Gift 1/25 Frogspawn when either is set.
+    p.gift_black_hole_unlocked = external.blackHoleUnlocked ?? external.lootfrogsUnlocked;
+    // Gift Frogspawn EV: use Drone value per frogspawn (1 frogspawn = capacity Lootfrogs, each with recursive EV) when available.
+    p.gift_frogspawn_gem_value =
+      typeof external.lootfrogValuePerFrogspawn === "number" && external.lootfrogValuePerFrogspawn > 0
+        ? external.lootfrogValuePerFrogspawn
+        : (p.gift_frogspawn_gem_value ?? 0);
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.chainBomberGoldenFloorBonusPct, external.chainBomberBuffUptimeFraction, external.lootfrogsUnlocked]);
+  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.founderFishingTickReduction, external.chainBomberGoldenFloorBonusPct, external.chainBomberBuffUptimeFraction, external.lootfrogsUnlocked, external.blackHoleUnlocked, external.lootfrogValuePerFrogspawn]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);
@@ -627,10 +647,17 @@ export function GemEv() {
   /** Founder supply drop: Frogspawn (1/500 × 5 per drop) → capacity Lootfrogs each with recursive EV. Value from Drone (lootfrogValuePerFrogspawn). */
   const founderSupplyDropFrogspawnGemValue = founderSupplyDrop.frogspawnPerHour * (external.lootfrogValuePerFrogspawn ?? 0);
 
-  /** Rows for Founder Supply Drop breakdown chart (per hour). */
+  /** Rows for Founder Supply Drop breakdown chart (per hour). Wiki Founder#Founder_Supply_Drop + Jackpots. */
   const founderSupplyDropChartRows = useMemo(() => {
     const sd = founderSupplyDrop;
     const gemsEv = getFounderSupplyDropGemsEvPerHour(effectiveParams);
+    const founderDropsPerHour = effectiveParams.founder_enabled
+      ? 60 / getFounderDropIntervalMinutes(effectiveParams)
+      : 0;
+    const sushiFromJackpotPerHour =
+      effectiveParams.founder_enabled && effectiveParams.gift_fishing_unlocked
+        ? founderDropsPerHour * (1 / 750) * 100
+        : 0;
     return [
       { key: "gems", label: "Gems (EV)", value: gemsEv, color: "#ffc107" },
       { key: "itemChests", label: "Item Chests", value: sd.itemChestsPerHour, color: "#ffa726" },
@@ -639,8 +666,10 @@ export function GemEv() {
       { key: "fuel", label: "Fuel", value: sd.fuelPerHour, color: "#5c6bc0" },
       { key: "fishingTicks", label: "Fishing Ticks", value: sd.fishingTicksPerHour, color: "#42a5f5" },
       { key: "archTicks", label: "Arch Ticks", value: sd.archaeologyTicksPerHour, color: "#66bb6a" },
-      { key: "frogspawn", label: "Frogspawn", value: sd.frogspawnPerHour, color: "#2e7d32" },
       { key: "star2x", label: "Star 2× (min/h)", value: sd.starSpawn2xMinPerHour, color: "#ffeb3b" },
+      { key: "starAutoCatch", label: "Star Auto-Catch 100% (min/h)", value: sd.starAutoCatch100MinPerHour, color: "#fdd835" },
+      { key: "frogspawn", label: "Frogspawn (1/500 jackpot)", value: sd.frogspawnPerHour, color: "#2e7d32" },
+      { key: "sushiJackpot", label: "Sushi (1/750 jackpot)", value: sushiFromJackpotPerHour, color: "#26a69a" },
     ];
   }, [founderSupplyDrop, effectiveParams]);
 
@@ -783,7 +812,25 @@ export function GemEv() {
             "T12: Gem Bomb Gem Chance +0.5%.",
           ],
         },
-        { heading: "Rewards (assumptions)", lines: ["Founder per-drop amounts may scale with built world monuments (current values: W2+W3); jackpots may be unchanged.", "Founder Gems: 30/drop (base); bonus roll 50+10×Level when chance hits; 1/100 rare: 650 Gems.", "Founder Speed: 2× for 5 minutes (time saved → more freebies)", "1/1234 chance: 10 gifts per supply drop"] },
+        {
+          heading: "Supply drop (per crate)",
+          lines: [
+            "Amounts scale with Worlds Unlocked (W). Default W=2. Gems 10×W, Item 2×W, Relic 1×W, Cherry max(50, 5×W×Level), Fuel 1×W.",
+            "Star 2×: 4 min×W. Star Auto-Catch 100%: 8 min×W (when Auto-Catch <100%). Arch: (3×stage)+50. Fishing: 0.5×tick reduction.",
+            "Golden crate (T11): 10% at T11, 12% at T12. Golden gives 5× normal crate contents.",
+          ],
+        },
+        {
+          heading: "Jackpots (per collect)",
+          lines: [
+            "1/100: Level×10+50 Gems. 1/500: Relic Level×3+10, or Frogspawn 5 (Lootfrogs). 1/750: 100 Sushi (Fishing). 1/1234: 10 Gifts.",
+            "1/2000: 1 Mythic Chest. 1/69696: 1 Divine, 100 Relic, 1000 Gems.",
+          ],
+        },
+        {
+          heading: "Founder Speed",
+          lines: ["2× for 5 minutes. Time saved increases freebie claims per hour; supply drop interval is not affected by game speed."],
+        },
       ],
     }),
     [],
@@ -914,7 +961,7 @@ export function GemEv() {
                       {
                         heading: "What it simulates",
                         lines: [
-                          "Full game in one hour: freebies (jackpot, refresh, stonks, gifts), Founder supply drop (gems, 10 gifts 1/1234, frogspawn 1/500), Lootbug (spawns, 10× min, net gems), gifts opened (Soprano + Founder), Item chests → Charge Magnet, Gem Bomb gems (scaled by simulated 10× min), Drone fuel cost.",
+                          "Full game in one hour: freebies (jackpot, refresh, stonks, gifts), Founder supply drop (gems, jackpots: 1/100 gems, 1/500 relic/frogspawn, 1/750 sushi, 1/1234 gifts, 1/2000 mythic, 1/69696 mega), Lootbug, gifts opened (Soprano + Founder), Item chests → Charge Magnet, Gem Bomb gems, Drone fuel cost.",
                           "Same components as the Overview chart. Open Lootbug, Drone, Items, and Bombs so rates are synced.",
                         ],
                       },
@@ -1094,7 +1141,12 @@ export function GemEv() {
                             )}
                           </tr>
                           <tr>
-                            <td>Gifts (count)</td>
+                            <td>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0 }} />
+                                Gifts (count)
+                              </span>
+                            </td>
                             <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.mean.toFixed(1)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.sd.toFixed(1)}</td>
                             <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[1]) }} title="CV% (SD/mean)">
@@ -1111,7 +1163,12 @@ export function GemEv() {
                             )}
                           </tr>
                           <tr>
-                            <td>Gift gems</td>
+                            <td>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0 }} />
+                                Gift gems
+                              </span>
+                            </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.sd)}</td>
                             <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[2]) }} title="CV% (SD/mean)">
@@ -1128,7 +1185,12 @@ export function GemEv() {
                             )}
                           </tr>
                           <tr>
-                            <td>Sushi (from gifts)</td>
+                            <td>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0 }} />
+                                Sushi (from gifts)
+                              </span>
+                            </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.sd)}</td>
                             <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[3]) }} title="CV% (SD/mean)">
@@ -1233,18 +1295,18 @@ export function GemEv() {
                           </tr>
                           <tr>
                             <td>Drone fuel cost</td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.sd)}</td>
                             <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[9]) }} title="CV% (SD/mean)">
                               {formatCvPct(cvs[9], varianceSimResult.droneFuelCost.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p10)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p25)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p50)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p75)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.p90)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.p90)}</td>
                               </>
                             )}
                           </tr>
@@ -1272,17 +1334,18 @@ export function GemEv() {
                     );
                   })()}
                   {(() => {
-                      const rows: Array<{ key: string; label: string; s: VarianceMetricStats; isCount?: boolean }> = [
+                      const giftIconSmall = <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0, marginRight: 4 }} />;
+                      const rows: Array<{ key: string; label: React.ReactNode; s: VarianceMetricStats; isCount?: boolean }> = [
                         { key: "freebieGems", label: "Freebie gems", s: varianceSimResult.freebieGems },
-                        { key: "giftsCount", label: "Gifts (count)", s: varianceSimResult.giftsCount, isCount: true },
-                        { key: "giftGems", label: "Gift gems", s: varianceSimResult.giftGems },
-                        { key: "giftSushi", label: "Sushi (from gifts)", s: varianceSimResult.giftSushi },
+                        { key: "giftsCount", label: <>{giftIconSmall}Gifts (count)</>, s: varianceSimResult.giftsCount, isCount: true },
+                        { key: "giftGems", label: <>{giftIconSmall}Gift gems</>, s: varianceSimResult.giftGems },
+                        { key: "giftSushi", label: <>{giftIconSmall}Sushi (from gifts)</>, s: varianceSimResult.giftSushi },
                         ...(external.lootfrogsUnlocked ? [{ key: "lootfrogGems" as const, label: "Lootfrog gems", s: varianceSimResult.lootfrogGems }] : []),
                         { key: "lootbugNetGems", label: "Lootbug net gems", s: varianceSimResult.lootbugNetGems },
                         { key: "founderGems", label: "Founder gems", s: varianceSimResult.founderGems },
                         { key: "chargeMagnetGems", label: "Charge Magnet", s: varianceSimResult.chargeMagnetGems },
                         { key: "gemBombGems", label: "Gem Bomb gems", s: varianceSimResult.gemBombGems },
-                        { key: "droneFuelCost", label: "Drone fuel cost", s: varianceSimResult.droneFuelCost },
+                        { key: "droneFuelCost", label: "Drone fuel cost", s: { mean: -varianceSimResult.droneFuelCost.mean, sd: varianceSimResult.droneFuelCost.sd, min: -varianceSimResult.droneFuelCost.max, max: -varianceSimResult.droneFuelCost.min, p10: -varianceSimResult.droneFuelCost.p90, p25: -varianceSimResult.droneFuelCost.p75, p50: -varianceSimResult.droneFuelCost.p50, p75: -varianceSimResult.droneFuelCost.p25, p90: -varianceSimResult.droneFuelCost.p10 } },
                         { key: "totalGems", label: "Total", s: varianceSimResult.totalGems },
                       ];
                       const fmtVal = (v: number, isCount?: boolean) => (isCount ? v.toFixed(1) : fmt1OrIntOver1k(v));
@@ -1303,7 +1366,7 @@ export function GemEv() {
                             return (
                               <div key={key} className={`gemEvVarianceBoxplotRow ${isTotal ? "gemEvVarianceBoxplotRowTotal" : ""}`}>
                                 <div className="gemEvVarianceBoxplotHead">
-                                  <span className="gemEvVarianceBoxplotName">{label}</span>
+                                  <span className="gemEvVarianceBoxplotName" style={{ display: "inline-flex", alignItems: "center" }}>{label}</span>
                                   <span className="gemEvVarianceBoxplotStats mono">
                                     min {fmtVal(s.min, isCount)} · Q1 {fmtVal(s.p25, isCount)} · mean {fmtVal(s.mean, isCount)} · Q3 {fmtVal(s.p75, isCount)} · max {fmtVal(s.max, isCount)}
                                   </span>
@@ -2060,6 +2123,43 @@ export function GemEv() {
                 decimals={0}
                 disabled={!params.founder_enabled}
               />
+              <div className="gemEvFounderWorldsRow">
+                <span className="gemEvFounderWorldsLabel">Worlds Unlocked:</span>
+                <span className="mono gemEvFounderWorldsValue">
+                  {params.founder_worlds_unlocked ?? (params.founder_enabled ? 2 : 1)}
+                </span>
+                <div className="gemEvFounderWorldsButtons">
+                  {([1, 2, 3, 4] as const).map((n) => {
+                    const current = params.founder_worlds_unlocked ?? (params.founder_enabled ? 2 : 1);
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        className={current === n ? "btn" : "btn btnSecondary"}
+                        onClick={() => setParams((s) => ({ ...s, founder_worlds_unlocked: n }))}
+                        title={`${n} World${n === 1 ? "" : "s"} Unlocked`}
+                        disabled={!params.founder_enabled}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Tooltip
+                  content={{
+                    title: "Worlds Unlocked",
+                    sections: [
+                      {
+                        heading: "Supply drop scale",
+                        lines: [
+                          "Supply drop amounts scale with Worlds Unlocked (Gems 10×W, Item 2×W, Relic 1×W, etc.).",
+                          "Set to the number of worlds you have unlocked (1–4).",
+                        ],
+                      },
+                    ],
+                  }}
+                />
+              </div>
             </div>
           </div>
           {founderSupplyDropChartOpen

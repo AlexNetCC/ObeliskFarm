@@ -116,6 +116,15 @@ export type GameParameters = {
   /** Sushi: fish EV per 1 Sushi (from Fishing module). Sushi only affects fish gain, not Gem EV total. */
   gift_sushi_fish_per_sushi?: number;
 
+  /** Gift rare rolls (wiki Store#Gifts): Lootfrogs/Black Hole unlocked for Frogspawn 1/25 (same unlock). */
+  gift_black_hole_unlocked?: boolean;
+  /** Idol Tokens rare: quantity × (Ascension Level + 1). Default 1 if unset. */
+  gift_ascension_level?: number;
+  /** Gem value per Frogspawn for Gift rare (1–2, avg 1.5; 1/25 when Lootfrogs unlocked). 1 Frogspawn = max capacity Lootfrogs; from Drone (lootfrogValuePerFrogspawn) when available. */
+  gift_frogspawn_gem_value?: number;
+  gift_forbidden_sushi_gem_value?: number;
+  gift_cosmic_candy_gem_value?: number;
+
   /** Chain Bomber Drone (from Drone module): +X% Golden Floor Multi during buff. When set, stonks mult is scaled by (1 + uptime × bonus/100). */
   chain_bomber_golden_floor_bonus_pct?: number;
   chain_bomber_buff_uptime_fraction?: number;
@@ -125,6 +134,20 @@ export type GameParameters = {
 
   /** Lootfrogs unlocked (from Drone). When true, supply drop can roll 1/500 for 5 Frogspawn; relevant for Lootfrog. */
   lootfrogs_unlocked?: boolean;
+
+  /** Founder supply drop jackpots (wiki Founder#Jackpots). Optional gem value per chest for EV. */
+  founder_mythic_chest_gem_value?: number;
+  founder_relic_chest_gem_value?: number;
+  founder_divine_chest_gem_value?: number;
+
+  /** Founder supply drop base amounts (wiki Founder#Founder_Supply_Drop). When set, per-drop amounts use "× Worlds Unlocked" formulas. */
+  founder_worlds_unlocked?: number; // 1–4
+  /** Arch ticks per drop = (3 × stage) + 50 when Archaeology unlocked. */
+  founder_arch_highest_stage?: number;
+  /** Fishing ticks per drop = 0.5 × this (direct tick reduction stat). Tripled when 3× Fishing Tick Speed buff active. */
+  founder_fishing_tick_reduction?: number;
+  /** When true, supply drop gives 8 min Star Auto-Catch buff; when false, gives 5 min 3× Exp (Auto-Catch ≥ 100%). */
+  founder_star_auto_catch_below_100?: boolean;
 };
 
 export function defaultGameParameters(): GameParameters {
@@ -242,19 +265,17 @@ export function getFounderDropIntervalMinutes(params: GameParameters): number {
 }
 
 /**
- * Linear VIP multiplier for supply drop quantities (gems, chests, cherry, fuel, ticks, etc.).
- * mult = 1 + (level - 1) * SUPPLY_DROP_QUANTITY_PER_LEVEL (level 1 → 1.0, 2 → 1+k, 3 → 1+2k, …).
- * Same factor per level 1→2→3→4→…; once we know the 4→5 jump (ratio), solve:
- * ratio_5_4 = (1 + 4*k) / (1 + 3*k)  =>  k = (ratio - 1) / (4 - 3*ratio).
+ * Linear VIP multiplier for supply drop quantities when NOT using wiki worlds-unlocked table.
+ * mult = 1 + (level - 1) * SUPPLY_DROP_QUANTITY_PER_LEVEL.
  */
-const SUPPLY_DROP_QUANTITY_PER_LEVEL = 0.05; // Placeholder until 4→5 jump is measured; then set k from formula above.
+const SUPPLY_DROP_QUANTITY_PER_LEVEL = 0.05;
 
 export function getSupplyDropQuantityMultiplier(params: GameParameters): number {
   const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
   return 1.0 + (lvl - 1) * SUPPLY_DROP_QUANTITY_PER_LEVEL;
 }
 
-/** Per-drop quantities: base at VIP 1, then +135 Cherry, +4 Fishing, +9 Arch per VIP level. */
+/** Per-drop quantities when founder_worlds_unlocked is not set (legacy VIP-scaled). */
 const FOUNDER_SUPPLY_DROP_CHERRY_BASE = 315;
 const FOUNDER_SUPPLY_DROP_CHERRY_PER_LEVEL = 135;
 const FOUNDER_SUPPLY_DROP_FISHING_BASE = 16;
@@ -262,20 +283,17 @@ const FOUNDER_SUPPLY_DROP_FISHING_PER_LEVEL = 4;
 const FOUNDER_SUPPLY_DROP_ARCH_BASE = 167;
 const FOUNDER_SUPPLY_DROP_ARCH_PER_LEVEL = 9;
 
-const FOUNDER_SUPPLY_DROP_CHERRY_PER_DROP = (lvl: number) =>
+const FOUNDER_SUPPLY_DROP_CHERRY_PER_DROP_LEGACY = (lvl: number) =>
   FOUNDER_SUPPLY_DROP_CHERRY_BASE + (lvl - 1) * FOUNDER_SUPPLY_DROP_CHERRY_PER_LEVEL;
-const FOUNDER_SUPPLY_DROP_FISHING_TICKS_PER_DROP = (lvl: number) =>
+const FOUNDER_SUPPLY_DROP_FISHING_TICKS_PER_DROP_LEGACY = (lvl: number) =>
   FOUNDER_SUPPLY_DROP_FISHING_BASE + (lvl - 1) * FOUNDER_SUPPLY_DROP_FISHING_PER_LEVEL;
-const FOUNDER_SUPPLY_DROP_ARCH_TICKS_PER_DROP = (lvl: number) =>
+const FOUNDER_SUPPLY_DROP_ARCH_TICKS_PER_DROP_LEGACY = (lvl: number) =>
   FOUNDER_SUPPLY_DROP_ARCH_BASE + (lvl - 1) * FOUNDER_SUPPLY_DROP_ARCH_PER_LEVEL;
 
-/** Star Spawn 2× rate: 12 min per drop (all VIP levels). */
-const FOUNDER_SUPPLY_DROP_STAR_2X_MIN_PER_DROP = 12;
-
 /**
- * Per supply drop (before double/triple). Gems 30, Item Chests 6, Relic Chests 3, Fuel 3 (unchanged by VIP).
- * Cherry / Fishing / Arch: base at VIP 1, then +135 / +4 / +9 per VIP level. Star 2× 12 min per drop at all levels.
- * When lootfrogs_unlocked: 1/500 chance per supply drop for 5 Frogspawn (for Lootfrog).
+ * Per supply drop (wiki Founder#Founder_Supply_Drop). When founder_worlds_unlocked is set (1–4), amounts use
+ * "× Worlds Unlocked" formulas. Otherwise legacy VIP-scaled values. Golden crates (T11): 5× each reward.
+ * Jackpot: 1/500 Relic (Obelisk×3+10), 1/500 Frogspawn (5), etc.
  */
 export interface FounderSupplyDropPerHour {
   itemChestsPerHour: number;
@@ -310,24 +328,66 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
   const singleChance = 1.0 - doubleChance - tripleChance;
   const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
   const eventsPerHour = founderDropsPerHour * expectedDropsPerEvent;
-  const qtyMult = getSupplyDropQuantityMultiplier(params);
-  const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
-  const cherryPerDrop = FOUNDER_SUPPLY_DROP_CHERRY_PER_DROP(lvl);
-  const fishingPerDrop = FOUNDER_SUPPLY_DROP_FISHING_TICKS_PER_DROP(lvl);
-  const archPerDrop = FOUNDER_SUPPLY_DROP_ARCH_TICKS_PER_DROP(lvl);
-  const star2xMinPerDrop = FOUNDER_SUPPLY_DROP_STAR_2X_MIN_PER_DROP;
+  const goldenChance = getGoldenSupplyDropChance(params);
+  const goldenMult = 1.0 + 4.0 * goldenChance;
+  const obelisk = Math.max(0, Math.trunc(params.obelisk_level ?? 0));
+  const relicJackpotPerDrop = (1 / 500) * (obelisk * 3 + 10);
+
+  const useWiki =
+    typeof params.founder_worlds_unlocked === "number" &&
+    params.founder_worlds_unlocked >= 1 &&
+    params.founder_worlds_unlocked <= 4;
+  const w = useWiki ? Math.max(1, Math.min(4, Math.trunc(params.founder_worlds_unlocked))) : 1;
+
+  let itemChestsPerDrop: number;
+  let relicBasePerDrop: number;
+  let cherryPerDrop: number;
+  let fuelPerDrop: number;
+  let fishingPerDrop: number;
+  let archPerDrop: number;
+  let star2xMinPerDrop: number;
+  let starAutoCatch100MinPerDrop: number;
+
+  if (useWiki) {
+    itemChestsPerDrop = 2 * w;
+    relicBasePerDrop = 1 * w;
+    cherryPerDrop = Math.max(50, 5 * w * obelisk);
+    fuelPerDrop = 1 * w;
+    star2xMinPerDrop = 4 * w;
+    starAutoCatch100MinPerDrop = params.founder_star_auto_catch_below_100 === true ? 8 * w : 0;
+    archPerDrop =
+      typeof params.founder_arch_highest_stage === "number" && params.founder_arch_highest_stage >= 0
+        ? 3 * params.founder_arch_highest_stage + 50
+        : 0;
+    const directReduction = params.founder_fishing_tick_reduction ?? 0;
+    fishingPerDrop = 0.5 * directReduction;
+  } else {
+    const qtyMult = getSupplyDropQuantityMultiplier(params);
+    const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
+    itemChestsPerDrop = 6 * qtyMult;
+    relicBasePerDrop = 3 * qtyMult;
+    cherryPerDrop = FOUNDER_SUPPLY_DROP_CHERRY_PER_DROP_LEGACY(lvl);
+    fuelPerDrop = 3 * qtyMult;
+    fishingPerDrop = FOUNDER_SUPPLY_DROP_FISHING_TICKS_PER_DROP_LEGACY(lvl);
+    archPerDrop = FOUNDER_SUPPLY_DROP_ARCH_TICKS_PER_DROP_LEGACY(lvl);
+    star2xMinPerDrop = 12;
+    starAutoCatch100MinPerDrop = 0;
+  }
+
+  const relicChestsPerDrop = relicBasePerDrop + relicJackpotPerDrop;
   const lootfrogsUnlocked = Boolean(params.lootfrogs_unlocked);
-  const frogspawnPerHour = lootfrogsUnlocked ? eventsPerHour * (1 / 500) * 5 * qtyMult : 0;
+  const frogspawnPerHour = lootfrogsUnlocked ? eventsPerHour * (1 / 500) * 5 * goldenMult : 0;
+
   return {
-    itemChestsPerHour: eventsPerHour * 6 * qtyMult,
-    cherryChargesPerHour: eventsPerHour * cherryPerDrop,
-    relicChestsPerHour: eventsPerHour * 3 * qtyMult,
-    fuelPerHour: eventsPerHour * 3 * qtyMult,
-    fishingTicksPerHour: eventsPerHour * fishingPerDrop,
-    archaeologyTicksPerHour: eventsPerHour * archPerDrop,
+    itemChestsPerHour: eventsPerHour * itemChestsPerDrop * goldenMult,
+    cherryChargesPerHour: eventsPerHour * cherryPerDrop * goldenMult,
+    relicChestsPerHour: eventsPerHour * relicChestsPerDrop * goldenMult,
+    fuelPerHour: eventsPerHour * fuelPerDrop * goldenMult,
+    fishingTicksPerHour: eventsPerHour * fishingPerDrop * goldenMult,
+    archaeologyTicksPerHour: eventsPerHour * archPerDrop * goldenMult,
     frogspawnPerHour,
-    starSpawn2xMinPerHour: eventsPerHour * star2xMinPerDrop,
-    starAutoCatch100MinPerHour: 0,
+    starSpawn2xMinPerHour: eventsPerHour * star2xMinPerDrop * goldenMult,
+    starAutoCatch100MinPerHour: eventsPerHour * starAutoCatch100MinPerDrop * goldenMult,
   };
 }
 
@@ -559,10 +619,10 @@ export function convertTimeBoostToGemEquivalent(params: GameParameters, minutes2
   return additionalFreebies * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
 }
 
-/** Expected Item Chests per Gift. One of 12 basic outcomes is "25–40 Item Chests" (avg 32.5). Obelisk and Lucky multipliers apply. */
+/** Expected Item Chests per Gift (wiki Store#Gifts). One of 12 basic outcomes: 25–40 Item Chests (avg 32.5). [1] Obelisk and Lucky apply. */
 export function getExpectedItemChestsPerGift(params: GameParameters): number {
   const obelisk = clampPositive(params.obelisk_level ?? 0, 0);
-  const probBasicRoll = getBasicRollProbability(obelisk);
+  const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
   const obeliskMult = calculateObeliskMultiplier(params);
   const luckyMult = calculateLuckyMultiplier();
   const chancePerItem = 1 / 12;
@@ -570,38 +630,52 @@ export function getExpectedItemChestsPerGift(params: GameParameters): number {
   return probBasicRoll * chancePerItem * itemChestsAvg * obeliskMult * luckyMult;
 }
 
-/** Expected Relic Chests per Gift from basic outcomes. Two of 12 basic outcomes: 10–15 Relic Chests (avg 12.5) and 3–5 Relic Chests (avg 4). Lucky multiplier applies to quantities. */
+/** Expected Relic Chests per Gift from basic outcomes (wiki Store#Gifts). Two of 12 basic outcomes: 3–5 (avg 4) and 5–10 (avg 7.5). [1] Obelisk mult applies. */
 export function getExpectedRelicChestsPerGift(params: GameParameters): number {
   const obelisk = clampPositive(params.obelisk_level ?? 0, 0);
-  const probBasicRoll = getBasicRollProbability(obelisk);
+  const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
+  const obeliskMult = calculateObeliskMultiplier(params);
   const luckyMult = calculateLuckyMultiplier();
   const chancePerItem = 1 / 12;
-  const avg10_15 = 12.5;
   const avg3_5 = 4;
-  return probBasicRoll * chancePerItem * (avg10_15 + avg3_5) * luckyMult;
+  const avg5_10 = 7.5;
+  return probBasicRoll * chancePerItem * (avg3_5 + avg5_10) * obeliskMult * luckyMult;
 }
 
-/** Probability that no rare wins (so the gift gives a basic-roll outcome). Same p array as computeRareRollWinProbs. */
-export function getBasicRollProbability(obelisk: number): number {
-  const p = [
-    obelisk >= 23 ? 1 / 20 : 0,
-    1 / 40,
-    1 / 45,
-    1 / 100,
-    obelisk >= 37 ? 1 / 37 : 0,
-    obelisk >= 18 ? 1 / 30 : 0,
-    obelisk >= 30 ? 1 / 33 : 0,
-    obelisk >= 37 ? 1 / 45 : 0,
-    obelisk >= 37 ? 1 / 175 : 0,
-    1 / 200,
-    1 / 2000,
-    1 / 2500,
-  ];
+/**
+ * Probability that no rare wins (so the gift gives a basic-roll outcome). Same p array as computeRareRollWinProbs.
+ * Wiki Store#Gifts: rare chain order and chances.
+ */
+export function getBasicRollProbability(obelisk: number, blackHoleUnlocked?: boolean): number {
+  const p = getRareChanceArray(obelisk, blackHoleUnlocked);
   return p.reduce((acc, pi) => acc * (1 - pi), 1);
 }
 
-/** Rare roll chain: order matters, later replaces earlier. P(roll i wins) = p_i * ∏_{j>i}(1-p_j). */
-function computeRareRollWinProbs(obelisk: number): {
+/** Rare chance array in wiki order (Store#Gifts). [3] Star: 23 ≤ Ob ≤ 59. [5] Frogspawn: Lootfrogs/Black Hole unlocked. */
+function getRareChanceArray(obelisk: number, blackHoleUnlocked?: boolean): number[] {
+  const starOk = obelisk >= 23 && obelisk <= 59;
+  return [
+    starOk ? 1 / 20 : 0, // 1. 60-90 min 2x Star Spawn
+    1 / 40, // 2. 3 Gifts
+    1 / 45, // 3. 80-130 Gems [1]
+    1 / 100, // 4. Mythic Chest
+    blackHoleUnlocked ? 1 / 25 : 0, // 5. 1-2 Frogspawn
+    obelisk >= 37 ? 1 / 37 : 0, // 6. 6-12 Tier 2 Items
+    obelisk >= 18 ? 1 / 30 : 0, // 7. Drone Fuel [4]
+    obelisk >= 30 ? 1 / 33 : 0, // 8. 1-3 Idol Tokens [6]
+    obelisk >= 37 ? 1 / 45 : 0, // 9. 15-24 Sushi [5]
+    obelisk >= 37 ? 1 / 175 : 0, // 10. 50-60 Sushi [5]
+    obelisk >= 60 ? 1 / 25 : 0, // 11. 15k-25k Gems
+    obelisk >= 60 ? 1 / 1000 : 0, // 12. 1 Forbidden Sushi
+    obelisk >= 60 ? 1 / 30 : 0, // 13. 1-2 Cosmic Candy
+    1 / 200, // 14. Skin [7][8]
+    1 / 2000, // 15. Gilded Skin [7][9]
+    1 / 2500, // 16. Divine Chest
+  ];
+}
+
+/** Rare roll chain: order matters, later replaces earlier. P(roll i wins) = p_i * ∏_{j>i}(1-p_j). Wiki Store#Gifts. */
+function computeRareRollWinProbs(obelisk: number, blackHoleUnlocked?: boolean): {
   gifts3: number;
   gems80_130: number;
   droneFuel: number;
@@ -609,30 +683,25 @@ function computeRareRollWinProbs(obelisk: number): {
   sushi50_60: number;
   skin: number;
   gildedSkin: number;
+  gems15k_25k: number;
+  frogspawn: number;
+  forbiddenSushi: number;
+  cosmicCandy: number;
 } {
-  const p = [
-    obelisk >= 23 ? 1 / 20 : 0, // Star Spawn
-    1 / 40, // 3 Gifts
-    1 / 45, // 80-130 Gems
-    1 / 100, // Mythic Chest
-    obelisk >= 37 ? 1 / 37 : 0, // Tier 2 Items
-    obelisk >= 18 ? 1 / 30 : 0, // Drone Fuel
-    obelisk >= 30 ? 1 / 33 : 0, // Idol Tokens
-    obelisk >= 37 ? 1 / 45 : 0, // 15-24 Sushi
-    obelisk >= 37 ? 1 / 175 : 0, // 50-60 Sushi
-    1 / 200, // Skin
-    1 / 2000, // Gilded Skin
-    1 / 2500, // Divine Chest
-  ];
+  const p = getRareChanceArray(obelisk, blackHoleUnlocked);
   const noReplace = p.map((_, i) => p.slice(i + 1).reduce((acc, pj) => acc * (1 - pj), 1));
   return {
     gifts3: p[1] * noReplace[1],
     gems80_130: p[2] * noReplace[2],
-    droneFuel: p[5] * noReplace[5],
-    sushi15_24: p[7] * noReplace[7],
-    sushi50_60: p[8] * noReplace[8],
-    skin: p[9] * noReplace[9],
-    gildedSkin: p[10] * noReplace[10],
+    droneFuel: p[6] * noReplace[6],
+    sushi15_24: p[8] * noReplace[8],
+    sushi50_60: p[9] * noReplace[9],
+    skin: p[13] * noReplace[13],
+    gildedSkin: p[14] * noReplace[14],
+    gems15k_25k: p[10] * noReplace[10],
+    frogspawn: p[4] * noReplace[4],
+    forbiddenSushi: p[11] * noReplace[11],
+    cosmicCandy: p[12] * noReplace[12],
   };
 }
 
@@ -642,13 +711,13 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
   const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
   const chancePerItem = 1.0 / 12.0;
   const obelisk = clampPositive(params.obelisk_level, 0);
-  const probBasicRoll = getBasicRollProbability(obelisk);
+  const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
 
-  // 1) Base roll EV – only when no rare wins (rare replaces basic). Time boosts no longer converted to Gems.
+  // 1) Base roll EV (wiki Store#Gifts first table). [1] = 1 + Obelisk×0.08. Rare replaces basic.
   const gems20_40 = 30.0;
-  const gems30_65 = 47.5;
+  const gems20_50 = 35.0;
   const skillShardsBase = 3.5;
-  const baseRollGems = probBasicRoll * chancePerItem * (gems20_40 + gems30_65);
+  const baseRollGems = probBasicRoll * chancePerItem * (gems20_40 + gems20_50);
   const baseRollShards = probBasicRoll * chancePerItem * skillShardsBase * skillShardValue;
 
   const itemChestsAvg = 32.5;
@@ -665,21 +734,21 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
     ? probBasicRoll * chancePerItem * chargeMagnetAvg * (params.gift_charge_magnet_value_per_magnet ?? 0)
     : 0;
 
-  // 2) Rare rolls – full replacement chain
-  const rare = computeRareRollWinProbs(obelisk);
+  // 2) Rare rolls (wiki Store#Gifts second table). [4] Drone Fuel = 5+2×Ob + random(-10..10) → avg 5+2×Ob.
+  const rare = computeRareRollWinProbs(obelisk, params.gift_black_hole_unlocked);
   const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
-  const droneFuelAvgQty = obelisk * 1.5 + 10;
+  const droneFuelAvgQty = 5 + 2 * obelisk;
   const rareGemsEv = rare.gems80_130 * 105.0 * obeliskMult * luckyMult;
   const droneFuelEv = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
-  const skinEv = rare.skin * 105.0 * obeliskMult; // Skins: no Lucky mult
+  const skinEv = rare.skin * 105.0 * obeliskMult;
 
-  // 2b) ob60 Gem Chest: from ob60, ~0.1% chance per gift for ~22,500 gems (flat, no Obelisk/Lucky mult)
-  const OB60_GEM_CHEST_LEVEL = 60;
-  const OB60_GEM_CHEST_PROB = 0.001;
-  const OB60_GEM_CHEST_GEMS = 22500;
-  const ob60GemChestEv = obelisk >= OB60_GEM_CHEST_LEVEL ? OB60_GEM_CHEST_PROB * OB60_GEM_CHEST_GEMS : 0;
+  const gems15k25kAvg = 20000.0;
+  const gems15k25kEv = rare.gems15k_25k * gems15k25kAvg * obeliskMult * luckyMult;
+  const frogspawnEv = rare.frogspawn * 1.5 * (params.gift_frogspawn_gem_value ?? 0);
+  const forbiddenSushiEv = rare.forbiddenSushi * (params.gift_forbidden_sushi_gem_value ?? 0);
+  const cosmicCandyAvgQty = 1.5;
+  const cosmicCandyEv = rare.cosmicCandy * cosmicCandyAvgQty * (params.gift_cosmic_candy_gem_value ?? 0);
 
-  // 3) Apply multipliers to base
   const baseGemsWithMult = baseRollGems * obeliskMult * luckyMult;
   const baseShardsWithMult = baseRollShards * obeliskMult * luckyMult;
   const itemChestsWithMult = itemChestsEv * obeliskMult * luckyMult;
@@ -687,8 +756,6 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
   const chargeMagnetWithMult = chargeMagnetEv * obeliskMult * luckyMult;
   const fishingTickWithMult = fishingTickEv * obeliskMult * luckyMult;
 
-  // 4) Recursion: GiftEV = A + recursiveCoeff * GiftEV (3 Gifts and 25 Gifts from Gilded Skin).
-  // Every component in A (including ob60 Gem Chest) is amplified by 1/(1 - recursiveCoeff).
   const recursiveCoeff =
     rare.gifts3 * 3.0 * obeliskMult * luckyMult + rare.gildedSkin * 25.0 * obeliskMult * luckyMult;
   const A =
@@ -701,7 +768,10 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
     rareGemsEv +
     droneFuelEv +
     skinEv +
-    ob60GemChestEv;
+    gems15k25kEv +
+    frogspawnEv +
+    forbiddenSushiEv +
+    cosmicCandyEv;
   if (recursiveCoeff >= 1.0) return A * 10.0;
   return A / (1.0 - recursiveCoeff);
 }
@@ -712,16 +782,16 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
   const chancePerItem = 1.0 / 12.0;
   const obelisk = clampPositive(params.obelisk_level, 0);
-  const probBasicRoll = getBasicRollProbability(obelisk);
+  const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
   const gems20_40 = 30.0;
-  const gems30_65 = 47.5;
+  const gems20_50 = 35.0;
   const skillShardsBase = 3.5;
   const itemChestsAvg = 32.5;
   const chaosTotemAvg = 12.5;
   const chargeMagnetAvg = 16.0;
 
   const gems20_40_final = probBasicRoll * chancePerItem * gems20_40 * obeliskMult * luckyMult;
-  const gems30_65_final = probBasicRoll * chancePerItem * gems30_65 * obeliskMult * luckyMult;
+  const gems20_50_final = probBasicRoll * chancePerItem * gems20_50 * obeliskMult * luckyMult;
   const skillShards_final = probBasicRoll * chancePerItem * skillShardsBase * skillShardValue * obeliskMult * luckyMult;
   const item_chests_final =
     probBasicRoll * chancePerItem * itemChestsAvg * (params.gift_item_chest_value ?? 0) * obeliskMult * luckyMult;
@@ -735,14 +805,17 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
     ? probBasicRoll * chancePerItem * (params.gift_fishing_tick_value ?? 0) * obeliskMult * luckyMult
     : 0;
 
-  const rare = computeRareRollWinProbs(obelisk);
+  const rare = computeRareRollWinProbs(obelisk, params.gift_black_hole_unlocked);
   const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
-  const droneFuelAvgQty = obelisk * 1.5 + 10;
+  const droneFuelAvgQty = 5 + 2 * obelisk;
   const rare_gems_final = rare.gems80_130 * 105.0 * obeliskMult * luckyMult;
   const drone_fuel_final = rare.droneFuel * droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMult;
   const skin_final = rare.skin * 105.0 * obeliskMult;
 
-  const ob60_gem_chest_final = obelisk >= 60 ? 0.001 * 22500 : 0;
+  const gems15k25k_final = rare.gems15k_25k * 20000.0 * obeliskMult * luckyMult;
+  const frogspawn_final = rare.frogspawn * 1.5 * (params.gift_frogspawn_gem_value ?? 0);
+  const forbidden_sushi_final = rare.forbiddenSushi * (params.gift_forbidden_sushi_gem_value ?? 0);
+  const cosmic_candy_final = rare.cosmicCandy * 1.5 * (params.gift_cosmic_candy_gem_value ?? 0);
 
   const fishPerSushi = params.gift_sushi_fish_per_sushi ?? 0;
   const sushi_fish_final =
@@ -751,7 +824,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const giftEvTotal = calculateGiftEvPerGift(params);
   const A =
     gems20_40_final +
-    gems30_65_final +
+    gems20_50_final +
     skillShards_final +
     item_chests_final +
     chaos_totem_final +
@@ -760,12 +833,14 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
     rare_gems_final +
     drone_fuel_final +
     skin_final +
-    ob60_gem_chest_final;
+    gems15k25k_final +
+    frogspawn_final +
+    forbidden_sushi_final +
+    cosmic_candy_final;
   const recursiveGiftsContribution = giftEvTotal - A;
 
-  /** Expected quantity per gift (for chart labels): gems, shards, chests, totems, magnets, fuel, sushi, etc. */
   const gems20_40_qty = probBasicRoll * chancePerItem * gems20_40 * obeliskMult * luckyMult;
-  const gems30_65_qty = probBasicRoll * chancePerItem * gems30_65 * obeliskMult * luckyMult;
+  const gems20_50_qty = probBasicRoll * chancePerItem * gems20_50 * obeliskMult * luckyMult;
   const skillShards_qty = probBasicRoll * chancePerItem * skillShardsBase * obeliskMult * luckyMult;
   const itemChests_qty = probBasicRoll * chancePerItem * itemChestsAvg * obeliskMult * luckyMult;
   const chaosTotem_qty = params.gift_chaos_totem_100_from_bombs ? 0 : probBasicRoll * chancePerItem * chaosTotemAvg * obeliskMult * luckyMult;
@@ -778,11 +853,11 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const skin_qty = rare.skin * 105 * obeliskMult;
   const sushi_qty = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
   const recursiveGifts_qty = rare.gifts3 * 3 * obeliskMult * luckyMult + rare.gildedSkin * 25 * obeliskMult * luckyMult;
-  const ob60_gem_chest_qty = ob60_gem_chest_final;
+  const gems15k25k_qty = rare.gems15k_25k * 20000 * obeliskMult * luckyMult;
 
   return {
     gems_20_40: gems20_40_final,
-    gems_30_65: gems30_65_final,
+    gems_20_50: gems20_50_final,
     skill_shards: skillShards_final,
     item_chests: item_chests_final,
     chaos_totem: chaos_totem_final,
@@ -791,13 +866,16 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
     rare_gems: rare_gems_final,
     drone_fuel: drone_fuel_final,
     skin: skin_final,
-    ob60_gem_chest: ob60_gem_chest_final,
+    gems_15k_25k: gems15k25k_final,
+    frogspawn: frogspawn_final,
+    forbidden_sushi: forbidden_sushi_final,
+    cosmic_candy: cosmic_candy_final,
     sushi_fish: sushi_fish_final,
     recursive_gifts: recursiveGiftsContribution,
     total: giftEvTotal,
     _qty: {
       gems_20_40: gems20_40_qty,
-      gems_30_65: gems30_65_qty,
+      gems_20_50: gems20_50_qty,
       skill_shards: skillShards_qty,
       item_chests: itemChests_qty,
       chaos_totem: chaosTotem_qty,
@@ -809,7 +887,7 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
       skin: skin_qty,
       sushi_fish: sushi_qty,
       recursive_gifts: recursiveGifts_qty,
-      ob60_gem_chest: ob60_gem_chest_qty,
+      gems_15k_25k: gems15k25k_qty,
     } as Record<string, number>,
     _multipliers: {
       obeliskMult,
@@ -832,7 +910,7 @@ export interface GiftSushiPerHourBySource {
 export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftSushiPerHourBySource {
   const luckyMult = calculateLuckyMultiplier();
   const obelisk = clampPositive(params.obelisk_level, 0);
-  const rare = computeRareRollWinProbs(obelisk);
+  const rare = computeRareRollWinProbs(obelisk, params.gift_black_hole_unlocked);
   const sushiPerGift = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
 
   let freebieGiftsPerHour = 0;
@@ -849,20 +927,22 @@ export function calculateGiftSushiPerHourBySource(params: GameParameters): GiftS
     freebieGiftsPerHour = giftRollsPerHour * expectedGiftsPerClaim;
   }
 
-  // Founder supply drop
+  // Founder supply drop: jackpot 1/1234 per collect event → 10 Gifts (wiki); 1/750 per event → 100 Sushi when Fishing unlocked
+  let founderSushiPerHour = 0;
   if (params.founder_enabled) {
     const founderDropInterval = getFounderDropIntervalMinutes(params);
     const founderDropsPerHour = 60.0 / founderDropInterval;
-    const doubleChance = clamp01(getDoubleDropChance(params));
-    const tripleChance = clamp01(getTripleDropChance(params));
-    const singleChance = 1.0 - doubleChance - tripleChance;
-    const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-    founderGiftsPerHour = founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10 * getSupplyDropQuantityMultiplier(params);
+    founderGiftsPerHour = founderDropsPerHour * (1 / 1234) * 10;
+    founderSushiPerHour = founderGiftsPerHour * sushiPerGift;
+    if (params.gift_fishing_unlocked) {
+      const sushiJackpotPerHour = founderDropsPerHour * (1 / 750) * 100;
+      founderSushiPerHour += sushiJackpotPerHour;
+    }
   }
 
   return {
     freebie: freebieGiftsPerHour * sushiPerGift,
-    founder: founderGiftsPerHour * sushiPerGift,
+    founder: founderSushiPerHour,
     giftPerHourFreebie: freebieGiftsPerHour,
     giftPerHourFounder: founderGiftsPerHour,
   };
@@ -889,11 +969,7 @@ export function calculateGift5xTickUptimeFraction(params: GameParameters): numbe
   if (params.founder_enabled) {
     const founderDropInterval = getFounderDropIntervalMinutes(params);
     const founderDropsPerHour = 60.0 / founderDropInterval;
-    const doubleChance = clamp01(getDoubleDropChance(params));
-    const tripleChance = clamp01(getTripleDropChance(params));
-    const singleChance = 1.0 - doubleChance - tripleChance;
-    const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
-    totalGiftsPerHour += founderDropsPerHour * expectedDropsPerEvent * (1 / 1234) * 10 * getSupplyDropQuantityMultiplier(params);
+    totalGiftsPerHour += founderDropsPerHour * (1 / 1234) * 10;
   }
   const obelisk = clampPositive(params.obelisk_level, 0);
   const probBasicRoll = getBasicRollProbability(obelisk);
@@ -913,34 +989,48 @@ export function calculateFounderGemsPerHour(params: GameParameters): number {
   const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
 
   const qtyMult = getSupplyDropQuantityMultiplier(params);
+  const goldenChance = getGoldenSupplyDropChance(params);
+  const goldenMult = 1.0 + 4.0 * goldenChance;
 
-  const goldenChance = getGoldenSupplyDropChance(params); // 5× normal drops, not rare
+  const w = params.founder_worlds_unlocked != null ? Math.max(1, Math.min(4, Math.trunc(params.founder_worlds_unlocked))) : 0;
+  const gemsPerDropBase = w >= 1 && params.founder_worlds_unlocked != null
+    ? 10 * w
+    : clampPositive(params.founder_gems_base, 30.0) * qtyMult;
   const baseGems =
-    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 30.0) * (1.0 + 4.0 * goldenChance) * qtyMult;
+    founderDropsPerHour * expectedDropsPerEvent * gemsPerDropBase * goldenMult;
+
   const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
   const bonusGems =
     founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
 
-  /** Rare: 1/100 per drop → 650 Gems. */
-  const FOUNDER_RARE_650_GEMS_CHANCE = 1.0 / 100.0;
-  const FOUNDER_RARE_650_GEMS_AMOUNT = 650.0;
-  const rare650Gems =
-    founderDropsPerHour * expectedDropsPerEvent * FOUNDER_RARE_650_GEMS_CHANCE * FOUNDER_RARE_650_GEMS_AMOUNT * qtyMult;
+  const FOUNDER_RARE_GEMS_CHANCE = 1.0 / 100.0;
+  const founderRareGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 0);
+  const rareGemsJackpot =
+    founderDropsPerHour * FOUNDER_RARE_GEMS_CHANCE * founderRareGemsPerDrop;
 
   const giftChance = 1.0 / 1234.0;
   const giftsPerDrop = 10.0;
   const giftEvPerGift = calculateGiftEvPerGift(params);
-  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift * qtyMult;
+  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift;
+
+  const mythicChestEv =
+    founderDropsPerHour * (1 / 2000) * (params.founder_mythic_chest_gem_value ?? 0);
+  const megaJackpotGems =
+    founderDropsPerHour * (1 / 69696) * 1000;
+  const megaJackpotRelicEv =
+    founderDropsPerHour * (1 / 69696) * 100 * (params.founder_relic_chest_gem_value ?? 0);
+  const megaJackpotDivineEv =
+    founderDropsPerHour * (1 / 69696) * 1 * (params.founder_divine_chest_gem_value ?? 0);
 
   const supplyDrop = getFounderSupplyDropPerHour(params); // already includes qtyMult for cherry/fuel/ticks
   const cherryGems = calculateCherryChargesGemsPerHour(params, supplyDrop.cherryChargesPerHour);
   const fuelGems = supplyDrop.fuelPerHour * (params.gift_drone_fuel_gems_per_fuel ?? 0);
   const fishingTickGems = supplyDrop.fishingTicksPerHour * (params.founder_fishing_tick_gem_value ?? 0);
 
-  return baseGems + bonusGems + rare650Gems + giftGems + cherryGems + fuelGems + fishingTickGems;
+  return baseGems + bonusGems + rareGemsJackpot + giftGems + mythicChestEv + megaJackpotGems + megaJackpotRelicEv + megaJackpotDivineEv + cherryGems + fuelGems + fishingTickGems;
 }
 
-/** Gems EV per hour from supply drop only (base + bonus roll + rare 650 + gifts). For breakdown modal; excludes cherry/fuel/fishing tick value. */
+/** Gems EV per hour from supply drop only (base + bonus roll + rare 1/100 gems + gifts + optional mythic/mega jackpots). For breakdown modal; excludes cherry/fuel/fishing tick value. */
 export function getFounderSupplyDropGemsEvPerHour(params: GameParameters): number {
   if (!params.founder_enabled) return 0;
   const founderDropInterval = getFounderDropIntervalMinutes(params);
@@ -951,20 +1041,33 @@ export function getFounderSupplyDropGemsEvPerHour(params: GameParameters): numbe
   const expectedDropsPerEvent = 1.0 * singleChance + 2.0 * doubleChance + 3.0 * tripleChance;
   const qtyMult = getSupplyDropQuantityMultiplier(params);
   const goldenChance = getGoldenSupplyDropChance(params);
+  const goldenMult = 1.0 + 4.0 * goldenChance;
+  const w = params.founder_worlds_unlocked != null ? Math.max(1, Math.min(4, Math.trunc(params.founder_worlds_unlocked))) : 0;
+  const gemsPerDropBase = w >= 1 && params.founder_worlds_unlocked != null
+    ? 10 * w
+    : clampPositive(params.founder_gems_base, 30.0) * qtyMult;
   const baseGems =
-    founderDropsPerHour * expectedDropsPerEvent * clampPositive(params.founder_gems_base, 30.0) * (1.0 + 4.0 * goldenChance) * qtyMult;
+    founderDropsPerHour * expectedDropsPerEvent * gemsPerDropBase * goldenMult;
   const bonusGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 29);
   const bonusGems =
     founderDropsPerHour * expectedDropsPerEvent * clamp01(params.founder_gems_chance) * bonusGemsPerDrop * qtyMult;
-  const FOUNDER_RARE_650_GEMS_CHANCE = 1.0 / 100.0;
-  const FOUNDER_RARE_650_GEMS_AMOUNT = 650.0;
-  const rare650Gems =
-    founderDropsPerHour * expectedDropsPerEvent * FOUNDER_RARE_650_GEMS_CHANCE * FOUNDER_RARE_650_GEMS_AMOUNT * qtyMult;
+  const FOUNDER_RARE_GEMS_CHANCE = 1.0 / 100.0;
+  const founderRareGemsPerDrop = 50.0 + 10.0 * clampPositive(params.obelisk_level, 0);
+  const rareGemsJackpot =
+    founderDropsPerHour * FOUNDER_RARE_GEMS_CHANCE * founderRareGemsPerDrop;
   const giftChance = 1.0 / 1234.0;
   const giftsPerDrop = 10.0;
   const giftEvPerGift = calculateGiftEvPerGift(params);
-  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift * qtyMult;
-  return baseGems + bonusGems + rare650Gems + giftGems;
+  const giftGems = founderDropsPerHour * giftChance * giftsPerDrop * giftEvPerGift;
+  const mythicChestEv =
+    founderDropsPerHour * (1 / 2000) * (params.founder_mythic_chest_gem_value ?? 0);
+  const megaJackpotGems =
+    founderDropsPerHour * (1 / 69696) * 1000;
+  const megaJackpotRelicEv =
+    founderDropsPerHour * (1 / 69696) * 100 * (params.founder_relic_chest_gem_value ?? 0);
+  const megaJackpotDivineEv =
+    founderDropsPerHour * (1 / 69696) * 1 * (params.founder_divine_chest_gem_value ?? 0);
+  return baseGems + bonusGems + rareGemsJackpot + giftGems + mythicChestEv + megaJackpotGems + megaJackpotRelicEv + megaJackpotDivineEv;
 }
 
 /** Extra clicks per hour per bomb type (e.g. 20 each for Charge Magnet). Omit or use number to add same to all. */

@@ -132,6 +132,34 @@
   box-sizing: border-box;
 }
 
+.sgStepperWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sgStepperBtn {
+  padding: 2px 5px;
+  min-width: 24px;
+  font-size: 11px;
+  font: inherit;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.sgStepperInput {
+  width: 36px;
+  padding: 2px 4px;
+  font-size: 11px;
+  flex-shrink: 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .sgHeaderIcon {
   width: 22px;
   height: 22px;

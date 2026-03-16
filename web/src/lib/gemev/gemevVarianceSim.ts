@@ -48,18 +48,23 @@ function clampInt(x: number, fallback = 0): number {
   return Math.trunc(x);
 }
 
-/** Rare roll chain: same order and p as freebieEv computeRareRollWinProbs. Index 0..11; -1 = basic roll. */
-function sampleRareChainIndex(obelisk: number, rng: () => number): number {
+/** Rare roll chain: wiki Store#Gifts order. Index 0..15; -1 = basic roll. */
+function sampleRareChainIndex(obelisk: number, rng: () => number, blackHoleUnlocked?: boolean): number {
+  const starOk = obelisk >= 23 && obelisk <= 59;
   const p = [
-    obelisk >= 23 ? 1 / 20 : 0,
+    starOk ? 1 / 20 : 0,
     1 / 40,
     1 / 45,
     1 / 100,
+    blackHoleUnlocked ? 1 / 25 : 0,
     obelisk >= 37 ? 1 / 37 : 0,
     obelisk >= 18 ? 1 / 30 : 0,
     obelisk >= 30 ? 1 / 33 : 0,
     obelisk >= 37 ? 1 / 45 : 0,
     obelisk >= 37 ? 1 / 175 : 0,
+    obelisk >= 60 ? 1 / 25 : 0,
+    obelisk >= 60 ? 1 / 1000 : 0,
+    obelisk >= 60 ? 1 / 30 : 0,
     1 / 200,
     1 / 2000,
     1 / 2500,
@@ -67,21 +72,26 @@ function sampleRareChainIndex(obelisk: number, rng: () => number): number {
   for (let i = 0; i < p.length; i++) {
     if (p[i] > 0 && rng() < p[i]) return i;
   }
-  return -1; // basic roll
+  return -1;
 }
 
 /** Probability that no rare wins (basic roll). Same as getBasicRollProbability in freebieEv. */
-function getBasicRollProbability(obelisk: number): number {
+function getBasicRollProbability(obelisk: number, blackHoleUnlocked?: boolean): number {
+  const starOk = obelisk >= 23 && obelisk <= 59;
   const p = [
-    obelisk >= 23 ? 1 / 20 : 0,
+    starOk ? 1 / 20 : 0,
     1 / 40,
     1 / 45,
     1 / 100,
+    blackHoleUnlocked ? 1 / 25 : 0,
     obelisk >= 37 ? 1 / 37 : 0,
     obelisk >= 18 ? 1 / 30 : 0,
     obelisk >= 30 ? 1 / 33 : 0,
     obelisk >= 37 ? 1 / 45 : 0,
     obelisk >= 37 ? 1 / 175 : 0,
+    obelisk >= 60 ? 1 / 25 : 0,
+    obelisk >= 60 ? 1 / 1000 : 0,
+    obelisk >= 60 ? 1 / 30 : 0,
     1 / 200,
     1 / 2000,
     1 / 2500,
@@ -89,62 +99,63 @@ function getBasicRollProbability(obelisk: number): number {
   return p.reduce((acc, pi) => acc * (1 - pi), 1);
 }
 
-/** Sample one gift's gem value (no recursion for 3/25 gifts: use EV for those to keep sim fast and stable). */
+/** Sample one gift's gem value (no recursion for 3/25 gifts: use EV for those to keep sim fast and stable). Wiki Store#Gifts. */
 function sampleOneGiftGemValue(params: GiftSimParams, rng: () => number): number {
   const obelisk = clampPositive(params.obelisk_level, 0);
   const obeliskMult = calculateObeliskMultiplier(params);
-  const luckyMult = calculateLuckyMultiplier();
   const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
-  const chancePerItem = 1 / 12;
-  const probBasicRoll = getBasicRollProbability(obelisk);
+  const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
 
-  // Lucky: 3× 1/20, 50× 1/2500, both 150×
   const luckyRoll = rng();
   let luckyMultThis = 1;
   if (luckyRoll < (1 / 20) * (1 / 2500)) luckyMultThis = 150;
   else if (luckyRoll < 1 / 2500) luckyMultThis = 50;
   else if (luckyRoll < 1 / 20) luckyMultThis = 3;
 
-  const rareIndex = sampleRareChainIndex(obelisk, rng);
+  const rareIndex = sampleRareChainIndex(obelisk, rng, params.gift_black_hole_unlocked);
 
   if (rareIndex >= 0) {
-    // Rare outcome (order: 0 Star Spawn, 1 3 Gifts, 2 80-130 Gems, 3 Mythic, 4 Tier2, 5 Drone Fuel, 6 Idol, 7 Sushi 15-24, 8 Sushi 50-60, 9 Skin, 10 Gilded, 11 Divine)
     const gems80_130_avg = 105;
-    const droneFuelAvgQty = obelisk * 1.5 + 10;
+    const droneFuelAvgQty = 5 + 2 * obelisk;
     const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
-    const giftEvPerGift = params.__giftEvPerGift ?? 0; // set by caller from calculateGiftEvPerGift
+    const giftEvPerGift = params.__giftEvPerGift ?? 0;
+    const gems15k25kAvg = 20000;
     switch (rareIndex) {
       case 0:
-        return 0; // Star Spawn – no gem value in our EV
+        return 0;
       case 1:
-        return 3 * giftEvPerGift; // 3 Gifts (use EV to avoid recursion)
+        return 3 * giftEvPerGift;
       case 2:
         return gems80_130_avg * obeliskMult * luckyMultThis;
       case 3:
-        return 0; // Mythic Chest – no gem value in EV
       case 4:
-        return 0; // Tier 2 Items
       case 5:
-        return droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMultThis;
-      case 6:
-        return 0; // Idol Tokens
       case 7:
+        return 0;
+      case 6:
+        return droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMultThis;
       case 8:
-        return 0; // Sushi – fish value, not gems
       case 9:
-        return 105 * obeliskMult; // Skin
+        return 0;
       case 10:
-        return 25 * giftEvPerGift; // Gilded Skin → 25 Gifts
+        return gems15k25kAvg * obeliskMult * luckyMultThis;
       case 11:
-        return 0; // Divine Chest
+        return params.gift_forbidden_sushi_gem_value ?? 0;
+      case 12:
+        return 1.5 * (params.gift_cosmic_candy_gem_value ?? 0);
+      case 13:
+        return 105 * obeliskMult;
+      case 14:
+        return 25 * giftEvPerGift;
+      case 15:
+        return 0;
       default:
         return 0;
     }
   }
 
-  // Basic roll: one of 12 outcomes (gem value only; we approximate with expected value per basic roll for simplicity)
   const gems20_40 = 30;
-  const gems30_65 = 47.5;
+  const gems20_50 = 35;
   const skillShardsBase = 3.5;
   const itemChestsAvg = 32.5;
   const chaosTotemAvg = 12.5;
@@ -156,34 +167,28 @@ function sampleOneGiftGemValue(params: GiftSimParams, rng: () => number): number
 
   const basicValues = [
     gems20_40 * obeliskMult * luckyMultThis,
-    gems30_65 * obeliskMult * luckyMultThis,
+    gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
     itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
     params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
     params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
     gems20_40 * obeliskMult * luckyMultThis,
-    gems30_65 * obeliskMult * luckyMultThis,
+    gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
     itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
     params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
     params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
   ];
   const which = Math.floor(rng() * 12);
-  let value = basicValues[which] ?? 0;
-
-  // ob60 Gem Chest: ~0.1% per gift
-  if (obelisk >= 60 && rng() < 0.001) value += 22500;
-
-  return value;
+  return basicValues[which] ?? 0;
 }
 
-/** Sample one gift's gem value and sushi quantity (same rare chain as sampleOneGiftGemValue; sushi from rare 7 = 15–24, 8 = 50–60). */
+/** Sample one gift's gem value and sushi quantity (wiki Store#Gifts; sushi from rare 8 = 15–24, 9 = 50–60). */
 function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { gems: number; sushi: number } {
   const obelisk = clampPositive(params.obelisk_level, 0);
   const obeliskMult = calculateObeliskMultiplier(params);
   const luckyMult = calculateLuckyMultiplier();
-  const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
-  const probBasicRoll = getBasicRollProbability(obelisk);
+  const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
 
   const luckyRoll = rng();
   let luckyMultThis = 1;
@@ -191,42 +196,48 @@ function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { 
   else if (luckyRoll < 1 / 2500) luckyMultThis = 50;
   else if (luckyRoll < 1 / 20) luckyMultThis = 3;
 
-  const rareIndex = sampleRareChainIndex(obelisk, rng);
+  const rareIndex = sampleRareChainIndex(obelisk, rng, params.gift_black_hole_unlocked);
 
   if (rareIndex >= 0) {
     const gems80_130_avg = 105;
-    const droneFuelAvgQty = obelisk * 1.5 + 10;
+    const droneFuelAvgQty = 5 + 2 * obelisk;
     const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
     const giftEvPerGift = params.__giftEvPerGift ?? 0;
+    const gems15k25kAvg = 20000;
     switch (rareIndex) {
       case 0:
+      case 3:
+      case 4:
+      case 5:
+      case 7:
+      case 11:
+      case 12:
+      case 15:
         return { gems: 0, sushi: 0 };
       case 1:
         return { gems: 3 * giftEvPerGift, sushi: 0 };
       case 2:
         return { gems: gems80_130_avg * obeliskMult * luckyMultThis, sushi: 0 };
-      case 3:
-      case 4:
       case 6:
-      case 11:
-        return { gems: 0, sushi: 0 };
-      case 5:
         return { gems: droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMultThis, sushi: 0 };
-      case 7:
-        return { gems: 0, sushi: (15 + rng() * 9) * luckyMultThis }; // 15–24 Sushi
       case 8:
-        return { gems: 0, sushi: (50 + rng() * 10) * luckyMultThis }; // 50–60 Sushi
+        return { gems: 0, sushi: (15 + rng() * 9) * luckyMultThis };
       case 9:
-        return { gems: 105 * obeliskMult, sushi: 0 };
+        return { gems: 0, sushi: (50 + rng() * 10) * luckyMultThis };
       case 10:
+        return { gems: gems15k25kAvg * obeliskMult * luckyMultThis, sushi: 0 };
+      case 13:
+        return { gems: 105 * obeliskMult, sushi: 0 };
+      case 14:
         return { gems: 25 * giftEvPerGift, sushi: 0 };
       default:
         return { gems: 0, sushi: 0 };
     }
   }
 
+  const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
   const gems20_40 = 30;
-  const gems30_65 = 47.5;
+  const gems20_50 = 35;
   const skillShardsBase = 3.5;
   const itemChestsAvg = 32.5;
   const chaosTotemAvg = 12.5;
@@ -238,22 +249,20 @@ function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { 
 
   const basicValues = [
     gems20_40 * obeliskMult * luckyMultThis,
-    gems30_65 * obeliskMult * luckyMultThis,
+    gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
     itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
     params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
     params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
     gems20_40 * obeliskMult * luckyMultThis,
-    gems30_65 * obeliskMult * luckyMultThis,
+    gems20_50 * obeliskMult * luckyMultThis,
     skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
     itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
     params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
     params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
   ];
   const which = Math.floor(rng() * 12);
-  let value = basicValues[which] ?? 0;
-  if (obelisk >= 60 && rng() < 0.001) value += 22500;
-  return { gems: value, sushi: 0 };
+  return { gems: basicValues[which] ?? 0, sushi: 0 };
 }
 
 export interface VarianceSimHourResult {
