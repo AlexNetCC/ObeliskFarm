@@ -18,6 +18,10 @@ function poisson(lam: number, rng: () => number): number {
   return n;
 }
 import type { GameParameters } from "./freebieEv";
+
+/** Params extended with gift EV for sampling (set by caller). */
+type GiftSimParams = GameParameters & { __giftEvPerGift?: number };
+
 import {
   calculateObeliskMultiplier,
   calculateLuckyMultiplier,
@@ -86,7 +90,7 @@ function getBasicRollProbability(obelisk: number): number {
 }
 
 /** Sample one gift's gem value (no recursion for 3/25 gifts: use EV for those to keep sim fast and stable). */
-function sampleOneGiftGemValue(params: GameParameters, rng: () => number): number {
+function sampleOneGiftGemValue(params: GiftSimParams, rng: () => number): number {
   const obelisk = clampPositive(params.obelisk_level, 0);
   const obeliskMult = calculateObeliskMultiplier(params);
   const luckyMult = calculateLuckyMultiplier();
@@ -173,6 +177,85 @@ function sampleOneGiftGemValue(params: GameParameters, rng: () => number): numbe
   return value;
 }
 
+/** Sample one gift's gem value and sushi quantity (same rare chain as sampleOneGiftGemValue; sushi from rare 7 = 15–24, 8 = 50–60). */
+function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { gems: number; sushi: number } {
+  const obelisk = clampPositive(params.obelisk_level, 0);
+  const obeliskMult = calculateObeliskMultiplier(params);
+  const luckyMult = calculateLuckyMultiplier();
+  const skillShardValue = clampPositive(params.skill_shard_value_gems, 12.5);
+  const probBasicRoll = getBasicRollProbability(obelisk);
+
+  const luckyRoll = rng();
+  let luckyMultThis = 1;
+  if (luckyRoll < (1 / 20) * (1 / 2500)) luckyMultThis = 150;
+  else if (luckyRoll < 1 / 2500) luckyMultThis = 50;
+  else if (luckyRoll < 1 / 20) luckyMultThis = 3;
+
+  const rareIndex = sampleRareChainIndex(obelisk, rng);
+
+  if (rareIndex >= 0) {
+    const gems80_130_avg = 105;
+    const droneFuelAvgQty = obelisk * 1.5 + 10;
+    const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
+    const giftEvPerGift = params.__giftEvPerGift ?? 0;
+    switch (rareIndex) {
+      case 0:
+        return { gems: 0, sushi: 0 };
+      case 1:
+        return { gems: 3 * giftEvPerGift, sushi: 0 };
+      case 2:
+        return { gems: gems80_130_avg * obeliskMult * luckyMultThis, sushi: 0 };
+      case 3:
+      case 4:
+      case 6:
+      case 11:
+        return { gems: 0, sushi: 0 };
+      case 5:
+        return { gems: droneFuelAvgQty * gemsPerFuel * obeliskMult * luckyMultThis, sushi: 0 };
+      case 7:
+        return { gems: 0, sushi: (15 + rng() * 9) * luckyMultThis }; // 15–24 Sushi
+      case 8:
+        return { gems: 0, sushi: (50 + rng() * 10) * luckyMultThis }; // 50–60 Sushi
+      case 9:
+        return { gems: 105 * obeliskMult, sushi: 0 };
+      case 10:
+        return { gems: 25 * giftEvPerGift, sushi: 0 };
+      default:
+        return { gems: 0, sushi: 0 };
+    }
+  }
+
+  const gems20_40 = 30;
+  const gems30_65 = 47.5;
+  const skillShardsBase = 3.5;
+  const itemChestsAvg = 32.5;
+  const chaosTotemAvg = 12.5;
+  const chargeMagnetAvg = 16;
+  const chestValue = params.gift_item_chest_value ?? 0;
+  const totemValue = params.gift_chaos_totem_value_per_totem ?? 0;
+  const magnetValue = params.gift_charge_magnet_value_per_magnet ?? 0;
+  const fishingTickValue = params.gift_fishing_tick_value ?? 0;
+
+  const basicValues = [
+    gems20_40 * obeliskMult * luckyMultThis,
+    gems30_65 * obeliskMult * luckyMultThis,
+    skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
+    itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
+    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
+    params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
+    gems20_40 * obeliskMult * luckyMultThis,
+    gems30_65 * obeliskMult * luckyMultThis,
+    skillShardsBase * skillShardValue * obeliskMult * luckyMultThis,
+    itemChestsAvg * chestValue * obeliskMult * luckyMultThis,
+    params.gift_chaos_totem_100_from_bombs ? 0 : chaosTotemAvg * totemValue * obeliskMult * luckyMultThis,
+    params.gift_fishing_unlocked ? fishingTickValue * obeliskMult * luckyMultThis : chargeMagnetAvg * magnetValue * obeliskMult * luckyMultThis,
+  ];
+  const which = Math.floor(rng() * 12);
+  let value = basicValues[which] ?? 0;
+  if (obelisk >= 60 && rng() < 0.001) value += 22500;
+  return { gems: value, sushi: 0 };
+}
+
 export interface VarianceSimHourResult {
   /** Gems from freebie claims (base gems + stonks + skill shards) in that hour. */
   freebieGems: number;
@@ -180,6 +263,8 @@ export interface VarianceSimHourResult {
   giftsCount: number;
   /** Gem value from opening those gifts. */
   giftGems: number;
+  /** Sushi from opening those gifts (rare outcomes 15–24 or 50–60 per gift). */
+  giftSushi: number;
   /** Gem value from Lootfrog (frogspawn from supply drop × value per frogspawn). */
   lootfrogGems: number;
   /** 10× Bomb Recharge minutes from Lootbug in that hour. */
@@ -235,6 +320,7 @@ export interface SampleHourReport {
   lootfrogGems: number;
   totalGifts: number;
   giftGems: number;
+  giftSushi: number;
   lootbug10xMin: number;
   lootbugNetGems: number;
   freebieChests: number;
@@ -370,8 +456,11 @@ export function simulateOneHour(
 
   const totalGifts = Math.trunc(freebieGiftCount) + Math.round(founderGiftCount);
   let giftGems = 0;
+  let giftSushi = 0;
   for (let g = 0; g < totalGifts; g++) {
-    giftGems += sampleOneGiftGemValue(params, rng);
+    const { gems, sushi } = sampleOneGiftGemsAndSushi(params, rng);
+    giftGems += gems;
+    giftSushi += sushi;
   }
 
   const frogspawnValuePer = params.lootfrogValuePerFrogspawn ?? 0;
@@ -396,7 +485,7 @@ export function simulateOneHour(
   const expectedItemChestsPerGift = ov?.expectedItemChestsPerGift ?? 0;
   const giftChests = totalGifts * expectedItemChestsPerGift;
   const lootbugChests = lootbugSpawnsPerHour > 0 && (ov?.lootbugItemChestsPerHour ?? 0) > 0
-    ? (lootbugSpawns / lootbugSpawnsPerHour) * (ov.lootbugItemChestsPerHour ?? 0)
+    ? (lootbugSpawns / lootbugSpawnsPerHour) * (ov?.lootbugItemChestsPerHour ?? 0)
     : 0;
   const itemsPerChest = ov?.itemsPerChest ?? 1;
   const totalChests = freebieChests + stonksChests + founderChests + giftChests + lootbugChests;
@@ -417,6 +506,7 @@ export function simulateOneHour(
     freebieGems,
     giftsCount: totalGifts,
     giftGems,
+    giftSushi,
     lootfrogGems,
     lootbug10xMin,
     lootbugNetGems,
@@ -440,6 +530,7 @@ export function simulateOneHour(
       lootfrogGems,
       totalGifts,
       giftGems,
+      giftSushi: result.giftSushi,
       lootbug10xMin,
       lootbugNetGems,
       freebieChests,
@@ -476,6 +567,7 @@ export interface VarianceSimResult {
   freebieGems: VarianceMetricStats;
   giftsCount: VarianceMetricStats;
   giftGems: VarianceMetricStats;
+  giftSushi: VarianceMetricStats;
   lootfrogGems: VarianceMetricStats;
   lootbug10xMin: VarianceMetricStats;
   lootbugNetGems: VarianceMetricStats;
@@ -543,6 +635,7 @@ export function runVarianceSim(
   const freebieGems: number[] = [];
   const giftsCount: number[] = [];
   const giftGems: number[] = [];
+  const giftSushi: number[] = [];
   const lootfrogGems: number[] = [];
   const lootbug10xMin: number[] = [];
   const lootbugNetGems: number[] = [];
@@ -558,6 +651,7 @@ export function runVarianceSim(
     freebieGems.push(hour.freebieGems);
     giftsCount.push(hour.giftsCount);
     giftGems.push(hour.giftGems);
+    giftSushi.push(hour.giftSushi);
     lootfrogGems.push(hour.lootfrogGems);
     lootbug10xMin.push(hour.lootbug10xMin);
     lootbugNetGems.push(hour.lootbugNetGems);
@@ -566,12 +660,13 @@ export function runVarianceSim(
     gemBombGems.push(hour.gemBombGems);
     droneFuelCost.push(hour.droneFuelCost);
     totalGems.push(hour.totalGems);
-    if (withReport && "report" in hour) sampleReport = hour.report;
+    if (withReport && "report" in hour) sampleReport = (hour as { report: SampleHourReport }).report;
   }
   const sort = (a: number, b: number) => a - b;
   const fg = [...freebieGems]; fg.sort(sort);
   const gc = [...giftsCount]; gc.sort(sort);
   const gg = [...giftGems]; gg.sort(sort);
+  const gs = [...giftSushi]; gs.sort(sort);
   const lfg = [...lootfrogGems]; lfg.sort(sort);
   const l10 = [...lootbug10xMin]; l10.sort(sort);
   const ln = [...lootbugNetGems]; ln.sort(sort);
@@ -584,6 +679,7 @@ export function runVarianceSim(
     freebieGems: toMetricStats(freebieGems, fg),
     giftsCount: toMetricStats(giftsCount, gc),
     giftGems: toMetricStats(giftGems, gg),
+    giftSushi: toMetricStats(giftSushi, gs),
     lootfrogGems: toMetricStats(lootfrogGems, lfg),
     lootbug10xMin: toMetricStats(lootbug10xMin, l10),
     lootbugNetGems: toMetricStats(lootbugNetGems, ln),
@@ -615,5 +711,5 @@ export function getSampleHourReport(
     __overview: overviewInputs,
   };
   const hour = simulateOneHour(p, rng, { withReport: true });
-  return hour.report;
+  return (hour as VarianceSimHourResult & { report: SampleHourReport }).report;
 }

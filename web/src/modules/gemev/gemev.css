@@ -37,6 +37,11 @@
   padding-top: 4px;
 }
 
+/* Variance (MC): green background on title only to emphasize it best reflects reality */
+.collapseWrap.gemEvVarianceSection .collapseHeader {
+  background: rgba(227, 247, 237, 0.65);
+}
+
 .gemEvSectionHeader {
   display: flex;
   justify-content: space-between;
@@ -362,9 +367,24 @@
   animation: none;
 }
 
+.gemEvOverviewChartBtnSmall {
+  font-size: 12px;
+  padding: 3px 8px;
+  margin-left: 4px;
+}
+
+.gemEvChartArrowLeft {
+  animation: gemEvChartArrowPulseLeft 1.5s ease-in-out infinite;
+}
+
 @keyframes gemEvChartArrowPulse {
   0%, 100% { opacity: 0.5; transform: translateX(0); }
   50% { opacity: 1; transform: translateX(4px); }
+}
+
+@keyframes gemEvChartArrowPulseLeft {
+  0%, 100% { opacity: 0.5; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(-4px); }
 }
 
 @keyframes gemEvOverviewChartGlow {
@@ -658,6 +678,19 @@
 }
 
 /* Variance (MC simulation) */
+.gemEvVarianceMeanHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  color: rgba(15, 23, 42, 0.8);
+  font-size: 12px;
+}
+.gemEvVarianceMeanHintIcon {
+  font-size: 1.15em;
+  line-height: 1;
+  filter: drop-shadow(0 0 1px rgba(200, 160, 0, 0.5));
+}
 .gemEvVarianceTableWrap {
   overflow-x: auto;
 }
@@ -731,56 +764,6 @@
   flex-shrink: 0;
   min-width: 90px;
   color: rgba(15, 23, 42, 0.8);
-}
-
-/* Sample hour (1h) reporting chart */
-.gemEvVarianceSampleBlock {
-  padding-top: 6px;
-  border-top: 1px solid rgba(15, 23, 42, 0.1);
-}
-.gemEvSampleHourChart {
-  margin-top: 6px;
-}
-.gemEvSampleHourTitle {
-  font-weight: 600;
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.8);
-  margin-bottom: 6px;
-}
-.gemEvSampleHourBars {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.gemEvSampleHourRow {
-  display: grid;
-  grid-template-columns: 1fr 180px auto;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-.gemEvSampleHourLabel {
-  color: rgba(15, 23, 42, 0.85);
-}
-.gemEvSampleHourBarTrack {
-  height: 14px;
-  width: 180px;
-  min-width: 180px;
-  background: rgba(15, 23, 42, 0.08);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.gemEvSampleHourBarFill {
-  height: 100%;
-  border-radius: 4px;
-  min-width: 2px;
-  transition: width 0.2s ease;
-}
-.gemEvSampleHourValue {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  min-width: 4em;
-  text-align: right;
 }
 
 /* Variance box plots (per factor) */

@@ -29,7 +29,7 @@ import {
   getGameSpeedMultiplier,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
-import { getSampleHourReport, runVarianceSim, type SampleHourReport, type VarianceMetricStats, type VarianceOverviewInputs, type VarianceSimResult } from "../../lib/gemev/gemevVarianceSim";
+import { runVarianceSim, type VarianceMetricStats, type VarianceOverviewInputs, type VarianceSimResult } from "../../lib/gemev/gemevVarianceSim";
 import { ContribBarChart, ContribLegend } from "./ContribBarChart";
 import { GiftEvChart } from "./GiftEvChart";
 
@@ -41,6 +41,8 @@ type SavedStateV1 = {
   statue_soprano_level?: number;
   /** Banked freebies cap (for overnight). Written to gemev_external for Overnight Gains. */
   bankedFreebies?: number;
+  /** Variance MC simulation: number of runs (1 run = 1 realtime hour). */
+  varianceSimRuns?: number;
 };
 
 const STORAGE_KEY = "obeliskfarm:web:gemev_save.json:v1";
@@ -303,7 +305,8 @@ export function GemEv() {
     const show_jackpot_refresh = saved?.show_jackpot_refresh ?? true;
     const statue_soprano_level = Math.max(0, Math.min(3, saved?.statue_soprano_level ?? 0));
     const bankedFreebies = Math.max(0, Math.min(999, saved?.bankedFreebies ?? 0));
-    return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh, statue_soprano_level, bankedFreebies };
+    const varianceSimRuns = Math.max(1, Math.min(100000, Math.trunc(saved?.varianceSimRuns ?? 10000)));
+    return { params: merged, stonks_enabled, skill_shards_enabled, show_jackpot_refresh, statue_soprano_level, bankedFreebies, varianceSimRuns };
   }, []);
 
   const [params, setParams] = useState<GameParameters>(initial.params);
@@ -313,11 +316,10 @@ export function GemEv() {
   const [giftChartOpen, setGiftChartOpen] = useState(false);
   const [giftsPerHourChartOpen, setGiftsPerHourChartOpen] = useState(false);
   const [founderSupplyDropChartOpen, setFounderSupplyDropChartOpen] = useState(false);
-  const [varianceSimRuns, setVarianceSimRuns] = useState(10000);
-  const [varianceSimResult, setVarianceSimResult] = useState<(VarianceSimResult & { sampleReport?: SampleHourReport }) | null>(null);
+  const [varianceSimRuns, setVarianceSimRuns] = useState(initial.varianceSimRuns);
+  const [varianceSimResult, setVarianceSimResult] = useState<VarianceSimResult | null>(null);
   const [varianceSimRunning, setVarianceSimRunning] = useState(false);
   const [varianceShowPercentiles, setVarianceShowPercentiles] = useState(false);
-  const [sampleHourReport, setSampleHourReport] = useState<SampleHourReport | null>(null);
   const [showJackpotRefresh, setShowJackpotRefresh] = useState<boolean>(initial.show_jackpot_refresh);
   const [statueSopranoLevel, setStatueSopranoLevel] = useState<number>(initial.statue_soprano_level);
   const [bankedFreebies, setBankedFreebies] = useState<number>(initial.bankedFreebies);
@@ -329,11 +331,11 @@ export function GemEv() {
   // autosave
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled, show_jackpot_refresh: showJackpotRefresh, statue_soprano_level: statueSopranoLevel, bankedFreebies };
+      const payload: SavedStateV1 = { params, stonks_enabled: stonksEnabled, skill_shards_enabled: skillShardsEnabled, show_jackpot_refresh: showJackpotRefresh, statue_soprano_level: statueSopranoLevel, bankedFreebies, varianceSimRuns };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [params, stonksEnabled, skillShardsEnabled, showJackpotRefresh, statueSopranoLevel, bankedFreebies]);
+  }, [params, stonksEnabled, skillShardsEnabled, showJackpotRefresh, statueSopranoLevel, bankedFreebies, varianceSimRuns]);
 
   useEffect(() => {
     function onKeyDown(ev: KeyboardEvent) {
@@ -801,12 +803,15 @@ export function GemEv() {
               <h2 className="panelTitle">Results</h2>
             </div>
 
-            <div className="kv" style={{ background: "rgba(227,247,237,0.65)" }}>
+            <div className="kv">
               <kbd style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Sprite path="sprites/common/gem.png" alt="" className="iconSmall" />
                 TOTAL
+                <button className="btn gemEvOverviewChartBtnSmall" type="button" onClick={() => setChartOpen(true)} title="Overview chart">
+                  Overview chart
+                </button>
               </kbd>
-              <div className="mono" style={{ fontWeight: 900, display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="mono" style={{ fontWeight: 900, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 {fmt1OrIntOver1k(totalWithLootbugAndDroneFuel)} Gem-Equivalent/h
                 <Tooltip
                   content={{
@@ -892,7 +897,13 @@ export function GemEv() {
 
             <Collapsible
               id="gemev-variance"
-              title="Variance (MC Simulation)"
+              title={
+                <>
+                  <span className="gemEvChartArrow gemEvChartArrowLeft" aria-hidden>←</span>
+                  {" "}
+                  Variance (MC Simulation)
+                </>
+              }
               defaultExpanded={false}
               className="gemEvSection gemEvVarianceSection"
               headerRight={
@@ -963,15 +974,12 @@ export function GemEv() {
                           varianceOverviewInputs
                         );
                         setVarianceSimResult(result);
-                        setSampleHourReport(result.sampleReport ?? null);
                         setVarianceSimRunning(false);
                       });
                     }}
                   >
                     {varianceSimRunning ? "Running…" : "Run simulation"}
                   </button>
-                </div>
-                <div className="gemEvRow" style={{ flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <label className="small" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                     <input
                       type="checkbox"
@@ -990,6 +998,7 @@ export function GemEv() {
                       { key: "freebieGems", s: varianceSimResult.freebieGems },
                       { key: "giftsCount", s: varianceSimResult.giftsCount },
                       { key: "giftGems", s: varianceSimResult.giftGems },
+                      { key: "giftSushi", s: varianceSimResult.giftSushi },
                       { key: "lootfrogGems", s: varianceSimResult.lootfrogGems },
                       { key: "lootbugNetGems", s: varianceSimResult.lootbugNetGems },
                       { key: "founderGems", s: varianceSimResult.founderGems },
@@ -1013,6 +1022,11 @@ export function GemEv() {
                       return absCv >= 1 ? ">100% (unreliable!)" : `${Math.round(absCv * 100).toFixed(0)}%`;
                     };
                     return (
+                    <>
+                    <p className="small gemEvVarianceMeanHint">
+                      <span className="gemEvVarianceMeanHintIcon" role="img" aria-label="Hint">💡</span>
+                      <strong>Mean</strong> = average hourly gain (per simulated hour).
+                    </p>
                     <div className="gemEvVarianceTableWrap gemEvCompactBlock">
                       <table className="gemEvVarianceTable">
                         <thead>
@@ -1113,13 +1127,30 @@ export function GemEv() {
                               </>
                             )}
                           </tr>
+                          <tr>
+                            <td>Sushi (from gifts)</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.sd)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[3]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[3], varianceSimResult.giftSushi.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftSushi.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftSushi.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftSushi.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftSushi.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.giftSushi.p90)}</td>
+                              </>
+                            )}
+                          </tr>
                           {external.lootfrogsUnlocked && (
                             <tr>
                               <td>Lootfrog gems</td>
                               <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.mean)}</td>
                               <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.sd)}</td>
-                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[3]) }} title="CV% (SD/mean)">
-                                {formatCvPct(cvs[3], varianceSimResult.lootfrogGems.mean)}
+                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[4]) }} title="CV% (SD/mean)">
+                                {formatCvPct(cvs[4], varianceSimResult.lootfrogGems.mean)}
                               </td>
                               {varianceShowPercentiles && (
                                 <>
@@ -1136,8 +1167,8 @@ export function GemEv() {
                             <td>Lootbug net gems</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[4]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[4], varianceSimResult.lootbugNetGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[5]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[5], varianceSimResult.lootbugNetGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1153,8 +1184,8 @@ export function GemEv() {
                             <td>Founder gems</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[5]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[5], varianceSimResult.founderGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[6]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[6], varianceSimResult.founderGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1170,8 +1201,8 @@ export function GemEv() {
                             <td>Charge Magnet</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[6]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[6], varianceSimResult.chargeMagnetGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[7]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[7], varianceSimResult.chargeMagnetGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1187,8 +1218,8 @@ export function GemEv() {
                             <td>Gem Bomb gems</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[7]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[7], varianceSimResult.gemBombGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[8]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[8], varianceSimResult.gemBombGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1204,8 +1235,8 @@ export function GemEv() {
                             <td>Drone fuel cost</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[8]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[8], varianceSimResult.droneFuelCost.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[9]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[9], varianceSimResult.droneFuelCost.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1221,8 +1252,8 @@ export function GemEv() {
                             <td>Total</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[9]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[9], varianceSimResult.totalGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[10]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[10], varianceSimResult.totalGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1237,6 +1268,7 @@ export function GemEv() {
                       </tbody>
                     </table>
                   </div>
+                    </>
                     );
                   })()}
                   {(() => {
@@ -1244,6 +1276,7 @@ export function GemEv() {
                         { key: "freebieGems", label: "Freebie gems", s: varianceSimResult.freebieGems },
                         { key: "giftsCount", label: "Gifts (count)", s: varianceSimResult.giftsCount, isCount: true },
                         { key: "giftGems", label: "Gift gems", s: varianceSimResult.giftGems },
+                        { key: "giftSushi", label: "Sushi (from gifts)", s: varianceSimResult.giftSushi },
                         ...(external.lootfrogsUnlocked ? [{ key: "lootfrogGems" as const, label: "Lootfrog gems", s: varianceSimResult.lootfrogGems }] : []),
                         { key: "lootbugNetGems", label: "Lootbug net gems", s: varianceSimResult.lootbugNetGems },
                         { key: "founderGems", label: "Founder gems", s: varianceSimResult.founderGems },
@@ -1297,94 +1330,8 @@ export function GemEv() {
                     })()}
                   </>
                 ) : null}
-                <Collapsible id="gemev-variance-sample-hour" title="One random hour (draw sample)" defaultExpanded={false} className="gemEvVarianceSampleBlock">
-                  <div className="gemEvRow" style={{ flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <button
-                      type="button"
-                      className="btn btnSecondary"
-                      onClick={() => {
-                        const report = getSampleHourReport(
-                          effectiveParams,
-                          giftEv,
-                          external.lootfrogValuePerFrogspawn ?? 0,
-                          {
-                            lootbug10xMinPerHour: external.lootbug10x ?? 0,
-                            lootbugSpawnsPerHour: external.lootbugSpawnsPerHour ?? 0,
-                            lootbugNetGemsPerHour: external.lootbugNetGemsPerHour ?? 0,
-                          },
-                          varianceOverviewInputs
-                        );
-                        setSampleHourReport(report);
-                      }}
-                    >
-                      Draw sample hour
-                    </button>
-                  </div>
-                  {sampleHourReport ? (
-                    <div className="gemEvSampleHourChart gemEvCompactBlock">
-                      <div className="gemEvSampleHourTitle">What this 1h had</div>
-                      <div className="gemEvSampleHourBars" role="img" aria-label="Sample hour breakdown">
-                        {(() => {
-                          const barColorNeg = "#dc2626";
-                          const barColorPos = "#16a34a";
-                          const allRows = [
-                            { label: "Freebie claims", value: sampleHourReport.freebieClaims, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Freebie gems", value: sampleHourReport.freebieGems, fmt: fmt1OrIntOver1k },
-                            { label: "Jackpots", value: sampleHourReport.jackpotCount, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Stonks procs", value: sampleHourReport.stonksProcs, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Gifts (freebie)", value: sampleHourReport.giftsFromFreebie, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Supply drop events", value: sampleHourReport.supplyDropEvents, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Founder drops", value: sampleHourReport.founderDrops ?? 0, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Founder gems", value: sampleHourReport.founderGems ?? 0, fmt: fmt1OrIntOver1k },
-                            { label: "Founder gifts", value: sampleHourReport.founderGifts, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Frogspawn", value: sampleHourReport.frogspawn, fmt: (v: number) => v.toFixed(1) },
-                            { label: "Lootfrog gems", value: sampleHourReport.lootfrogGems, fmt: fmt1OrIntOver1k },
-                            { label: "Total gifts", value: sampleHourReport.totalGifts, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Gift gems", value: sampleHourReport.giftGems, fmt: fmt1OrIntOver1k },
-                            { label: "Item chests", value: sampleHourReport.totalChests ?? 0, fmt: (v: number) => v.toFixed(0) },
-                            { label: "Charge Magnet", value: sampleHourReport.chargeMagnetGems ?? 0, fmt: fmt1OrIntOver1k },
-                            { label: "Lootbug net gems", value: sampleHourReport.lootbugNetGems, fmt: fmt1OrIntOver1k },
-                            { label: "Gem Bomb gems", value: sampleHourReport.gemBombGems ?? 0, fmt: fmt1OrIntOver1k },
-                            { label: "Drone fuel cost", value: sampleHourReport.droneFuelCost ?? 0, fmt: fmt1OrIntOver1k },
-                            { label: "Total", value: sampleHourReport.totalGems ?? 0, fmt: fmt1OrIntOver1k },
-                          ];
-                          const rows = external.lootfrogsUnlocked ? allRows : allRows.filter((row) => row.label !== "Frogspawn" && row.label !== "Lootfrog gems");
-                          const r = sampleHourReport!;
-                          const maxAbsVal = Math.max(1, ...rows.map((row) => Math.abs(row.value)));
-                          return rows.map(({ label, value, fmt }) => {
-                            const widthPct = maxAbsVal > 0 ? (Math.abs(value) / maxAbsVal) * 100 : 0;
-                            const barColor = value < 0 ? barColorNeg : barColorPos;
-                            return (
-                              <div key={label} className="gemEvSampleHourRow">
-                                <span className="gemEvSampleHourLabel">{label}</span>
-                                <div className="gemEvSampleHourBarTrack">
-                                  <div className="gemEvSampleHourBarFill" style={{ width: `${widthPct}%`, backgroundColor: barColor }} />
-                                </div>
-                                <span className="mono gemEvSampleHourValue">{fmt(value)}</span>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </div>
-                  ) : null}
-                </Collapsible>
               </div>
             </Collapsible>
-
-            <div className="btnRow" style={{ marginTop: 12, alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <span className="gemEvChartArrow" aria-hidden>→</span>
-              <button className="btn gemEvOverviewChartBtn" type="button" onClick={() => setChartOpen(true)}>
-                Overview chart
-              </button>
-              <Tooltip
-                content={{
-                  title: "Overview chart",
-                  lines: ["Opens the stacked contributions bar chart (Base / Jackpot / Refresh). Bars left to right for readability on mobile."],
-                }}
-                label="?"
-              />
-            </div>
           </div>
 
         <div id="gemev-game-speed" className="gemEvSection gemEvGameObeliskSection">
