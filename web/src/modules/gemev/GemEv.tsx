@@ -1336,6 +1336,7 @@ export function GemEv() {
                   {(() => {
                       const giftIconSmall = <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0, marginRight: 4 }} />;
                       const rows: Array<{ key: string; label: React.ReactNode; s: VarianceMetricStats; isCount?: boolean }> = [
+                        { key: "totalGems", label: "Total", s: varianceSimResult.totalGems },
                         { key: "freebieGems", label: "Freebie gems", s: varianceSimResult.freebieGems },
                         { key: "giftsCount", label: <>{giftIconSmall}Gifts (count)</>, s: varianceSimResult.giftsCount, isCount: true },
                         { key: "giftGems", label: <>{giftIconSmall}Gift gems</>, s: varianceSimResult.giftGems },
@@ -1346,7 +1347,6 @@ export function GemEv() {
                         { key: "chargeMagnetGems", label: "Charge Magnet", s: varianceSimResult.chargeMagnetGems },
                         { key: "gemBombGems", label: "Gem Bomb gems", s: varianceSimResult.gemBombGems },
                         { key: "droneFuelCost", label: "Drone fuel cost", s: { mean: -varianceSimResult.droneFuelCost.mean, sd: varianceSimResult.droneFuelCost.sd, min: -varianceSimResult.droneFuelCost.max, max: -varianceSimResult.droneFuelCost.min, p10: -varianceSimResult.droneFuelCost.p90, p25: -varianceSimResult.droneFuelCost.p75, p50: -varianceSimResult.droneFuelCost.p50, p75: -varianceSimResult.droneFuelCost.p25, p90: -varianceSimResult.droneFuelCost.p10 } },
-                        { key: "totalGems", label: "Total", s: varianceSimResult.totalGems },
                       ];
                       const fmtVal = (v: number, isCount?: boolean) => (isCount ? v.toFixed(1) : fmt1OrIntOver1k(v));
                       return (
