@@ -1296,6 +1296,23 @@
   min-width: 28px;
 }
 
+.fishingUpgradeLvlMaxedRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fishingUpgradeLvlMaxedRow .fishingUpgradeLevelLabel {
+  display: inline;
+  margin-bottom: 0;
+}
+
+.fishingUpgradeBtnMaxed {
+  padding: 2px 5px !important;
+  min-width: 22px !important;
+  font-size: 12px;
+}
+
 .fishingUpgradeTdCost {
   font-size: 12px;
   color: var(--muted, #64748b);

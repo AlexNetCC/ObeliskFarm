@@ -3033,9 +3033,9 @@ export function Fishing() {
     effectiveTicksByDock,
   ]);
 
-  /** Fish card gild (Card → Gilded): marginal % and cost efficiency (time-based and gem-absolute). Includes With This Fish I Summon bonus (effective fish card count +1 → more Fish Multi and Shiny Chance). */
+  /** Fish card gild (Card → Gilded): marginal % and cost efficiency. For each fish card we assume rod + all drones on that fish's dock (so Lake fish uses Lake total, etc.). Rod and Mr Nibbles cards use global total; leg fish excluded. */
   const { fishCardGildMarginalPct, fishCardGildCostEffic, fishCardGildCostEfficGemAbs, fishingRodCardGildMarginalPct, fishingRodCardGildCostEffic, fishingRodCardGildCostEfficGemAbs, costEfficHeatMinFishCard, costEfficHeatMaxFishCard, costEfficHeatMinFishCardGemAbs, costEfficHeatMaxFishCardGemAbs } = useMemo(() => {
-    const total = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).reduce((s, r) => s + r.fishPerHour, 0);
+    const totalForRod = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).reduce((s, r) => s + r.fishPerHour, 0);
     const marginalMap = new Map<string, number>();
     const efficMap = new Map<string, number>();
     const efficMapGemAbs = new Map<string, number>();
@@ -3044,18 +3044,48 @@ export function Fishing() {
     let rodMarginalPct: number | null = null;
     let rodCostEffic: number | null = null;
     let rodCostEfficGemAbs: number | null = null;
-    if (total <= 0) {
-      return { fishCardGildMarginalPct: marginalMap, fishCardGildCostEffic: efficMap, fishCardGildCostEfficGemAbs: efficMapGemAbs, fishingRodCardGildMarginalPct: null, fishingRodCardGildCostEffic: null, fishingRodCardGildCostEfficGemAbs: null, costEfficHeatMinFishCard: 0, costEfficHeatMaxFishCard: 1, costEfficHeatMinFishCardGemAbs: 0, costEfficHeatMaxFishCardGemAbs: 1 };
-    }
     const cardToGildedRatio = 2 / 1.5; // Card 1.5× → Gilded 2×
     const skillOptsBase = { skillTreeLevels: state.skillTreeLevels ?? {}, legendaryFishFound: state.legendaryFishFound, relic5xPoints: state.divineRelic5xPoints, mrNibblesLevel: state.mrNibblesLevel, mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked, mrNibblesQuestRank: state.mrNibblesQuestRank, mrNibblesSkin: state.mrNibblesSkin, poseidonIdolLevel: state.poseidonIdolLevel, tethysIdolLevel: state.tethysIdolLevel, astraeusIdolLevel: state.astraeusIdolLevel, droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3, mrNibblesCardTier: state.mrNibblesCardTier, legendaryHaulerBundle: state.legendaryHaulerBundle, fishersBundle: state.fishersBundle, anglerBundle: state.anglerBundle, divineChallengeCoinLevel: state.divineChallengeCoinLevel, infernalMrNibblesPct: state.infernalMrNibblesPct, infernalMrNibblesLevel: state.infernalMrNibblesLevel, infernalAnglerDronePct: state.infernalAnglerDronePct, infernalAnglerDroneLevel: state.infernalAnglerDroneLevel, constructStatue: state.constructStatue, cetusLevel: state.cetusLevel, blackHoleBonus: state.blackHoleBonus };
     const legFishIds = new Set(LEGENDARY_FISH.map((leg) => leg.id));
+    const dockIdsAvailable = new Set(availableDocks.map((d) => d.id));
+    const droneCap = Math.floor(stats.fishing_drone_cap);
+    const doublePct = stats.double_tick_chance_pct / 100;
+    const triplePct = stats.triple_tick_chance_pct / 100;
+    const fivePct = stats.five_tick_chance_pct / 100;
+    const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
     for (const row of visibleGainsRows) {
-      if (!row.hasPower || row.fishPerHour <= 0) continue;
       if (legFishIds.has(row.fish.id)) continue;
       const tier = (state.fishCardTier[row.fish.id] ?? 0) as FishCardTier;
       if (tier !== 1) continue;
-      const totalAfterDirect = total - row.fishPerHour + row.fishPerHour * cardToGildedRatio;
+      if (!dockIdsAvailable.has(row.dockId)) continue;
+      const set = AQUARIUM.find((s) => s.dockId === row.dockId);
+      if (!set) continue;
+      const dock = DOCKS.find((d) => d.id === row.dockId)!;
+      const powerOnDock =
+        dock.tier === 2
+          ? (effectiveRodPower + droneCap * stats.drone_base_power) * stats.tier2_dock_power_mult
+          : effectiveRodPower + droneCap * stats.drone_base_power;
+      const ticksNeeded = effectiveTicksByDock[dock.id] ?? dock.baseTicksNeeded;
+      const fillsPerHour = 3600 / (ticksNeeded * effectiveTickSec) + extraTicksPerHour / ticksNeeded;
+      let totalOnDock = 0;
+      for (const f of set.fish) {
+        totalOnDock +=
+          fillsPerHour *
+          expectedRollsPerFill *
+          expectedCatchesPerRoll(powerOnDock, f.powerRating) *
+          stats.fish_income_multi *
+          expectedShinyMulti *
+          getCardMulti(f.id);
+      }
+      if (totalOnDock <= 0) continue;
+      const fishPerHourForFish =
+        fillsPerHour *
+        expectedRollsPerFill *
+        expectedCatchesPerRoll(powerOnDock, row.fish.powerRating) *
+        stats.fish_income_multi *
+        expectedShinyMulti *
+        getCardMulti(row.fish.id);
+      const totalAfterDirect = totalOnDock - fishPerHourForFish + fishPerHourForFish * cardToGildedRatio;
       let marginalPct: number;
       const withThisFishLevel = (state.skillTreeLevels ?? {})["with_this_fish_i_summon_two_more_fish"] ?? 0;
       if (withThisFishLevel > 0) {
@@ -3068,10 +3098,10 @@ export function Fishing() {
           sNew * (1 - s2New) * newStats.shiny_multiplier +
           sNew * s2New * newStats.shiny_multiplier * newStats.super_shiny_multiplier;
         const skillFactor = (newStats.fish_income_multi / stats.fish_income_multi) * (newExpectedShinyMulti / expectedShinyMulti);
-        const newTotal = totalAfterDirect * skillFactor;
-        marginalPct = ((newTotal - total) / total) * 100;
+        const totalAfterGild = totalAfterDirect * skillFactor;
+        marginalPct = ((totalAfterGild - totalOnDock) / totalOnDock) * 100;
       } else {
-        marginalPct = ((totalAfterDirect - total) / total) * 100;
+        marginalPct = ((totalAfterDirect - totalOnDock) / totalOnDock) * 100;
       }
       marginalMap.set(row.fish.id, marginalPct);
       const gems = getFishCardGildGemCost(row.fish.id);
@@ -3086,8 +3116,8 @@ export function Fishing() {
         efficValsGemAbs.push(efficGemAbs);
       }
     }
-    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0) {
-      rodMarginalPct = ((totalFishPerHourWithRodPoly - total) / total) * 100;
+    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0 && totalForRod > 0) {
+      rodMarginalPct = ((totalFishPerHourWithRodPoly - totalForRod) / totalForRod) * 100;
       if (gemEvGemsPerHour > 0) {
         rodCostEffic = rodMarginalPct / (FISHING_ROD_GILD_CARD_COST / gemEvGemsPerHour);
         efficVals.push(rodCostEffic);
@@ -3107,7 +3137,7 @@ export function Fishing() {
       costEfficHeatMinFishCardGemAbs: efficValsGemAbs.length ? Math.min(...efficValsGemAbs) : 0,
       costEfficHeatMaxFishCardGemAbs: efficValsGemAbs.length ? Math.max(...efficValsGemAbs) : 1,
     };
-  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, state.skillTreeLevels, state.legendaryFishFound, state.divineRelic5xPoints, state.infernalMrNibblesPct, state.infernalMrNibblesLevel, state.infernalAnglerDronePct, state.infernalAnglerDroneLevel, upgradeLevels, enhanceLevels, stats.fish_income_multi, stats.shiny_multiplier, stats.super_shiny_multiplier, stats.super_shiny_chance_pct, expectedShinyMulti, totalFishPerHourWithRodPoly, gemEvGemsPerHour]);
+  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, state.skillTreeLevels, state.legendaryFishFound, state.divineRelic5xPoints, state.infernalMrNibblesPct, state.infernalMrNibblesLevel, state.infernalAnglerDronePct, state.infernalAnglerDroneLevel, upgradeLevels, enhanceLevels, stats.fish_income_multi, stats.shiny_multiplier, stats.super_shiny_multiplier, stats.super_shiny_chance_pct, stats.drone_base_power, stats.tier2_dock_power_mult, stats.double_tick_chance_pct, stats.triple_tick_chance_pct, stats.five_tick_chance_pct, stats.fishing_drone_cap, expectedShinyMulti, totalFishPerHourWithRodPoly, gemEvGemsPerHour, availableDocks, effectiveTicksByDock, effectiveTickSec, extraTicksPerHour, effectiveRodPower, getCardMulti]);
 
   /** Mr Nibbles Card: effective assumed +% gain for next tier (Tiny Notice, same formula as Angler). Excluded from heatmap. */
   const mrNibblesCardNextMarginalPct = useMemo(() => {
@@ -4298,30 +4328,46 @@ export function Fishing() {
                         </div>
                       </td>
                       <td className="fishingUpgradeTdLvl">
-                        <span className="fishingUpgradeLevelLabel">
-                          lvl <span className="mono">{lvl}</span> / {maxLvl}
-                        </span>
-                        <div className="btnRow fishingUpgradeButtons">
-                          <button
-                            type="button"
-                            className="btn btnSecondary"
-                            onClick={() => setFishingUpgradeLevel(def.id, -1)}
-                            disabled={lvl <= 0}
-                            aria-label="Decrease level"
-                          >
-                            −
-                          </button>
-                          {!isMaxed ? (
+                        {isMaxed ? (
+                          <div className="fishingUpgradeLvlMaxedRow">
+                            <span className="fishingUpgradeLevelLabel">
+                              lvl <span className="mono">{lvl}</span> / {maxLvl}
+                            </span>
                             <button
                               type="button"
-                              className="btn"
-                              onClick={() => setFishingUpgradeLevel(def.id, 1)}
-                              aria-label="Increase level"
+                              className="btn btnSecondary fishingUpgradeBtnMaxed"
+                              onClick={() => setFishingUpgradeLevel(def.id, -1)}
+                              aria-label="Decrease level"
                             >
-                              +
+                              −
                             </button>
-                          ) : null}
-                        </div>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="fishingUpgradeLevelLabel">
+                              lvl <span className="mono">{lvl}</span> / {maxLvl}
+                            </span>
+                            <div className="btnRow fishingUpgradeButtons">
+                              <button
+                                type="button"
+                                className="btn btnSecondary"
+                                onClick={() => setFishingUpgradeLevel(def.id, -1)}
+                                disabled={lvl <= 0}
+                                aria-label="Decrease level"
+                              >
+                                −
+                              </button>
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={() => setFishingUpgradeLevel(def.id, 1)}
+                                aria-label="Increase level"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="fishingUpgradeTdCostEffic">
                         {!isMaxed &&
@@ -4471,30 +4517,46 @@ export function Fishing() {
                         </div>
                       </td>
                       <td className="fishingUpgradeTdLvl">
-                        <span className="fishingUpgradeLevelLabel">
-                          lvl <span className="mono">{lvl}</span> / {maxLvl}
-                        </span>
-                        <div className="btnRow fishingUpgradeButtons">
-                          <button
-                            type="button"
-                            className="btn btnSecondary"
-                            onClick={() => setFishingUpgradeLevel(def.id, -1)}
-                            disabled={lvl <= 0}
-                            aria-label="Decrease level"
-                          >
-                            −
-                          </button>
-                          {!isMaxed ? (
+                        {isMaxed ? (
+                          <div className="fishingUpgradeLvlMaxedRow">
+                            <span className="fishingUpgradeLevelLabel">
+                              lvl <span className="mono">{lvl}</span> / {maxLvl}
+                            </span>
                             <button
                               type="button"
-                              className="btn"
-                              onClick={() => setFishingUpgradeLevel(def.id, 1)}
-                              aria-label="Increase level"
+                              className="btn btnSecondary fishingUpgradeBtnMaxed"
+                              onClick={() => setFishingUpgradeLevel(def.id, -1)}
+                              aria-label="Decrease level"
                             >
-                              +
+                              −
                             </button>
-                          ) : null}
-                        </div>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="fishingUpgradeLevelLabel">
+                              lvl <span className="mono">{lvl}</span> / {maxLvl}
+                            </span>
+                            <div className="btnRow fishingUpgradeButtons">
+                              <button
+                                type="button"
+                                className="btn btnSecondary"
+                                onClick={() => setFishingUpgradeLevel(def.id, -1)}
+                                disabled={lvl <= 0}
+                                aria-label="Decrease level"
+                              >
+                                −
+                              </button>
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={() => setFishingUpgradeLevel(def.id, 1)}
+                                aria-label="Increase level"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="fishingUpgradeTdCostEffic">
                         {!isMaxed &&
@@ -4678,30 +4740,46 @@ export function Fishing() {
                             </div>
                           </td>
                           <td className="fishingUpgradeTdLvl">
-                            <span className="fishingUpgradeLevelLabel">
-                              lvl <span className="mono">{lvl}</span> / {maxLvl}
-                            </span>
-                            <div className="btnRow fishingUpgradeButtons">
-                              <button
-                                type="button"
-                                className="btn btnSecondary"
-                                onClick={() => setFishingEnhanceLevel(def.id, -1)}
-                                disabled={lvl <= 0}
-                                aria-label="Decrease level"
-                              >
-                                −
-                              </button>
-                              {!isMaxed ? (
+                            {isMaxed ? (
+                              <div className="fishingUpgradeLvlMaxedRow">
+                                <span className="fishingUpgradeLevelLabel">
+                                  lvl <span className="mono">{lvl}</span> / {maxLvl}
+                                </span>
                                 <button
                                   type="button"
-                                  className="btn"
-                                  onClick={() => setFishingEnhanceLevel(def.id, 1)}
-                                  aria-label="Increase level"
+                                  className="btn btnSecondary fishingUpgradeBtnMaxed"
+                                  onClick={() => setFishingEnhanceLevel(def.id, -1)}
+                                  aria-label="Decrease level"
                                 >
-                                  +
+                                  −
                                 </button>
-                              ) : null}
-                            </div>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="fishingUpgradeLevelLabel">
+                                  lvl <span className="mono">{lvl}</span> / {maxLvl}
+                                </span>
+                                <div className="btnRow fishingUpgradeButtons">
+                                  <button
+                                    type="button"
+                                    className="btn btnSecondary"
+                                    onClick={() => setFishingEnhanceLevel(def.id, -1)}
+                                    disabled={lvl <= 0}
+                                    aria-label="Decrease level"
+                                  >
+                                    −
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => setFishingEnhanceLevel(def.id, 1)}
+                                    aria-label="Increase level"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </td>
                           <td className="fishingUpgradeTdCostEffic">
                             {!isMaxed &&
@@ -4832,30 +4910,46 @@ export function Fishing() {
                             </div>
                           </td>
                           <td className="fishingUpgradeTdLvl">
-                            <span className="fishingUpgradeLevelLabel">
-                              lvl <span className="mono">{lvl}</span> / {maxLvl}
-                            </span>
-                            <div className="btnRow fishingUpgradeButtons">
-                              <button
-                                type="button"
-                                className="btn btnSecondary"
-                                onClick={() => setFishingEnhanceLevel(def.id, -1)}
-                                disabled={lvl <= 0}
-                                aria-label="Decrease level"
-                              >
-                                −
-                              </button>
-                              {!isMaxed ? (
+                            {isMaxed ? (
+                              <div className="fishingUpgradeLvlMaxedRow">
+                                <span className="fishingUpgradeLevelLabel">
+                                  lvl <span className="mono">{lvl}</span> / {maxLvl}
+                                </span>
                                 <button
                                   type="button"
-                                  className="btn"
-                                  onClick={() => setFishingEnhanceLevel(def.id, 1)}
-                                  aria-label="Increase level"
+                                  className="btn btnSecondary fishingUpgradeBtnMaxed"
+                                  onClick={() => setFishingEnhanceLevel(def.id, -1)}
+                                  aria-label="Decrease level"
                                 >
-                                  +
+                                  −
                                 </button>
-                              ) : null}
-                            </div>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="fishingUpgradeLevelLabel">
+                                  lvl <span className="mono">{lvl}</span> / {maxLvl}
+                                </span>
+                                <div className="btnRow fishingUpgradeButtons">
+                                  <button
+                                    type="button"
+                                    className="btn btnSecondary"
+                                    onClick={() => setFishingEnhanceLevel(def.id, -1)}
+                                    disabled={lvl <= 0}
+                                    aria-label="Decrease level"
+                                  >
+                                    −
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => setFishingEnhanceLevel(def.id, 1)}
+                                    aria-label="Increase level"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </td>
                           <td className="fishingUpgradeTdCostEffic">
                             {!isMaxed &&
@@ -5339,21 +5433,18 @@ export function Fishing() {
                       </td>
                       <td className="fishingUpgradeTdLvl">
                         {isMaxed ? (
-                          <div className="fishingUpgradeLvlInline">
+                          <div className="fishingUpgradeLvlMaxedRow">
                             <span className="fishingUpgradeLevelLabel">
                               <span className="mono">{lvl}</span> / {maxLvl}
                             </span>
-                            <div className="btnRow fishingUpgradeButtons">
-                              <button
-                                type="button"
-                                className="btn btnSecondary"
-                                onClick={() => setSkillTreeLevel(def.id, -1)}
-                                disabled={lvl <= 0}
-                                aria-label="Decrease level"
-                              >
-                                −
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              className="btn btnSecondary fishingUpgradeBtnMaxed"
+                              onClick={() => setSkillTreeLevel(def.id, -1)}
+                              aria-label="Decrease level"
+                            >
+                              −
+                            </button>
                           </div>
                         ) : (
                           <>
