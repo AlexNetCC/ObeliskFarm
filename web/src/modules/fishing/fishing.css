@@ -1807,19 +1807,22 @@
   flex: 0 0 auto;
 }
 
-/* Tooltips: no glow, compact; constrain width so text wraps and never overflows */
+/* Tooltips: fixed max width so text wraps inside box; no clipping */
 .fishingModule .tooltipPop {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  width: max-content;
-  max-width: min(320px, calc(100vw - 32px));
+  width: min(320px, calc(100vw - 32px));
+  max-width: 100%;
   min-width: 0;
   overflow-wrap: break-word;
   word-break: break-word;
+  box-sizing: border-box;
 }
 .fishingModule .tooltipPop .tooltipTitle,
 .fishingModule .tooltipPop .tooltipSection,
 .fishingModule .tooltipPop .tooltipLine {
   overflow-wrap: break-word;
   word-break: break-word;
+  white-space: normal;
   max-width: 100%;
+  min-width: 0;
 }

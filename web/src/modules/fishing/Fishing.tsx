@@ -985,13 +985,16 @@ const statsTooltip = {
   sections: [
     {
       heading: "Source",
-      lines: ["Values are computed from your upgrade and enhancement levels, including boat levels (Upgrade Boat / Upgrade T2 Boat)."],
+      lines: [
+        "Values from your upgrade and enhancement levels.",
+        "Includes boat levels (Upgrade Boat / Upgrade T2 Boat).",
+      ],
     },
     {
       heading: "Drones and gains",
       lines: [
-        "Each fishing drone adds drone base power to the dock it is assigned to.",
-        "Dock power = rod (on the dock you fish at) + (drones on that dock × drone base power).",
+        "Each fishing drone adds drone base power to its dock.",
+        "Dock power = rod (on that dock) + drones there × drone base power.",
         "Higher power increases catch chance and fish per hour.",
       ],
     },
@@ -1005,8 +1008,9 @@ const statsTooltip = {
     {
       heading: "Double / triple / 5× tick chance",
       lines: [
-        "Three multipliers from Your stats. When the tick bar fills, double can give 2× ticks, triple 3×, 5× gives 5×; they multiply together (e.g. 2× and 3× and 5× → 30×).",
-        "5× from fishing only is 0%; the game can add more from relics, store, or cards.",
+        "Three multipliers. When the tick bar fills: double 2×, triple 3×, 5× gives 5×.",
+        "They multiply together (e.g. 2× and 3× and 5× → 30×).",
+        "5× from fishing only is 0%; game can add more from relics, store, or cards.",
       ],
     },
     {
@@ -1053,7 +1057,7 @@ const dockScoreTooltip = {
       heading: "What it is",
       lines: [
         "Sum of cost efficiency per cost fish.",
-        "For each fish type (dock), only the highest cost effic. among upgrades that cost that fish is counted.",
+        "Per fish type (dock): only the highest cost effic. among upgrades that cost that fish.",
       ],
     },
     {
@@ -1072,8 +1076,10 @@ const costEfficGemTooltip = {
     {
       heading: "Toggle",
       lines: [
-        "ON: Marginal % ÷ hours to earn gem cost. Hours = gem cost ÷ Gem EV gems/h.",
-        "OFF: Marginal % ÷ gem cost × 100 (gem-absolute, own heatmap).",
+        "ON: Marginal % ÷ hours to earn gem cost.",
+        "Hours = gem cost ÷ Gem EV gems/h.",
+        "OFF: Marginal % ÷ gem cost × 100.",
+        "Gem-absolute, own heatmap.",
       ],
     },
     {
@@ -1097,7 +1103,8 @@ const costEfficSkillTooltip = {
       heading: "Toggle",
       lines: [
         "ON: Marginal % ÷ hours to earn gem cost. 1 SP = 125 gems.",
-        "OFF: Marginal % ÷ gem cost × 100 (gem-absolute, own heatmap).",
+        "OFF: Marginal % ÷ gem cost × 100.",
+        "Gem-absolute, own heatmap.",
       ],
     },
     {
@@ -1120,8 +1127,10 @@ const costEfficFishCardTooltip = {
     {
       heading: "Toggle",
       lines: [
-        "ON: Marginal % ÷ hours to earn gem cost. Cost: gems or 1500 (Rod).",
-        "OFF: Marginal % ÷ gem cost × 100 (gem-absolute, own heatmap).",
+        "ON: Marginal % ÷ hours to earn gem cost.",
+        "Cost: gems or 1500 (Rod).",
+        "OFF: Marginal % ÷ gem cost × 100.",
+        "Gem-absolute, own heatmap.",
       ],
     },
     {
@@ -1770,57 +1779,127 @@ export function Fishing() {
     getCardMulti,
   ]);
 
-  /** Total fish/h with Fishing Rod at Poly (1.10×). Used for Card → Poly marginal when rod at Card. */
-  const totalFishPerHourWithRodPoly = useMemo(() => {
-    if (state.fishingRodCardTier !== 1) return 0;
+  /** Displayed fish/h with greedy assignment (highest dock). Used so +% gains are independent of Docks area. current = with current rod card; withRodPoly = rod at 1.10× for Rod Card → Poly marginal. */
+  const greedyDisplayedTotals = useMemo(() => {
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+      abyssLegendaryCaught: state.abyssLegendaryCaught,
+      fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
+      relic5xPoints: state.divineRelic5xPoints,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      astraeusIdolLevel: state.astraeusIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      anglerBundle: state.anglerBundle,
+      divineChallengeCoinLevel: state.divineChallengeCoinLevel,
+      infernalMrNibblesPct: state.infernalMrNibblesPct,
+      infernalMrNibblesLevel: state.infernalMrNibblesLevel,
+      infernalAnglerDronePct: state.infernalAnglerDronePct,
+      infernalAnglerDroneLevel: state.infernalAnglerDroneLevel,
+      constructStatue: state.constructStatue,
+      cetusLevel: state.cetusLevel,
+      blackHoleBonus: state.blackHoleBonus,
+    };
+    const greedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
     const dockIds = new Set(availableDocks.map((d) => d.id));
+    const doublePct = stats.double_tick_chance_pct / 100;
+    const triplePct = stats.triple_tick_chance_pct / 100;
+    const fivePct = stats.five_tick_chance_pct / 100;
+    const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
     const rodPoly = Math.round(stats.fishing_rod_power * 1.1);
-    const sets = AQUARIUM.filter((set) => dockIds.has(set.dockId));
-    let total = 0;
-    for (const set of sets) {
+    let current = 0;
+    let withRodPoly = 0;
+    for (const set of AQUARIUM) {
+      if (!dockIds.has(set.dockId)) continue;
       const dock = DOCKS.find((d) => d.id === set.dockId)!;
       const ticksNeeded = effectiveTicksByDock[dock.id] ?? dock.baseTicksNeeded;
-      const rodHere = state.activeDockId === set.dockId ? rodPoly : 0;
-      const dronesHere = state.dronesPerDock[set.dockId] ?? 0;
-      const powerOnThisDock = dock.tier === 2
+      const fillsPerHour = 3600 / (ticksNeeded * effectiveTickSec) + extraTicksPerHour / ticksNeeded;
+      const dronesHere = greedy.dronesPerDock[set.dockId] ?? 0;
+      const rodHere = greedy.activeDockId === set.dockId ? effectiveRodPower : 0;
+      const rodPolyHere = greedy.activeDockId === set.dockId ? rodPoly : 0;
+      const powerCurrent = dock.tier === 2
         ? (rodHere + dronesHere * stats.drone_base_power) * stats.tier2_dock_power_mult
         : rodHere + dronesHere * stats.drone_base_power;
-      if (powerOnThisDock <= 0) continue;
-      const dockFillsPerHour = 3600 / (ticksNeeded * effectiveTickSec);
-      const fillsPerHour = dockFillsPerHour + extraTicksPerHour / ticksNeeded;
-      const doublePct = stats.double_tick_chance_pct / 100;
-      const triplePct = stats.triple_tick_chance_pct / 100;
-      const fivePct = stats.five_tick_chance_pct / 100;
-      const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
+      const powerPoly = dock.tier === 2
+        ? (rodPolyHere + dronesHere * stats.drone_base_power) * stats.tier2_dock_power_mult
+        : rodPolyHere + dronesHere * stats.drone_base_power;
       for (const f of set.fish) {
-        const catchMulti =
+        const catchMultiCurrent =
           expectedRollsPerFill *
-          expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
+          expectedCatchesPerRoll(powerCurrent, f.powerRating) *
           stats.fish_income_multi *
-          expectedShinyMulti;
-        const cardMulti = getCardMulti(f.id);
-        total += fillsPerHour * catchMulti * cardMulti;
+          expectedShinyMulti *
+          getCardMulti(f.id);
+        const catchMultiPoly =
+          expectedRollsPerFill *
+          expectedCatchesPerRoll(powerPoly, f.powerRating) *
+          stats.fish_income_multi *
+          expectedShinyMulti *
+          getCardMulti(f.id);
+        current += fillsPerHour * catchMultiCurrent;
+        withRodPoly += fillsPerHour * catchMultiPoly;
       }
     }
-    return total;
+    return { current, withRodPoly };
   }, [
-    availableDocks,
-    effectiveTickSec,
+    upgradeLevels,
+    enhanceLevels,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    state.abyssLegendaryCaught,
+    state.fishingRodCardTier,
+    state.mrNibblesCardTier,
+    state.divineRelic5xPoints,
+    state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
+    state.mrNibblesQuestRank,
+    state.mrNibblesSkin,
+    state.poseidonIdolLevel,
+    state.tethysIdolLevel,
+    state.astraeusIdolLevel,
+    state.droneBasePowerWorld3Upgrade,
+    state.fishingDroneBasePowerWorld3,
+    state.legendaryHaulerBundle,
+    state.fishersBundle,
+    state.anglerBundle,
+    state.divineChallengeCoinLevel,
+    state.infernalMrNibblesPct,
+    state.infernalMrNibblesLevel,
+    state.infernalAnglerDronePct,
+    state.infernalAnglerDroneLevel,
+    state.constructStatue,
+    state.cetusLevel,
+    state.blackHoleBonus,
+    elixir3xFishingExternal,
     extraTicksPerHour,
-    expectedShinyMulti,
-    stats.fishing_rod_power,
+    availableDocks,
+    effectiveTicksByDock,
+    effectiveTickSec,
+    effectiveRodPower,
     stats.drone_base_power,
     stats.tier2_dock_power_mult,
     stats.fish_income_multi,
     stats.double_tick_chance_pct,
     stats.triple_tick_chance_pct,
     stats.five_tick_chance_pct,
-    state.dronesPerDock,
-    state.activeDockId,
-    state.fishingRodCardTier,
+    stats.fishing_rod_power,
+    expectedShinyMulti,
     getCardMulti,
-    effectiveTicksByDock,
   ]);
+
+  /** Total fish/h with Rod at Poly (1.10×), greedy assignment. Used for Rod Card → Poly marginal; only relevant when rod at Card. */
+  const totalFishPerHourWithRodPoly = state.fishingRodCardTier === 1 ? greedyDisplayedTotals.withRodPoly : 0;
 
   /** Fish only where power > 0. Visible = show-grayed ? all (gray where !hasPower) : only hasPower. */
   const visibleGainsRows = useMemo(() => {
@@ -3033,9 +3112,9 @@ export function Fishing() {
     effectiveTicksByDock,
   ]);
 
-  /** Fish card gild (Card → Gilded): marginal % and cost efficiency. For each fish card we assume rod + all drones on that fish's dock (so Lake fish uses Lake total, etc.). Rod and Mr Nibbles cards use global total; leg fish excluded. */
+  /** Fish card gild (Card → Gilded): marginal % and cost efficiency. For each fish card we assume rod + all drones on that fish's dock (so Lake fish uses Lake total, etc.). Rod card uses greedy total (independent of Docks area); leg fish excluded. */
   const { fishCardGildMarginalPct, fishCardGildCostEffic, fishCardGildCostEfficGemAbs, fishingRodCardGildMarginalPct, fishingRodCardGildCostEffic, fishingRodCardGildCostEfficGemAbs, costEfficHeatMinFishCard, costEfficHeatMaxFishCard, costEfficHeatMinFishCardGemAbs, costEfficHeatMaxFishCardGemAbs } = useMemo(() => {
-    const totalForRod = visibleGainsRows.filter((r) => r.hasPower && r.fishPerHour > 0).reduce((s, r) => s + r.fishPerHour, 0);
+    const totalForRod = greedyDisplayedTotals.current;
     const marginalMap = new Map<string, number>();
     const efficMap = new Map<string, number>();
     const efficMapGemAbs = new Map<string, number>();
@@ -3116,8 +3195,8 @@ export function Fishing() {
         efficValsGemAbs.push(efficGemAbs);
       }
     }
-    if (state.fishingRodCardTier === 1 && totalFishPerHourWithRodPoly > 0 && totalForRod > 0) {
-      rodMarginalPct = ((totalFishPerHourWithRodPoly - totalForRod) / totalForRod) * 100;
+    if (state.fishingRodCardTier === 1 && greedyDisplayedTotals.withRodPoly > 0 && totalForRod > 0) {
+      rodMarginalPct = ((greedyDisplayedTotals.withRodPoly - totalForRod) / totalForRod) * 100;
       if (gemEvGemsPerHour > 0) {
         rodCostEffic = rodMarginalPct / (FISHING_ROD_GILD_CARD_COST / gemEvGemsPerHour);
         efficVals.push(rodCostEffic);
@@ -3137,7 +3216,7 @@ export function Fishing() {
       costEfficHeatMinFishCardGemAbs: efficValsGemAbs.length ? Math.min(...efficValsGemAbs) : 0,
       costEfficHeatMaxFishCardGemAbs: efficValsGemAbs.length ? Math.max(...efficValsGemAbs) : 1,
     };
-  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, state.skillTreeLevels, state.legendaryFishFound, state.divineRelic5xPoints, state.infernalMrNibblesPct, state.infernalMrNibblesLevel, state.infernalAnglerDronePct, state.infernalAnglerDroneLevel, upgradeLevels, enhanceLevels, stats.fish_income_multi, stats.shiny_multiplier, stats.super_shiny_multiplier, stats.super_shiny_chance_pct, stats.drone_base_power, stats.tier2_dock_power_mult, stats.double_tick_chance_pct, stats.triple_tick_chance_pct, stats.five_tick_chance_pct, stats.fishing_drone_cap, expectedShinyMulti, totalFishPerHourWithRodPoly, gemEvGemsPerHour, availableDocks, effectiveTicksByDock, effectiveTickSec, extraTicksPerHour, effectiveRodPower, getCardMulti]);
+  }, [visibleGainsRows, state.fishCardTier, state.fishingRodCardTier, state.skillTreeLevels, state.legendaryFishFound, state.divineRelic5xPoints, state.infernalMrNibblesPct, state.infernalMrNibblesLevel, state.infernalAnglerDronePct, state.infernalAnglerDroneLevel, upgradeLevels, enhanceLevels, stats.fish_income_multi, stats.shiny_multiplier, stats.super_shiny_multiplier, stats.super_shiny_chance_pct, stats.drone_base_power, stats.tier2_dock_power_mult, stats.double_tick_chance_pct, stats.triple_tick_chance_pct, stats.five_tick_chance_pct, stats.fishing_drone_cap, expectedShinyMulti, greedyDisplayedTotals, gemEvGemsPerHour, availableDocks, effectiveTicksByDock, effectiveTickSec, extraTicksPerHour, effectiveRodPower, getCardMulti]);
 
   /** Mr Nibbles Card: effective assumed +% gain for next tier (Tiny Notice, same formula as Angler). Excluded from heatmap. */
   const mrNibblesCardNextMarginalPct = useMemo(() => {
@@ -4291,7 +4370,8 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
-                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
+                                  "Assumes rod and all drones on the highest unlocked dock.",
+                                  "E.g. Cave when T2 is just unlocked.",
                                 ],
                               },
                             ],
@@ -4480,7 +4560,8 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
-                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
+                                  "Assumes rod and all drones on the highest unlocked dock.",
+                                  "E.g. Cave when T2 is just unlocked.",
                                 ],
                               },
                             ],
@@ -4675,7 +4756,8 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
-                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
+                                  "Assumes rod and all drones on the highest unlocked dock.",
+                                  "E.g. Cave when T2 is just unlocked.",
                                 ],
                               },
                             ],
@@ -4881,7 +4963,8 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
-                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
+                                  "Assumes rod and all drones on the highest unlocked dock.",
+                                  "E.g. Cave when T2 is just unlocked.",
                                 ],
                               },
                             ],
@@ -5806,7 +5889,7 @@ export function Fishing() {
               </div>
               <StepperRow
                 label="Poseidon Idol"
-                iconUrl="https://static.wikitide.net/shminerwiki/4/43/Poseidon.png"
+                iconUrl={fishIconUrl("Poseidon.png")}
                 value={state.poseidonIdolLevel}
                 min={0}
                 max={999}
@@ -5835,7 +5918,7 @@ export function Fishing() {
               />
               <StepperRow
                 label="Tethys Idol"
-                iconUrl="https://static.wikitide.net/shminerwiki/0/0b/Tethys.png"
+                iconUrl="https://static.wikitide.net/shminerwiki/a/a4/Tethys_Idol.png"
                 value={state.tethysIdolLevel}
                 min={0}
                 max={999}
@@ -5871,7 +5954,7 @@ export function Fishing() {
               />
               <StepperRow
                 label="Astraeus Idol"
-                iconUrl="https://static.wikitide.net/shminerwiki/9/93/Astraeus.png"
+                iconUrl="https://static.wikitide.net/shminerwiki/1/1c/Astraeus_Idol.png"
                 value={state.astraeusIdolLevel}
                 min={0}
                 max={999}
