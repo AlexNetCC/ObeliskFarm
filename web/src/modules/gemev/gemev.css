@@ -398,10 +398,23 @@
   animation: none;
 }
 
-.gemEvOverviewChartBtnSmall {
+/* Overview chart: same style as Gift-EV / Gifts/h chart buttons (chart button family) */
+.btn.gemEvOverviewChartBtnSmall {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
   padding: 3px 8px;
   margin-left: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(71, 85, 105, 0.9);
+  cursor: pointer;
+}
+.btn.gemEvOverviewChartBtnSmall:hover {
+  background: rgba(92, 107, 192, 0.12);
+  border-color: rgba(92, 107, 192, 0.35);
 }
 
 .gemEvChartArrowLeft {

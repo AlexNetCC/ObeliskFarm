@@ -106,7 +106,7 @@ export type GameParameters = {
   gift_chaos_totem_value_per_totem?: number; // When chaos not 100%, value per totem (Gems/h)
   gift_fishing_unlocked?: boolean; // When true, use fishing tick value instead of Charge Magnet for 12–20 Charge Magnets outcome
   gift_charge_magnet_value_per_magnet?: number; // When fishing not unlocked, value per 1 Charge Magnet (Gems/h)
-  gift_fishing_tick_value?: number; // When fishing unlocked: Gems value of 12.5 min of 5× Fishing Tick Chance. Must reflect actual fish gain during the buff (i.e. include the 5× tick effect, e.g. +25% or equivalent).
+  gift_fishing_tick_value?: number; // When fishing unlocked: Gems value of 10–15 min (avg 12.5) of 5× Fishing Tick Chance. Must reflect actual fish gain during the buff (i.e. include the 5× tick effect).
   /** Fish per hour during 5× Tick Chance buff (from Fishing). Used for Gift chart: fish gains from that buff per gift. */
   gift_fish_per_hour_during_5x_buff?: number;
   /** Drone Fuel: value per 1 Fuel in Gems. Default 5. */
@@ -715,8 +715,9 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
   // 1) Base roll EV (wiki Store#Gifts first table). [1] = 1 + Obelisk×0.08. Rare replaces basic.
   const gems20_40 = 30.0;
   const gems20_50 = 35.0;
-  const skillShardsBase = 3.5;
-  const baseRollGems = probBasicRoll * chancePerItem * (gems20_40 + gems20_50);
+  const gems90_150 = 120.0;
+  const skillShardsBase = 3.5; // 2–5 Skill Shards per outcome [1], avg (2+5)/2
+  const baseRollGems = probBasicRoll * chancePerItem * (gems20_40 + gems20_50 + gems90_150);
   const baseRollShards = probBasicRoll * chancePerItem * skillShardsBase * skillShardValue;
 
   const itemChestsAvg = 32.5;
@@ -784,13 +785,15 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const probBasicRoll = getBasicRollProbability(obelisk, params.gift_black_hole_unlocked);
   const gems20_40 = 30.0;
   const gems20_50 = 35.0;
-  const skillShardsBase = 3.5;
-  const itemChestsAvg = 32.5;
+  const gems90_150 = 120.0; // 90–150 Gems [1]
+  const skillShardsBase = 3.5; // 2–5 Skill Shards [1], avg (2+5)/2
+  const itemChestsAvg = 32.5; // 25–40 Item Chests, no [1] (Lucky only)
   const chaosTotemAvg = 12.5;
   const chargeMagnetAvg = 16.0;
 
   const gems20_40_final = probBasicRoll * chancePerItem * gems20_40 * obeliskMult * luckyMult;
   const gems20_50_final = probBasicRoll * chancePerItem * gems20_50 * obeliskMult * luckyMult;
+  const gems90_150_final = probBasicRoll * chancePerItem * gems90_150 * obeliskMult * luckyMult;
   const skillShards_final = probBasicRoll * chancePerItem * skillShardsBase * skillShardValue * obeliskMult * luckyMult;
   const item_chests_final =
     probBasicRoll * chancePerItem * itemChestsAvg * (params.gift_item_chest_value ?? 0) * luckyMult;
@@ -803,6 +806,9 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const fishing_tick_final = params.gift_fishing_unlocked
     ? probBasicRoll * chancePerItem * (params.gift_fishing_tick_value ?? 0) * luckyMult
     : 0;
+  const basicSushi4_6Avg = 5.0; // 4–6 Sushi basic outcome, no [1]
+  const sushi_4_6_final = 0; // value in gems (sushi has no gem value in breakdown)
+  const sushi_4_6_qty = probBasicRoll * chancePerItem * basicSushi4_6Avg * luckyMult;
 
   const rare = computeRareRollWinProbs(obelisk, params.gift_black_hole_unlocked);
   const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
@@ -817,13 +823,19 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   const cosmic_candy_final = rare.cosmicCandy * 1.5 * (params.gift_cosmic_candy_gem_value ?? 0);
 
   const fishPerSushi = params.gift_sushi_fish_per_sushi ?? 0;
+  const sushi_15_24_qty = rare.sushi15_24 * 19.5 * luckyMult;
+  const sushi_50_60_qty = rare.sushi50_60 * 55 * luckyMult;
+  const sushi_15_24_final = 0;
+  const sushi_50_60_final = 0;
   const sushi_fish_final =
-    (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult * fishPerSushi;
+    (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult * fishPerSushi +
+    probBasicRoll * chancePerItem * basicSushi4_6Avg * fishPerSushi * luckyMult;
 
   const giftEvTotal = calculateGiftEvPerGift(params);
   const A =
     gems20_40_final +
     gems20_50_final +
+    gems90_150_final +
     skillShards_final +
     item_chests_final +
     chaos_totem_final +
@@ -840,17 +852,20 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
 
   const gems20_40_qty = probBasicRoll * chancePerItem * gems20_40 * obeliskMult * luckyMult;
   const gems20_50_qty = probBasicRoll * chancePerItem * gems20_50 * obeliskMult * luckyMult;
+  const gems90_150_qty = probBasicRoll * chancePerItem * gems90_150 * obeliskMult * luckyMult;
   const skillShards_qty = probBasicRoll * chancePerItem * skillShardsBase * obeliskMult * luckyMult;
   const itemChests_qty = probBasicRoll * chancePerItem * itemChestsAvg * luckyMult;
   const chaosTotem_qty = params.gift_chaos_totem_100_from_bombs ? 0 : probBasicRoll * chancePerItem * chaosTotemAvg * luckyMult;
   const chargeMagnet_qty = !params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * chargeMagnetAvg * luckyMult : 0;
-  const fishingTick_min = params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * 12.5 * luckyMult : 0;
+  // Basic reward: 10–15 min 5× Fishing Tick Chance, avg 12.5 min
+  const fishingTickDurationMin = 12.5;
+  const fishingTick_min = params.gift_fishing_unlocked ? probBasicRoll * chancePerItem * fishingTickDurationMin * luckyMult : 0;
   const fishPerHourDuring5x = params.gift_fish_per_hour_during_5x_buff ?? 0;
   const fishing_tick_fish = fishPerHourDuring5x > 0 ? (fishingTick_min / 60) * fishPerHourDuring5x : 0;
   const rareGems_qty = rare.gems80_130 * 105 * obeliskMult * luckyMult;
   const droneFuel_qty = rare.droneFuel * droneFuelAvgQty * luckyMult;
   const skin_qty = rare.skin * 105 * luckyMult;
-  const sushi_qty = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult;
+  const sushi_qty = (rare.sushi15_24 * 19.5 + rare.sushi50_60 * 55) * luckyMult + sushi_4_6_qty;
   const recursiveGifts_qty = rare.gifts3 * 3 * luckyMult + rare.gildedSkin * 25 * luckyMult;
   const gems15k25k_qty = rare.gems15k_25k * 20000 * luckyMult;
 
@@ -858,11 +873,13 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
   return {
     gems_20_40: gems20_40_final,
     gems_20_50: gems20_50_final,
+    gems_90_150: gems90_150_final,
     skill_shards: skillShards_final,
     item_chests: item_chests_final,
     chaos_totem: chaos_totem_final,
     charge_magnet: charge_magnet_final,
     fishing_tick: fishing_tick_final,
+    sushi_4_6: sushi_4_6_final,
     rare_gems: rare_gems_final,
     drone_fuel: drone_fuel_final,
     skin: skin_final,
@@ -870,22 +887,28 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
     frogspawn: frogspawn_final,
     forbidden_sushi: forbidden_sushi_final,
     cosmic_candy: cosmic_candy_final,
+    sushi_15_24: sushi_15_24_final,
+    sushi_50_60: sushi_50_60_final,
     sushi_fish: sushi_fish_final,
     recursive_gifts: recursiveGiftsContribution,
     total: giftEvTotal,
     _qty: {
       gems_20_40: gems20_40_qty,
       gems_20_50: gems20_50_qty,
+      gems_90_150: gems90_150_qty,
       skill_shards: skillShards_qty,
       item_chests: itemChests_qty,
       chaos_totem: chaosTotem_qty,
       charge_magnet: chargeMagnet_qty,
       fishing_tick: fishingTick_min,
       fishing_tick_fish: fishing_tick_fish,
+      sushi_4_6: sushi_4_6_qty,
       rare_gems: rareGems_qty,
       drone_fuel: droneFuel_qty,
       skin: skin_qty,
       sushi_fish: sushi_qty,
+      sushi_15_24: sushi_15_24_qty,
+      sushi_50_60: sushi_50_60_qty,
       recursive_gifts: recursiveGifts_qty,
       gems_15k_25k: gems15k25k_qty,
     } as Record<string, number>,
@@ -897,11 +920,13 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
     _dropChancePct: {
       gems_20_40: basicDropPct,
       gems_20_50: basicDropPct,
+      gems_90_150: basicDropPct,
       skill_shards: basicDropPct,
       item_chests: basicDropPct,
       chaos_totem: basicDropPct,
       charge_magnet: basicDropPct,
       fishing_tick: basicDropPct,
+      sushi_4_6: basicDropPct,
       rare_gems: rare.gems80_130 * 100,
       drone_fuel: rare.droneFuel * 100,
       skin: rare.skin * 100,
@@ -909,6 +934,8 @@ export function calculateGiftEvBreakdown(params: GameParameters): Record<string,
       frogspawn: rare.frogspawn * 100,
       forbidden_sushi: rare.forbiddenSushi * 100,
       cosmic_candy: rare.cosmicCandy * 100,
+      sushi_15_24: rare.sushi15_24 * 100,
+      sushi_50_60: rare.sushi50_60 * 100,
       recursive_gifts: rare.gifts3 * 100,
     } as Record<string, number>,
   } as unknown as Record<string, number>;
@@ -980,7 +1007,7 @@ export function calculateGiftSushiPerHour(params: GameParameters): number {
   return freebie + founder;
 }
 
-/** Uptime fraction (0..1) of the Gift basic reward "5× Fishing Tick Chance". Effective chance = P(basic roll) × 1/12 (rare replaces basic), 12.5 min duration. */
+/** Uptime fraction (0..1) of the Gift basic reward "5× Fishing Tick Chance". Effective chance = P(basic roll) × 1/12 (rare replaces basic). Duration 10–15 min, avg 12.5 min. */
 export function calculateGift5xTickUptimeFraction(params: GameParameters): number {
   const level = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
   const cfg = STATUE_SOPRANO_CONFIG[level];

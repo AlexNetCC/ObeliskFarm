@@ -525,28 +525,39 @@ export function Stargazing() {
     };
   }, [starburstToggleRefresh, externalRefreshKey]);
 
-  /** For Online AFK and Offline Gains: only Elixir (no Lootbug, no Founder, no Starburst). Elixir Drone buffs apply when the client is offline. */
+  /** For Online AFK and Offline Gains: Elixir + Starburst. When displayed 2× Star buff uptime > 60 min/h, assume 100% uptime so Online = Online AFK = Offline for 2×. */
   const droneBuffsOnlineAfk = useMemo(() => {
     const sg = loadJson<{
       elixir2xStarMinPerHour?: number;
       drone3xSuperUptimeFraction?: number;
+      founderSupplyDrop2xStarMinPerHour?: number;
+      starburstTripleStarChancePct?: number;
+      starburstStarSpawnRateUptimeFraction?: number;
+      starburstStarSpawnRatePct?: number;
+      starburstAutoCatch100MinPerHour?: number;
     }>(STARGAZING_EXTERNAL_KEY);
+    const gemev = loadJson<{ lootbug2xStarMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
     const elixirMin = typeof sg?.elixir2xStarMinPerHour === "number" ? Math.max(0, sg.elixir2xStarMinPerHour) : 0;
-    const total2xUptimeFraction = Math.min(1, elixirMin / 60);
+    const lootbugMin = typeof gemev?.lootbug2xStarMinPerHour === "number" ? Math.max(0, gemev.lootbug2xStarMinPerHour) : 0;
+    const founder2xMin = typeof sg?.founderSupplyDrop2xStarMinPerHour === "number" ? Math.max(0, sg.founderSupplyDrop2xStarMinPerHour) : 0;
+    const displayed2xMinPerHour = elixirMin + lootbugMin + founder2xMin;
+    const full2xUptime = displayed2xMinPerHour >= 60;
+    const total2xUptimeFraction = full2xUptime ? 1 : Math.min(1, elixirMin / 60);
+    const total2xStarMinPerHour = full2xUptime ? 60 : elixirMin;
     return {
-      total2xStarMinPerHour: elixirMin,
+      total2xStarMinPerHour,
       total2xUptimeFraction,
       drone3xSuperUptimeFraction: typeof sg?.drone3xSuperUptimeFraction === "number" ? Math.min(1, Math.max(0, sg.drone3xSuperUptimeFraction)) : 0,
       founderSupplyDropAutoCatch100MinPerHour: 0,
       founderOnlyAutoCatch100MinPerHour: 0,
-      starburstTripleStarChancePct: 0,
-      starburstStarSpawnRateUptimeFraction: 0,
-      starburstStarSpawnRatePct: 0,
-      starburstAutoCatch100MinPerHour: 0,
+      starburstTripleStarChancePct: typeof sg?.starburstTripleStarChancePct === "number" ? Math.max(0, sg.starburstTripleStarChancePct) : 0,
+      starburstStarSpawnRateUptimeFraction: typeof sg?.starburstStarSpawnRateUptimeFraction === "number" ? Math.max(0, Math.min(1, sg.starburstStarSpawnRateUptimeFraction)) : 0,
+      starburstStarSpawnRatePct: typeof sg?.starburstStarSpawnRatePct === "number" ? Math.max(0, sg.starburstStarSpawnRatePct) : 0,
+      starburstAutoCatch100MinPerHour: typeof sg?.starburstAutoCatch100MinPerHour === "number" ? Math.max(0, sg.starburstAutoCatch100MinPerHour) : 0,
     };
   }, [starburstToggleRefresh, externalRefreshKey]);
 
-  /** Offline gains use same drone buff set as Online AFK (Elixir only). */
+  /** Offline gains use same drone buff set as Online AFK (Elixir + Starburst). */
   const droneBuffsOffline = droneBuffsOnlineAfk;
 
   const hasStarburst = droneBuffs.starburstTripleStarChancePct > 0 || droneBuffs.starburstStarSpawnRateUptimeFraction > 0 || droneBuffs.starburstAutoCatch100MinPerHour > 0;
@@ -598,7 +609,7 @@ export function Stargazing() {
     return s;
   }, [ui, ctrlF, spoonStrat, cosmicCandy, w3FloorsMult, droneBuffs.total2xUptimeFraction, droneBuffs.drone3xSuperUptimeFraction, droneBuffs.founderSupplyDropAutoCatch100MinPerHour, droneBuffs.starburstTripleStarChancePct, droneBuffs.starburstStarSpawnRateUptimeFraction, droneBuffs.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
-  /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst (no Lootbug, no Founder). */
+  /** Stats for Online AFK: same as online (spoon applies) but only Elixir + Starburst, no Lootbug, no Founder. */
   const statsOnlineAfk = useMemo<PlayerStats>(() => {
     const effectiveFloorsPerMin = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * (spoonStrat ? 1.2 : 1) * w3FloorsMult;
     const floor_clears_per_hour = effectiveFloorsPerMin * 60.0;
@@ -797,7 +808,8 @@ export function Stargazing() {
       title: "Online AFK",
       lines: [
         "— Game open, phone aside. All stars caught by auto-catch. Offline factor 0.85 does not apply.",
-        "— Lootbug and Founder buffs do not apply (only Elixir Drone).",
+        "— Elixir Drone and Starburst apply (normal stars and Super Stars). Lootbug and Founder Supply Drop do not apply when you are AFK.",
+        "— Stars/hour (Online) is higher when you have Lootbug or Founder active; Online AFK has Elixir + Starburst only.",
       ],
     }),
     [],
@@ -809,7 +821,7 @@ export function Stargazing() {
       lines: [
         "— When the game gives offline gains: auto-catch × 0.85. The game applies this factor when you are offline.",
         "— Spoon strat is not applied (you cannot spoon when the device is off).",
-        "— Elixir Drone buffs apply when offline. From the Drone module only Elixir is added; Lootbug, Founder, and Starburst from Drone do not apply when the game is closed. Your stats below are used for Offline too (e.g. Starburst there counts).",
+        "— Elixir Drone and Starburst apply when offline (normal stars and Super Stars). Lootbug and Founder do not apply when the game is closed.",
       ],
     }),
     [],
@@ -956,13 +968,17 @@ export function Stargazing() {
                 </span>
               </kbd>
               <div className="mono sgResultValueBlue">{fmt1(summary.stars_per_hour_online * resultsCardMult)}</div>
-              <kbd>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  ⭐ Stars/hour (Online AFK)
-                  <Tooltip content={onlineAfkInfo} label="?" />
-                </span>
-              </kbd>
-              <div className="mono sgResultValueBlue">{fmt1(summaryOnlineAfk.stars_per_hour_online_afk * resultsCardMult)}</div>
+              {droneBuffs.total2xStarMinPerHour < 60 && (
+                <>
+                  <kbd>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      ⭐ Stars/hour (Online AFK)
+                      <Tooltip content={onlineAfkInfo} label="?" />
+                    </span>
+                  </kbd>
+                  <div className="mono sgResultValueBlue">{fmt1(summaryOnlineAfk.stars_per_hour_online_afk * resultsCardMult)}</div>
+                </>
+              )}
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   ⭐ Stars/hour (Offline Gains)
@@ -1011,14 +1027,18 @@ export function Stargazing() {
                 </span>
               </kbd>
               <div className="mono sgResultValueOrange">{fmt1(summary.super_stars_per_hour_online)}</div>
-              <kbd>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
-                  <span>SS/hour (Online AFK)</span>
-                  <Tooltip content={onlineAfkInfo} label="?" />
-                </span>
-              </kbd>
-              <div className="mono sgResultValueOrange">{fmt1(summaryOnlineAfk.super_stars_per_hour_online_afk)}</div>
+              {droneBuffs.total2xStarMinPerHour < 60 && (
+                <>
+                  <kbd>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
+                      <span>SS/hour (Online AFK)</span>
+                      <Tooltip content={onlineAfkInfo} label="?" />
+                    </span>
+                  </kbd>
+                  <div className="mono sgResultValueOrange">{fmt1(summaryOnlineAfk.super_stars_per_hour_online_afk)}</div>
+                </>
+              )}
               <kbd>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <Sprite paths={["sprites/stargazing/super_star.png"]} alt="Super Star" className="iconSmall" label="sprites/stargazing/super_star.png" />
@@ -1065,6 +1085,12 @@ export function Stargazing() {
                           lines: [
                             "Buff uptime per hour from Elixir (Drone), Lootbug (free + gem; Golden Lootbug), and Founder Supply Drop. Same buff; durations add (e.g. 3 + 5 + 2 = 10 min/h → 1/6 uptime). That uptime multiplies star gain.",
                             "The value used in calculations is capped at 60 min/h (100% uptime).",
+                          ],
+                        },
+                        {
+                          heading: "When > 60 min/h",
+                          lines: [
+                            "Online AFK and Offline gains assume 100% 2× uptime so they match Online for this buff (same star spawn rate from 2×).",
                           ],
                         },
                       ],
@@ -1550,6 +1576,18 @@ export function Stargazing() {
               </div>
               <div className="sgRows">
                 <Stepper
+                  label="Novagiant Combo Multiplier (x)"
+                  spritePaths={["https://static.wikitide.net/shminerwiki/8/82/Novagiant_Combo_Multiplier.png"]}
+                  spriteAlt="Novagiant Combo Multiplier"
+                  spriteLabel="Novagiant_Combo_Multiplier.png"
+                  value={ui.novagiant_combo_mult}
+                  onChange={(v) => setUi((s) => ({ ...s, novagiant_combo_mult: v }))}
+                  step={0.05}
+                  min={0}
+                  max={10_000}
+                  decimals={2}
+                />
+                <Stepper
                   label="Star Radiant Chance (%)"
                   spritePaths={["https://static.wikitide.net/shminerwiki/d/d7/Star_Radiant_Chance.png"]}
                   spriteAlt="Star Radiant Chance"
@@ -1593,18 +1631,6 @@ export function Stargazing() {
                   value={ui.super_star_radiant_mult}
                   onChange={(v) => setUi((s) => ({ ...s, super_star_radiant_mult: v }))}
                   step={0.5}
-                  min={0}
-                  max={10_000}
-                  decimals={2}
-                />
-                <Stepper
-                  label="Novagiant Combo Multiplier (x)"
-                  spritePaths={["https://static.wikitide.net/shminerwiki/8/82/Novagiant_Combo_Multiplier.png"]}
-                  spriteAlt="Novagiant Combo Multiplier"
-                  spriteLabel="Novagiant_Combo_Multiplier.png"
-                  value={ui.novagiant_combo_mult}
-                  onChange={(v) => setUi((s) => ({ ...s, novagiant_combo_mult: v }))}
-                  step={0.05}
                   min={0}
                   max={10_000}
                   decimals={2}

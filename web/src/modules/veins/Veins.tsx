@@ -431,6 +431,20 @@ function expectedTypeMult(s: VeinsState): number {
   return goldenRainbowMult * gleamingMult;
 }
 
+/**
+ * Expected type multiplier for veins from Void portals. Each portal can be normal, golden (chance), or rainbow (crit of golden).
+ * So: (1 − pGP)*typeMult + pGP*(1 − pRP)*typeMult*goldenPortalMult + pGP*pRP*typeMult*goldenPortalMult*rainbowPortalMult.
+ */
+function expectedPortalTypeMult(s: VeinsState, typeMult: number): number {
+  const pGP = s.goldenPortalChancePct / 100;
+  const pRP = s.rainbowPortalChancePct / 100;
+  const gPM = Math.max(0, s.goldenPortalMult);
+  const rPM = Math.max(0, s.rainbowPortalMult);
+  if (pGP <= 0) return typeMult;
+  const goldenPart = gPM * ((1 - pRP) + pRP * rPM);
+  return typeMult * ((1 - pGP) + pGP * goldenPart);
+}
+
 /** Compute veins per hour by type and total for a given floor. Uses all state inputs; when forceVoidOn is true, Void is treated as ON (for floor comparison). */
 function computeVeinsAtFloor(
   floor: number,
@@ -450,6 +464,7 @@ function computeVeinsAtFloor(
   const pMorph = s.veinmorpherMorphChancePct / 100;
   const pGolden = s.veinmorpherGoldenChancePct / 100;
   const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * s.goldenMult : typeMult;
+  const portalTypeMult = expectedPortalTypeMult(s, typeMult);
 
   const byType: Array<{ vein: (typeof VEIN_TYPES)[number]; veinsPerHour: number }> = relevantVeins.map((vein) => {
     const research2x = s.veinResearch2x[vein.id] ?? false;
@@ -489,7 +504,7 @@ function computeVeinsAtFloor(
           (fromSpawn / s.oresPerFloor) *
           cardMult *
           s.veinIncomeMult *
-          typeMult
+          portalTypeMult
         : 0;
     const vpf = (normalVpf + veinmorpherVpf + voidVpf) * afkMult;
     const vph = vpf * floorsPerHour;
@@ -623,6 +638,7 @@ export function Veins() {
     const pGolden = state.veinmorpherGoldenChancePct / 100;
     /** Golden trigger: with prob pGolden all veins on the floor become golden. So mult per vein = (1−pGolden)*typeMult + pGolden*goldenMult. */
     const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * state.goldenMult : typeMult;
+    const portalTypeMult = expectedPortalTypeMult(state, typeMult);
 
     const byType: Array<{ vein: (typeof VEIN_TYPES)[number]; veinsPerHour: number }> = relevantVeins.map((vein) => {
       const research2x = state.veinResearch2x[vein.id] ?? false;
@@ -665,7 +681,7 @@ export function Veins() {
             (fromSpawn / state.oresPerFloor) *
             cardMult *
             state.veinIncomeMult *
-            typeMult
+            portalTypeMult
           : 0;
       const vpf = (normalVpf + veinmorpherVpf + voidVpf) * afkMult;
       const vph = vpf * floorsPerHour;
@@ -688,7 +704,7 @@ export function Veins() {
       veinsPerHourByType: adjustedByType,
       effectiveGoldenChancePct,
     };
-  }, [currentVein, state.floor, state.voidDroneOn, state.voidPortalChancePct, state.voidPortalMult, state.voidSuitMult, state.veinResearch2x, state.veinCardTier, state.polychromeMult, state.veinSpawnRateMult, state.veinIncomeMult, state.oresPerFloor, state.floorClearsPerMin, state.afk, state.veinmorpherMorphChancePct, state.veinmorpherGoldenChancePct, state.goldenChancePct, state.goldenMult, typeMult]);
+  }, [currentVein, state.floor, state.voidDroneOn, state.voidPortalChancePct, state.voidPortalMult, state.voidSuitMult, state.goldenPortalChancePct, state.goldenPortalMult, state.rainbowPortalChancePct, state.rainbowPortalMult, state.veinResearch2x, state.veinCardTier, state.polychromeMult, state.veinSpawnRateMult, state.veinIncomeMult, state.oresPerFloor, state.floorClearsPerMin, state.afk, state.veinmorpherMorphChancePct, state.veinmorpherGoldenChancePct, state.goldenChancePct, state.goldenMult, typeMult]);
 
   /** Top 3 floors to maximize selected vein (Void always ON). Primary = selected vein vph; within ±10% and not statistically significant (95% CI), tie-break = higher total veins. */
   const top3FloorsForVein = useMemo(() => {

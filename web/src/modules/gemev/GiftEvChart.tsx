@@ -8,22 +8,26 @@ const WIKI = "https://static.wikitide.net/shminerwiki";
 const SUSHI_ICON = `${WIKI}/6/6d/Sushi.png`;
 const FISH_TICK_ICON = `${WIKI}/8/8d/5x_Fish_Tick_Chance.png`;
 
-/* Basic: yellow/amber shades (like Stats Contributions Stars). Rare: blue shades (like Super Stars). */
+/* Basic: yellow/amber shades (like Stats Contributions Stars). Rare: blue shades (like Super Stars). obeliskMult: [1] outcomes (Obelisk Level Multiplier applies). */
 const BASIC_ENTRIES = [
-  { key: "gems_20_40" as const, label: "Basic Gems Roll Type 1", color: "#fff59d", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
-  { key: "gems_20_50" as const, label: "Basic Gems Roll Type 2", color: "#ffeb3b", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
-  { key: "skill_shards" as const, label: "Skill Shards", color: "#ffc107", qtyUnit: "shards", icon: assetUrl("sprites/common/skill_shard.png") },
-  { key: "item_chests" as const, label: "Item Chests", color: "#ffa726", qtyUnit: "chests", icon: `${WIKI}/a/a8/Item_Chest.png` },
+  { key: "gems_20_40" as const, label: "Basic Gems Roll Type 1", color: "#fff59d", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png"), obeliskMult: true },
+  { key: "gems_20_50" as const, label: "Basic Gems Roll Type 2", color: "#ffeb3b", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png"), obeliskMult: true },
+  { key: "gems_90_150" as const, label: "Basic Gems Roll Type 3", color: "#ffd54f", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png"), obeliskMult: true },
+  { key: "skill_shards" as const, label: "2-5 Skill Shards", color: "#ffc107", qtyUnit: "shards", icon: assetUrl("sprites/common/skill_shard.png"), obeliskMult: true },
+  { key: "item_chests" as const, label: "25–40 Item Chests", color: "#ffa726", qtyUnit: "chests", icon: `${WIKI}/a/a8/Item_Chest.png` },
+  { key: "sushi_4_6" as const, label: "4–6 Sushi", color: "#81c784", qtyUnit: "sushi", icon: SUSHI_ICON },
   { key: "chaos_totem" as const, label: "Chaos Totem", color: "#f57f17", qtyUnit: "totems", icon: `${WIKI}/a/a6/Chaos_Totem.png` },
   { key: "charge_magnet" as const, label: "Charge Magnet", color: "#ff8f00", qtyUnit: "magnets", icon: `${WIKI}/f/fc/Charge_Magnet.png` },
   { key: "fishing_tick" as const, label: "5× Fishing Tick Chance", color: "#ffb74d", qtyUnit: "min", icon: `${WIKI}/8/8d/5x_Fish_Tick_Chance.png` },
 ] as const;
 
 const RARE_ENTRIES = [
-  { key: "rare_gems" as const, label: "Rare Roll Gems", color: "#2196f3", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
+  { key: "rare_gems" as const, label: "Rare Roll Gems", color: "#2196f3", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png"), obeliskMult: true },
   { key: "drone_fuel" as const, label: "Drone Fuel", color: "#42a5f5", qtyUnit: "fuel", icon: `${WIKI}/4/44/Fuel.png` },
   { key: "skin" as const, label: "Skin or Gems", color: "#90caf9", qtyUnit: "gems", icon: undefined, showTooltip: true },
   { key: "gems_15k_25k" as const, label: "15k–25k Gems (Ob≥60)", color: "#9c27b0", qtyUnit: "gems", icon: assetUrl("sprites/common/gem.png") },
+  { key: "sushi_15_24" as const, label: "15–24 Sushi", color: "#4db6ac", qtyUnit: "sushi", icon: SUSHI_ICON },
+  { key: "sushi_50_60" as const, label: "50–60 Sushi", color: "#00897b", qtyUnit: "sushi", icon: SUSHI_ICON },
   { key: "frogspawn" as const, label: "Frogspawn (Black Hole)", color: "#7e57c2", qtyUnit: "qty", icon: undefined },
   { key: "forbidden_sushi" as const, label: "Forbidden Sushi", color: "#ab47bc", qtyUnit: "gems", icon: undefined },
   { key: "cosmic_candy" as const, label: "Cosmic Candy", color: "#8e24aa", qtyUnit: "gems", icon: undefined },
@@ -147,6 +151,8 @@ type GiftChartRow = {
   qtyUnit: string;
   icon?: string;
   showTooltip?: boolean;
+  /** [1] outcome: Obelisk Level Multiplier applies. */
+  obeliskMult?: boolean;
   value: number;
   qtyVal: number;
   qtyVal2?: number;
@@ -156,7 +162,7 @@ type GiftChartRow = {
 };
 
 function buildRows(
-  entries: readonly { key: string; label: string; color: string; qtyUnit: string; icon?: string; showTooltip?: boolean }[],
+  entries: readonly { key: string; label: string; color: string; qtyUnit: string; icon?: string; showTooltip?: boolean; obeliskMult?: boolean }[],
   breakdown: GiftBreakdown
 ): GiftChartRow[] {
   const qty = (breakdown as GiftBreakdown & { _qty?: Record<string, number> })._qty ?? {};
@@ -173,7 +179,7 @@ function buildRows(
         ...(typeof pct === "number" && pct >= 0 ? { dropChancePct: pct } : {}),
       };
     })
-    .filter((r) => r.value > 0)
+    .filter((r) => r.value > 0 || r.qtyVal > 0)
     .sort((a, b) => b.value - a.value);
 }
 
@@ -298,6 +304,13 @@ function GiftChartSvg(props: {
                   <text x={labelStartX} y={labelY} textAnchor="start" fontSize={12} fontWeight={700} fill={labelFill}>
                     {row.label}
                   </text>
+                  {row.obeliskMult ? (
+                    <g aria-label="Obelisk mult applies">
+                      <title>Obelisk Level Multiplier applies to this reward</title>
+                      <rect x={labelStartX + row.label.length * 6.5 + 6} y={labelY - 10} width={14} height={14} rx={2} fill="none" stroke={labelFill} strokeWidth={1.2} opacity={0.9} />
+                      <text x={labelStartX + row.label.length * 6.5 + 13} y={labelY - 1} textAnchor="middle" fontSize={9} fontWeight={800} fill={labelFill}>1</text>
+                    </g>
+                  ) : null}
                   {row.icon ? <image href={row.icon} x={iconX} y={y0} width={16} height={16} /> : null}
                   {hasTooltip ? (
                     <text x={tooltipQuestionX(row.label)} y={labelY} textAnchor="start" fontSize={11} fontWeight={700} fill={textFill}>
@@ -313,10 +326,12 @@ function GiftChartSvg(props: {
                     fill={textFill}
                     fontFamily="var(--mono)"
                   >
-                    {row.qtyVal2 != null && row.qtyVal2 > 0 && row.qtyUnit2
-                      ? `${fmt1(row.qtyVal)} ${row.qtyUnit}, ${fmt1(row.qtyVal2)} ${row.qtyUnit2} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`
-                      : `${fmt1(row.qtyVal)} ${row.qtyUnit} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`}
-                    {row.dropChancePct != null && row.dropChancePct >= 0
+                    {row.value <= 0
+                      ? `${fmt1(row.qtyVal)} ${row.qtyUnit}${row.dropChancePct != null && row.dropChancePct >= 0 ? ` · ${row.dropChancePct < 0.1 ? row.dropChancePct.toFixed(2) : fmt1(row.dropChancePct)}% drop` : ""}`
+                      : row.qtyVal2 != null && row.qtyVal2 > 0 && row.qtyUnit2
+                        ? `${fmt1(row.qtyVal)} ${row.qtyUnit}, ${fmt1(row.qtyVal2)} ${row.qtyUnit2} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`
+                        : `${fmt1(row.qtyVal)} ${row.qtyUnit} · ${fmt1(row.value)} Gems (${fmtInt(pctVal)}%)`}
+                    {row.value > 0 && row.dropChancePct != null && row.dropChancePct >= 0
                       ? ` · ${row.dropChancePct < 0.1 ? row.dropChancePct.toFixed(2) : fmt1(row.dropChancePct)}% drop`
                       : ""}
                   </text>
