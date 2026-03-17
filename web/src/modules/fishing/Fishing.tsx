@@ -673,6 +673,34 @@ function computeTotalFishPerHour(
   return total;
 }
 
+/**
+ * Greedy dock assignment for +% gains: rod and all drones on the highest unlocked dock (last in progression).
+ * E.g. if you just unlocked T2 and Cave is your top dock, everything is assumed on Cave. Marginal % then reflects gain when everything is concentrated on that one dock.
+ */
+function getGreedyDockAssignment(
+  upgradeLevels: Partial<Record<FishingUpgradeId, number>>,
+  enhanceLevels: Partial<Record<EnhanceId, number>>,
+  skillOptions: TotalFishOptions,
+  _elixir3xFishingExternal: { uptimeFraction: number },
+  _extraTicksPerHour: number,
+): { activeDockId: DockId; dronesPerDock: Record<DockId, number> } {
+  const stats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOptions);
+  const droneCap = Math.floor(stats.fishing_drone_cap);
+  const availableDocks = DOCKS.filter((d, i) => {
+    if (d.tier === 1) return stats.boat_level >= i;
+    return (stats.t2_boat_level ?? 0) >= i - 5;
+  });
+  if (availableDocks.length === 0) {
+    const fallback: Record<DockId, number> = {} as Record<DockId, number>;
+    DOCKS.forEach((d) => (fallback[d.id] = 0));
+    return { activeDockId: DOCKS[0]!.id as DockId, dronesPerDock: fallback };
+  }
+  const maxDock = availableDocks[availableDocks.length - 1]!;
+  const dronesPerDock: Record<DockId, number> = {} as Record<DockId, number>;
+  for (const d of DOCKS) dronesPerDock[d.id as DockId] = d.id === maxDock.id ? droneCap : 0;
+  return { activeDockId: maxDock.id as DockId, dronesPerDock };
+}
+
 /** Same formula as computeTotalFishPerHour but from precomputed stats (for skill breakdown). Includes extraTicksPerHour so breakdown totals match main total. effectiveTicksByDock: use when caller has it (Motley School, T2 Dock Ticks, Abyss Legendary). */
 function computeTotalFishPerHourFromStats(
   stats: ComputedFishingStats,
@@ -2165,7 +2193,7 @@ export function Fishing() {
     return { heatMin: Math.min(...vals), heatMax: Math.max(...vals) };
   }, [visibleGainsRows]);
 
-  /** +% gains = (total fish/h with +1 level − current total) / current total × 100. Computed from actual Fishing gains. Also next-level effect string (e.g. 10→12) for name cell. Use same skill options as main stats so effect strings (e.g. tick reduction) match "Your stats". */
+  /** +% gains = (total fish/h with +1 level − current total) / current total × 100. Uses greedy assignment: rod and all drones on the highest unlocked dock (e.g. Cave when you just got T2). Marginal % reflects gain when everything is on that one dock. Also next-level effect string (e.g. 10→12) for name cell. Use same skill options as main stats so effect strings (e.g. tick reduction) match "Your stats". */
   const { upgradeMarginalPct, enhanceMarginalPct, upgradeNextEffect, enhanceNextEffect } = useMemo(() => {
     const skillOpts = {
       skillTreeLevels: state.skillTreeLevels,
@@ -2197,11 +2225,13 @@ export function Fishing() {
       blackHoleBonus: state.blackHoleBonus,
     };
     const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOpts);
+    // Greedy: +% gains assume rod and all drones on the dock that maximizes total fish/h.
+    const greedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
-      state.dronesPerDock,
-      state.activeDockId,
+      greedy.dronesPerDock,
+      greedy.activeDockId,
       elixir3xFishingExternal,
       skillOpts,
       extraTicksPerHour,
@@ -2219,21 +2249,13 @@ export function Fishing() {
       }
       const newLevels = { ...upgradeLevels, [def.id]: lvl + 1 };
       const nextStats = computeFishingStatsFromLevels(newLevels, enhanceLevels, skillOpts);
-      // Drone cap upgrades: assume the extra drone(s) are assigned to the Fisher (active dock) for +% gains.
-      const extraDronesOnFisher =
-        def.id === "fishing_drone" ? 1 : def.id === "fishing_drone_2" ? 2 : 0;
-      const newDronesPerDock =
-        extraDronesOnFisher > 0
-          ? {
-              ...state.dronesPerDock,
-              [state.activeDockId]: (state.dronesPerDock[state.activeDockId] ?? 0) + extraDronesOnFisher,
-            }
-          : state.dronesPerDock;
+      // Greedy for +1 level: best dock with new cap (drone cap upgrades add drones on that best dock).
+      const newGreedy = getGreedyDockAssignment(newLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
       const newTotal = computeTotalFishPerHour(
         newLevels,
         enhanceLevels,
-        newDronesPerDock,
-        state.activeDockId,
+        newGreedy.dronesPerDock,
+        newGreedy.activeDockId,
         elixir3xFishingExternal,
         skillOpts,
         extraTicksPerHour,
@@ -2262,21 +2284,13 @@ export function Fishing() {
       }
       const newLevels = { ...enhanceLevels, [def.id]: lvl + 1 };
       const nextStats = computeFishingStatsFromLevels(upgradeLevels, newLevels, skillOpts);
-      // Drone cap enhancements: assume the extra drone(s) are assigned to the Fisher (active dock) for +% gains.
-      const extraDronesOnFisher =
-        def.id === "enhance_fishing_drone" ? 1 : def.id === "enhance_fishing_drone_3" ? 3 : 0;
-      const newDronesPerDock =
-        extraDronesOnFisher > 0
-          ? {
-              ...state.dronesPerDock,
-              [state.activeDockId]: (state.dronesPerDock[state.activeDockId] ?? 0) + extraDronesOnFisher,
-            }
-          : state.dronesPerDock;
+      // Greedy for +1 level: best dock with new cap (drone cap enhancements add drones on that best dock).
+      const newGreedy = getGreedyDockAssignment(upgradeLevels, newLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
       const newTotal = computeTotalFishPerHour(
         upgradeLevels,
         newLevels,
-        newDronesPerDock,
-        state.activeDockId,
+        newGreedy.dronesPerDock,
+        newGreedy.activeDockId,
         elixir3xFishingExternal,
         skillOpts,
         extraTicksPerHour,
@@ -2300,8 +2314,6 @@ export function Fishing() {
   }, [
     upgradeLevels,
     enhanceLevels,
-    state.dronesPerDock,
-    state.activeDockId,
     state.skillTreeLevels,
     state.fishCardTier,
     state.legendaryFishFound,
@@ -2344,30 +2356,31 @@ export function Fishing() {
       cetusLevel: state.cetusLevel,
       blackHoleBonus: state.blackHoleBonus,
     };
+    const greedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
-      state.dronesPerDock,
-      state.activeDockId,
+      greedy.dronesPerDock,
+      greedy.activeDockId,
       elixir3xFishingExternal,
       skillOpts,
       extraTicksPerHour,
     );
+    const newOpts = { ...skillOpts, tethysIdolLevel: state.tethysIdolLevel + 1 };
+    const newGreedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, newOpts, elixir3xFishingExternal, extraTicksPerHour);
     const newTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
-      state.dronesPerDock,
-      state.activeDockId,
+      newGreedy.dronesPerDock,
+      newGreedy.activeDockId,
       elixir3xFishingExternal,
-      { ...skillOpts, tethysIdolLevel: state.tethysIdolLevel + 1 },
+      newOpts,
       extraTicksPerHour,
     );
     return currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
   }, [
     upgradeLevels,
     enhanceLevels,
-    state.dronesPerDock,
-    state.activeDockId,
     state.tethysIdolLevel,
     state.skillTreeLevels,
     state.fishCardTier,
@@ -2564,7 +2577,7 @@ export function Fishing() {
     extraTicksPerHour,
   ]);
 
-  /** Store bundles: expected +% gain for each package (same basis as upgrades: effective total fish/h). Polychrome uses displayed total with card multis. */
+  /** Store bundles: expected +% gain for each package (same basis as upgrades: greedy total fish/h). Polychrome uses displayed total with card multis. */
   const storeBundleMarginalPct = useMemo(() => {
     const skillOpts = {
       skillTreeLevels: state.skillTreeLevels,
@@ -2595,11 +2608,12 @@ export function Fishing() {
       cetusLevel: state.cetusLevel,
       blackHoleBonus: state.blackHoleBonus,
     };
+    const greedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
-      state.dronesPerDock,
-      state.activeDockId,
+      greedy.dronesPerDock,
+      greedy.activeDockId,
       elixir3xFishingExternal,
       skillOpts,
       extraTicksPerHour,
@@ -2618,34 +2632,20 @@ export function Fishing() {
     const legendaryHauler: number | null = state.legendaryHaulerBundle
       ? null
       : currentTotal > 0
-        ? ((computeTotalFishPerHour(
-            upgradeLevels,
-            enhanceLevels,
-            state.dronesPerDock,
-            state.activeDockId,
-            elixir3xFishingExternal,
-            { ...skillOpts, legendaryHaulerBundle: true },
-            extraTicksPerHour,
-          ) -
-            currentTotal) /
-            currentTotal) *
-          100
+        ? (() => {
+            const g = getGreedyDockAssignment(upgradeLevels, enhanceLevels, { ...skillOpts, legendaryHaulerBundle: true }, elixir3xFishingExternal, extraTicksPerHour);
+            const newTotal = computeTotalFishPerHour(upgradeLevels, enhanceLevels, g.dronesPerDock, g.activeDockId, elixir3xFishingExternal, { ...skillOpts, legendaryHaulerBundle: true }, extraTicksPerHour);
+            return ((newTotal - currentTotal) / currentTotal) * 100;
+          })()
         : null;
     const fishers: number | null = state.fishersBundle
       ? null
       : currentTotal > 0
-        ? ((computeTotalFishPerHour(
-            upgradeLevels,
-            enhanceLevels,
-            state.dronesPerDock,
-            state.activeDockId,
-            elixir3xFishingExternal,
-            { ...skillOpts, fishersBundle: true },
-            extraTicksPerHour,
-          ) -
-            currentTotal) /
-            currentTotal) *
-          100
+        ? (() => {
+            const g = getGreedyDockAssignment(upgradeLevels, enhanceLevels, { ...skillOpts, fishersBundle: true }, elixir3xFishingExternal, extraTicksPerHour);
+            const newTotal = computeTotalFishPerHour(upgradeLevels, enhanceLevels, g.dronesPerDock, g.activeDockId, elixir3xFishingExternal, { ...skillOpts, fishersBundle: true }, extraTicksPerHour);
+            return ((newTotal - currentTotal) / currentTotal) * 100;
+          })()
         : null;
     // Angler's Bundle: +6% Tiny Notice (flat). Same effective assumed gain as Tiny Notice enhancement: expected mult = 1 + tinyPct/100×9 (Tiny = 10×).
     const angler: number | null = (() => {
@@ -2660,58 +2660,35 @@ export function Fishing() {
       state.constructStatue !== "none"
         ? null
         : currentTotal > 0
-          ? ((computeTotalFishPerHour(
-              upgradeLevels,
-              enhanceLevels,
-              state.dronesPerDock,
-              state.activeDockId,
-              elixir3xFishingExternal,
-              { ...skillOpts, constructStatue: "gilded" },
-              extraTicksPerHour,
-            ) -
-              currentTotal) /
-              currentTotal) *
-            100
+          ? (() => {
+              const g = getGreedyDockAssignment(upgradeLevels, enhanceLevels, { ...skillOpts, constructStatue: "gilded" }, elixir3xFishingExternal, extraTicksPerHour);
+              const newTotal = computeTotalFishPerHour(upgradeLevels, enhanceLevels, g.dronesPerDock, g.activeDockId, elixir3xFishingExternal, { ...skillOpts, constructStatue: "gilded" }, extraTicksPerHour);
+              return ((newTotal - currentTotal) / currentTotal) * 100;
+            })()
           : null;
     const constructPlatinized: number | null =
       state.constructStatue === "platinized"
         ? null
         : currentTotal > 0
-          ? ((computeTotalFishPerHour(
-              upgradeLevels,
-              enhanceLevels,
-              state.dronesPerDock,
-              state.activeDockId,
-              elixir3xFishingExternal,
-              { ...skillOpts, constructStatue: "platinized" },
-              extraTicksPerHour,
-            ) -
-              currentTotal) /
-              currentTotal) *
-            100
+          ? (() => {
+              const g = getGreedyDockAssignment(upgradeLevels, enhanceLevels, { ...skillOpts, constructStatue: "platinized" }, elixir3xFishingExternal, extraTicksPerHour);
+              const newTotal = computeTotalFishPerHour(upgradeLevels, enhanceLevels, g.dronesPerDock, g.activeDockId, elixir3xFishingExternal, { ...skillOpts, constructStatue: "platinized" }, extraTicksPerHour);
+              return ((newTotal - currentTotal) / currentTotal) * 100;
+            })()
           : null;
     const blackHoleBonusPct: number | null = state.blackHoleBonus
       ? null
       : currentTotal > 0
-        ? ((computeTotalFishPerHour(
-            upgradeLevels,
-            enhanceLevels,
-            state.dronesPerDock,
-            state.activeDockId,
-            elixir3xFishingExternal,
-            { ...skillOpts, blackHoleBonus: true },
-            extraTicksPerHour,
-          ) -
-            currentTotal) /
-            currentTotal) *
-          100
+        ? (() => {
+            const g = getGreedyDockAssignment(upgradeLevels, enhanceLevels, { ...skillOpts, blackHoleBonus: true }, elixir3xFishingExternal, extraTicksPerHour);
+            const newTotal = computeTotalFishPerHour(upgradeLevels, enhanceLevels, g.dronesPerDock, g.activeDockId, elixir3xFishingExternal, { ...skillOpts, blackHoleBonus: true }, extraTicksPerHour);
+            return ((newTotal - currentTotal) / currentTotal) * 100;
+          })()
         : null;
     return { polychrome, legendaryHauler, fishers, angler, constructGilded, constructPlatinized, blackHoleBonusPct };
   }, [
     upgradeLevels,
     enhanceLevels,
-    state.dronesPerDock,
-    state.activeDockId,
     state.skillTreeLevels,
     state.fishCardTier,
     state.legendaryFishFound,
@@ -2882,11 +2859,13 @@ export function Fishing() {
       blackHoleBonus: state.blackHoleBonus,
     };
     const currentStats = computeFishingStatsFromLevels(upgradeLevels, enhanceLevels, skillOpts);
+    // Greedy: +% gains assume rod and all drones on the dock that maximizes total fish/h.
+    const greedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
     const currentTotal = computeTotalFishPerHour(
       upgradeLevels,
       enhanceLevels,
-      state.dronesPerDock,
-      state.activeDockId,
+      greedy.dronesPerDock,
+      greedy.activeDockId,
       elixir3xFishingExternal,
       skillOpts,
       extraTicksPerHour,
@@ -2903,22 +2882,18 @@ export function Fishing() {
         continue;
       }
       const newSkillLevels = { ...state.skillTreeLevels, [def.id]: lvl + 1 };
+      const newSkillOpts = { ...skillOpts, skillTreeLevels: newSkillLevels };
       const extraDronesFromSkill =
         def.id === "fishing_with_friends" ? 5 : def.id === "motley_school" ? 5 : 0;
-      const newDronesPerDock =
-        extraDronesFromSkill > 0
-          ? {
-              ...state.dronesPerDock,
-              [state.activeDockId]: (state.dronesPerDock[state.activeDockId] ?? 0) + extraDronesFromSkill,
-            }
-          : state.dronesPerDock;
+      // Greedy for +1 level: best dock with new stats (e.g. +5 drones from skill on that best dock).
+      const newGreedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, newSkillOpts, elixir3xFishingExternal, extraTicksPerHour);
       const newTotal = computeTotalFishPerHour(
         upgradeLevels,
         enhanceLevels,
-        newDronesPerDock,
-        state.activeDockId,
+        newGreedy.dronesPerDock,
+        newGreedy.activeDockId,
         elixir3xFishingExternal,
-        { ...skillOpts, skillTreeLevels: newSkillLevels },
+        newSkillOpts,
         extraTicksPerHour,
       );
       let marginalPct =
@@ -2932,13 +2907,14 @@ export function Fishing() {
       marginalMap.set(def.id, marginalPct);
 
       if (currentTotal > 0 && extraDronesFromSkill > 0) {
+        // Same dock/drone count as current greedy, new skill stats only (no extra drones yet).
         const totalSameDrones = computeTotalFishPerHour(
           upgradeLevels,
           enhanceLevels,
-          state.dronesPerDock,
-          state.activeDockId,
+          greedy.dronesPerDock,
+          greedy.activeDockId,
           elixir3xFishingExternal,
-          { ...skillOpts, skillTreeLevels: newSkillLevels },
+          newSkillOpts,
           extraTicksPerHour,
         );
         const pctFromStats = ((totalSameDrones - currentTotal) / currentTotal) * 100;
@@ -2970,9 +2946,9 @@ export function Fishing() {
           triple_tick_chance_pct: currentStats.triple_tick_chance_pct,
           five_tick_chance_pct: currentStats.five_tick_chance_pct,
         };
-        const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
-        const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
-        const totalAllNew = computeTotalFishPerHourFromStats(newStats, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalTickOnly = computeTotalFishPerHourFromStats(statsTickOnly, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalDoubleOnly = computeTotalFishPerHourFromStats(statsDoubleOnly, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalAllNew = computeTotalFishPerHourFromStats(newStats, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
         breakdownMap.set(def.id, [
           { label: "Tick -2s", pct: ((totalTickOnly - currentTotal) / currentTotal) * 100 },
           { label: "Double +2%", pct: ((totalDoubleOnly - totalTickOnly) / currentTotal) * 100 },
@@ -2990,8 +2966,8 @@ export function Fishing() {
           ...newStats,
           fish_income_multi: currentStats.fish_income_multi,
         };
-        const totalFishMultiOnly = computeTotalFishPerHourFromStats(statsFishMultiOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
-        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalFishMultiOnly = computeTotalFishPerHourFromStats(statsFishMultiOnly, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
         breakdownMap.set(def.id, [
           { label: "Fish mult +1%/card", pct: ((totalFishMultiOnly - currentTotal) / currentTotal) * 100 },
           { label: "Shiny +0.1%/card", pct: ((totalShinyOnly - currentTotal) / currentTotal) * 100 },
@@ -3015,9 +2991,9 @@ export function Fishing() {
           drone_base_power: currentStats.drone_base_power,
           tier2_dock_power_mult: currentStats.tier2_dock_power_mult,
         };
-        const totalDroneOnly = computeTotalFishPerHourFromStats(statsDroneOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
-        const totalT2Only = computeTotalFishPerHourFromStats(statsT2Only, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
-        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, state.dronesPerDock, state.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalDroneOnly = computeTotalFishPerHourFromStats(statsDroneOnly, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalT2Only = computeTotalFishPerHourFromStats(statsT2Only, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
+        const totalShinyOnly = computeTotalFishPerHourFromStats(statsShinyOnly, greedy.dronesPerDock, greedy.activeDockId, elixir3xFishingExternal, effectiveRodPower, extraTicksPerHour, effectiveTicksByDock);
         breakdownMap.set(def.id, [
           { label: "T2 dock +3%", pct: ((totalT2Only - currentTotal) / currentTotal) * 100 },
           { label: "Drone power +2%", pct: ((totalDroneOnly - currentTotal) / currentTotal) * 100 },
@@ -3043,8 +3019,6 @@ export function Fishing() {
   }, [
     upgradeLevels,
     enhanceLevels,
-    state.dronesPerDock,
-    state.activeDockId,
     state.skillTreeLevels,
     state.fishCardTier,
     state.legendaryFishFound,
@@ -4287,7 +4261,7 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
-                                  "Uses the same total as the fishing gains list above.",
+                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
                                 ],
                               },
                             ],
@@ -4352,6 +4326,7 @@ export function Fishing() {
                       <td className="fishingUpgradeTdCostEffic">
                         {!isMaxed &&
                         marginalPct != null &&
+                        marginalPct >= 0 &&
                         hoursToNext != null &&
                         hoursToNext > 0
                           ? (() => {
@@ -4407,7 +4382,11 @@ export function Fishing() {
                         </span>
                       </td>
                       <td className="fishingUpgradeTdSpeed">
-                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                        {marginalPct != null
+                          ? marginalPct >= 0
+                            ? `+${marginalPct.toFixed(1)}%`
+                            : `${marginalPct.toFixed(1)}%`
+                          : "—"}
                       </td>
                     </tr>
                   );
@@ -4455,7 +4434,7 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this upgrade.",
-                                  "Uses the same total as the fishing gains list above.",
+                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
                                 ],
                               },
                             ],
@@ -4520,6 +4499,7 @@ export function Fishing() {
                       <td className="fishingUpgradeTdCostEffic">
                         {!isMaxed &&
                         marginalPct != null &&
+                        marginalPct >= 0 &&
                         hoursToNext != null &&
                         hoursToNext > 0
                           ? (() => {
@@ -4573,7 +4553,11 @@ export function Fishing() {
                         </span>
                       </td>
                       <td className="fishingUpgradeTdSpeed">
-                        {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                        {marginalPct != null
+                          ? marginalPct >= 0
+                            ? `+${marginalPct.toFixed(1)}%`
+                            : `${marginalPct.toFixed(1)}%`
+                          : "—"}
                       </td>
                     </tr>
                   );
@@ -4629,7 +4613,7 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
-                                  "Uses the same total as the fishing gains list above.",
+                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
                                 ],
                               },
                             ],
@@ -4722,6 +4706,7 @@ export function Fishing() {
                           <td className="fishingUpgradeTdCostEffic">
                             {!isMaxed &&
                             marginalPct != null &&
+                            marginalPct >= 0 &&
                             nextCostEntry &&
                             nextCostEntry.gems > 0 &&
                             (state.useGemIncomeForCostEffic ? gemEvGemsPerHour > 0 : true)
@@ -4772,7 +4757,11 @@ export function Fishing() {
                               : "—"}
                           </td>
                           <td className="fishingUpgradeTdSpeed">
-                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                            {marginalPct != null
+                              ? marginalPct >= 0
+                                ? `+${marginalPct.toFixed(1)}%`
+                                : `${marginalPct.toFixed(1)}%`
+                              : "—"}
                           </td>
                         </tr>
                       );
@@ -4814,7 +4803,7 @@ export function Fishing() {
                                 heading: "Marginal gain",
                                 lines: [
                                   "Percent increase in total fish per hour for +1 level of this enhancement.",
-                                  "Uses the same total as the fishing gains list above.",
+                                  "Assumes rod and all drones on the highest unlocked dock (e.g. Cave when T2 is just unlocked).",
                                 ],
                               },
                             ],
@@ -4871,6 +4860,7 @@ export function Fishing() {
                           <td className="fishingUpgradeTdCostEffic">
                             {!isMaxed &&
                             marginalPct != null &&
+                            marginalPct >= 0 &&
                             nextCostEntry &&
                             nextCostEntry.gems > 0 &&
                             (state.useGemIncomeForCostEffic ? gemEvGemsPerHour > 0 : true)
@@ -4921,7 +4911,11 @@ export function Fishing() {
                               : "—"}
                           </td>
                           <td className="fishingUpgradeTdSpeed">
-                            {marginalPct != null ? `+${marginalPct.toFixed(1)}%` : "—"}
+                            {marginalPct != null
+                              ? marginalPct >= 0
+                                ? `+${marginalPct.toFixed(1)}%`
+                                : `${marginalPct.toFixed(1)}%`
+                              : "—"}
                           </td>
                         </tr>
                       );
@@ -5281,6 +5275,7 @@ export function Fishing() {
                   const costEffic =
                     !isMaxed &&
                     marginalPct != null &&
+                    marginalPct >= 0 &&
                     gemsForNext > 0 &&
                     (state.useGemIncomeForCostEffic ? gemEvGemsPerHour > 0 : true)
                       ? state.useGemIncomeForCostEffic
@@ -5462,7 +5457,7 @@ export function Fishing() {
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null ? (
                           <span title={isFriendshipEnded ? "Notice farming: effective +11.1% per level" : undefined}>
-                            +{marginalPct.toFixed(1)}%{isFriendshipEnded ? " (notice)" : ""}
+                            {marginalPct >= 0 ? "+" : ""}{marginalPct.toFixed(1)}%{isFriendshipEnded ? " (notice)" : ""}
                           </span>
                         ) : (
                           "—"
