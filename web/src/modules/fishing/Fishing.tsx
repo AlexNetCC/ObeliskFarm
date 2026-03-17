@@ -3157,10 +3157,11 @@ export function Fishing() {
           getCardMulti(f.id);
       }
       if (totalOnDock <= 0) continue;
+      const fishDef = set.fish.find((f) => f.id === row.fish.id)!;
       const fishPerHourForFish =
         fillsPerHour *
         expectedRollsPerFill *
-        expectedCatchesPerRoll(powerOnDock, row.fish.powerRating) *
+        expectedCatchesPerRoll(powerOnDock, fishDef.powerRating) *
         stats.fish_income_multi *
         expectedShinyMulti *
         getCardMulti(row.fish.id);
@@ -4508,10 +4509,8 @@ export function Fishing() {
                         </span>
                       </td>
                       <td className="fishingUpgradeTdSpeed">
-                        {marginalPct != null
-                          ? marginalPct >= 0
-                            ? `+${marginalPct.toFixed(1)}%`
-                            : `${marginalPct.toFixed(1)}%`
+                        {marginalPct != null && marginalPct >= 0
+                          ? `+${marginalPct.toFixed(1)}%`
                           : "—"}
                       </td>
                     </tr>
@@ -4696,10 +4695,8 @@ export function Fishing() {
                         </span>
                       </td>
                       <td className="fishingUpgradeTdSpeed">
-                        {marginalPct != null
-                          ? marginalPct >= 0
-                            ? `+${marginalPct.toFixed(1)}%`
-                            : `${marginalPct.toFixed(1)}%`
+                        {marginalPct != null && marginalPct >= 0
+                          ? `+${marginalPct.toFixed(1)}%`
                           : "—"}
                       </td>
                     </tr>
@@ -5395,27 +5392,30 @@ export function Fishing() {
           <div className="small" style={{ marginBottom: 8 }}>
             Skills cost skill points (from Obelisk level). 1 skill point = 125 gems. Cost efficiency = marginal % per hour to earn gem cost (uses Gem EV Calculator). Open Gem EV to sync.
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <div className="label" style={{ alignItems: "center", gap: 8 }}>
-              <img src={SKILL_POINT_ICON_URL} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
-              <span className="mono">Legendary Fish Found (0–6)</span>
-              <span className="mono">{state.legendaryFishFound}</span>
+          <div className="fishingSkillOptions">
+            <div className="fishingSkillOptionRow">
+              <img src={SKILL_POINT_ICON_URL} alt="" style={{ width: 20, height: 20, objectFit: "contain", flexShrink: 0 }} />
+              <span>Legendary Fish Found (0–6)</span>
+              <div className="fishingSkillOptionStepper">
+                <span className="fishingUpgradeLevelLabel">
+                  <span className="mono">{state.legendaryFishFound}</span> / 6
+                </span>
+                <div className="btnRow fishingUpgradeButtons">
+                  <button type="button" className="btn btnSecondary" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.max(0, p.legendaryFishFound - 1) }))} disabled={state.legendaryFishFound <= 0} aria-label="Decrease">−</button>
+                  <button type="button" className="btn" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.min(6, p.legendaryFishFound + 1) }))} disabled={state.legendaryFishFound >= 6} aria-label="Increase">+</button>
+                </div>
+              </div>
             </div>
-            <div className="btnRow" style={{ marginTop: 4 }}>
-              <button type="button" className="btn btnSecondary" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.max(0, p.legendaryFishFound - 1) }))} disabled={state.legendaryFishFound <= 0}>−</button>
-              <button type="button" className="btn" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.min(6, p.legendaryFishFound + 1) }))} disabled={state.legendaryFishFound >= 6}>+</button>
-            </div>
-            <div className="small" style={{ marginTop: 4, opacity: 0.85 }}>Used for Completionist Gatekeeper bonus.</div>
-            <div className="label" style={{ alignItems: "center", gap: 8, marginTop: 12 }}>
+            <div className="small" style={{ marginTop: 0, marginBottom: 2, opacity: 0.85 }}>Used for Completionist Gatekeeper bonus.</div>
+            <div className="fishingSkillOptionRow">
               <input
                 type="checkbox"
                 id="fishing-abyss-legendary-caught"
                 checked={state.abyssLegendaryCaught}
                 onChange={(e) => setState((p) => ({ ...p, abyssLegendaryCaught: e.target.checked }))}
+                style={{ flexShrink: 0 }}
               />
-              <label htmlFor="fishing-abyss-legendary-caught" style={{ cursor: "pointer" }}>
-                Abyss Legendary (Cthulhu) caught
-              </label>
+              <label htmlFor="fishing-abyss-legendary-caught" style={{ cursor: "pointer", marginBottom: 0 }}>Abyss Legendary (Cthulhu) caught</label>
               <Tooltip
                 content={{
                   title: "Abyss Legendary caught",
