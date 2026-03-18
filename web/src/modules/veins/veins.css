@@ -588,6 +588,11 @@
   font-size: 13px;
 }
 
+.veinsMcSitFloor {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .veinsMcResults {
   font-size: 12px;
   color: var(--text);

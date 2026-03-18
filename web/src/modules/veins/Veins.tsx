@@ -736,11 +736,9 @@ export function Veins() {
   const [mcState, setMcState] = useState<{
     running: boolean;
     results: null | {
-      selectedVeinId: string;
       runs: number;
       byFloor: Array<{
         floor: number;
-        selectedSamples: number[];
         totalSamples: number[];
         byTypeSamples: Array<{ vein: (typeof VEIN_TYPES)[number]; samples: number[] }>;
       }>;
@@ -748,27 +746,118 @@ export function Veins() {
   }>({ running: false, results: null });
   const [mcChartFloor, setMcChartFloor] = useState<number | null>(null);
 
+  const [mcSitState, setMcSitState] = useState<{
+    running: boolean;
+    results: null | {
+      runs: number;
+      byFloor: Array<{
+        floor: number;
+        totalSamples: number[];
+        byTypeSamples: Array<{ vein: (typeof VEIN_TYPES)[number]; samples: number[] }>;
+      }>;
+    };
+  }>({ running: false, results: null });
+  const [mcSitChartFloor, setMcSitChartFloor] = useState<number | null>(null);
+
+  /** Shared boxplot UI: Top-3 MC = one row per floor (Total) + Chart button; Sit = one row per vein, no Chart. */
+  const renderMcBoxplots = (
+    dataRows: Array<{ key: string; floor: number; rank: 1 | 2 | 3; label: string; samples: number[]; iconFile?: string }>,
+    loTot: number,
+    spanTot: number,
+    onChartClick?: (floor: number) => void
+  ) => (
+    <div className="veinsMcBoxplots">
+      <div className="veinsMcBoxplotsHeader">
+        Per floor – box plot (same scale)
+        <Tooltip
+          content={{
+            title: "Box plot",
+            lines: [
+              "min: minimum. Q1: 25th percentile. mean: average. Q3: 75th percentile. max: maximum.",
+              "Variance includes Poisson (counts) plus a dispersion term so morph/golden/rainbow-style randomness is reflected.",
+            ],
+          }}
+          label="?"
+        />
+      </div>
+      {dataRows.map((row) => {
+        const sorted = row.samples.length > 0 ? [...row.samples].sort((a, b) => a - b) : [];
+        const { min, q1, med, q3, max } = boxPlotStats(sorted);
+        const meanVal = row.samples.length > 0 ? row.samples.reduce((a, b) => a + b, 0) / row.samples.length : 0;
+        const toPct = (v: number) => ((v - loTot) / spanTot) * 100;
+        const pctMin = toPct(min);
+        const pctQ1 = toPct(q1);
+        const pctMed = toPct(med);
+        const pctQ3 = toPct(q3);
+        const pctMax = toPct(max);
+        const pctBoxCenter = (pctQ1 + pctQ3) / 2;
+        return (
+          <div key={row.key} className={`veinsMcBoxplotRow veinsMcBoxplotRowRank${row.rank}`}>
+            <div className="veinsMcBoxplotHead">
+              {row.iconFile != null ? (
+                <img src={veinIconUrl(row.iconFile)} alt="" className="veinsMcVeinIcon" />
+              ) : (
+                <span className="veinsMcVeinIconPlaceholder" aria-hidden />
+              )}
+              <span className="veinsMcBoxplotName">{row.label}</span>
+              {onChartClick != null && (
+                <button
+                  type="button"
+                  className="veinsMcChartBtn"
+                  onClick={() => onChartClick(row.floor)}
+                >
+                  Chart
+                </button>
+              )}
+              <span className="veinsMcBoxplotStats mono">
+                min {formatCompact(min, 2)} · Q1 {formatCompact(q1, 2)} · mean {formatCompact1Dec(meanVal)} · Q3 {formatCompact(q3, 2)} · max {formatCompact(max, 2)}
+              </span>
+            </div>
+            <div className="veinsMcBoxplotMeanRow" role="presentation">
+              <div className="veinsMcBoxplotMeanLabel" style={{ left: `${pctBoxCenter}%` }} title={`mean ${formatCompact1Dec(meanVal)}`}>
+                <span className="veinsMcBoxplotMeanValue mono">{formatCompact1Dec(meanVal)}</span>
+                <span className="veinsMcBoxplotMeanArrow" aria-hidden>▼</span>
+              </div>
+            </div>
+            <div className="veinsMcBoxplotTrack">
+              <div className="veinsMcBoxplotWhiskerLeft" style={{ left: `${pctMin}%`, width: `${pctQ1 - pctMin}%` }} />
+              <div className="veinsMcBoxplotBox" style={{ left: `${pctQ1}%`, width: `${pctQ3 - pctQ1}%` }}>
+                <div className="veinsMcBoxplotMedian" style={{ left: `${(pctQ3 - pctQ1 > 0 ? (pctMed - pctQ1) / (pctQ3 - pctQ1) : 0.5) * 100}%` }} />
+              </div>
+              <div className="veinsMcBoxplotWhiskerRight" style={{ left: `${pctQ3}%`, width: `${pctMax - pctQ3}%` }} />
+            </div>
+            <div className="veinsMcBoxplotAxis">
+              <div className="veinsMcBoxplotAxisTicks">
+                {[0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => (
+                  <span key={t} className="mono">
+                    {formatCompact(loTot + t * spanTot)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   const runMc8h = () => {
     const top3 = top3FloorsForVein.slice(0, 3);
     if (top3.length === 0) return;
     setMcState({ running: true, results: null });
-    const targetId = state.maximizeVeinId;
     const HOURS = 8;
     const runs = 10000;
     setTimeout(() => {
       const byFloor: Array<{
         floor: number;
-        selectedSamples: number[];
         totalSamples: number[];
         byTypeSamples: Array<{ vein: (typeof VEIN_TYPES)[number]; samples: number[] }>;
       }> = [];
       for (const { floor } of top3) {
         const { byType } = computeVeinsAtFloor(floor, state, typeMult, true);
-        const selectedSamples: number[] = [];
         const totalSamples: number[] = [];
         const byTypeSamples = byType.map(({ vein }) => ({ vein, samples: [] as number[] }));
         for (let r = 0; r < runs; r++) {
-          let selected = 0;
           let total = 0;
           for (let i = 0; i < byType.length; i++) {
             const { vein, veinsPerHour } = byType[i];
@@ -778,20 +867,55 @@ export function Veins() {
             const y = Math.max(0, Math.round(x * dispersion));
             total += y;
             byTypeSamples[i].samples.push(y);
-            if (vein.id === targetId) selected = y;
           }
-          selectedSamples.push(selected);
           totalSamples.push(total);
         }
-        selectedSamples.sort((a, b) => a - b);
         totalSamples.sort((a, b) => a - b);
-        byFloor.push({ floor, selectedSamples, totalSamples, byTypeSamples });
+        byFloor.push({ floor, totalSamples, byTypeSamples });
       }
       setMcState({
         running: false,
-        results: { selectedVeinId: targetId, runs, byFloor },
+        results: { runs, byFloor },
       });
       setMcChartFloor(null);
+    }, 0);
+  };
+
+  const runMcSit8h = () => {
+    const floor = state.floor;
+    if (floor < 1 || floor > 120 || FLOORS_BOMB_RECHARGE_DEBUFF.includes(floor)) return;
+    setMcSitState({ running: true, results: null });
+    const HOURS = 8;
+    const runs = 10000;
+    setTimeout(() => {
+      const byFloor: Array<{
+        floor: number;
+        totalSamples: number[];
+        byTypeSamples: Array<{ vein: (typeof VEIN_TYPES)[number]; samples: number[] }>;
+      }> = [];
+      const { byType } = computeVeinsAtFloor(floor, state, typeMult, false);
+      const totalSamples: number[] = [];
+      const byTypeSamples = byType.map(({ vein }) => ({ vein, samples: [] as number[] }));
+      for (let r = 0; r < runs; r++) {
+        let total = 0;
+        for (let i = 0; i < byType.length; i++) {
+          const { vein, veinsPerHour } = byType[i];
+          const meanHours = veinsPerHour * HOURS;
+            const x = poisson(meanHours);
+            const dispersion = 1 + 0.25 * (Math.random() * 2 - 1);
+            const y = Math.max(0, Math.round(x * dispersion));
+            total += y;
+            byTypeSamples[i].samples.push(y);
+        }
+        totalSamples.push(total);
+      }
+      totalSamples.sort((a, b) => a - b);
+      byFloor.push({ floor, totalSamples, byTypeSamples });
+      setMcSitState({
+        running: false,
+        results: { runs, byFloor },
+      });
+      setMcSitChartFloor(null);
     }, 0);
   };
 
@@ -819,6 +943,19 @@ export function Veins() {
           <div className="veinsGrid">
         <section className="veinsSection">
           <h2 className="veinsSectionTitle">Setup</h2>
+          <IntStepper
+            label="Floor"
+            value={state.floor}
+            onChange={(n) => update({ floor: n })}
+            min={1}
+            max={120}
+            tooltip={{
+              title: "Floor",
+              lines: [
+                "Floor you are farming (1–120). Determines which vein type can spawn (see wiki Veins table).",
+              ],
+            }}
+          />
           <NumInput
             label="Ores per floor"
             value={state.oresPerFloor}
@@ -1216,21 +1353,6 @@ export function Veins() {
             defaultExpanded={false}
             className="veinsResultCard veinsResultCardFromSetup"
           >
-            <div className="veinsResultFloorControl">
-              <IntStepper
-                label="Floor"
-                value={state.floor}
-                onChange={(n) => update({ floor: n })}
-                min={1}
-                max={120}
-                tooltip={{
-                  title: "Floor",
-                  lines: [
-                    "Floor you are farming (1–120). Determines which vein type can spawn (see wiki Veins table).",
-                  ],
-                }}
-              />
-            </div>
             {currentVein ? (
               <>
                 <div className="veinsResultHero">
@@ -1306,14 +1428,14 @@ export function Veins() {
             )}
           </Collapsible>
 
-          <div className="veinsResultCard veinsResultCardMc veinsBestFloorsCard">
-            <h2 className="veinsResultCardTitle">MC simulation (8h, Void ON)</h2>
+          <Collapsible id="veins-mc-top3" title="MC simulation (8h, Void ON)" defaultExpanded={false} className="veinsResultCard veinsResultCardMc veinsBestFloorsCard">
+            <div className="veinsMcCollapsibleContent">
             <p className="veinsBestFloorsIntro">
-              Choose a vein to maximize; run the simulation to see distributions at the top 3 suggested floors. All inputs from the left are used.
+              Choose a vein to pick the top 3 suggested floors; run the simulation to see total vein distributions on those floors (no goal vein). All inputs from the left are used.
             </p>
             <div className="veinsMcControlsRow">
               <div className="veinsMcControlGroup">
-                <label id="veins-maximize-vein-label" className="veinsLabelWrap">Vein to maximize</label>
+                <label id="veins-maximize-vein-label" className="veinsLabelWrap">Vein to maximize (picks top 3 floors)</label>
                 <VeinSelect
                   value={state.maximizeVeinId}
                   onChange={(id) => update({ maximizeVeinId: id })}
@@ -1346,9 +1468,8 @@ export function Veins() {
                   content={{
                     title: "MC simulation (8h)",
                     lines: [
-                      "Runs 10,000 simulated 8h sessions at each of the top 3 suggested floors (Void ON).",
-                      "Top 1/2/3: primary = best mean for selected vein; if within ±10% and difference not significant (95%), tie-break = higher total veins.",
-                      "Results show box plots (same scale) with vein icons.",
+                      "Runs 10,000 simulated 8h sessions at each of the top 3 suggested floors (Void ON). Shows total veins per floor only (no goal vein).",
+                      "Vein to maximize: only used to pick which 3 floors to simulate. Top 1/2/3: best mean for that vein; within ±10% tie-break = higher total veins.",
                       "Offline: when enabled, applies −15% to gains (same as Setup).",
                       "Bomb recharge floors (67–68, 79–82) never suggested. −25% game speed floors (71–72, 89–92, 97–98) scaled to 0.75×.",
                     ],
@@ -1360,146 +1481,131 @@ export function Veins() {
 
             {mcState.results && (() => {
                 const res = mcState.results;
-                const selectedVein = VEIN_TYPES.find((v) => v.id === res.selectedVeinId);
-                const rows: Array<{ key: string; floor: number; rank: 1 | 2 | 3; label: string; iconFile?: string; samples: number[] }> = [];
-                res.byFloor.forEach(({ floor, selectedSamples, totalSamples }, idx) => {
+                const rows: Array<{ key: string; floor: number; rank: 1 | 2 | 3; label: string; samples: number[] }> = res.byFloor.map(({ floor, totalSamples }, idx) => {
                   const rank = (Math.min(idx + 1, 3) || 1) as 1 | 2 | 3;
-                  rows.push({
-                    key: `floor-${floor}-selected`,
-                    floor,
-                    rank,
-                    label: `${selectedVein?.name ?? res.selectedVeinId} (Floor ${floor})`,
-                    iconFile: selectedVein?.iconFile,
-                    samples: selectedSamples,
-                  });
-                  rows.push({
-                    key: `floor-${floor}-total`,
-                    floor,
-                    rank,
-                    label: `Total veins (Floor ${floor})`,
-                    samples: totalSamples,
-                  });
+                  return { key: `floor-${floor}-total`, floor, rank, label: `Total veins (Floor ${floor})`, samples: totalSamples };
                 });
-                const selectedRows = rows.filter((r) => r.iconFile != null);
-                const totalRows = rows.filter((r) => r.iconFile == null);
-                const minSelected = selectedRows.length > 0 ? Math.min(...selectedRows.map((r) => r.samples[0] ?? 0)) : 0;
-                const maxSelected = selectedRows.length > 0 ? Math.max(...selectedRows.map((r) => r.samples[r.samples.length - 1] ?? 0)) : 0;
-                const minTotal = minSelected;
-                const maxTotal = totalRows.length > 0 ? Math.max(...totalRows.map((r) => r.samples[r.samples.length - 1] ?? 0)) : 0;
-                const spanSelected = maxSelected - minSelected || 1;
+                const minTotal = rows.length > 0 ? Math.min(...rows.map((r) => r.samples[0] ?? 0)) : 0;
+                const maxTotal = rows.length > 0 ? Math.max(...rows.map((r) => r.samples[r.samples.length - 1] ?? 0)) : 0;
                 const spanTotal = maxTotal - minTotal || 1;
                 const rowsPerHour = rows.map((r) => ({ ...r, samples: r.samples.map((s) => s / 8) }));
-                const minSelectedPh = minSelected / 8;
-                const maxSelectedPh = maxSelected / 8;
-                const spanSelectedPh = spanSelected / 8 || 1;
-                const minTotalPh = minSelectedPh;
+                const minTotalPh = minTotal / 8;
                 const maxTotalPh = maxTotal / 8;
                 const spanTotalPh = spanTotal / 8 || 1;
-
-                const renderBoxplots = (
-                  dataRows: Array<{ key: string; floor: number; rank: 1 | 2 | 3; label: string; iconFile?: string; samples: number[] }>,
-                  loSel: number,
-                  spanSel: number,
-                  loTot: number,
-                  spanTot: number
-                ) => (
-                  <div className="veinsMcBoxplots">
-                    <div className="veinsMcBoxplotsHeader">
-                      Per floor – box plot (same scale per type)
-                      <Tooltip
-                        content={{
-                          title: "Box plot",
-                          lines: [
-                            "min: minimum. Q1: 25th percentile. mean: average. Q3: 75th percentile. max: maximum.",
-                            "Variance includes Poisson (counts) plus a dispersion term so morph/golden/rainbow-style randomness is reflected.",
-                          ],
-                        }}
-                        label="?"
-                      />
-                    </div>
-                    {dataRows.map((row) => {
-                      const { min, q1, med, q3, max } = boxPlotStats(row.samples);
-                      const meanVal = row.samples.length > 0 ? row.samples.reduce((a, b) => a + b, 0) / row.samples.length : 0;
-                      const isGoalVein = row.iconFile != null;
-                      const lo = isGoalVein ? loSel : loTot;
-                      const span = isGoalVein ? spanSel : spanTot;
-                      const toPct = (v: number) => ((v - lo) / span) * 100;
-                      const pctMin = toPct(min);
-                      const pctQ1 = toPct(q1);
-                      const pctMed = toPct(med);
-                      const pctQ3 = toPct(q3);
-                      const pctMax = toPct(max);
-                      const pctBoxCenter = (pctQ1 + pctQ3) / 2;
-                      return (
-                        <div key={row.key} className={`veinsMcBoxplotRow veinsMcBoxplotRowRank${row.rank}`}>
-                          <div className="veinsMcBoxplotHead">
-                            {row.iconFile != null ? (
-                              <img src={veinIconUrl(row.iconFile)} alt="" className="veinsMcVeinIcon" />
-                            ) : (
-                              <span className="veinsMcVeinIconPlaceholder" aria-hidden />
-                            )}
-                            <span className="veinsMcBoxplotName">{row.label}</span>
-                            {row.iconFile == null && (
-                              <button
-                                type="button"
-                                className="veinsMcChartBtn"
-                                onClick={() => setMcChartFloor((f) => (f === row.floor ? null : row.floor))}
-                              >
-                                Chart
-                              </button>
-                            )}
-                            <span className="veinsMcBoxplotStats mono">
-                              min {formatCompact(min, 2)} · Q1 {formatCompact(q1, 2)} · mean {formatCompact1Dec(meanVal)} · Q3 {formatCompact(q3, 2)} · max {formatCompact(max, 2)}
-                            </span>
-                          </div>
-                          <div className="veinsMcBoxplotMeanRow" role="presentation">
-                            <div className="veinsMcBoxplotMeanLabel" style={{ left: `${pctBoxCenter}%` }} title={`mean ${formatCompact1Dec(meanVal)}`}>
-                              <span className="veinsMcBoxplotMeanValue mono">{formatCompact1Dec(meanVal)}</span>
-                              <span className="veinsMcBoxplotMeanArrow" aria-hidden>▼</span>
-                            </div>
-                          </div>
-                          <div className="veinsMcBoxplotTrack">
-                            <div className="veinsMcBoxplotWhiskerLeft" style={{ left: `${pctMin}%`, width: `${pctQ1 - pctMin}%` }} />
-                            <div className="veinsMcBoxplotBox" style={{ left: `${pctQ1}%`, width: `${pctQ3 - pctQ1}%` }}>
-                              <div className="veinsMcBoxplotMedian" style={{ left: `${(pctQ3 - pctQ1 > 0 ? (pctMed - pctQ1) / (pctQ3 - pctQ1) : 0.5) * 100}%` }} />
-                            </div>
-                            <div className="veinsMcBoxplotWhiskerRight" style={{ left: `${pctQ3}%`, width: `${pctMax - pctQ3}%` }} />
-                          </div>
-                          <div className="veinsMcBoxplotAxis">
-                            <div className="veinsMcBoxplotAxisTicks">
-                              {[0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => (
-                                <span key={t} className="mono">
-                                  {formatCompact(lo + t * span)}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
 
                 return (
                   <div className="veinsMcResultsPanel">
                     <h3 className="veinsMcResultsTitle">
-                      Results — {res.runs} runs × 8h per floor · {selectedVein?.name ?? res.selectedVeinId}
+                      Results — {res.runs} runs × 8h per floor
                     </h3>
                     <Collapsible id="veins-mc-full8h" title="Results over full 8h" defaultExpanded={false}>
                       <div className="veinsMcCollapsibleContent">
-                        {renderBoxplots(rows, minSelected, spanSelected, minTotal, spanTotal)}
+                        {renderMcBoxplots(rows, minTotal, spanTotal, (floor) => setMcChartFloor((f) => (f === floor ? null : floor)))}
                       </div>
                     </Collapsible>
                     <Collapsible id="veins-mc-per-hour" title="Per-hour values (from 8h simulation)" defaultExpanded={false}>
                       <div className="veinsMcCollapsibleContent">
-                        {renderBoxplots(rowsPerHour, minSelectedPh, spanSelectedPh, minTotalPh, spanTotalPh)}
+                        {renderMcBoxplots(rowsPerHour, minTotalPh, spanTotalPh, (floor) => setMcChartFloor((f) => (f === floor ? null : floor)))}
                       </div>
                     </Collapsible>
-
                   </div>
                 );
               })()}
-          </div>
+            </div>
+          </Collapsible>
+
+          <Collapsible id="veins-mc-sit" title="MC simulation — Sit on floor (8h)" defaultExpanded={false} className="veinsResultCard veinsResultCardMc veinsBestFloorsCard">
+            <div className="veinsMcCollapsibleContent">
+            <p className="veinsBestFloorsIntro">
+              You are sitting on one floor. Use the Floor input from the left; run the simulation to see the total vein distribution for that floor only (no goal vein).
+            </p>
+            <div className="veinsMcControlsRow">
+              <div className="veinsMcControlGroup">
+                <div className="veinsLabelWrap">Sit on floor</div>
+                <span className="mono veinsMcSitFloor">Floor {state.floor}</span>
+              </div>
+              <div className="veinsMcControlGroup veinsMcOfflineWrap">
+                <div className="veinsLabelWrap">Offline</div>
+                <label className="veinsCheckWrap">
+                  <input
+                    type="checkbox"
+                    checked={state.afk}
+                    onChange={(e) => update({ afk: e.target.checked })}
+                  />
+                  <span className="veinsCheckLabel">{state.afk ? "Yes (−15%)" : "No"}</span>
+                </label>
+              </div>
+              <div className="veinsMcControlGroup" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <button
+                  type="button"
+                  className="btn btnPrimary veinsMcBtn"
+                  onClick={runMcSit8h}
+                  disabled={mcSitState.running || state.floor < 1 || state.floor > 120 || FLOORS_BOMB_RECHARGE_DEBUFF.includes(state.floor)}
+                >
+                  {mcSitState.running ? "Running…" : "Run MC simulation (8h)"}
+                </button>
+                <Tooltip
+                  content={{
+                    title: "MC simulation — Sit on floor (8h)",
+                    lines: [
+                      "Runs 10,000 simulated 8h sessions on the current floor only. Uses your Void Drone setting from Setup (not forced ON).",
+                      "One box plot per vein type. Use the Floor input in the left panel to choose which floor.",
+                      "Offline: when enabled, applies −15% to gains (same as Setup).",
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
+            </div>
+
+            {mcSitState.results && (() => {
+                const res = mcSitState.results;
+                const floorData = res.byFloor[0];
+                if (!floorData?.byTypeSamples?.length) return null;
+                const floor = floorData.floor;
+                const withMean = floorData.byTypeSamples.map(({ vein, samples }) => {
+                  const meanVal = samples.length > 0 ? samples.reduce((a, b) => a + b, 0) / samples.length : 0;
+                  return { vein, samples, meanVal };
+                });
+                withMean.sort((a, b) => a.vein.floorMin - b.vein.floorMin);
+                const rows: Array<{ key: string; floor: number; rank: 1 | 2 | 3; label: string; samples: number[]; iconFile: string }> = withMean.map(({ vein, samples }, idx) => ({
+                  key: `sit-${vein.id}`,
+                  floor,
+                  rank: ((idx % 3) + 1) as 1 | 2 | 3,
+                  label: `${vein.name} (Floor ${floor})`,
+                  samples,
+                  iconFile: vein.iconFile,
+                }));
+                const sortedMins = rows.map((r) => (r.samples.length > 0 ? Math.min(...r.samples) : 0));
+                const sortedMaxs = rows.map((r) => (r.samples.length > 0 ? Math.max(...r.samples) : 0));
+                const minTotal = rows.length > 0 ? Math.min(...sortedMins) : 0;
+                const maxTotal = rows.length > 0 ? Math.max(...sortedMaxs) : 0;
+                const spanTotal = maxTotal - minTotal || 1;
+                const rowsPerHour = rows.map((r) => ({ ...r, samples: r.samples.map((s) => s / 8) }));
+                const minTotalPh = minTotal / 8;
+                const maxTotalPh = maxTotal / 8;
+                const spanTotalPh = spanTotal / 8 || 1;
+
+                return (
+                  <div className="veinsMcResultsPanel">
+                    <h3 className="veinsMcResultsTitle">
+                      Results — {res.runs} runs × 8h · Floor {floor}
+                    </h3>
+                    <Collapsible id="veins-mc-sit-full8h" title="Results over full 8h" defaultExpanded={false}>
+                      <div className="veinsMcCollapsibleContent">
+                        {renderMcBoxplots(rows, minTotal, spanTotal)}
+                      </div>
+                    </Collapsible>
+                    <Collapsible id="veins-mc-sit-per-hour" title="Per-hour values (from 8h simulation)" defaultExpanded={false}>
+                      <div className="veinsMcCollapsibleContent">
+                        {renderMcBoxplots(rowsPerHour, minTotalPh, spanTotalPh)}
+                      </div>
+                    </Collapsible>
+                  </div>
+                );
+              })()}
+            </div>
+          </Collapsible>
         </section>
         </div>
       </div>
@@ -1519,7 +1625,7 @@ export function Veins() {
                   <div id="veins-per-vein-modal-title" className="mono" style={{ fontWeight: 900 }}>
                     Per-vein — Floor {mcChartFloor} (mean over {mcState.results.runs} runs)
                   </div>
-                  <div className="small">Mean veins per hour from MC simulation. Goal vein highlighted.</div>
+                  <div className="small">Mean veins per hour from MC simulation.</div>
                 </div>
                 <button className="btn btnSecondary" type="button" onClick={() => setMcChartFloor(null)}>
                   Close
@@ -1546,11 +1652,78 @@ export function Veins() {
                     <div className="veinsResultChartBars veinsMcPerVeinChartBars">
                       {withMean.map(({ vein, meanPerHour, sdPerHour }) => {
                         const pct = maxVph > 0 ? (meanPerHour / maxVph) * 100 : 0;
-                        const isGoal = vein.id === mcState.results!.selectedVeinId;
                         return (
                           <div
                             key={vein.id}
-                            className={`veinsChartRow ${isGoal ? "veinsChartRowCurrent" : ""}`}
+                            className="veinsChartRow"
+                            title={`${vein.name}: ${meanPerHour.toFixed(2)} ± ${sdPerHour.toFixed(2)} veins/h (mean ± SD from MC)`}
+                          >
+                            <img src={veinIconUrl(vein.iconFile)} alt="" className="veinsChartIcon" width={28} height={28} loading="lazy" />
+                            <span className="veinsChartName">{vein.name}</span>
+                            <div className="veinsChartBarWrap">
+                              <div className="veinsChartBar" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="veinsChartValue mono" title={`${meanPerHour.toFixed(2)} ± ${sdPerHour.toFixed(2)}`}>
+                              {formatCompact(meanPerHour)} ± {formatCompact(sdPerHour)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {mcSitChartFloor != null && mcSitState.results &&
+        createPortal(
+          <div
+            className="modalOverlay"
+            onMouseDown={() => setMcSitChartFloor(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="veins-sit-per-vein-modal-title"
+          >
+            <div className="modalWindow" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="modalHeader">
+                <div>
+                  <div id="veins-sit-per-vein-modal-title" className="mono" style={{ fontWeight: 900 }}>
+                    Sit on floor — Per-vein Floor {mcSitChartFloor} (mean over {mcSitState.results.runs} runs)
+                  </div>
+                  <div className="small">Mean veins per hour from MC simulation.</div>
+                </div>
+                <button className="btn btnSecondary" type="button" onClick={() => setMcSitChartFloor(null)}>
+                  Close
+                </button>
+              </div>
+              <div className="modalBody">
+                {(() => {
+                  const floorData = mcSitState.results.byFloor.find((f) => f.floor === mcSitChartFloor);
+                  if (!floorData?.byTypeSamples?.length) return null;
+                  const HOURS = 8;
+                  const runs = mcSitState.results.runs;
+                  const withMean = floorData.byTypeSamples.map(({ vein, samples }) => {
+                    const sum = samples.reduce((a, b) => a + b, 0);
+                    const mean8h = sum / runs;
+                    const meanPerHour = mean8h / HOURS;
+                    const variance = runs > 0 ? samples.reduce((acc, x) => acc + (x - mean8h) ** 2, 0) / runs : 0;
+                    const sd8h = Math.sqrt(variance);
+                    const sdPerHour = sd8h / HOURS;
+                    return { vein, meanPerHour, sdPerHour };
+                  });
+                  withMean.sort((a, b) => b.meanPerHour - a.meanPerHour);
+                  const maxVph = withMean[0]?.meanPerHour ?? 1;
+                  return (
+                    <div className="veinsResultChartBars veinsMcPerVeinChartBars">
+                      {withMean.map(({ vein, meanPerHour, sdPerHour }) => {
+                        const pct = maxVph > 0 ? (meanPerHour / maxVph) * 100 : 0;
+                        return (
+                          <div
+                            key={vein.id}
+                            className="veinsChartRow"
                             title={`${vein.name}: ${meanPerHour.toFixed(2)} ± ${sdPerHour.toFixed(2)} veins/h (mean ± SD from MC)`}
                           >
                             <img src={veinIconUrl(vein.iconFile)} alt="" className="veinsChartIcon" width={28} height={28} loading="lazy" />
