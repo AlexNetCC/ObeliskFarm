@@ -1044,13 +1044,8 @@ export function GemEv() {
                   <>
                   {(() => {
                     const cv = (s: VarianceMetricStats) => (s.mean !== 0 && Number.isFinite(s.mean) ? s.sd / s.mean : 0);
-                    const showSuperStonks = (params.super_stonks_chance ?? 0) > 0;
-                    const showUltraStonks = (params.ultra_stonks_chance ?? 0) > 0;
                     const metrics: Array<{ key: string; s: VarianceMetricStats }> = [
-                      { key: "freebieBaseGems", s: varianceSimResult.freebieBaseGems },
-                      { key: "stonksGemsNormal", s: varianceSimResult.stonksGemsNormal },
-                      ...(showSuperStonks ? [{ key: "stonksGemsSuper" as const, s: varianceSimResult.stonksGemsSuper }] : []),
-                      ...(showUltraStonks ? [{ key: "stonksGemsUltra" as const, s: varianceSimResult.stonksGemsUltra }] : []),
+                      { key: "freebieGems", s: varianceSimResult.freebieGems },
                       { key: "giftsCount", s: varianceSimResult.giftsCount },
                       { key: "giftGems", s: varianceSimResult.giftGems },
                       { key: "giftSushi", s: varianceSimResult.giftSushi },
@@ -1076,7 +1071,6 @@ export function GemEv() {
                       const absCv = Math.abs(cvVal);
                       return absCv >= 1 ? ">100% (unreliable!)" : `${Math.round(absCv * 100).toFixed(0)}%`;
                     };
-                    const baseIdx = 2 + (showSuperStonks ? 1 : 0) + (showUltraStonks ? 1 : 0);
                     return (
                     <>
                     <p className="small gemEvVarianceMeanHint">
@@ -1120,105 +1114,35 @@ export function GemEv() {
                           <tr>
                             <td>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Freebie (base + skill shards)
+                                Freebie gems
                                 <Tooltip
                                   content={{
-                                    title: "Freebie base gems",
+                                    title: "Where Freebie gems come from",
                                     lines: [
                                       "Base gems: every roll (1 per claim, or more on jackpot) adds the base gem value.",
                                       ...(skillShardsEnabled ? ["Skill shards: when the roll hits, its gem value is added (Obelisk/Lucky applied)."] : []),
-                                      "Excludes Stonks (normal/super/ultra) bonus gems.",
+                                      "Stonks: on the first roll per claim only, chance for Stonks (and Super/Ultra) bonus gems.",
                                     ],
                                   }}
                                   label="?"
                                 />
                               </span>
                             </td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieBaseGems.mean)}</td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieBaseGems.sd)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieGems.mean)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieGems.sd)}</td>
                             <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[0]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[0], varianceSimResult.freebieBaseGems.mean)}
+                              {formatCvPct(cvs[0], varianceSimResult.freebieGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieBaseGems.p10)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieBaseGems.p25)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieBaseGems.p50)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieBaseGems.p75)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieBaseGems.p90)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p10)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p25)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p50)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p75)}</td>
+                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.freebieGems.p90)}</td>
                               </>
                             )}
                           </tr>
-                          <tr>
-                            <td>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Stonks (normal)
-                                <Tooltip content={{ title: "Stonks (normal)", lines: ["Gems from normal Stonks procs (first roll per claim). Excludes Super and Ultra."] }} label="?" />
-                              </span>
-                            </td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.stonksGemsNormal.mean)}</td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.stonksGemsNormal.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[1]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[1], varianceSimResult.stonksGemsNormal.mean)}
-                            </td>
-                            {varianceShowPercentiles && (
-                              <>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsNormal.p10)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsNormal.p25)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsNormal.p50)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsNormal.p75)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsNormal.p90)}</td>
-                              </>
-                            )}
-                          </tr>
-                          {showSuperStonks && (
-                          <tr>
-                            <td>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Stonks (super)
-                                <Tooltip content={{ title: "Stonks (super)", lines: ["Gems from Super Stonks (when Stonks procs and then Super procs)."] }} label="?" />
-                              </span>
-                            </td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.stonksGemsSuper.mean)}</td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.stonksGemsSuper.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[2]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[2], varianceSimResult.stonksGemsSuper.mean)}
-                            </td>
-                            {varianceShowPercentiles && (
-                              <>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsSuper.p10)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsSuper.p25)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsSuper.p50)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsSuper.p75)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsSuper.p90)}</td>
-                              </>
-                            )}
-                          </tr>
-                          )}
-                          {showUltraStonks && (
-                          <tr>
-                            <td>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Stonks (ultra)
-                                <Tooltip content={{ title: "Stonks (ultra)", lines: ["Gems from Ultra Stonks (when Stonks and Super proc, then Ultra procs)."] }} label="?" />
-                              </span>
-                            </td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.stonksGemsUltra.mean)}</td>
-                            <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.stonksGemsUltra.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[2 + (showSuperStonks ? 1 : 0)]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[2 + (showSuperStonks ? 1 : 0)], varianceSimResult.stonksGemsUltra.mean)}
-                            </td>
-                            {varianceShowPercentiles && (
-                              <>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsUltra.p10)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsUltra.p25)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsUltra.p50)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsUltra.p75)}</td>
-                                <td className="mono">{fmt1OrIntOver1k(varianceSimResult.stonksGemsUltra.p90)}</td>
-                              </>
-                            )}
-                          </tr>
-                          )}
                           <tr>
                             <td>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -1228,8 +1152,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.mean.toFixed(1)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.sd.toFixed(1)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx], varianceSimResult.giftsCount.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[1]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[1], varianceSimResult.giftsCount.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1250,8 +1174,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 1]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 1], varianceSimResult.giftGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[2]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[2], varianceSimResult.giftGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1272,8 +1196,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 2]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 2], varianceSimResult.giftSushi.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[3]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[3], varianceSimResult.giftSushi.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1290,8 +1214,8 @@ export function GemEv() {
                               <td>Lootfrog gems</td>
                               <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.mean)}</td>
                               <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.sd)}</td>
-                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 3]) }} title="CV% (SD/mean)">
-                                {formatCvPct(cvs[baseIdx + 3], varianceSimResult.lootfrogGems.mean)}
+                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[4]) }} title="CV% (SD/mean)">
+                                {formatCvPct(cvs[4], varianceSimResult.lootfrogGems.mean)}
                               </td>
                               {varianceShowPercentiles && (
                                 <>
@@ -1305,11 +1229,25 @@ export function GemEv() {
                             </tr>
                           )}
                           <tr>
-                            <td>Lootbug net gems</td>
+                            <td>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                Lootbug net gems
+                                <Tooltip
+                                  content={{
+                                    title: "Where Lootbug net gems come from",
+                                    lines: [
+                                      "From the Lootbug module: gains (e.g. +2 Gems free buff, value of 10× Bomb Recharge, item/relic chests) minus gem cost of bought gem buffs (10× Bomb Recharge, 2× Game Speed, etc.).",
+                                      "This row = expected net gems/h (from Lootbug) × (simulated Lootbug spawns this hour ÷ expected spawns). Can be negative if gem buff costs exceed gains.",
+                                    ],
+                                  }}
+                                  label="?"
+                                />
+                              </span>
+                            </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 4]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 4], varianceSimResult.lootbugNetGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[5]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[5], varianceSimResult.lootbugNetGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1325,8 +1263,8 @@ export function GemEv() {
                             <td>Founder gems</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 5]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 5], varianceSimResult.founderGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[6]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[6], varianceSimResult.founderGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1339,11 +1277,26 @@ export function GemEv() {
                             )}
                           </tr>
                           <tr>
-                            <td>Charge Magnet</td>
+                            <td>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                Charge Magnet
+                                <Tooltip
+                                  content={{
+                                    title: "Where Charge Magnet gems come from",
+                                    lines: [
+                                      "Charge Magnets drop from Item Chests when you open them (chance per item).",
+                                      "Item chests in this sim: Freebie claims, Stonks procs, Founder supply drop, Gifts opened, Lootbug spawns.",
+                                      "This row = expected Charge Magnet impact (from Items module) × (simulated chests this hour ÷ expected chests).",
+                                    ],
+                                  }}
+                                  label="?"
+                                />
+                              </span>
+                            </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 6]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 6], varianceSimResult.chargeMagnetGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[7]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[7], varianceSimResult.chargeMagnetGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1359,8 +1312,8 @@ export function GemEv() {
                             <td>Gem Bomb gems</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 7]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 7], varianceSimResult.gemBombGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[8]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[8], varianceSimResult.gemBombGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1376,8 +1329,8 @@ export function GemEv() {
                             <td>Drone fuel cost</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 8]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 8], varianceSimResult.droneFuelCost.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[9]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[9], varianceSimResult.droneFuelCost.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1393,8 +1346,8 @@ export function GemEv() {
                             <td>Total</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[baseIdx + 9]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[baseIdx + 9], varianceSimResult.totalGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[10]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[10], varianceSimResult.totalGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1414,14 +1367,9 @@ export function GemEv() {
                   })()}
                   {(() => {
                       const giftIconSmall = <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0, marginRight: 4 }} />;
-                      const showSuperStonksBox = (params.super_stonks_chance ?? 0) > 0;
-                      const showUltraStonksBox = (params.ultra_stonks_chance ?? 0) > 0;
                       const rows: Array<{ key: string; label: React.ReactNode; s: VarianceMetricStats; isCount?: boolean }> = [
                         { key: "totalGems", label: "Total", s: varianceSimResult.totalGems },
-                        { key: "freebieBaseGems", label: "Freebie (base + skill shards)", s: varianceSimResult.freebieBaseGems },
-                        { key: "stonksGemsNormal", label: "Stonks (normal)", s: varianceSimResult.stonksGemsNormal },
-                        ...(showSuperStonksBox ? [{ key: "stonksGemsSuper" as const, label: "Stonks (super)" as React.ReactNode, s: varianceSimResult.stonksGemsSuper }] : []),
-                        ...(showUltraStonksBox ? [{ key: "stonksGemsUltra" as const, label: "Stonks (ultra)" as React.ReactNode, s: varianceSimResult.stonksGemsUltra }] : []),
+                        { key: "freebieGems", label: "Freebie gems", s: varianceSimResult.freebieGems },
                         { key: "giftsCount", label: <>{giftIconSmall}Gifts (count)</>, s: varianceSimResult.giftsCount, isCount: true },
                         { key: "giftGems", label: <>{giftIconSmall}Gift gems</>, s: varianceSimResult.giftGems },
                         { key: "giftSushi", label: <>{giftIconSmall}Sushi (from gifts)</>, s: varianceSimResult.giftSushi },

@@ -1428,7 +1428,7 @@ export function Veins() {
             )}
           </Collapsible>
 
-          <Collapsible id="veins-mc-top3" title="MC simulation (8h, Void ON)" defaultExpanded={false} className="veinsResultCard veinsResultCardMc veinsBestFloorsCard">
+          <Collapsible id="veins-mc-top3" title="MC simulation - Maximize a specific vein" defaultExpanded={false} className="veinsResultCard veinsResultCardMc veinsBestFloorsCard">
             <div className="veinsMcCollapsibleContent">
             <p className="veinsBestFloorsIntro">
               Choose a vein to pick the top 3 suggested floors; run the simulation to see total vein distributions on those floors (no goal vein). All inputs from the left are used.
