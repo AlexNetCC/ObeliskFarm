@@ -377,8 +377,6 @@ export function GemEv() {
       fishPerSushiEvForGift?: number;
       /** Fishing tick reduction (from Fishing). Founder supply drop wiki table: 0.5× this per drop. */
       founder_fishing_tick_reduction?: number;
-      chainBomberGoldenFloorBonusPct?: number;
-      chainBomberBuffUptimeFraction?: number;
       w3_debuff_fish_pct_loss?: number;
       lootfrogsUnlocked?: boolean;
       lootfrogValuePerFrogspawn?: number;
@@ -410,14 +408,12 @@ export function GemEv() {
     const giftFishPerHourDuring5xBuff = typeof ext?.giftFishPerHourDuring5xBuff === "number" ? ext.giftFishPerHourDuring5xBuff : undefined;
     const fishPerSushiEvForGift = typeof ext?.fishPerSushiEvForGift === "number" ? ext.fishPerSushiEvForGift : undefined;
     const founderFishingTickReduction = typeof ext?.founder_fishing_tick_reduction === "number" ? ext.founder_fishing_tick_reduction : undefined;
-    const chainBomberGoldenFloorBonusPct = typeof ext?.chainBomberGoldenFloorBonusPct === "number" ? ext.chainBomberGoldenFloorBonusPct : undefined;
-    const chainBomberBuffUptimeFraction = typeof ext?.chainBomberBuffUptimeFraction === "number" ? ext.chainBomberBuffUptimeFraction : undefined;
     const w3DebuffFishPctLoss = typeof ext?.w3_debuff_fish_pct_loss === "number" ? ext.w3_debuff_fish_pct_loss : undefined;
     const lootfrogsUnlocked = Boolean(ext?.lootfrogsUnlocked);
     const lootfrogValuePerFrogspawn = typeof ext?.lootfrogValuePerFrogspawn === "number" ? Math.max(0, ext.lootfrogValuePerFrogspawn) : 0;
     const blackHoleUnlocked = Boolean(ext?.blackHoleUnlocked);
     return {
-      lootbug10x, lootbugSpawnsPerHour, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, founderFishingTickReduction, chainBomberGoldenFloorBonusPct, chainBomberBuffUptimeFraction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn, blackHoleUnlocked,
+      lootbug10x, lootbugSpawnsPerHour, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, founderFishingTickReduction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn, blackHoleUnlocked,
     };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
@@ -537,8 +533,6 @@ export function GemEv() {
     p.gift_drone_fuel_gems_per_fuel = 5;
     p.gift_sushi_fish_per_sushi = external.fishPerSushiEvForGift;
 
-    p.chain_bomber_golden_floor_bonus_pct = external.chainBomberGoldenFloorBonusPct;
-    p.chain_bomber_buff_uptime_fraction = external.chainBomberBuffUptimeFraction;
     p.lootfrogs_unlocked = external.lootfrogsUnlocked;
     // Black Hole unlocked = Lootfrogs unlocked (same unlock). Gift 1/25 Frogspawn when either is set.
     p.gift_black_hole_unlocked = external.blackHoleUnlocked ?? external.lootfrogsUnlocked;
@@ -549,7 +543,7 @@ export function GemEv() {
         : (p.gift_frogspawn_gem_value ?? 0);
 
     return p;
-  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.founderFishingTickReduction, external.chainBomberGoldenFloorBonusPct, external.chainBomberBuffUptimeFraction, external.lootfrogsUnlocked, external.blackHoleUnlocked, external.lootfrogValuePerFrogspawn]);
+  }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.founderFishingTickReduction, external.lootfrogsUnlocked, external.blackHoleUnlocked, external.lootfrogValuePerFrogspawn]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);

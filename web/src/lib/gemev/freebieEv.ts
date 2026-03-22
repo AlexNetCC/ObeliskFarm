@@ -125,10 +125,6 @@ export type GameParameters = {
   gift_forbidden_sushi_gem_value?: number;
   gift_cosmic_candy_gem_value?: number;
 
-  /** Chain Bomber Drone (from Drone module): +X% Golden Floor Multi during buff. When set, stonks mult is scaled by (1 + uptime × bonus/100). */
-  chain_bomber_golden_floor_bonus_pct?: number;
-  chain_bomber_buff_uptime_fraction?: number;
-
   /** W3 floor debuff: −30% game speed (70% effective) while on W3 floors. Only affects freebie cooldown and bomb recharge; not supply drop or Stargazing. */
   w3_floor_debuff?: boolean;
 
@@ -524,10 +520,7 @@ export function calculateStonksEvPerHour(params: GameParameters): number {
     sc * ssc * usc * clampPositive(params.ultra_stonks_bonus_gems ?? 0, 0) * clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
   const sumPerClaim = stonksPerClaim + superPerClaim + ultraPerClaim;
   const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
-  const bonusPct = params.chain_bomber_golden_floor_bonus_pct ?? 0;
-  const uptime = Math.max(0, Math.min(1, params.chain_bomber_buff_uptime_fraction ?? 0));
-  const chainBomberMult = 1 + (bonusPct / 100) * uptime;
-  return freebiesPerHour * refreshMult * sumPerClaim * allMult * chainBomberMult;
+  return freebiesPerHour * refreshMult * sumPerClaim * allMult;
 }
 
 /** Expected Item Chests per hour from stonks procs. In-game: base stonks 20 chests; super/ultra same base per proc, each tier uses its multiplier. */
@@ -551,10 +544,7 @@ export function calculateStonksChestsPerHour(params: GameParameters): number {
   const baseChests = effectiveRate * sc * STONKS_CHESTS_BASE * stonksMult;
   const superChests = effectiveRate * sc * ssc * STONKS_CHESTS_BASE * superMult;
   const ultraChests = effectiveRate * sc * ssc * usc * STONKS_CHESTS_BASE * ultraMult;
-  const bonusPct = params.chain_bomber_golden_floor_bonus_pct ?? 0;
-  const uptime = Math.max(0, Math.min(1, params.chain_bomber_buff_uptime_fraction ?? 0));
-  const chainBomberMult = 1 + (bonusPct / 100) * uptime;
-  return (baseChests + superChests + ultraChests) * allMult * chainBomberMult;
+  return (baseChests + superChests + ultraChests) * allMult;
 }
 
 /** Expected Relic Chests per hour from stonks procs. In-game: base 10 relic chests per stonks proc; super/ultra same base, each tier uses its multiplier. */
@@ -572,10 +562,7 @@ export function calculateStonksRelicChestsPerHour(params: GameParameters): numbe
   const baseRelics = effectiveRate * sc * STONKS_RELIC_CHESTS_BASE * stonksMult;
   const superRelics = effectiveRate * sc * ssc * STONKS_RELIC_CHESTS_BASE * superMult;
   const ultraRelics = effectiveRate * sc * ssc * usc * STONKS_RELIC_CHESTS_BASE * ultraMult;
-  const bonusPct = params.chain_bomber_golden_floor_bonus_pct ?? 0;
-  const uptime = Math.max(0, Math.min(1, params.chain_bomber_buff_uptime_fraction ?? 0));
-  const chainBomberMult = 1 + (bonusPct / 100) * uptime;
-  return (baseRelics + superRelics + ultraRelics) * allMult * chainBomberMult;
+  return (baseRelics + superRelics + ultraRelics) * allMult;
 }
 
 export function calculateSkillShardsEvPerHour(params: GameParameters): number {

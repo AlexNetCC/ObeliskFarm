@@ -94,7 +94,7 @@ const STARBURST_FUEL_DURATION_SEC_PER_GRADE = 9;
 const STARBURST_STAR_SPAWN_PCT_BASE = 15;
 const STARBURST_STAR_SPAWN_PCT_PER_GRADE = 3;
 
-/** Void Drone: +3× Portal Resource Multi / 3:00 at grade 0, +1× / +0:09 per grade. Max +23× / 6:00 (Polychrome). */
+/** Void Drone (in-game): +3× Portal Resource Multi / 3:00 at grade 0, +1× / +0:09 per grade. Max +23× / 6:00 (Polychrome). FYI in Drone UI; Veins module is separate. */
 const VOID_PORTAL_MULT_BASE = 3;
 const VOID_PORTAL_MULT_PER_GRADE = 1;
 const VOID_PORTAL_MULT_MAX = 23;
@@ -104,7 +104,7 @@ const VOID_BUFF_DURATION_MAX_SEC = 360; // 6:00
 const VOID_FUEL_DURATION_BASE_SEC = 180; // 3:00
 const VOID_FUEL_DURATION_SEC_PER_GRADE = 9;
 
-/** Veinseeker Drone: +50% Golden Vein Multi / 2:40 at grade 0, +10% / +0:08 per grade. Max +250% / 5:20 (Polychrome). */
+/** Veinseeker Drone (in-game): +50% Golden Vein Multi / 2:40 at grade 0, +10% / +0:08 per grade. Max +250% / 5:20 (Polychrome). FYI in Drone UI; Veins module is separate. */
 const VEINSEEKER_GOLDEN_VEIN_PCT_BASE = 50;
 const VEINSEEKER_GOLDEN_VEIN_PCT_PER_GRADE = 10;
 const VEINSEEKER_GOLDEN_VEIN_PCT_MAX = 250;
@@ -114,10 +114,9 @@ const VEINSEEKER_BUFF_DURATION_MAX_SEC = 320; // 5:20
 const VEINSEEKER_FUEL_DURATION_BASE_SEC = 180; // 3:00 (same pattern as Void)
 const VEINSEEKER_FUEL_DURATION_SEC_PER_GRADE = 9;
 
-/** Chain Bomber Drone: +50% Golden Floor Multi / 3:40 at grade 0, +10% / +0:11 per grade. Max +250% / 7:20 (Polychrome). Gem EV only. */
+/** Chain Bomber (in-game): Golden Floor Multi on ores/bars — +50% at grade 0, +10% per grade (no cap; e.g. +610% at grade 56). Not used elsewhere in ObeliskFarm; FYI display + fuel cost only. */
 const CHAIN_BOMBER_GOLDEN_FLOOR_PCT_BASE = 50;
 const CHAIN_BOMBER_GOLDEN_FLOOR_PCT_PER_GRADE = 10;
-const CHAIN_BOMBER_GOLDEN_FLOOR_PCT_MAX = 250;
 const CHAIN_BOMBER_BUFF_DURATION_BASE_SEC = 220; // 3:40
 const CHAIN_BOMBER_BUFF_DURATION_SEC_PER_GRADE = 11;
 const CHAIN_BOMBER_BUFF_DURATION_MAX_SEC = 440; // 7:20
@@ -230,15 +229,15 @@ type ElixirState = {
   starburstSuitLevel: number;
   starburstGradeLevel: number;
   starburstFueled: boolean;
-  /** Chain Bomber Drone: +X% Golden Floor Multi (Gift procs in Gem EV). Grade + fuel only. */
+  /** Chain Bomber Drone: FYI Golden Floor Multi (ores/bars in-game). Grade + fuel only. */
   chainBomberDroneOn: boolean;
   chainBomberGradeLevel: number;
   chainBomberFueled: boolean;
-  /** Void Drone: +X× Portal Resource Multi. Grade + fuel only. */
+  /** Void Drone: FYI Portal Resource Multi (in-game void). Grade + fuel only. */
   voidDroneOn: boolean;
   voidGradeLevel: number;
   voidFueled: boolean;
-  /** Veinseeker Drone: +X% Golden Vein Multi. Grade + fuel only. */
+  /** Veinseeker Drone: FYI Golden Vein Multi (in-game). Grade + fuel only. */
   veinseekerDroneOn: boolean;
   veinseekerGradeLevel: number;
   veinseekerFueled: boolean;
@@ -841,9 +840,9 @@ export function Drone() {
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [starburstFuelDurationSecReal, state.starburstFueled, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
-  /** Chain Bomber: +50% Golden Floor Multi at grade 0, +10% per grade, max +250%. Buff duration 3:40 + 0:11 per grade, max 7:20. */
+  /** Chain Bomber: +50% GFM at grade 0, +10% per grade (uncapped). Buff duration 3:40 + 0:11 per grade, max 7:20. */
   const chainBomberGoldenFloorBonusPct = state.chainBomberDroneOn && state.chainBomberFueled
-    ? Math.min(CHAIN_BOMBER_GOLDEN_FLOOR_PCT_MAX, CHAIN_BOMBER_GOLDEN_FLOOR_PCT_BASE + state.chainBomberGradeLevel * CHAIN_BOMBER_GOLDEN_FLOOR_PCT_PER_GRADE)
+    ? CHAIN_BOMBER_GOLDEN_FLOOR_PCT_BASE + state.chainBomberGradeLevel * CHAIN_BOMBER_GOLDEN_FLOOR_PCT_PER_GRADE
     : 0;
   const chainBomberBuffDurationSec = state.chainBomberDroneOn && state.chainBomberFueled
     ? Math.min(CHAIN_BOMBER_BUFF_DURATION_MAX_SEC, CHAIN_BOMBER_BUFF_DURATION_BASE_SEC + state.chainBomberGradeLevel * CHAIN_BOMBER_BUFF_DURATION_SEC_PER_GRADE)
@@ -1108,34 +1107,6 @@ export function Drone() {
     return fuelsPerHour * (1 - saveChance) * GEMS_PER_FUEL;
   }, [fuelDurationSecReal, state.fuelSaveChanceUpgradeLevel, state.upgradeFuelSaveChancePct]);
 
-  /** Void: uptime fraction (0..1) when ON and fueled. Buff appears in Elixir pool. */
-  const voidBuffUptimeFraction = useMemo(() => {
-    if (!state.voidDroneOn || !state.voidFueled || intervalSec <= 0) return 0;
-    const b = buffDurations.find((x) => x.id === "void");
-    if (!b) return 0;
-    const totalBuffs = buffDurations.length;
-    return Math.min(1, b.sec / (totalBuffs * intervalSec));
-  }, [state.voidDroneOn, state.voidFueled, intervalSec, buffDurations]);
-
-  /** Veinseeker: uptime fraction (0..1) when ON and fueled. Buff appears in Elixir pool. */
-  const veinseekerBuffUptimeFraction = useMemo(() => {
-    if (!state.veinseekerDroneOn || !state.veinseekerFueled || intervalSec <= 0) return 0;
-    const b = buffDurations.find((x) => x.id === "veinseeker");
-    if (!b) return 0;
-    const totalBuffs = buffDurations.length;
-    return Math.min(1, b.sec / (totalBuffs * intervalSec));
-  }, [state.veinseekerDroneOn, state.veinseekerFueled, intervalSec, buffDurations]);
-
-  /** Chain Bomber: uptime fraction (0..1) for Gem EV Gift procs. When ON and fueled, buff appears in Elixir pool. Uptime = buffSec / (totalBuffs × intervalSec). */
-  const chainBomberBuffUptimeFraction = useMemo(() => {
-    if (!state.chainBomberDroneOn || !state.chainBomberFueled) return 0;
-    if (intervalSec <= 0) return 0;
-    const b = buffDurations.find((x) => x.id === "chainbomber");
-    if (!b) return 0;
-    const totalBuffs = buffDurations.length;
-    return Math.min(1, b.sec / (totalBuffs * intervalSec));
-  }, [state.chainBomberDroneOn, state.chainBomberFueled, intervalSec, buffDurations]);
-
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(GEMEV_EXTERNAL_KEY) ?? {};
     ext.droneBomb10xMinPerHour = state.elixirDroneOn ? droneBomb10xMinPerHour : 0;
@@ -1153,17 +1124,11 @@ export function Drone() {
     ext.froggerGemEvPerHour = state.froggerDroneOn ? froggerGemEvPerHour : 0;
     ext.bombBearLootbugSpawnRateMult = bombBearLootbugSpawnRateMult;
     ext.fishingUnlocked = state.fishingUnlocked;
-    ext.chainBomberDroneOn = state.chainBomberDroneOn;
-    ext.chainBomberGoldenFloorBonusPct = state.chainBomberDroneOn && state.chainBomberFueled ? chainBomberGoldenFloorBonusPct : 0;
-    ext.chainBomberBuffUptimeFraction = chainBomberBuffUptimeFraction;
-    ext.voidDroneOn = state.voidDroneOn;
-    ext.voidPortalMult = state.voidDroneOn && state.voidFueled ? voidPortalMult : 0;
-    ext.voidBuffUptimeFraction = voidBuffUptimeFraction;
     ext.lootfrogsUnlocked = state.lootfrogsUnlocked;
     ext.lootfrogRelicChestsPerHour = lootfrogRelicChestsPerHour;
     ext.lootfrogValuePerFrogspawn = lootfrogValuePerFrogspawn;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, froggerGemEvPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, chainBomberBuffUptimeFraction, chainBomberGoldenFloorBonusPct, voidPortalMult, voidBuffUptimeFraction, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked, state.lootfrogsUnlocked, lootfrogRelicChestsPerHour, lootfrogValuePerFrogspawn]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, froggerGemEvPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked, state.lootfrogsUnlocked, lootfrogRelicChestsPerHour, lootfrogValuePerFrogspawn]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {
@@ -3313,17 +3278,18 @@ export function Drone() {
                 title: "Chain Bomber Drone",
                 sections: [
                   {
-                    heading: "Effect",
+                    heading: "In-game",
                     lines: [
-                      "When fueled: +50% Golden Floor Multi at grade 0, +10% per grade, max +250% (Polychrome).",
-                      "Buff duration: 3:40 at grade 0, +0:11 per grade, max 7:20. Appears in Elixir buff pool.",
+                      "When fueled: +50% Golden Floor Multi at grade 0, +10% per grade (no cap; e.g. +610% at grade 56).",
+                      "Golden Floor Multi affects ores and bars, not anything modeled in ObeliskFarm.",
+                      "Buff duration: 3:40 at grade 0, +0:11 per grade, max 7:20. Also appears in the Elixir buff bar.",
                     ],
                   },
                   {
-                    heading: "Gem EV",
+                    heading: "This tool",
                     lines: [
-                      "Golden Floor Multi multiplies bonus gems and Item Chests from Gift procs (Stonks section in Gem EV Calculator).",
-                      "Toggle ON/OFF to include or exclude the buff from those gains.",
+                      "FYI only: the percentage and fuel cost are shown for reference.",
+                      "Gem EV and other modules do not use Chain Bomber or Golden Floor Multi.",
                     ],
                   },
                 ],
@@ -3334,7 +3300,7 @@ export function Drone() {
       >
         <div className="droneSection">
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            When fueled, Chain Bomber adds +X% Golden Floor Multi to the Elixir buff pool. Multiplies Gift proc gains (Stonks section) in Gem EV Calculator.
+            Golden Floor Multi is for ores/bars in-game. ObeliskFarm does not model that; values below are FYI. Fuel cost is included in total drone fuel in Gem EV like other fueled drones.
           </p>
           <div className="droneSectionTitle">Settings</div>
           <div className="droneCheckboxRow">
@@ -3364,7 +3330,7 @@ export function Drone() {
                 tooltip={{
                   title: "Chain Bomber grade (fuel buff)",
                   lines: [
-                    "Buff: +50% Golden Floor Multi at grade 0, +10% per grade, max +250% (Polychrome). Duration: 3:40 at grade 0, +0:11 per grade, max 7:20.",
+                    "In-game: +50% Golden Floor Multi at grade 0, +10% per grade, no cap. Duration: 3:40 at grade 0, +0:11 per grade, max 7:20.",
                     "Same fuel duration multipliers (Coal, Cards, etc.) as other drones.",
                   ],
                 }}
@@ -3414,24 +3380,19 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneRow">
             <span className="droneLabel">
-              Golden Floor Multi bonus
+              Golden Floor Multi (ores/bars)
               <Tooltip
                 content={{
-                  title: "Golden Floor Multi bonus",
+                  title: "Golden Floor Multi",
                   lines: [
-                    "When buff is active: +X% multiplier on Gift proc gains (Stonks section) in Gem EV. Uptime from Elixir pool.",
+                    "In-game bonus to Golden Floor Multi on ores and bars when this drone is fueled.",
+                    "Reference only: not used in ObeliskFarm calculations.",
                   ],
                 }}
               />
             </span>
             <span className="droneStepperValue mono">
               {state.chainBomberDroneOn && state.chainBomberFueled ? `+${chainBomberGoldenFloorBonusPct}%` : "—"}
-            </span>
-          </div>
-          <div className="droneRow">
-            <span className="droneLabel">Buff uptime</span>
-            <span className="droneStepperValue mono">
-              {state.chainBomberDroneOn && state.chainBomberFueled ? `${(chainBomberBuffUptimeFraction * 100).toFixed(1)}%` : "—"}
             </span>
           </div>
         </div>
@@ -3459,10 +3420,17 @@ export function Drone() {
                 title: "Void Drone",
                 sections: [
                   {
-                    heading: "Effect",
+                    heading: "In-game",
                     lines: [
                       "When fueled: +3× Portal Resource Multi at grade 0, +1× per grade, max +23× (Polychrome).",
-                      "Buff duration: 3:00 at grade 0, +0:09 per grade, max 6:00. Appears in Elixir buff pool.",
+                      "Buff duration: 3:00 at grade 0, +0:09 per grade, max 6:00. Appears in the Elixir buff bar.",
+                    ],
+                  },
+                  {
+                    heading: "This tool",
+                    lines: [
+                      "The Veins module models portals and income on its own settings.",
+                      "It does not read this drone. Values here are FYI only; fuel cost still counts toward total drone fuel in Gem EV.",
                     ],
                   },
                 ],
@@ -3473,7 +3441,7 @@ export function Drone() {
       >
         <div className="droneSection">
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            When fueled, Void Drone adds +X× Portal Resource Multi to the Elixir buff pool.
+            Portal Resource Multi from this drone is in-game only (void). The Veins module is separate. FYI display; fuel cost still adds to total drone fuel in Gem EV.
           </p>
           <div className="droneSectionTitle">Settings</div>
           <div className="droneCheckboxRow">
@@ -3553,22 +3521,19 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneRow">
             <span className="droneLabel">
-              Portal Resource Multi bonus
+              Portal Resource Multi (void)
               <Tooltip
                 content={{
-                  title: "Portal Resource Multi bonus",
-                  lines: ["When buff is active: +X× to Portal Resource Multi. Uptime from Elixir pool."],
+                  title: "Portal Resource Multi",
+                  lines: [
+                    "In-game multiplier to Portal Resource Multi when this buff is active.",
+                    "FYI only: not used by the Veins module or other ObeliskFarm calculators.",
+                  ],
                 }}
               />
             </span>
             <span className="droneStepperValue mono">
               {state.voidDroneOn && state.voidFueled ? `+${voidPortalMult}×` : "—"}
-            </span>
-          </div>
-          <div className="droneRow">
-            <span className="droneLabel">Buff uptime</span>
-            <span className="droneStepperValue mono">
-              {state.voidDroneOn && state.voidFueled ? `${(voidBuffUptimeFraction * 100).toFixed(1)}%` : "—"}
             </span>
           </div>
         </div>
@@ -3596,10 +3561,17 @@ export function Drone() {
                 title: "Veinseeker Drone",
                 sections: [
                   {
-                    heading: "Effect",
+                    heading: "In-game",
                     lines: [
                       "When fueled: +50% Golden Vein Multi at grade 0, +10% per grade, max +250% (Polychrome).",
-                      "Buff duration: 2:40 at grade 0, +0:08 per grade, max 5:20. Appears in Elixir buff pool.",
+                      "Buff duration: 2:40 at grade 0, +0:08 per grade, max 5:20. Appears in the Elixir buff bar.",
+                    ],
+                  },
+                  {
+                    heading: "This tool",
+                    lines: [
+                      "The Veins module uses its own Golden Vein Multi and spawn inputs.",
+                      "It does not read this drone. Values here are FYI only; fuel cost still counts toward total drone fuel in Gem EV.",
                     ],
                   },
                 ],
@@ -3610,7 +3582,7 @@ export function Drone() {
       >
         <div className="droneSection">
           <p className="droneHint" style={{ marginTop: 0, marginBottom: 10 }}>
-            When fueled, Veinseeker Drone adds +X% Golden Vein Multi to the Elixir buff pool.
+            Golden Vein Multi from this drone is in-game only. The Veins module is separate. FYI display; fuel cost still adds to total drone fuel in Gem EV.
           </p>
           <div className="droneSectionTitle">Settings</div>
           <div className="droneCheckboxRow">
@@ -3690,22 +3662,19 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneRow">
             <span className="droneLabel">
-              Golden Vein Multi bonus
+              Golden Vein Multi (veins)
               <Tooltip
                 content={{
-                  title: "Golden Vein Multi bonus",
-                  lines: ["When buff is active: +X% to Golden Vein Multi. Uptime from Elixir pool."],
+                  title: "Golden Vein Multi",
+                  lines: [
+                    "In-game bonus to Golden Vein Multi when this buff is active.",
+                    "FYI only: not used by the Veins module or other ObeliskFarm calculators.",
+                  ],
                 }}
               />
             </span>
             <span className="droneStepperValue mono">
               {state.veinseekerDroneOn && state.veinseekerFueled ? `+${veinseekerGoldenVeinPct}%` : "—"}
-            </span>
-          </div>
-          <div className="droneRow">
-            <span className="droneLabel">Buff uptime</span>
-            <span className="droneStepperValue mono">
-              {state.veinseekerDroneOn && state.veinseekerFueled ? `${(veinseekerBuffUptimeFraction * 100).toFixed(1)}%` : "—"}
             </span>
           </div>
         </div>

@@ -560,7 +560,7 @@ export function Items() {
             </div>
           </div>
           <div className="itemsRow">
-            <span className="itemsLabel">Relics per hour (from chests)</span>
+            <span className="itemsLabel">Relics per hour</span>
             <span className="itemsValue mono itemsPerHourGlow">{relicsPerHourFromChests.toFixed(2)}</span>
           </div>
         </div>
