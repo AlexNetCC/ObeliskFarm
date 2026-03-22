@@ -930,17 +930,9 @@ export function Drone() {
   const elixirCritExpectedMult = state.elixirCritChanceFishing
     ? 1 + 0.1 * (state.elixirCritMult - 1)
     : 1;
+  /** Standard Elixir bar buffs only (9 or 10). Other fuel-drone buffs are not mixed into this rotation model; see each drone’s section. */
   const buffDurations = useMemo(() => {
-    let list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
-    if (state.chainBomberDroneOn && state.chainBomberFueled) {
-      list = [...list, { id: "chainbomber", label: "+Golden Floor Multi", baseSec: chainBomberBuffDurationSec, icon: `${ELIXIR_BUFF_ICONS}a/aa/Gem.png`, realTimeOnly: false, noFuelMult: true }];
-    }
-    if (state.voidDroneOn && state.voidFueled) {
-      list = [...list, { id: "void", label: "+Portal Resource Multi", baseSec: voidBuffDurationSec, icon: "https://static.wikitide.net/shminerwiki/d/d9/Drone_Void.png", realTimeOnly: false, noFuelMult: true }];
-    }
-    if (state.veinseekerDroneOn && state.veinseekerFueled) {
-      list = [...list, { id: "veinseeker", label: "+Golden Vein Multi", baseSec: veinseekerBuffDurationSec, icon: "https://static.wikitide.net/shminerwiki/5/5b/Drone_Veinseeker.png", realTimeOnly: false, noFuelMult: true }];
-    }
+    const list = ELIXIR_BUFFS.filter((b) => b.id !== "3xfishing" || state.fishingUnlocked);
     const multFor = (b: { baseSec: number; realTimeOnly?: boolean; noFuelMult?: boolean }) =>
       (b as { noFuelMult?: boolean }).noFuelMult ? 1 : fuelMult;
     const withSec = list.map((b) => {
@@ -952,7 +944,7 @@ export function Drone() {
     return withSec
       .map((b) => ({ ...b, pct: (b.sec / maxSec) * 100 }))
       .sort((a, b) => a.sec - b.sec);
-  }, [state.fueled, state.fishingUnlocked, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.elixirCritChanceFishing, state.elixirCritMult, chainBomberBuffDurationSec, voidBuffDurationSec, veinseekerBuffDurationSec, fueledBuffDurationPct, fuelMult, gameSpeedMult, elixirCritExpectedMult]);
+  }, [state.fueled, state.fishingUnlocked, state.elixirCritChanceFishing, state.elixirCritMult, fueledBuffDurationPct, fuelMult, gameSpeedMult, elixirCritExpectedMult]);
 
   const droneBomb10xMinPerHour = useMemo(() => {
     const cycleSec = numBuffs * intervalSec;
@@ -1646,7 +1638,7 @@ export function Drone() {
           <div className="droneRow">
             <span className="droneLabel">→ Time between buffs</span>
             <span className="droneStepperValue">
-              {intervalSec.toFixed(1)} s{gameSpeedMult > 1 ? " (real)" : ""}
+              {intervalSec.toFixed(2)} s{gameSpeedMult > 1 ? " (real)" : ""}
             </span>
           </div>
 
@@ -1848,6 +1840,7 @@ export function Drone() {
         <div className="droneSection">
           <div className="droneSectionTitle">Buff durations (real time)</div>
           <p className="droneHint" style={{ marginBottom: 10 }}>
+            Only buffs on the standard Elixir rotation (9 or 10). Fuel buffs from Chain Bomber, Void, or Veinseeker are not part of this table; use those drone sections.
             Duration depends on game speed, fueled grade (when fueled), and for 3× Fishing Tick: real time only (Ob 37).
           </p>
           {(() => {

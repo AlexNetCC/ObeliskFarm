@@ -2405,6 +2405,111 @@ export function Fishing() {
     availableT2Enhancements,
   ]);
 
+  /** Best enhancement to fully max (excl. Fish Multiplier): largest total +% fish/h vs current; gem sum for all remaining levels. Same greedy dock model as +% gains. */
+  const bestEnhancementToMaxExclFishMultiplier = useMemo(() => {
+    const enhanceCosts = (def: { id: EnhanceId }) => {
+      const t1 = ENHANCE_COSTS_T1[def.id as keyof typeof ENHANCE_COSTS_T1];
+      const t2 = ENHANCE_COSTS_T2[def.id as keyof typeof ENHANCE_COSTS_T2];
+      return t1 ?? t2;
+    };
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+      abyssLegendaryCaught: state.abyssLegendaryCaught,
+      fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
+      relic5xPoints: state.divineRelic5xPoints,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      astraeusIdolLevel: state.astraeusIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      anglerBundle: state.anglerBundle,
+      divineChallengeCoinLevel: state.divineChallengeCoinLevel,
+      infernalMrNibblesPct: state.infernalMrNibblesPct,
+      infernalMrNibblesLevel: state.infernalMrNibblesLevel,
+      infernalAnglerDronePct: state.infernalAnglerDronePct,
+      infernalAnglerDroneLevel: state.infernalAnglerDroneLevel,
+      constructStatue: state.constructStatue,
+      cetusLevel: state.cetusLevel,
+      blackHoleBonus: state.blackHoleBonus,
+    };
+    const greedy0 = getGreedyDockAssignment(upgradeLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      greedy0.dronesPerDock,
+      greedy0.activeDockId,
+      elixir3xFishingExternal,
+      skillOpts,
+      extraTicksPerHour,
+    );
+    if (currentTotal <= 0) return null;
+
+    let best: {
+      name: string;
+      totalPct: number;
+      totalGems: number;
+      costEfficGemAbs: number | null;
+      costEfficGemIncome: number | null;
+    } | null = null;
+    for (const def of [...availableT1Enhancements, ...availableT2Enhancements]) {
+      if (def.id === "enhance_fish_multiplier") continue;
+      const costs = enhanceCosts(def);
+      if (!costs?.length) continue;
+      const maxLvl = costs[costs.length - 1]!.level;
+      const lvl = Math.max(0, Math.min(maxLvl, Math.floor(enhanceLevels[def.id] ?? 0)));
+      if (lvl >= maxLvl) continue;
+
+      let totalGems = 0;
+      for (let L = lvl + 1; L <= maxLvl; L++) {
+        const entry = costs.find((c) => c.level === L);
+        if (entry) totalGems += entry.gems;
+      }
+
+      const maxEnhanceLevels = { ...enhanceLevels, [def.id]: maxLvl };
+      const greedyMax = getGreedyDockAssignment(upgradeLevels, maxEnhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
+      const finalTotal = computeTotalFishPerHour(
+        upgradeLevels,
+        maxEnhanceLevels,
+        greedyMax.dronesPerDock,
+        greedyMax.activeDockId,
+        elixir3xFishingExternal,
+        skillOpts,
+        extraTicksPerHour,
+      );
+      const totalPct = ((finalTotal - currentTotal) / currentTotal) * 100;
+      const costEfficGemAbs = totalGems > 0 ? (totalPct / totalGems) * 100 : null;
+      const costEfficGemIncome =
+        totalGems > 0 && gemEvGemsPerHour > 0 ? totalPct / (totalGems / gemEvGemsPerHour) : null;
+      if (!best || totalPct > best.totalPct) {
+        best = { name: def.name, totalPct, totalGems, costEfficGemAbs, costEfficGemIncome };
+      }
+    }
+    return best;
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    state.fishingRodCardTier,
+    elixir3xFishingExternal,
+    extraTicksPerHour,
+    availableT1Upgrades,
+    availableT2Upgrades,
+    availableT1Enhancements,
+    availableT2Enhancements,
+    gemEvGemsPerHour,
+  ]);
+
   /** +% effective fish gain for +1 Tethys Idol at current build (for tooltip). */
   const tethysIdolMarginalFishPct = useMemo(() => {
     const skillOpts = {
@@ -4719,6 +4824,103 @@ export function Fishing() {
               Gems spent on enhancements so far:{" "}
               <span className="mono" style={{ fontVariantNumeric: "tabular-nums" }}>{totalGemsSpentOnEnhancements.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               {" "}<img src={GEM_ICON_URL} alt="" className="fishingGemIcon" />
+            </p>
+            <p className="fishingEnhancementsIntro fishingEnhancementsBestToMax">
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                Best to max for +% fish/h (excl. Fish Multiplier)
+                <Tooltip
+                  content={{
+                    title: "Best enhancement to max",
+                    sections: [
+                      {
+                        heading: "Meaning",
+                        lines: [
+                          "Which enhancement adds the most total fish per hour if you buy every remaining level up to max.",
+                          "Fish Multiplier is excluded so you can compare the other lines.",
+                        ],
+                      },
+                      {
+                        heading: "Numbers",
+                        lines: [
+                          "Total % = (fish/h at max level − current fish/h) ÷ current fish/h.",
+                          "Gem cost = sum of gem prices for each level from your next level through max.",
+                        ],
+                      },
+                      {
+                        heading: "Model",
+                        lines: [
+                          "Same greedy dock and total fish/h as the +% gains column.",
+                        ],
+                      },
+                    ],
+                  }}
+                />
+                :{" "}
+                {bestEnhancementToMaxExclFishMultiplier ? (
+                  <>
+                    <span className="fishingUpgradeName">{bestEnhancementToMaxExclFishMultiplier.name}</span>
+                    {" — "}
+                    <span className="mono" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      +{bestEnhancementToMaxExclFishMultiplier.totalPct.toFixed(1)}%
+                    </span>
+                    {" total, "}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span className="mono" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {bestEnhancementToMaxExclFishMultiplier.totalGems.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </span>
+                      <img src={GEM_ICON_URL} alt="" className="fishingGemIcon" />
+                      {bestEnhancementToMaxExclFishMultiplier.costEfficGemAbs != null ? (
+                        <Tooltip
+                          content={{
+                            title: "Cost efficiency",
+                            sections: [
+                              {
+                                heading: "This path",
+                                lines: [
+                                  `+${bestEnhancementToMaxExclFishMultiplier.totalPct.toFixed(1)}% total gain vs current fish/h.`,
+                                  `${bestEnhancementToMaxExclFishMultiplier.totalGems.toLocaleString(undefined, { maximumFractionDigits: 0 })} gems for all remaining levels to max.`,
+                                ],
+                              },
+                              {
+                                heading: "Gem absolute",
+                                lines: [
+                                  `(${bestEnhancementToMaxExclFishMultiplier.totalPct.toFixed(1)}% ÷ ${bestEnhancementToMaxExclFishMultiplier.totalGems.toLocaleString(undefined, { maximumFractionDigits: 0 })}) × 100 = ${bestEnhancementToMaxExclFishMultiplier.costEfficGemAbs.toFixed(2)}.`,
+                                  "Same scale as the Cost Effic. column when Use Gem Income for Cost Efficiency is OFF.",
+                                ],
+                              },
+                              ...(gemEvGemsPerHour > 0 && bestEnhancementToMaxExclFishMultiplier.costEfficGemIncome != null
+                                ? [
+                                    {
+                                      heading: "Gem income (EV)",
+                                      lines: [
+                                        `${gemEvGemsPerHour.toFixed(1)} gems/h from Gem EV (open Gem EV to sync).`,
+                                        `Hours to earn this path: ${formatHoursToHhMin(bestEnhancementToMaxExclFishMultiplier.totalGems / gemEvGemsPerHour)}.`,
+                                        `Cost efficiency: ${bestEnhancementToMaxExclFishMultiplier.costEfficGemIncome.toFixed(2)} = total % ÷ (total gems ÷ gems/h).`,
+                                        "Same scale as the Cost Effic. column when Use Gem Income for Cost Efficiency is ON.",
+                                      ],
+                                    },
+                                  ]
+                                : [
+                                    {
+                                      heading: "Gem income (EV)",
+                                      lines: [
+                                        "Open Gem EV Calculator to sync gems/h.",
+                                        "Then cost efficiency here matches the enhancement table with Use Gem Income for Cost Efficiency ON (total % ÷ hours to earn the full gem cost).",
+                                      ],
+                                    },
+                                  ]),
+                            ],
+                          }}
+                        />
+                      ) : null}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ opacity: 0.85 }}>
+                    All listed enhancements (excl. Fish Multiplier) are maxed, or fish/h is zero.
+                  </span>
+                )}
+              </span>
             </p>
             <Collapsible id="fishing-enhancements-t1" title="Tier 1" defaultExpanded={true} className="fishingUpgradesTier">
               <div className="fishingUpgradesList">
