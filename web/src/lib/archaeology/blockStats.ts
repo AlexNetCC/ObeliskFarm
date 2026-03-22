@@ -1,5 +1,8 @@
 import type { BlockTier, BlockType } from "./types";
 
+/** Card / block tiers in sim (tier 4 unlocks at high stages; see wiki Archaeology → Block Stats, “Tier unlock wave”). */
+export const BLOCK_CARD_TIERS = [1, 2, 3, 4] as const;
+
 /** Stage thresholds: from stage 100 use health_100/armor_100, from stage 150 use health_150/armor_150. */
 export type BlockData = {
   tier: BlockTier;
@@ -19,6 +22,15 @@ export type BlockData = {
 };
 
 export const BLOCK_TYPES: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
+
+/**
+ * Sprite path for block cards / breakdown rows. Tier 3 PNGs are not bundled for most rarities (only t1/t2/t4);
+ * tier 3 uses tier-2 art so the icon loads. Tier 4 uses dedicated assets.
+ */
+export function archBlockIconPath(blockType: BlockType, tier: BlockTier): string {
+  const t = tier === 3 ? 2 : tier;
+  return `sprites/archaeology/block_${blockType}_t${t}.png`;
+}
 
 /** HP/Armor for a block at a given stage. From stage 100 use health_100/armor_100, from stage 150 use health_150/armor_150. */
 export function getBlockHealthAtFloor(block: BlockData, floor: number): number {
@@ -51,12 +63,20 @@ export const BLOCK_DATA: BlockData[] = [
   { tier: 2, block_type: "mythic", health: 10500, xp: 22.5, armor: 247.5, fragment: 0.02, floor_min: 35, floor_max: 49, health_100: 21000, armor_100: 371.25, health_150: 42000, armor_150: 371.25 },
 
   // Tier 3
-  { tier: 3, block_type: "dirt", health: 900, xp: 0.45, armor: 0, fragment: 0, floor_min: 24, floor_max: Number.POSITIVE_INFINITY, health_100: 1800, armor_100: 0, health_150: 3600, armor_150: 0 },
-  { tier: 3, block_type: "common", health: 2250, xp: 1.35, armor: 13.61, fragment: 0.04, floor_min: 30, floor_max: Number.POSITIVE_INFINITY, health_100: 4500, armor_100: 20.42, health_150: 9000, armor_150: 20.42 },
-  { tier: 3, block_type: "rare", health: 4950, xp: 3.15, armor: 32.67, fragment: 0.04, floor_min: 36, floor_max: Number.POSITIVE_INFINITY, health_100: 9900, armor_100: 49, health_150: 19800, armor_150: 49 },
-  { tier: 3, block_type: "epic", health: 10350, xp: 9.0, armor: 68.06, fragment: 0.04, floor_min: 42, floor_max: Number.POSITIVE_INFINITY, health_100: 20700, armor_100: 102.09, health_150: 41400, armor_150: 102.09 },
-  { tier: 3, block_type: "legendary", health: 17550, xp: 31.5, armor: 136.12, fragment: 0.04, floor_min: 45, floor_max: Number.POSITIVE_INFINITY, health_100: 35100, armor_100: 204.19, health_150: 70200, armor_150: 204.19 },
-  { tier: 3, block_type: "mythic", health: 31500, xp: 67.5, armor: 408.37, fragment: 0.04, floor_min: 50, floor_max: Number.POSITIVE_INFINITY, health_100: 63000, armor_100: 612.56, health_150: 126000, armor_150: 612.56 },
+  { tier: 3, block_type: "dirt", health: 900, xp: 0.45, armor: 0, fragment: 0, floor_min: 24, floor_max: 80, health_100: 1800, armor_100: 0, health_150: 3600, armor_150: 0 },
+  { tier: 3, block_type: "common", health: 2250, xp: 1.35, armor: 13.61, fragment: 0.04, floor_min: 30, floor_max: 95, health_100: 4500, armor_100: 20.42, health_150: 9000, armor_150: 20.42 },
+  { tier: 3, block_type: "rare", health: 4950, xp: 3.15, armor: 32.67, fragment: 0.04, floor_min: 36, floor_max: 110, health_100: 9900, armor_100: 49, health_150: 19800, armor_150: 49 },
+  { tier: 3, block_type: "epic", health: 10350, xp: 9.0, armor: 68.06, fragment: 0.04, floor_min: 42, floor_max: 125, health_100: 20700, armor_100: 102.09, health_150: 41400, armor_150: 102.09 },
+  { tier: 3, block_type: "legendary", health: 17550, xp: 31.5, armor: 136.12, fragment: 0.04, floor_min: 45, floor_max: 135, health_100: 35100, armor_100: 204.19, health_150: 70200, armor_150: 204.19 },
+  { tier: 3, block_type: "mythic", health: 31500, xp: 67.5, armor: 408.37, fragment: 0.04, floor_min: 50, floor_max: 140, health_100: 63000, armor_100: 612.56, health_150: 126000, armor_150: 612.56 },
+
+  // Tier 4 — wiki Block Stats (Tier unlock wave = first stage this tier appears)
+  { tier: 4, block_type: "dirt", health: 2700, xp: 1.35, armor: 0, fragment: 0, floor_min: 81, floor_max: Number.POSITIVE_INFINITY, health_100: 5400, armor_100: 0, health_150: 10800, armor_150: 0 },
+  { tier: 4, block_type: "common", health: 6750, xp: 4.05, armor: 22.46, fragment: 0.08, floor_min: 96, floor_max: Number.POSITIVE_INFINITY, health_100: 13500, armor_100: 33.69, health_150: 27000, armor_150: 33.69 },
+  { tier: 4, block_type: "rare", health: 14850, xp: 9.45, armor: 53.91, fragment: 0.08, floor_min: 111, floor_max: Number.POSITIVE_INFINITY, health_100: 29700, armor_100: 80.86, health_150: 59400, armor_150: 80.86 },
+  { tier: 4, block_type: "epic", health: 31050, xp: 27.0, armor: 112.3, fragment: 0.08, floor_min: 126, floor_max: Number.POSITIVE_INFINITY, health_100: 62100, armor_100: 168.45, health_150: 124200, armor_150: 168.45 },
+  { tier: 4, block_type: "legendary", health: 52650, xp: 94.5, armor: 224.61, fragment: 0.08, floor_min: 136, floor_max: Number.POSITIVE_INFINITY, health_100: 105300, armor_100: 336.91, health_150: 210600, armor_150: 336.91 },
+  { tier: 4, block_type: "mythic", health: 94500, xp: 202.5, armor: 673.82, fragment: 0.08, floor_min: 141, floor_max: Number.POSITIVE_INFINITY, health_100: 189000, armor_100: 1010.73, health_150: 378000, armor_150: 1010.73 },
 ];
 
 function key(tier: number, bt: string) {
@@ -100,9 +120,10 @@ export function getBlockMixForFloor(floor: number): Record<BlockType, BlockData>
 }
 
 /** Gem cost for upgrading a block card from Normal (Card) to Gilded. Gold 25m, PP 500m (not used here). */
-export function getCardGemCost(blockType: BlockType, tier: 1 | 2 | 3): number {
+/** Gem cost index: tiers 1–3 use the same slots as before (6×3); tier 4 continues after that (6 more). */
+export function getCardGemCost(blockType: BlockType, tier: BlockTier): number {
   const BT_INDEX = BLOCK_TYPES.indexOf(blockType);
-  const idx = BT_INDEX * 3 + (tier - 1);
+  const idx = tier <= 3 ? BT_INDEX * 3 + (tier - 1) : BLOCK_TYPES.length * 3 + BT_INDEX;
   return 1000 + idx * 125;
 }
 

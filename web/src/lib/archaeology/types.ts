@@ -1,6 +1,6 @@
 export type Skill = "strength" | "agility" | "perception" | "intellect" | "luck";
 export type BlockType = "dirt" | "common" | "rare" | "epic" | "legendary" | "mythic";
-export type BlockTier = 1 | 2 | 3;
+export type BlockTier = 1 | 2 | 3 | 4;
 export type CardLevel = 0 | 1 | 2 | 3;
 
 // Gem upgrades in the desktop Arch simulator (cost type: Gems)

@@ -6,7 +6,7 @@ import { formatInt, formatWithThinSpaces } from "../../lib/format";
 import { mulberry32 } from "../../lib/rng";
 import { loadJson, saveJson } from "../../lib/storage";
 import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES, SKILL_BONUSES } from "../../lib/archaeology/constants";
-import { BLOCK_TYPES, getBlockData, getCardGemCost } from "../../lib/archaeology/blockStats";
+import { archBlockIconPath, BLOCK_CARD_TIERS, BLOCK_TYPES, getBlockData, getCardGemCost } from "../../lib/archaeology/blockStats";
 import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getFragmentUpgradeBonuses, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
 import { getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
 import { PERMANENT_SPEED_MOD_INITIAL_HITS } from "../../lib/archaeology/mc/monteCarlo";
@@ -110,6 +110,8 @@ type McLogEntry = {
     staminaAtStageByRun?: number[][];
     tieBreak?: {
       mode: "stage" | "XP" | "frag";
+      /** XP optimizer: first tie-break after XP/h is fragments/h vs avg max stage. */
+      xpTieBreakSecondary?: "frag_per_hour" | "avg_max_stage";
       epsilon: number;
       primaryMetric: string;
       tiedAtPrimary: number;
@@ -144,6 +146,8 @@ type McSettings = {
   comparisonMethods: McComparisonMethodId[];
   // Use statistical tests (Welch t-test, α=0.05) to decide ties instead of fixed 3% threshold
   tieBreakWithSignificance: boolean;
+  /** XP optimizer only: first tie-break after XP/h — fragments/h (default) or avg max stage. */
+  xpTieBreakSecondary: "frag_per_hour" | "avg_max_stage";
 };
 
 function defaultMcSettings(): McSettings {
@@ -156,6 +160,7 @@ function defaultMcSettings(): McSettings {
     comparisonEnabled: false,
     comparisonMethods: ["default", "multiStart3"],
     tieBreakWithSignificance: true,
+    xpTieBreakSecondary: "frag_per_hour",
   };
 }
 
@@ -169,7 +174,7 @@ function Sprite(props: { path: string | null; alt: string; className?: string; l
 function defaultBuild(): ArchBuild {
   const blockCards: Record<string, CardLevel> = {};
   for (const bt of BLOCK_TYPES) {
-    for (const tier of [1, 2, 3] as const) {
+    for (const tier of BLOCK_CARD_TIERS) {
       if (getBlockData(tier, bt)) blockCards[`${bt},${tier}`] = 0;
     }
   }
@@ -377,6 +382,8 @@ export function ArchSim() {
         ? (raw.comparisonMethods as McComparisonMethodId[]).filter((m) => m === "default" || m === "multiStart3")
         : base.comparisonMethods,
       tieBreakWithSignificance: true, // hidden UI; significance flow always on
+      xpTieBreakSecondary:
+        raw?.xpTieBreakSecondary === "avg_max_stage" ? "avg_max_stage" : "frag_per_hour",
     };
   });
   function confirmDanger(message: string): boolean {
@@ -406,7 +413,7 @@ export function ArchSim() {
           heading: "Metrics by MC mode",
           lines: [
             "Max stage: primary = avg max stage, secondary = fragments/hour, tertiary = XP/hour.",
-            "XP/hour: primary = XP/hour, secondary = fragments/hour, tertiary = avg max stage.",
+            "XP/hour: primary = XP/hour. Tie-break order is chosen next to Run MC: fragments/h first then avg max stage, or avg max stage first then fragments/h.",
             "Fragments/hour: primary = target fragment/h. Secondary = next-smaller fragment/h (or next-higher if none). Tertiary = next fragment/h when available; for Mythic only, XP/h is used as tertiary.",
           ],
         },
@@ -1109,6 +1116,19 @@ export function ArchSim() {
     };
     const scores: Cand[] = [];
     const useSignificance = mcSettings.tieBreakWithSignificance;
+    /** XP: after XP/h, compare fragments/h before stage (default) or stage before fragments/h. */
+    const xpTieFragFirst = mcSettings.xpTieBreakSecondary !== "avg_max_stage";
+    function xpTieMetrics(
+      fragsPerHour: number,
+      avgMaxStage: number,
+      stdFrag?: number,
+      stdStage?: number,
+    ): { secondary: number; tertiary: number; secondaryStd?: number; tertiaryStd?: number } {
+      if (xpTieFragFirst) {
+        return { secondary: fragsPerHour, tertiary: avgMaxStage, secondaryStd: stdFrag, tertiaryStd: stdStage };
+      }
+      return { secondary: avgMaxStage, tertiary: fragsPerHour, secondaryStd: stdStage, tertiaryStd: stdFrag };
+    }
 
     const maxPending = Math.max(2, pool.size * 2);
     let completed = 0;
@@ -1169,15 +1189,16 @@ export function ArchSim() {
         const xpPerHour = out.xp_per_hour ?? 0;
         const n = out.n ?? 0;
         if (mode === "XP") {
+          const xm = xpTieMetrics(fragsPerHour, avgMaxStage, out.std_fragments_per_hour, out.std_max_stage);
           scores.push({
             dist,
             primary: xpPerHour,
-            secondary: fragsPerHour,
-            tertiary: avgMaxStage,
+            secondary: xm.secondary,
+            tertiary: xm.tertiary,
             primaryStd: out.std_xp_per_hour,
             primaryN: n,
-            secondaryStd: out.std_fragments_per_hour,
-            tertiaryStd: out.std_max_stage,
+            secondaryStd: xm.secondaryStd,
+            tertiaryStd: xm.tertiaryStd,
           });
         } else {
           scores.push({
@@ -1201,7 +1222,8 @@ export function ArchSim() {
       const fragsPerHour = Number(out.fragments_per_hour ?? 0);
       const xpPerHour = Number(out.xp_per_hour ?? 0);
       if (mode === "XP") {
-        scores.push({ dist, primary: xpPerHour, secondary: fragsPerHour, tertiary: avgMaxStage });
+        const xm = xpTieMetrics(fragsPerHour, avgMaxStage);
+        scores.push({ dist, primary: xpPerHour, secondary: xm.secondary, tertiary: xm.tertiary });
       } else {
         scores.push({ dist, primary: avgMaxStage, secondary: fragsPerHour, tertiary: xpPerHour });
       }
@@ -1242,7 +1264,20 @@ export function ArchSim() {
       const hasTertiary = (best.tertiary ?? 0) > 0 || cands.some((c) => (c.tertiary ?? 0) !== 0);
       const primaryMetric = mode === "stage" ? "avg_max_stage" : mode === "XP" ? "xp_per_hour" : "frag_per_hour";
       let winnerReason = "highest primary score";
-      if (tiedAtPrimary > 1 && (mode === "stage" || mode === "XP")) {
+      if (tiedAtPrimary > 1 && mode === "XP") {
+        const tail = xpTieFragFirst
+          ? hasTertiary
+            ? "tie-break by fragments/h then avg max stage"
+            : hasSecondary
+              ? "tie-break by fragments/h"
+              : "tie-break (lexicographic)"
+          : hasTertiary
+            ? "tie-break by avg max stage then fragments/h"
+            : hasSecondary
+              ? "tie-break by avg max stage"
+              : "tie-break (lexicographic)";
+        winnerReason = `primary tied → ${tail}`;
+      } else if (tiedAtPrimary > 1 && mode === "stage") {
         const tail = hasTertiary ? "tie-break by secondary then tertiary" : hasSecondary ? "tie-break by secondary" : "tie-break (lexicographic)";
         winnerReason = `primary tied → ${tail}`;
       } else if (tiedAtPrimary > 1 && mode === "frag") {
@@ -1277,6 +1312,7 @@ export function ArchSim() {
         tiedAtPrimary,
         winnerReason,
         ...(mode === "frag" ? { targetFrag } : {}),
+        ...(mode === "XP" ? { xpTieBreakSecondary: xpTieFragFirst ? ("frag_per_hour" as const) : ("avg_max_stage" as const) } : {}),
         top3,
       };
     }
@@ -1612,15 +1648,16 @@ export function ArchSim() {
                 const xpPerHour = out.xp_per_hour ?? 0;
                 const n = out.n ?? 0;
                 if (mode === "XP") {
+                  const xm = xpTieMetrics(fragsPerHour, avgMaxStage, out.std_fragments_per_hour, out.std_max_stage);
                   refined.push({
                     dist,
                     primary: xpPerHour,
-                    secondary: fragsPerHour,
-                    tertiary: avgMaxStage,
+                    secondary: xm.secondary,
+                    tertiary: xm.tertiary,
                     primaryStd: out.std_xp_per_hour,
                     primaryN: n,
-                    secondaryStd: out.std_fragments_per_hour,
-                    tertiaryStd: out.std_max_stage,
+                    secondaryStd: xm.secondaryStd,
+                    tertiaryStd: xm.tertiaryStd,
                   });
                 } else {
                   refined.push({
@@ -1643,8 +1680,10 @@ export function ArchSim() {
               const avgMaxStage = Number(out.avg_max_stage ?? 0);
               const fragsPerHour = Number(out.fragments_per_hour ?? 0);
               const xpPerHour = Number(out.xp_per_hour ?? 0);
-              if (mode === "XP") refined.push({ dist, primary: xpPerHour, secondary: fragsPerHour, tertiary: avgMaxStage });
-              else refined.push({ dist, primary: avgMaxStage, secondary: fragsPerHour, tertiary: xpPerHour });
+              if (mode === "XP") {
+                const xm = xpTieMetrics(fragsPerHour, avgMaxStage);
+                refined.push({ dist, primary: xpPerHour, secondary: xm.secondary, tertiary: xm.tertiary });
+              } else refined.push({ dist, primary: avgMaxStage, secondary: fragsPerHour, tertiary: xpPerHour });
             })().then(() => {
               completed += 1;
               if (completed % 10 === 0 || completed === totalRef) setMcProgress(`Phase 2: Refinement (${completed}/${totalRef})`);
@@ -1699,11 +1738,23 @@ export function ArchSim() {
                   if (hasSecondary && secLabel) return `tie-break by ${secLabel}/h`;
                   return "tie-break (lexicographic)";
                 })()
-              : hasTertiary
-                ? "tie-break by secondary then tertiary"
-                : hasSecondary
-                  ? "tie-break by secondary"
-                  : "tie-break (lexicographic)";
+              : mode === "XP"
+                ? xpTieFragFirst
+                  ? hasTertiary
+                    ? "tie-break by fragments/h then avg max stage"
+                    : hasSecondary
+                      ? "tie-break by fragments/h"
+                      : "tie-break (lexicographic)"
+                  : hasTertiary
+                    ? "tie-break by avg max stage then fragments/h"
+                    : hasSecondary
+                      ? "tie-break by avg max stage"
+                      : "tie-break (lexicographic)"
+                : hasTertiary
+                  ? "tie-break by secondary then tertiary"
+                  : hasSecondary
+                    ? "tie-break by secondary"
+                    : "tie-break (lexicographic)";
           winnerReason = `primary not significantly different (α=0.05) → ${tail}`;
         }
         const top3 = topCands.slice(0, 3).map((c, i) => ({
@@ -1721,6 +1772,7 @@ export function ArchSim() {
           tiedAtPrimary,
           winnerReason,
           ...(mode === "frag" ? { targetFrag } : {}),
+          ...(mode === "XP" ? { xpTieBreakSecondary: xpTieFragFirst ? ("frag_per_hour" as const) : ("avg_max_stage" as const) } : {}),
           top3,
         };
       } else {
@@ -2371,7 +2423,7 @@ export function ArchSim() {
     }
     const eligibleCards: Array<{ key: string; blockType: BlockType; tier: BlockTier; displayName: string }> = [];
     for (const bt of BLOCK_TYPES) {
-      for (const t of [1, 2, 3] as const) {
+      for (const t of BLOCK_CARD_TIERS) {
         if (!getBlockData(t, bt)) continue;
         const key = `${bt},${t}`;
         const cur = (baseBuild.blockCards[key] ?? 0) as CardLevel;
@@ -2531,7 +2583,7 @@ export function ArchSim() {
     }
     const eligibleCards: Array<{ key: string; blockType: BlockType; tier: BlockTier; displayName: string }> = [];
     for (const bt of BLOCK_TYPES) {
-      for (const t of [1, 2, 3] as const) {
+      for (const t of BLOCK_CARD_TIERS) {
         if (!getBlockData(t, bt)) continue;
         const key = `${bt},${t}`;
         const cur = (baseBuild.blockCards[key] ?? 0) as CardLevel;
@@ -3003,10 +3055,24 @@ export function ArchSim() {
             { key: "xp", label: "XP/h", barClass: "tbBarXp", valueFmt: (v) => v.toFixed(1), get: (r) => Number(r.tertiary ?? 0) },
           ]
         : tb.mode === "XP"
-          ? [
-              { key: "frags", label: "Fragments/h", barClass: "tbBarFrag", valueFmt: (v) => v.toFixed(2), get: (r) => Number(r.secondary ?? 0) },
-              { key: "stage", label: "Avg max stage", barClass: "tbBarStage", valueFmt: (v) => v.toFixed(2), get: (r) => Number(r.tertiary ?? 0) },
-            ]
+          ? (() => {
+              const fragFirst = tb.xpTieBreakSecondary !== "avg_max_stage";
+              const fragsBar = {
+                key: "frags",
+                label: "Fragments/h",
+                barClass: "tbBarFrag",
+                valueFmt: (v: number) => v.toFixed(2),
+                get: (r: (typeof rows)[number]) => Number((fragFirst ? r.secondary : r.tertiary) ?? 0),
+              };
+              const stageBar = {
+                key: "stage",
+                label: "Avg max stage",
+                barClass: "tbBarStage",
+                valueFmt: (v: number) => v.toFixed(2),
+                get: (r: (typeof rows)[number]) => Number((fragFirst ? r.tertiary : r.secondary) ?? 0),
+              };
+              return fragFirst ? [fragsBar, stageBar] : [stageBar, fragsBar];
+            })()
           : tb.mode === "frag" && tb.targetFrag
             ? (() => {
                 const idx = FRAG_ORDER_BAR.indexOf(tb.targetFrag);
@@ -3185,7 +3251,11 @@ export function ArchSim() {
           </svg>
         </span>
         <div className="archWarningText">
-          Since 2.1 (end of February 2026) block spawn odds have changed. Changes according to wiki are so far implemented! (No Ascension here, tho)
+          Since 2.1 (end of Feb 2026) a lot of stats changed in Archaeology. All changes which are shown in the{" "}
+          <a href="https://shminer.miraheze.org/wiki/Archaeology" target="_blank" rel="noopener noreferrer">
+            wiki
+          </a>{" "}
+          here are implemented! (as per March 2026)
         </div>
       </div>
 
@@ -4419,12 +4489,12 @@ export function ArchSim() {
                       </span>
                     </div>
 
-                    {[1, 2, 3].map((tier) => {
+                    {BLOCK_CARD_TIERS.map((tier) => {
                       const t = tier as BlockTier;
                       if (!getBlockData(t, bt)) return null;
                       const cardKey = `${bt},${t}`;
                       const cur = (build.blockCards[cardKey] ?? 0) as CardLevel;
-                      const icon = `sprites/archaeology/block_${bt}_t1.png`;
+                      const icon = archBlockIconPath(bt, t);
                       return (
                         <div
                           key={tier}
@@ -4744,6 +4814,42 @@ export function ArchSim() {
                         />
                       </div>
                       <div className="small">Objective: maximize XP/hour.</div>
+                      <div className="row" style={{ marginTop: 8, flexWrap: "wrap", alignItems: "center", gap: "8px 14px" }}>
+                        <span className="label" style={{ marginBottom: 0 }}>
+                          Tie-break after XP/h
+                          <Tooltip
+                            content={{
+                              title: "Tie-break after XP/h",
+                              lines: [
+                                "When two builds have similar XP/h, the optimizer picks the better one using a second metric, then a third.",
+                                "Fragments/h first: compare total fragments/h, then avg max stage.",
+                                "Avg max stage first: compare avg max stage, then fragments/h.",
+                              ],
+                            }}
+                            label="?"
+                          />
+                        </span>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 0, cursor: mcRunning ? "default" : "pointer" }}>
+                          <input
+                            type="radio"
+                            name="arch-xp-tie"
+                            checked={mcSettings.xpTieBreakSecondary === "frag_per_hour"}
+                            disabled={mcRunning}
+                            onChange={() => setMcSettings((s) => ({ ...s, xpTieBreakSecondary: "frag_per_hour" }))}
+                          />
+                          <span>Fragments/h first</span>
+                        </label>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 0, cursor: mcRunning ? "default" : "pointer" }}>
+                          <input
+                            type="radio"
+                            name="arch-xp-tie"
+                            checked={mcSettings.xpTieBreakSecondary === "avg_max_stage"}
+                            disabled={mcRunning}
+                            onChange={() => setMcSettings((s) => ({ ...s, xpTieBreakSecondary: "avg_max_stage" }))}
+                          />
+                          <span>Avg max stage first</span>
+                        </label>
+                      </div>
                       <div className="btnRow" style={{ marginTop: 10 }}>
                         <button
                           className="btn"
@@ -5211,7 +5317,7 @@ export function ArchSim() {
                           return entries.map(({ key, blockType, tier, v }) => (
                             <tr key={key}>
                               <td>
-                                <Sprite path={`sprites/archaeology/block_${blockType}_t${tier}.png`} alt={`${blockType} T${tier}`} className="iconSmall" />
+                                <Sprite path={archBlockIconPath(blockType as BlockType, Number(tier) as BlockTier)} alt={`${blockType} T${tier}`} className="iconSmall" />
                               </td>
                               <td>{blockType.charAt(0).toUpperCase() + blockType.slice(1)} T{tier}</td>
                               <td className="num mono">{formatWithThinSpaces(v.blocks_destroyed_per_run, 1)}</td>
