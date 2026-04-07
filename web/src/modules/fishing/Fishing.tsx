@@ -113,6 +113,8 @@ type SavedState = {
   constructStatue?: "none" | "gilded" | "platinized";
   /** Stargazing: Cetus level. +2% Fish Income per level. */
   cetusLevel?: number;
+  /** Stargazing: Super Stars Fish Income Multiplier. +1.25% per level. */
+  superStarsLevel?: number;
   /** Stargazing: Black Hole Bonus. Tier 2 Dock Power +25%. */
   blackHoleBonus?: boolean;
   /** Upgrades: Fishing Drone Power (World 3). +0.1 base drone power per level. */
@@ -192,6 +194,8 @@ type FishingState = {
   constructStatue: "none" | "gilded" | "platinized";
   /** Stargazing: Cetus level. +2% Fish Income per level (own mult). */
   cetusLevel: number;
+  /** Stargazing: Super Stars Fish Income Multiplier. +1.25% per level (own mult). */
+  superStarsLevel: number;
   /** Stargazing: Black Hole Bonus. Tier 2 Dock Power +25%. */
   blackHoleBonus: boolean;
   /** Cards: Infernal Mr Nibbles — % per level (flat 5× tick chance). */
@@ -256,6 +260,7 @@ function getDefaultFishingState(): FishingState {
     divineChallengeCoinLevel: 0,
     constructStatue: "none",
     cetusLevel: 0,
+    superStarsLevel: 0,
     blackHoleBonus: false,
     infernalMrNibblesPct: 0,
     infernalMrNibblesLevel: 0,
@@ -627,6 +632,7 @@ type TotalFishOptions = {
   infernalAnglerDroneLevel?: number;
   constructStatue?: "none" | "gilded" | "platinized";
   cetusLevel?: number;
+  superStarsLevel?: number;
   blackHoleBonus?: boolean;
 };
 
@@ -1206,7 +1212,7 @@ export function Fishing() {
     const sushiCardTier = clamp(Math.trunc(Number(saved?.sushiCardTier ?? 0)), 0, 3) as FishCardTier;
     const valuePackPotencyPoly = saved?.valuePackPotencyPoly ?? false;
     const skillTreeLevels = saved?.skillTreeLevels ?? {};
-    const legendaryFishFound = clamp(Number(saved?.legendaryFishFound ?? 0), 0, 6);
+    const legendaryFishFound = Math.max(0, Math.floor(Number(saved?.legendaryFishFound ?? 0)));
     const abyssLegendaryCaught = Boolean(saved?.abyssLegendaryCaught ?? false);
     const fishingRodCardTier = clamp(Math.trunc(Number(saved?.fishingRodCardTier ?? 0)), 0, 3) as FishCardTier;
     const mrNibblesCardTier = clamp(Math.trunc(Number(saved?.mrNibblesCardTier ?? 0)), 0, 3) as FishCardTier;
@@ -1238,13 +1244,14 @@ export function Fishing() {
     const constructStatue =
       constructStatueRaw === "gilded" || constructStatueRaw === "platinized" ? constructStatueRaw : "none";
     const cetusLevel = Math.max(0, Math.trunc(Number(saved?.cetusLevel ?? 0)));
+    const superStarsLevel = Math.max(0, Math.trunc(Number(saved?.superStarsLevel ?? 0)));
     const blackHoleBonus = Boolean(saved?.blackHoleBonus ?? false);
     const droneBasePowerWorld3Upgrade = Math.max(0, Math.trunc(Number(saved?.droneBasePowerWorld3Upgrade ?? 0)));
     const infernalMrNibblesPct = Math.max(0, Number(saved?.infernalMrNibblesPct ?? 0));
     const infernalMrNibblesLevel = Math.max(0, Math.trunc(Number(saved?.infernalMrNibblesLevel ?? 0)));
     const infernalAnglerDronePct = Math.max(0, Number(saved?.infernalAnglerDronePct ?? 0));
     const infernalAnglerDroneLevel = Math.max(0, Math.trunc(Number(saved?.infernalAnglerDroneLevel ?? 0)));
-    return { dronesPerDock, showDisabledFishGrayed, showPolyShardDroprate, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, abyssLegendaryCaught, divineRelic5xPoints, mcHours, mcRuns, sushiMcSushis, mrNibblesLevel, mrNibblesQuestUnlocked, mrNibblesQuestRank, mrNibblesSkin, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, halfWayBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
+    return { dronesPerDock, showDisabledFishGrayed, showPolyShardDroprate, useGemIncomeForCostEffic, activeDockId, upgradeLevels, enhanceLevels, fishCardTier, sushiCardTier, fishingRodCardTier, mrNibblesCardTier, valuePackPotencyPoly, skillTreeLevels, legendaryFishFound, abyssLegendaryCaught, divineRelic5xPoints, mcHours, mcRuns, sushiMcSushis, mrNibblesLevel, mrNibblesQuestUnlocked, mrNibblesQuestRank, mrNibblesSkin, poseidonIdolLevel, tethysIdolLevel, astraeusIdolLevel, droneBasePowerWorld3Upgrade, fishingDroneBasePowerWorld3, workshopSushiTicksWorld3, legendaryHaulerBundle, fishersBundle, anglerBundle, halfWayBundle, divineChallengeCoinLevel, constructStatue, cetusLevel, superStarsLevel, blackHoleBonus, infernalMrNibblesPct, infernalMrNibblesLevel, infernalAnglerDronePct, infernalAnglerDroneLevel };
   });
 
   useEffect(() => {
@@ -1281,6 +1288,7 @@ export function Fishing() {
     skillTreeLevels,
     fishCardTier: state.fishCardTier,
     legendaryFishFound: state.legendaryFishFound,
+    abyssLegendaryCaught: state.abyssLegendaryCaught,
     relic5xPoints: state.divineRelic5xPoints,
     mrNibblesLevel: state.mrNibblesLevel,
     mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
@@ -1299,6 +1307,7 @@ export function Fishing() {
     divineChallengeCoinLevel: state.divineChallengeCoinLevel,
     constructStatue: state.constructStatue,
     cetusLevel: state.cetusLevel,
+    superStarsLevel: state.superStarsLevel,
     blackHoleBonus: state.blackHoleBonus,
     infernalMrNibblesPct: state.infernalMrNibblesPct,
     infernalMrNibblesLevel: state.infernalMrNibblesLevel,
@@ -2793,6 +2802,91 @@ export function Fishing() {
     extraTicksPerHour,
   ]);
 
+  /** +% effective fish gain when enabling Cthulhu Tribute at current build. */
+  const cthulhuTributeMarginalFishPct = useMemo(() => {
+    if (state.abyssLegendaryCaught) return null;
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+      abyssLegendaryCaught: false,
+      fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesCardTier: state.mrNibblesCardTier,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      astraeusIdolLevel: state.astraeusIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      anglerBundle: state.anglerBundle,
+      halfWayBundle: state.halfWayBundle,
+      divineChallengeCoinLevel: state.divineChallengeCoinLevel,
+      infernalMrNibblesPct: state.infernalMrNibblesPct,
+      infernalMrNibblesLevel: state.infernalMrNibblesLevel,
+      infernalAnglerDronePct: state.infernalAnglerDronePct,
+      infernalAnglerDroneLevel: state.infernalAnglerDroneLevel,
+      constructStatue: state.constructStatue,
+      cetusLevel: state.cetusLevel,
+      blackHoleBonus: state.blackHoleBonus,
+    };
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      skillOpts,
+      extraTicksPerHour,
+    );
+    const newTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      state.dronesPerDock,
+      state.activeDockId,
+      elixir3xFishingExternal,
+      { ...skillOpts, abyssLegendaryCaught: true },
+      extraTicksPerHour,
+    );
+    return currentTotal > 0 ? ((newTotal - currentTotal) / currentTotal) * 100 : null;
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.dronesPerDock,
+    state.activeDockId,
+    state.abyssLegendaryCaught,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    state.fishingRodCardTier,
+    state.mrNibblesCardTier,
+    state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
+    state.mrNibblesQuestRank,
+    state.poseidonIdolLevel,
+    state.tethysIdolLevel,
+    state.astraeusIdolLevel,
+    state.droneBasePowerWorld3Upgrade,
+    state.fishingDroneBasePowerWorld3,
+    state.legendaryHaulerBundle,
+    state.fishersBundle,
+    state.anglerBundle,
+    state.halfWayBundle,
+    state.divineChallengeCoinLevel,
+    state.infernalMrNibblesPct,
+    state.infernalMrNibblesLevel,
+    state.infernalAnglerDronePct,
+    state.infernalAnglerDroneLevel,
+    state.constructStatue,
+    state.cetusLevel,
+    state.blackHoleBonus,
+    elixir3xFishingExternal,
+    extraTicksPerHour,
+  ]);
+
   /** Store bundles: expected +% gain for each package (same basis as upgrades: greedy total fish/h). Polychrome uses displayed total with card multis. */
   const storeBundleMarginalPct = useMemo(() => {
     const skillOpts = {
@@ -3556,6 +3650,98 @@ export function Fishing() {
     state.constructStatue,
     state.cetusLevel,
     state.blackHoleBonus,
+    elixir3xFishingExternal,
+    extraTicksPerHour,
+  ]);
+
+  /** Divine Relic +1 point: marginal % total fish/h (greedy dock, same basis as other diverse upgrades). */
+  const divineRelicNextLevelFishMarginalPct = useMemo(() => {
+    if (state.divineRelic5xPoints >= 999) return null;
+    const skillOpts = {
+      skillTreeLevels: state.skillTreeLevels,
+      fishCardTier: state.fishCardTier,
+      legendaryFishFound: state.legendaryFishFound,
+      abyssLegendaryCaught: state.abyssLegendaryCaught,
+      fishingRodCardTier: state.fishingRodCardTier,
+      mrNibblesCardTier: state.mrNibblesCardTier,
+      relic5xPoints: state.divineRelic5xPoints,
+      mrNibblesLevel: state.mrNibblesLevel,
+      mrNibblesQuestUnlocked: state.mrNibblesQuestUnlocked,
+      mrNibblesQuestRank: state.mrNibblesQuestRank,
+      mrNibblesSkin: state.mrNibblesSkin,
+      poseidonIdolLevel: state.poseidonIdolLevel,
+      tethysIdolLevel: state.tethysIdolLevel,
+      astraeusIdolLevel: state.astraeusIdolLevel,
+      droneBasePowerWorld3Upgrade: state.droneBasePowerWorld3Upgrade,
+      fishingDroneBasePowerWorld3: state.fishingDroneBasePowerWorld3,
+      legendaryHaulerBundle: state.legendaryHaulerBundle,
+      fishersBundle: state.fishersBundle,
+      anglerBundle: state.anglerBundle,
+      halfWayBundle: state.halfWayBundle,
+      divineChallengeCoinLevel: state.divineChallengeCoinLevel,
+      constructStatue: state.constructStatue,
+      cetusLevel: state.cetusLevel,
+      superStarsLevel: state.superStarsLevel,
+      blackHoleBonus: state.blackHoleBonus,
+      infernalMrNibblesPct: state.infernalMrNibblesPct,
+      infernalMrNibblesLevel: state.infernalMrNibblesLevel,
+      infernalAnglerDronePct: state.infernalAnglerDronePct,
+      infernalAnglerDroneLevel: state.infernalAnglerDroneLevel,
+    };
+    const greedy = getGreedyDockAssignment(upgradeLevels, enhanceLevels, skillOpts, elixir3xFishingExternal, extraTicksPerHour);
+    const currentTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      greedy.dronesPerDock,
+      greedy.activeDockId,
+      elixir3xFishingExternal,
+      skillOpts,
+      extraTicksPerHour,
+    );
+    if (!(currentTotal > 0)) return null;
+    const nextOpts = { ...skillOpts, relic5xPoints: state.divineRelic5xPoints + 1 };
+    const nextTotal = computeTotalFishPerHour(
+      upgradeLevels,
+      enhanceLevels,
+      greedy.dronesPerDock,
+      greedy.activeDockId,
+      elixir3xFishingExternal,
+      nextOpts,
+      extraTicksPerHour,
+    );
+    return ((nextTotal - currentTotal) / currentTotal) * 100;
+  }, [
+    upgradeLevels,
+    enhanceLevels,
+    state.skillTreeLevels,
+    state.fishCardTier,
+    state.legendaryFishFound,
+    state.abyssLegendaryCaught,
+    state.fishingRodCardTier,
+    state.mrNibblesCardTier,
+    state.divineRelic5xPoints,
+    state.mrNibblesLevel,
+    state.mrNibblesQuestUnlocked,
+    state.mrNibblesQuestRank,
+    state.mrNibblesSkin,
+    state.poseidonIdolLevel,
+    state.tethysIdolLevel,
+    state.astraeusIdolLevel,
+    state.droneBasePowerWorld3Upgrade,
+    state.fishingDroneBasePowerWorld3,
+    state.legendaryHaulerBundle,
+    state.fishersBundle,
+    state.anglerBundle,
+    state.halfWayBundle,
+    state.divineChallengeCoinLevel,
+    state.constructStatue,
+    state.cetusLevel,
+    state.superStarsLevel,
+    state.blackHoleBonus,
+    state.infernalMrNibblesPct,
+    state.infernalMrNibblesLevel,
+    state.infernalAnglerDronePct,
+    state.infernalAnglerDroneLevel,
     elixir3xFishingExternal,
     extraTicksPerHour,
   ]);
@@ -5850,36 +6036,16 @@ export function Fishing() {
           <div className="fishingSkillOptions">
             <div className="fishingSkillOptionRow">
               <img src={SKILL_POINT_ICON_URL} alt="" style={{ width: 20, height: 20, objectFit: "contain", flexShrink: 0 }} />
-              <span>Legendary Fish Found (0–6)</span>
+              <span>Legendary Fish Found</span>
               <div className="fishingSkillOptionStepper">
                 <span className="fishingUpgradeLevelLabel">
-                  <span className="mono">{state.legendaryFishFound}</span> / 6
+                  <span className="mono">{state.legendaryFishFound}</span>
                 </span>
                 <div className="btnRow fishingUpgradeButtons">
                   <button type="button" className="btn btnSecondary" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.max(0, p.legendaryFishFound - 1) }))} disabled={state.legendaryFishFound <= 0} aria-label="Decrease">−</button>
-                  <button type="button" className="btn" onClick={() => setState((p) => ({ ...p, legendaryFishFound: Math.min(6, p.legendaryFishFound + 1) }))} disabled={state.legendaryFishFound >= 6} aria-label="Increase">+</button>
+                  <button type="button" className="btn" onClick={() => setState((p) => ({ ...p, legendaryFishFound: p.legendaryFishFound + 1 }))} aria-label="Increase">+</button>
                 </div>
               </div>
-            </div>
-            <div className="small" style={{ marginTop: 0, marginBottom: 2, opacity: 0.85 }}>Used for Completionist Gatekeeper bonus.</div>
-            <div className="fishingSkillOptionRow">
-              <input
-                type="checkbox"
-                id="fishing-abyss-legendary-caught"
-                checked={state.abyssLegendaryCaught}
-                onChange={(e) => setState((p) => ({ ...p, abyssLegendaryCaught: e.target.checked }))}
-                style={{ flexShrink: 0 }}
-              />
-              <label htmlFor="fishing-abyss-legendary-caught" style={{ cursor: "pointer", marginBottom: 0 }}>Abyss Legendary (Cthulhu) caught</label>
-              <Tooltip
-                content={{
-                  title: "Abyss Legendary caught",
-                  sections: [
-                    { heading: "Effect", lines: ["When checked: Abyss dock tick requirement −9 (30 → 21). More dock fills per hour on Abyss = more fish/h."] },
-                    { heading: "Source", lines: ["Unlock from catching the Abyss legendary fish (Cthulhu) once."] },
-                  ],
-                }}
-              />
             </div>
           </div>
           <div className="fishingUpgradesList">
@@ -6103,6 +6269,39 @@ export function Fishing() {
         <Collapsible id="fishing-diverse-upgrades" title="Diverse Fishing Upgrades (Mid-Late Game)" defaultExpanded={false} className="fishingDiverseEndgame">
           <div className="fishingDiverseSection">
             <div className="fishingUpgradesBlock" style={{ marginTop: 0 }}>
+              <div className="fishingBlockHeader">
+                <span className="fishingBlockHeaderTitle">Legendary Fish</span>
+              </div>
+              <div className="fishingCheckboxRow">
+                <img src="https://static.wikitide.net/shminerwiki/thumb/6/6f/Abyss_Legendary_Fish.png/30px-Abyss_Legendary_Fish.png" alt="" className="fishingBlockIcon" aria-hidden />
+                <img src="https://static.wikitide.net/shminerwiki/6/62/Tribute_Rank_1.png" alt="" className="fishingBlockIcon" aria-hidden />
+                <input
+                  id="fishing-abyss-legendary-caught"
+                  type="checkbox"
+                  className="fishingCheckbox"
+                  checked={state.abyssLegendaryCaught}
+                  onChange={(e) => setState((p) => ({ ...p, abyssLegendaryCaught: e.target.checked }))}
+                />
+                <label htmlFor="fishing-abyss-legendary-caught" className="fishingBlockLabel">
+                  Cthulhu Tribute
+                  {cthulhuTributeMarginalFishPct != null && (
+                    <span className="mono" style={{ marginLeft: 6 }}>(+{cthulhuTributeMarginalFishPct.toFixed(1)}% gain)</span>
+                  )}
+                </label>
+                <Tooltip
+                  content={{
+                    title: "Cthulhu Tribute",
+                    sections: [
+                      { heading: "Effect", lines: ["All dock tick requirements are reduced by 10% after other reductions.", "Super shiny multiplier gets +3x."] },
+                      { heading: "Source", lines: ["Unlocked from the Abyss legendary fish (Cthulhu) tribute."] },
+                    ],
+                  }}
+                  label="?"
+                />
+              </div>
+            </div>
+
+            <div className="fishingUpgradesBlock" style={{ marginTop: 10 }}>
               <div className="fishingBlockHeader">
                 <span className="fishingBlockHeaderTitle">Pets</span>
               </div>
@@ -6474,7 +6673,16 @@ export function Fishing() {
                     },
                   ],
                 }}
-                effectText={`→ +${state.divineRelic5xPoints * 2}% 5× tick chance`}
+                effectText={
+                  <>
+                    → +{state.divineRelic5xPoints * 2}% 5× tick chance
+                    {divineRelicNextLevelFishMarginalPct != null ? (
+                      <span className="fishingStepperNextLevelHint">
+                        next level up: +{divineRelicNextLevelFishMarginalPct.toFixed(1)}% fish gains
+                      </span>
+                    ) : null}
+                  </>
+                }
                 inputClassName="fishingStepperLevelInputWide"
               />
             </div>
@@ -6494,7 +6702,7 @@ export function Fishing() {
                   title: "Divine Challenge",
                   lines: ["Each level gives Shiny Fish Multiplier +10% (own multiplier)."],
                 }}
-                effectText={`→ Shiny ×${(1 + 0.1 * state.divineChallengeCoinLevel).toFixed(2)} (+${state.divineChallengeCoinLevel * 10}%)`}
+                effectText={`→ Shiny ×${(1 + 0.1 * state.divineChallengeCoinLevel).toFixed(2)}`}
                 inputClassName="fishingStepperLevelInputWide"
               />
             </div>
@@ -6594,7 +6802,21 @@ export function Fishing() {
                     },
                   ],
                 }}
-                effectText={`→ Fish Income ×${(1 + 0.02 * state.cetusLevel).toFixed(2)} (+${state.cetusLevel * 2}%)`}
+                effectText={`→ Fish Income ×${(1 + 0.02 * state.cetusLevel).toFixed(2)}`}
+                inputClassName="fishingStepperLevelInputWide"
+              />
+              <StepperRow
+                label="Super Stars Fish Income Multiplier"
+                iconUrl="https://static.wikitide.net/shminerwiki/7/78/Fish_Income_Multiplier.png"
+                value={state.superStarsLevel}
+                min={0}
+                max={999}
+                onChange={(n) => setState((prev) => ({ ...prev, superStarsLevel: Math.max(0, n) }))}
+                tooltipContent={{
+                  title: "Super Stars",
+                  lines: ["Each level gives Fish Income +1.25% (own multiplier)."],
+                }}
+                effectText={`→ Fish Income ×${(1 + 0.0125 * state.superStarsLevel).toFixed(4)}`}
                 inputClassName="fishingStepperLevelInputWide"
               />
               <div className="fishingCheckboxRow">

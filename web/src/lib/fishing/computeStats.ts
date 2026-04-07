@@ -18,13 +18,14 @@ export interface EffectiveTicksOptions {
   motleySchoolLevel?: number;
   /** Tier 2 Dock Ticks enhancement level: Tier 2 docks only, -1 per level (max 10). */
   enhanceT2DockTicksLevel?: number;
-  /** Abyss Legendary (Cthulhu) caught: Abyss dock -9 ticks. */
+  /** Cthulhu Tribute active: all dock tick requirements -10% after other reductions. */
   abyssLegendaryCaught?: boolean;
 }
 
 /**
  * Effective ticks needed to fill the dock meter. Lower = more dock fills per hour = more fish.
- * Reductions: Abyss Legendary T1 (-9), Motley School (Abyss -2/level, T2 -1/level), T2 Dock Ticks Enhance (-1/level for T2).
+ * Reductions: Motley School (Abyss -2/level, T2 -1/level), T2 Dock Ticks Enhance (-1/level for T2),
+ * then Cthulhu Tribute applies a final all-dock -10%.
  */
 export function getEffectiveTicksNeeded(
   dock: DockDef,
@@ -35,12 +36,12 @@ export function getEffectiveTicksNeeded(
   const abyssT1 = opts.abyssLegendaryCaught === true;
   let ticks = dock.baseTicksNeeded;
   if (dock.id === "abyss") {
-    if (abyssT1) ticks -= 9;
     ticks -= 2 * motley;
   } else if (dock.tier === 2) {
     ticks -= motley;
     ticks -= t2Enhance;
   }
+  if (abyssT1) ticks = Math.floor(ticks * 0.9);
   return Math.max(1, ticks);
 }
 
@@ -97,7 +98,7 @@ export interface SkillTreeOptions {
   skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
   /** Fish card tier per fish (0–3) for With This Fish I Summon: effective card count. */
   fishCardTier?: Partial<Record<string, number>>;
-  /** Legendary fish found (0–6) for Completionist Gatekeeper. */
+  /** Legendary fish found (no cap) for Completionist Gatekeeper. */
   legendaryFishFound?: number;
   /** Divine Relic points: each point gives +2% 5× tick chance (base; applies to all sources; Sushi does not get Gift's +25% on top). */
   relic5xPoints?: number;
@@ -139,8 +140,12 @@ export interface SkillTreeOptions {
   constructStatue?: "none" | "gilded" | "platinized";
   /** Stargazing: Cetus level. +2% Fish Income per level (own mult: 1 + 0.02×level). */
   cetusLevel?: number;
+  /** Stargazing: Super Stars Fish Income Multiplier. +1.25% per level (own mult). */
+  superStarsLevel?: number;
   /** Stargazing: Black Hole Bonus. Tier 2 Dock Power +25% (own mult). */
   blackHoleBonus?: boolean;
+  /** Cthulhu Tribute rank 1: all dock tick requirements -10% (final), Super Shiny Multi +3x. */
+  abyssLegendaryCaught?: boolean;
   /** Cards: Mr Nibbles Card. 0 = none, 1 = Card +1% Tiny Notice, 2 = Gilded +2%, 3 = Poly +4% (flat). */
   mrNibblesCardTier?: number;
 }
@@ -193,8 +198,10 @@ export function computeFishingStatsFromLevels(
     options?.constructStatue === "gilded" ? 1.25 : options?.constructStatue === "platinized" ? 1.4 : 1;
   const cetusLevel = Math.max(0, Math.floor(options?.cetusLevel ?? 0));
   const cetusFishIncomeMult = 1 + 0.02 * cetusLevel;
+  const superStarsLevel = Math.max(0, Math.floor(options?.superStarsLevel ?? 0));
+  const superStarsFishIncomeMult = 1 + 0.0125 * superStarsLevel;
   const fish_income_multi =
-    fishIncomeBase * (options?.legendaryHaulerBundle ? 1.1 : 1) * constructMult * cetusFishIncomeMult;
+    fishIncomeBase * (options?.legendaryHaulerBundle ? 1.1 : 1) * constructMult * cetusFishIncomeMult * superStarsFishIncomeMult;
 
   // Tick reduction: each level reduces tick by 0.5s. Base 60s. Skill: Let's Pick Up The Pace -2s per level.
   const fishing_tick_reduction =
@@ -210,7 +217,7 @@ export function computeFishingStatsFromLevels(
   const droneBase = Math.round(droneBaseRaw);
   const droneMultiUpgrade = 1 + 0.06 * u("drone_multiplier");
   const droneMultiEnhance = 1 + 0.08 * e("enhance_drone_multiplier");
-  const legendary = Math.max(0, Math.min(6, options?.legendaryFishFound ?? 0));
+  const legendary = Math.max(0, Math.floor(options?.legendaryFishFound ?? 0));
   const droneMultFwf = 1 + 0.1 * skill("fishing_with_friends");
   const droneMultCompletionist = 1 + 0.02 * skill("completionist_gatekeeper") * legendary;
   const workshopDroneMultiWorld3 = 1 + 0.02 * Math.max(0, Math.floor(options?.fishingDroneBasePowerWorld3 ?? 0));
@@ -303,10 +310,11 @@ export function computeFishingStatsFromLevels(
   const divineChallengeCoinLevel = Math.max(0, Math.floor(options?.divineChallengeCoinLevel ?? 0));
   const shiny_multiplier = shinyBase * (1 + 0.03 * mrNibblesLevel) * (1 + 0.1 * divineChallengeCoinLevel);
 
-  // Super Shiny Multiplier: base 3× (only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance). Tethys Idol +0.05% per level (global, all docks).
+  // Super Shiny Multiplier: base 3× (only when catch is already shiny), +0.08x (poly_card_multi), +0.15x (enhance), +3x from Cthulhu Tribute. Tethys Idol +0.05% per level (global, all docks).
   const superShinyBase = 3 +
     0.08 * u("poly_card_multi") +
-    0.15 * e("enhance_super_shiny_multi");
+    0.15 * e("enhance_super_shiny_multi") +
+    (options?.abyssLegendaryCaught ? 3 : 0);
   const super_shiny_multiplier = superShinyBase * (1 + 0.0005 * tethysIdol);
 
   // Poly card gain multi: applies to fish card gains (Card 1.5×, Gilded 2×). Polychrome Potency Bundle fish poly ×1.15 in UI.

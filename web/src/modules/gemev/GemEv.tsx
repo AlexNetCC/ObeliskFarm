@@ -1190,7 +1190,6 @@ export function GemEv() {
                           <tr>
                             <td>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0 }} />
                                 Sushi
                                 <Tooltip
                                   content={{
@@ -1383,7 +1382,6 @@ export function GemEv() {
                           key: "giftSushi",
                           label: (
                             <>
-                              {giftIconSmall}
                               Sushi
                               <Tooltip
                                 content={{

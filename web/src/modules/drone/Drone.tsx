@@ -42,22 +42,45 @@ function lootfrogIconUrl(file: string): string {
   return `${LOOTFROG_WIKI_IMG}/${encodeURIComponent(file)}`;
 }
 
-/** Lootfrog rewards: label, weight (chance), gem EV (null = not calculable), icon (wiki filename). 1 skill point = 125 gems. */
-const LOOTFROG_REWARDS: Array<{ label: string; weight: number; gemEv: number | null; iconFile: string | null }> = [
-  { label: "50–100 Gems", weight: 70, gemEv: 75, iconFile: "Gem.png" },
-  { label: "15–30 Fuel", weight: 40, gemEv: 112.5, iconFile: "Fuel.png" }, // 22.5 fuel × 5
-  { label: "10–20 Relic Chests", weight: 50, gemEv: null, iconFile: "Relic_Chest.png" },
-  { label: "1 Lootbug Lantern", weight: 1, gemEv: null, iconFile: "Lootbug_Lantern.png" },
-  { label: "4–8 Tier 2 Items", weight: 8, gemEv: null, iconFile: "Items_Button.png" },
-  { label: "1–3 Skill Points", weight: 2, gemEv: 250, iconFile: "Skill_Point.png" }, // 2 sp × 125
-  { label: "3–5 Sushi", weight: 8, gemEv: null, iconFile: "Sushi.png" },
-  { label: "4–10 Blue Cow", weight: 6, gemEv: null, iconFile: "Blue_Cow.png" },
-  { label: "1 Frogspawn", weight: 1, gemEv: null, iconFile: "Frogspawn.png" },
-  { label: "150–300 Gems", weight: 4, gemEv: 225, iconFile: "Gem.png" },
-  { label: "100–150 Relic Chests", weight: 2, gemEv: null, iconFile: "Relic_Chest.png" },
-  { label: "1000–3000 Gems", weight: 2, gemEv: 2000, iconFile: "Gem.png" },
-  { label: "15–30 Sushi", weight: 2, gemEv: null, iconFile: "Sushi.png" },
+type LootfrogRewardGroup =
+  | "gems"
+  | "fuel"
+  | "relicChests"
+  | "lantern"
+  | "tier2Items"
+  | "skillPoints"
+  | "sushi"
+  | "blueCow"
+  | "frogspawn";
+
+/** Lootfrog rewards: label, weight (chance), gem EV (null = not calculable), icon (wiki filename), and display group. 1 skill point = 125 gems. */
+const LOOTFROG_REWARDS: Array<{ label: string; weight: number; gemEv: number | null; iconFile: string | null; group: LootfrogRewardGroup }> = [
+  { label: "50–100 Gems", weight: 70, gemEv: 75, iconFile: "Gem.png", group: "gems" },
+  { label: "15–30 Fuel", weight: 40, gemEv: 112.5, iconFile: "Fuel.png", group: "fuel" }, // 22.5 fuel × 5
+  { label: "10–20 Relic Chests", weight: 50, gemEv: null, iconFile: "Relic_Chest.png", group: "relicChests" },
+  { label: "1 Lootbug Lantern", weight: 1, gemEv: null, iconFile: "Lootbug_Lantern.png", group: "lantern" },
+  { label: "4–8 Tier 2 Items", weight: 8, gemEv: null, iconFile: "Items_Button.png", group: "tier2Items" },
+  { label: "1–3 Skill Points", weight: 2, gemEv: 250, iconFile: "Skill_Point.png", group: "skillPoints" }, // 2 sp × 125
+  { label: "3–5 Sushi", weight: 8, gemEv: null, iconFile: "Sushi.png", group: "sushi" },
+  { label: "4–10 Blue Cow", weight: 6, gemEv: null, iconFile: "Blue_Cow.png", group: "blueCow" },
+  { label: "1 Frogspawn", weight: 1, gemEv: null, iconFile: "Frogspawn.png", group: "frogspawn" },
+  { label: "150–300 Gems", weight: 4, gemEv: 225, iconFile: "Gem.png", group: "gems" },
+  { label: "100–150 Relic Chests", weight: 2, gemEv: null, iconFile: "Relic_Chest.png", group: "relicChests" },
+  { label: "1000–3000 Gems", weight: 2, gemEv: 2000, iconFile: "Gem.png", group: "gems" },
+  { label: "15–30 Sushi", weight: 2, gemEv: null, iconFile: "Sushi.png", group: "sushi" },
 ];
+
+const LOOTFROG_GROUP_LABELS: Record<LootfrogRewardGroup, string> = {
+  gems: "Gems",
+  fuel: "Fuel",
+  relicChests: "Relic Chests",
+  lantern: "Lootbug Lantern",
+  tier2Items: "Tier 2 Items",
+  skillPoints: "Skill Points",
+  sushi: "Sushi",
+  blueCow: "Blue Cow",
+  frogspawn: "Frogspawn",
+};
 
 /** Bomb Bear Drone: +30% Lootbug Spawn Rate / 4:00 at grade 0, +3% / +0:12 per grade (no spawn rate cap). */
 /** Bomb Bear: +30% Lootbug spawn rate at grade 0, +3% per grade (no cap). E.g. grade 25 = +105% → 2.05×. */
@@ -1049,12 +1072,29 @@ export function Drone() {
     const cap = Math.min(state.lootfrogCapacity, LOOTFROG_TOTAL_WEIGHT - 1);
     const evPerLootfrogRecursive = (baseEvPerLootfrog * LOOTFROG_TOTAL_WEIGHT) / (LOOTFROG_TOTAL_WEIGHT - cap);
     const valuePerFrogspawn = cap * evPerLootfrogRecursive * rewardMult;
-    const rows = LOOTFROG_REWARDS.map((r) => {
+    const rawRows = LOOTFROG_REWARDS.map((r) => {
       const spawnsPerHour = lootfrogsPerHour * (r.weight / LOOTFROG_TOTAL_WEIGHT);
       const effectiveEv = r.label === "1 Frogspawn" ? valuePerFrogspawn : r.gemEv;
       const gemsPerHour = effectiveEv != null ? spawnsPerHour * effectiveEv : null;
       return { ...r, spawnsPerHour, gemsPerHour };
     });
+    const grouped = new Map<LootfrogRewardGroup, { group: LootfrogRewardGroup; label: string; iconFile: string | null; spawnsPerHour: number; gemsPerHour: number | null }>();
+    for (const row of rawRows) {
+      const prev = grouped.get(row.group);
+      if (!prev) {
+        grouped.set(row.group, {
+          group: row.group,
+          label: LOOTFROG_GROUP_LABELS[row.group],
+          iconFile: row.iconFile,
+          spawnsPerHour: row.spawnsPerHour,
+          gemsPerHour: row.gemsPerHour,
+        });
+      } else {
+        prev.spawnsPerHour += row.spawnsPerHour;
+        if (row.gemsPerHour != null) prev.gemsPerHour = (prev.gemsPerHour ?? 0) + row.gemsPerHour;
+      }
+    }
+    const rows = Array.from(grouped.values()).sort((a, b) => b.spawnsPerHour - a.spawnsPerHour);
     return { lootfrogGainsRows: rows, lootfrogsPerHour, lootfrogValuePerFrogspawn: valuePerFrogspawn };
   }, [
     state.lootfrogsUnlocked,
@@ -1081,10 +1121,8 @@ export function Drone() {
     let relic = 0;
     let sushi = 0;
     for (const r of lootfrogGainsRows) {
-      if (r.label === "10–20 Relic Chests") relic += r.spawnsPerHour * 15;
-      else if (r.label === "100–150 Relic Chests") relic += r.spawnsPerHour * 125;
-      else if (r.label === "3–5 Sushi") sushi += r.spawnsPerHour * 4;
-      else if (r.label === "15–30 Sushi") sushi += r.spawnsPerHour * 22.5;
+      if (r.group === "relicChests") relic += r.spawnsPerHour * (250 / 13);
+      else if (r.group === "sushi") sushi += r.spawnsPerHour * (77 / 10);
     }
     return { lootfrogRelicChestsPerHour: relic, lootfrogSushiPerHour: sushi };
   }, [lootfrogGainsRows]);
@@ -2400,7 +2438,7 @@ export function Drone() {
                   </thead>
                   <tbody>
                     {lootfrogGainsRows.map((r) => (
-                      <tr key={r.label} className="droneLootfrogRow">
+                      <tr key={r.group} className="droneLootfrogRow">
                         <td className="droneLootfrogTdName">
                           <span className="droneLootfrogRewardCell">
                             {r.iconFile ? (
