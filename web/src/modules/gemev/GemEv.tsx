@@ -379,6 +379,8 @@ export function GemEv() {
       founder_fishing_tick_reduction?: number;
       w3_debuff_fish_pct_loss?: number;
       lootfrogsUnlocked?: boolean;
+      lootfrogsPerHour?: number;
+      lootfrogGemsPerHour?: number;
       lootfrogValuePerFrogspawn?: number;
       /** When true, Gift rare 1/25 Frogspawn (wiki Store#Gifts) is included. Same as Lootfrogs unlocked (Black Hole = Lootfrogs). */
       blackHoleUnlocked?: boolean;
@@ -410,10 +412,12 @@ export function GemEv() {
     const founderFishingTickReduction = typeof ext?.founder_fishing_tick_reduction === "number" ? ext.founder_fishing_tick_reduction : undefined;
     const w3DebuffFishPctLoss = typeof ext?.w3_debuff_fish_pct_loss === "number" ? ext.w3_debuff_fish_pct_loss : undefined;
     const lootfrogsUnlocked = Boolean(ext?.lootfrogsUnlocked);
+    const lootfrogsPerHour = typeof ext?.lootfrogsPerHour === "number" ? Math.max(0, ext.lootfrogsPerHour) : 0;
+    const lootfrogGemsPerHour = typeof ext?.lootfrogGemsPerHour === "number" ? Math.max(0, ext.lootfrogGemsPerHour) : 0;
     const lootfrogValuePerFrogspawn = typeof ext?.lootfrogValuePerFrogspawn === "number" ? Math.max(0, ext.lootfrogValuePerFrogspawn) : 0;
     const blackHoleUnlocked = Boolean(ext?.blackHoleUnlocked);
     return {
-      lootbug10x, lootbugSpawnsPerHour, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, founderFishingTickReduction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogValuePerFrogspawn, blackHoleUnlocked,
+      lootbug10x, lootbugSpawnsPerHour, drone10x, total10x: lootbug10x + drone10x, lootbugNetGemsPerHour, lootbugGainsGross, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, lootbugTotalGemCostPerHour, droneFuelGemsPerHour, chaosTotemUptimePct, chaosTotem100FromBombs, chaosTotemImpactFromItems, chargeMagnetImpact, lootbugItemChestsPerHour, itemsPerChest, gemBombGemsPerHourFromBombs, gemBomb10xImpactFromBombs, chaosTotemImpactFromBombs, valueOfOneChestForLootbug, chaosTotemValuePerTotemForGift, fishingUnlocked, giftFishingTickValue, giftFishPerHourDuring5xBuff, fishPerSushiEvForGift, founderFishingTickReduction, w3DebuffFishPctLoss, lootfrogsUnlocked, lootfrogsPerHour, lootfrogGemsPerHour, lootfrogValuePerFrogspawn, blackHoleUnlocked,
     };
   })();
   const external10x = { lootbug: external.lootbug10x, drone: external.drone10x, total: external.total10x };
@@ -428,11 +432,9 @@ export function GemEv() {
     p.stonks_bonus_gems = 200.0;
     p.stonks_multiplier = clamp(p.stonks_multiplier ?? 1.0, 0, 999);
     p.super_stonks_chance = clamp(p.super_stonks_chance ?? 0, 0, 1);
-    p.super_stonks_bonus_gems = clamp(p.super_stonks_bonus_gems ?? 0, 0, 99999);
-    p.super_stonks_multiplier = clamp(p.super_stonks_multiplier ?? 1.0, 0, 999);
+    p.super_stonks_multiplier = clamp(p.super_stonks_multiplier ?? 2.0, 0, 999);
     p.ultra_stonks_chance = clamp(p.ultra_stonks_chance ?? 0, 0, 1);
-    p.ultra_stonks_bonus_gems = clamp(p.ultra_stonks_bonus_gems ?? 0, 0, 99999);
-    p.ultra_stonks_multiplier = clamp(p.ultra_stonks_multiplier ?? 1.0, 0, 999);
+    p.ultra_stonks_multiplier = clamp(p.ultra_stonks_multiplier ?? 25.0, 0, 999);
     p.stonks_all_multiplier = clamp(p.stonks_all_multiplier ?? 1.0, 0, 999);
 
     // Skill shards: include in EV only when toggle on
@@ -735,7 +737,7 @@ export function GemEv() {
   const lootbugNetContribution = typeof external.lootbugGainsGross === "number"
     ? external.lootbugGainsGross - (external.lootbugTotalGemCostPerHour ?? 0)
     : (external.lootbugNetGemsPerHour ?? 0);
-  const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + lootbugNetContribution - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
+  const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + lootbugNetContribution + (external.lootfrogGemsPerHour ?? 0) - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
 
   /** Inputs for Variance MC so the sim can compute total (Overview chart). */
   const varianceOverviewInputs = useMemo((): VarianceOverviewInputs => {
@@ -787,7 +789,7 @@ export function GemEv() {
           heading: "Special drops",
           lines: [
             "Skill Shards: chance only (value is fixed).",
-            "Stonks: collapsible section. Stonks (1% chance, 200 Gems base) + multiplier. Super Stonks only when Stonks hit; Ultra only when Super hit. Each tier has its own multiplier; Stonks all multiplier applies to the sum.",
+            "Stonks: collapsible section. Stonks (1% chance, 200 Gems base) × Stonks multiplier. Super rolls only after Stonks; Ultra only after Super. Super and Ultra multiply the same Stonks reward (gems, item chests, relic chests): default 2× then 25× when both hit. Stonks all multiplier applies to that expected reward.",
           ],
         },
         { heading: "Multipliers", lines: ["Jackpot: chance for additional rolls.", "Refresh: chance for instant refresh (geometric series)."] },
@@ -1010,6 +1012,10 @@ export function GemEv() {
                           varianceSimRuns,
                           giftEv,
                           external.lootfrogValuePerFrogspawn ?? 0,
+                          external.lootfrogsPerHour ?? 0,
+                          (external.lootfrogsPerHour ?? 0) > 0
+                            ? (external.lootfrogGemsPerHour ?? 0) / (external.lootfrogsPerHour ?? 1)
+                            : 0,
                           {
                             lootbug10xMinPerHour: external.lootbug10x ?? 0,
                             lootbugSpawnsPerHour: external.lootbugSpawnsPerHour ?? 0,
@@ -1115,7 +1121,7 @@ export function GemEv() {
                                     lines: [
                                       "Base gems: every roll (1 per claim, or more on jackpot) adds the base gem value.",
                                       ...(skillShardsEnabled ? ["Skill shards: when the roll hits, its gem value is added (Obelisk/Lucky applied)."] : []),
-                                      "Stonks: on the first roll per claim only, chance for Stonks (and Super/Ultra) bonus gems.",
+                                      "Stonks: on the first roll per claim only; Super/Ultra multiply the same Stonks gem reward (not separate flat bonuses).",
                                     ],
                                   }}
                                   label="?"
@@ -1185,7 +1191,14 @@ export function GemEv() {
                             <td>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                                 <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0 }} />
-                                Sushi (from gifts)
+                                Sushi
+                                <Tooltip
+                                  content={{
+                                    title: "Sushi source",
+                                    lines: ["Accumulated sushi from gifts and lootfrogs."],
+                                  }}
+                                  label="?"
+                                />
                               </span>
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.mean)}</td>
@@ -1366,7 +1379,23 @@ export function GemEv() {
                         { key: "freebieGems", label: "Freebie gems", s: varianceSimResult.freebieGems },
                         { key: "giftsCount", label: <>{giftIconSmall}Gifts (count)</>, s: varianceSimResult.giftsCount, isCount: true },
                         { key: "giftGems", label: <>{giftIconSmall}Gift gems</>, s: varianceSimResult.giftGems },
-                        { key: "giftSushi", label: <>{giftIconSmall}Sushi (from gifts)</>, s: varianceSimResult.giftSushi },
+                        {
+                          key: "giftSushi",
+                          label: (
+                            <>
+                              {giftIconSmall}
+                              Sushi
+                              <Tooltip
+                                content={{
+                                  title: "Sushi source",
+                                  lines: ["Accumulated sushi from gifts and lootfrogs."],
+                                }}
+                                label="?"
+                              />
+                            </>
+                          ),
+                          s: varianceSimResult.giftSushi,
+                        },
                         ...(external.lootfrogsUnlocked ? [{ key: "lootfrogGems" as const, label: "Lootfrog gems", s: varianceSimResult.lootfrogGems }] : []),
                         { key: "lootbugNetGems", label: "Lootbug net gems", s: varianceSimResult.lootbugNetGems },
                         { key: "founderGems", label: "Founder gems", s: varianceSimResult.founderGems },
@@ -1905,7 +1934,10 @@ export function GemEv() {
                       <Tooltip
                         content={{
                           title: "Super Stonks",
-                          lines: ["Only rolls when Stonks triggered on the same claim (first roll)."],
+                          lines: [
+                            "Only rolls when Stonks triggered on the same claim (first roll).",
+                            "Multiplies the normal Stonks reward (gems, item/relic chests). Default 2×.",
+                          ],
                         }}
                         label="?"
                       />
@@ -1922,17 +1954,8 @@ export function GemEv() {
                         decimals={1}
                       />
                       <Stepper
-                        label="Super Stonks bonus (Gems)"
-                        value={params.super_stonks_bonus_gems ?? 0}
-                        onChange={(v) => setParams((s) => ({ ...s, super_stonks_bonus_gems: v }))}
-                        step={10}
-                        min={0}
-                        max={99999}
-                        decimals={0}
-                      />
-                      <Stepper
                         label="Super Stonks multiplier (×)"
-                        value={params.super_stonks_multiplier ?? 1}
+                        value={params.super_stonks_multiplier ?? 2}
                         onChange={(v) => setParams((s) => ({ ...s, super_stonks_multiplier: v }))}
                         step={0.1}
                         min={0}
@@ -1951,7 +1974,10 @@ export function GemEv() {
                       <Tooltip
                         content={{
                           title: "Ultra Stonks",
-                          lines: ["Only rolls when Super Stonks triggered on the same claim."],
+                          lines: [
+                            "Only rolls when Super Stonks triggered on the same claim.",
+                            "Multiplies the Stonks reward again after Super (default 25×, stacks with Super multiplier).",
+                          ],
                         }}
                         label="?"
                       />
@@ -1968,17 +1994,8 @@ export function GemEv() {
                         decimals={1}
                       />
                       <Stepper
-                        label="Ultra Stonks bonus (Gems)"
-                        value={params.ultra_stonks_bonus_gems ?? 0}
-                        onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_bonus_gems: v }))}
-                        step={10}
-                        min={0}
-                        max={99999}
-                        decimals={0}
-                      />
-                      <Stepper
                         label="Ultra Stonks multiplier (×)"
-                        value={params.ultra_stonks_multiplier ?? 1}
+                        value={params.ultra_stonks_multiplier ?? 25}
                         onChange={(v) => setParams((s) => ({ ...s, ultra_stonks_multiplier: v }))}
                         step={0.1}
                         min={0}
@@ -1994,7 +2011,7 @@ export function GemEv() {
                     <Tooltip
                       content={{
                         title: "Stonks all multiplier",
-                        lines: ["Applied to the sum of Stonks + Super Stonks + Ultra Stonks EV."],
+                        lines: ["Applied to expected Stonks EV (normal reward × expected Super/Ultra tier multiplier)."],
                       }}
                       label="?"
                     />

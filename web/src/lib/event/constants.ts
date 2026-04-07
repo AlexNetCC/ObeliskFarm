@@ -47,9 +47,9 @@ export const UPGRADE_SHORT_NAMES: Record<number, string[]> = {
 
 export const PRESTIGE_UNLOCKED: Record<number, number[]> = {
   1: [0, 0, 0, 0, 1, 2, 2, 4, 8, 10],
-  2: [0, 0, 0, 3, 4, 5, 10],
+  2: [0, 0, 0, 1, 3, 5, 10],
   3: [1, 1, 2, 3, 4, 6, 8, 10],
-  4: [1, 3, 4, 5, 6, 6, 7, 10],
+  4: [1, 1, 4, 5, 6, 6, 7, 10],
 };
 
 export const MAX_LEVELS: Record<number, number[]> = {

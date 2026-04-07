@@ -1118,9 +1118,11 @@ export function Drone() {
     ext.fishingUnlocked = state.fishingUnlocked;
     ext.lootfrogsUnlocked = state.lootfrogsUnlocked;
     ext.lootfrogRelicChestsPerHour = lootfrogRelicChestsPerHour;
+    ext.lootfrogsPerHour = state.lootfrogsUnlocked && state.froggerDroneOn ? lootfrogsPerHour : 0;
+    ext.lootfrogGemsPerHour = state.lootfrogsUnlocked && state.froggerDroneOn ? lootfrogTotalGemsPerHour : 0;
     ext.lootfrogValuePerFrogspawn = lootfrogValuePerFrogspawn;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, froggerGemEvPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked, state.lootfrogsUnlocked, lootfrogRelicChestsPerHour, lootfrogValuePerFrogspawn]);
+  }, [droneBomb10xMinPerHour, fuelGemsPerHour, froggerFuelGemsPerHour, froggerGemEvPerHour, bombBearFuelGemsPerHour, anglerFuelGemsPerHour, starburstFuelGemsPerHour, chainBomberFuelGemsPerHour, voidFuelGemsPerHour, veinseekerFuelGemsPerHour, bombBearLootbugSpawnRateMult, state.elixirDroneOn, state.fueled, state.froggerDroneOn, state.froggerFueled, state.bombBearDroneOn, state.bombBearFueled, state.anglerDroneOn, state.anglerFueled, state.starburstDroneOn, state.starburstFueled, state.chainBomberDroneOn, state.chainBomberFueled, state.voidDroneOn, state.voidFueled, state.veinseekerDroneOn, state.veinseekerFueled, state.fishingUnlocked, state.lootfrogsUnlocked, lootfrogsPerHour, lootfrogTotalGemsPerHour, lootfrogRelicChestsPerHour, lootfrogValuePerFrogspawn]);
 
   /** Uptime fractions (0..1) for Stargazing: 2× Star Spawn Rate and 3× Super Star Spawn Rate. When both active they multiply. */
   const { drone2xStarUptimeFraction, drone3xSuperUptimeFraction } = useMemo(() => {

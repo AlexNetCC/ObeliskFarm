@@ -25,12 +25,16 @@ export type GameParameters = {
   stonks_bonus_gems: number;
   stonks_multiplier: number; // e.g. 2.1
   super_stonks_chance: number; // 0..1, conditional on Stonks
-  super_stonks_bonus_gems: number;
+  /** Unused: Super/Ultra multiply the same Stonks reward (gems + chests), not a separate flat bonus. */
+  super_stonks_bonus_gems?: number;
+  /** Multiplies normal Stonks reward when Super hits (game default 2×). */
   super_stonks_multiplier: number;
   ultra_stonks_chance: number; // 0..1, conditional on Super Stonks
-  ultra_stonks_bonus_gems: number;
+  /** Unused: see super_stonks_bonus_gems. */
+  ultra_stonks_bonus_gems?: number;
+  /** Multiplies Stonks reward after Super when Ultra hits (game default 25×, stacks with Super). */
   ultra_stonks_multiplier: number;
-  stonks_all_multiplier: number; // applied to sum of all three
+  stonks_all_multiplier: number; // applied to expected Stonks EV (reward × tier mult)
 
   // Jackpot
   jackpot_chance: number; // 0..1
@@ -159,10 +163,10 @@ export function defaultGameParameters(): GameParameters {
     stonks_multiplier: 1.0,
     super_stonks_chance: 0.0,
     super_stonks_bonus_gems: 0.0,
-    super_stonks_multiplier: 1.0,
+    super_stonks_multiplier: 2.0,
     ultra_stonks_chance: 0.0,
     ultra_stonks_bonus_gems: 0.0,
-    ultra_stonks_multiplier: 1.0,
+    ultra_stonks_multiplier: 25.0,
     stonks_all_multiplier: 1.0,
     jackpot_chance: 0.08, // 5% + 3%
     jackpot_rolls: 5,
@@ -506,27 +510,34 @@ export function calculateGemsBasePerHour(params: GameParameters): number {
   return freebiesPerHour * refreshMult * expectedRolls * clampPositive(params.freebie_gems_base, 9.0);
 }
 
+/**
+ * Expected multiplier on the normal Stonks reward (gems, item chests, relic chests) from Super/Ultra rolls after Stonks.
+ * Super multiplies the reward (default 2×); Ultra rolls only after Super and multiplies again (default 25×).
+ */
+export function expectedStonksRewardTierMultiplier(params: GameParameters): number {
+  const ssc = clamp01(params.super_stonks_chance ?? 0);
+  const usc = clamp01(params.ultra_stonks_chance ?? 0);
+  const sm = clampPositive(params.super_stonks_multiplier ?? 2.0, 0);
+  const um = clampPositive(params.ultra_stonks_multiplier ?? 25.0, 0);
+  return (1 - ssc) * 1 + ssc * ((1 - usc) * sm + usc * sm * um);
+}
+
 export function calculateStonksEvPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const refreshMult = calculateRefreshMultiplier(params);
   const sc = clamp01(params.stonks_chance);
-  const ssc = clamp01(params.super_stonks_chance ?? 0);
-  const usc = clamp01(params.ultra_stonks_chance ?? 0);
-  const stonksPerClaim =
-    sc * clampPositive(params.stonks_bonus_gems, 200.0) * clampPositive(params.stonks_multiplier ?? 1.0, 0);
-  const superPerClaim =
-    sc * ssc * clampPositive(params.super_stonks_bonus_gems ?? 0, 0) * clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
-  const ultraPerClaim =
-    sc * ssc * usc * clampPositive(params.ultra_stonks_bonus_gems ?? 0, 0) * clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
-  const sumPerClaim = stonksPerClaim + superPerClaim + ultraPerClaim;
+  const stonksReward =
+    clampPositive(params.stonks_bonus_gems, 200.0) * clampPositive(params.stonks_multiplier ?? 1.0, 0);
+  const tierMult = expectedStonksRewardTierMultiplier(params);
+  const sumPerClaim = sc * stonksReward * tierMult;
   const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
   return freebiesPerHour * refreshMult * sumPerClaim * allMult;
 }
 
-/** Expected Item Chests per hour from stonks procs. In-game: base stonks 20 chests; super/ultra same base per proc, each tier uses its multiplier. */
+/** Expected Item Chests per hour from stonks procs. In-game: 20 item chests per Stonks reward, × stonks multiplier × Super/Ultra tier multiplier on that reward. */
 const STONKS_CHESTS_BASE = 20;
 
-/** Base relic chests per stonks proc (in-game: 10). Same formula as item chests but with 10 instead of 20. */
+/** Base relic chests per stonks proc (in-game: 10). Same scaling as item chests. */
 const STONKS_RELIC_CHESTS_BASE = 10;
 
 /** Refresh: instant refresh gives extra rolls per hour (more stonks chances), same as stonks gems. Stonks has no jackpot (procs on first roll per claim). */
@@ -534,35 +545,23 @@ export function calculateStonksChestsPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const refreshMult = calculateRefreshMultiplier(params);
   const sc = clamp01(params.stonks_chance);
-  const ssc = clamp01(params.super_stonks_chance ?? 0);
-  const usc = clamp01(params.ultra_stonks_chance ?? 0);
   const stonksMult = clampPositive(params.stonks_multiplier ?? 1.0, 0);
-  const superMult = clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
-  const ultraMult = clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
+  const tierMult = expectedStonksRewardTierMultiplier(params);
   const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
   const effectiveRate = freebiesPerHour * refreshMult;
-  const baseChests = effectiveRate * sc * STONKS_CHESTS_BASE * stonksMult;
-  const superChests = effectiveRate * sc * ssc * STONKS_CHESTS_BASE * superMult;
-  const ultraChests = effectiveRate * sc * ssc * usc * STONKS_CHESTS_BASE * ultraMult;
-  return (baseChests + superChests + ultraChests) * allMult;
+  return effectiveRate * sc * STONKS_CHESTS_BASE * stonksMult * tierMult * allMult;
 }
 
-/** Expected Relic Chests per hour from stonks procs. In-game: base 10 relic chests per stonks proc; super/ultra same base, each tier uses its multiplier. */
+/** Expected Relic Chests per hour from stonks procs. Same tier scaling as gems and item chests. */
 export function calculateStonksRelicChestsPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const refreshMult = calculateRefreshMultiplier(params);
   const sc = clamp01(params.stonks_chance);
-  const ssc = clamp01(params.super_stonks_chance ?? 0);
-  const usc = clamp01(params.ultra_stonks_chance ?? 0);
   const stonksMult = clampPositive(params.stonks_multiplier ?? 1.0, 0);
-  const superMult = clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
-  const ultraMult = clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
+  const tierMult = expectedStonksRewardTierMultiplier(params);
   const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
   const effectiveRate = freebiesPerHour * refreshMult;
-  const baseRelics = effectiveRate * sc * STONKS_RELIC_CHESTS_BASE * stonksMult;
-  const superRelics = effectiveRate * sc * ssc * STONKS_RELIC_CHESTS_BASE * superMult;
-  const ultraRelics = effectiveRate * sc * ssc * usc * STONKS_RELIC_CHESTS_BASE * ultraMult;
-  return (baseRelics + superRelics + ultraRelics) * allMult;
+  return effectiveRate * sc * STONKS_RELIC_CHESTS_BASE * stonksMult * tierMult * allMult;
 }
 
 export function calculateSkillShardsEvPerHour(params: GameParameters): number {
@@ -1303,17 +1302,12 @@ export function calculateEvBreakdown(params: GameParameters): EvBreakdown {
   const refreshGemsBase = baseGems * (refreshMult - 1.0);
   const refreshGemsJackpot = jackpotGems * (refreshMult - 1.0);
 
-  // Stonks (no jackpot; claim % does not apply; sum of Stonks + Super + Ultra, then × stonks_all_multiplier)
+  // Stonks (no jackpot): reward × expected Super/Ultra multiplier, then × stonks_all_multiplier
   const sc = clamp01(params.stonks_chance);
-  const ssc = clamp01(params.super_stonks_chance ?? 0);
-  const usc = clamp01(params.ultra_stonks_chance ?? 0);
-  const stonksPerClaim =
-    sc * clampPositive(params.stonks_bonus_gems, 200.0) * clampPositive(params.stonks_multiplier ?? 1.0, 0);
-  const superPerClaim =
-    sc * ssc * clampPositive(params.super_stonks_bonus_gems ?? 0, 0) * clampPositive(params.super_stonks_multiplier ?? 1.0, 0);
-  const ultraPerClaim =
-    sc * ssc * usc * clampPositive(params.ultra_stonks_bonus_gems ?? 0, 0) * clampPositive(params.ultra_stonks_multiplier ?? 1.0, 0);
-  const sumPerClaim = stonksPerClaim + superPerClaim + ultraPerClaim;
+  const stonksReward =
+    clampPositive(params.stonks_bonus_gems, 200.0) * clampPositive(params.stonks_multiplier ?? 1.0, 0);
+  const tierMult = expectedStonksRewardTierMultiplier(params);
+  const sumPerClaim = sc * stonksReward * tierMult;
   const allMult = clampPositive(params.stonks_all_multiplier ?? 1.0, 0);
   const baseStonks = freebiesPerHour * sumPerClaim * allMult;
   const refreshStonks = baseStonks * (refreshMult - 1.0);

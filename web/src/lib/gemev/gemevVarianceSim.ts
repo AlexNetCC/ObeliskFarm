@@ -367,6 +367,8 @@ type SimParams = GameParameters & {
   __lootbug10xMinPerHour?: number;
   __lootbugSpawnsPerHour?: number;
   __lootbugNetGemsPerHour?: number;
+  __froggerLootfrogsPerHour?: number;
+  __froggerLootfrogGemValue?: number;
   lootfrogValuePerFrogspawn?: number;
   __overview?: VarianceOverviewInputs;
 };
@@ -394,11 +396,11 @@ export function simulateOneHour(
   const skillChance = clamp01(params.skill_shard_chance);
   const skillValue = clampPositive(params.skill_shard_value_gems, 12.5);
   const stonksChance = clamp01(params.stonks_chance);
-  const stonksBonus = clampPositive(params.stonks_bonus_gems, 200) * clampPositive(params.stonks_multiplier ?? 1, 0);
+  const stonksReward = clampPositive(params.stonks_bonus_gems, 200) * clampPositive(params.stonks_multiplier ?? 1, 0);
   const superChance = clamp01(params.super_stonks_chance ?? 0);
-  const superBonus = clampPositive(params.super_stonks_bonus_gems ?? 0) * clampPositive(params.super_stonks_multiplier ?? 1, 0);
+  const superMult = clampPositive(params.super_stonks_multiplier ?? 2, 0);
   const ultraChance = clamp01(params.ultra_stonks_chance ?? 0);
-  const ultraBonus = clampPositive(params.ultra_stonks_bonus_gems ?? 0) * clampPositive(params.ultra_stonks_multiplier ?? 1, 0);
+  const ultraMult = clampPositive(params.ultra_stonks_multiplier ?? 25, 0);
   const stonksAllMult = clampPositive(params.stonks_all_multiplier ?? 1, 0);
 
   const sopranoLevel = Math.max(0, Math.min(3, clampInt(params.statue_soprano_level ?? 0, 0)));
@@ -426,10 +428,12 @@ export function simulateOneHour(
         stonksDone = true;
         if (rng() < stonksChance) {
           stonksProcs += 1;
-          stonksGemsNormal += stonksBonus * stonksAllMult;
+          stonksGemsNormal += stonksReward * stonksAllMult;
           if (superChance > 0 && rng() < superChance) {
-            stonksGemsSuper += superBonus * stonksAllMult;
-            if (ultraChance > 0 && rng() < ultraChance) stonksGemsUltra += ultraBonus * stonksAllMult;
+            stonksGemsSuper += stonksReward * (superMult - 1) * stonksAllMult;
+            if (ultraChance > 0 && rng() < ultraChance) {
+              stonksGemsUltra += stonksReward * (superMult * ultraMult - superMult) * stonksAllMult;
+            }
           }
         }
       }
@@ -494,7 +498,12 @@ export function simulateOneHour(
   }
 
   const frogspawnValuePer = params.lootfrogValuePerFrogspawn ?? 0;
-  const lootfrogGems = frogspawnCount * frogspawnValuePer;
+  const founderFrogspawnLootfrogGems = frogspawnCount * frogspawnValuePer;
+  const froggerLootfrogsPerHour = Math.max(0, Number(params.__froggerLootfrogsPerHour ?? 0));
+  const froggerLootfrogGemValue = Math.max(0, Number(params.__froggerLootfrogGemValue ?? 0));
+  const froggerLootfrogs = froggerLootfrogsPerHour > 0 ? poisson(froggerLootfrogsPerHour, rng) : 0;
+  const froggerLootfrogGems = froggerLootfrogs * froggerLootfrogGemValue;
+  const lootfrogGems = founderFrogspawnLootfrogGems + froggerLootfrogGems;
 
   // Lootbug: 10× min from Poisson(mean/2)*2; net gems from Poisson(spawns)*avgPerSpawn
   const lootbug10xMean = params.__lootbug10xMinPerHour ?? 0;
@@ -657,6 +666,8 @@ export function runVarianceSim(
   nHours: number,
   giftEvPerGift: number,
   lootfrogValuePerFrogspawn: number,
+  froggerLootfrogsPerHour: number,
+  froggerLootfrogGemValue: number,
   lootbugOptions: { lootbug10xMinPerHour: number; lootbugSpawnsPerHour: number; lootbugNetGemsPerHour: number },
   overviewInputs: VarianceOverviewInputs,
   rng: () => number = Math.random
@@ -665,6 +676,8 @@ export function runVarianceSim(
     ...params,
     __giftEvPerGift: giftEvPerGift,
     lootfrogValuePerFrogspawn: lootfrogValuePerFrogspawn,
+    __froggerLootfrogsPerHour: froggerLootfrogsPerHour,
+    __froggerLootfrogGemValue: froggerLootfrogGemValue,
     __lootbug10xMinPerHour: lootbugOptions.lootbug10xMinPerHour,
     __lootbugSpawnsPerHour: lootbugOptions.lootbugSpawnsPerHour,
     __lootbugNetGemsPerHour: lootbugOptions.lootbugNetGemsPerHour,
