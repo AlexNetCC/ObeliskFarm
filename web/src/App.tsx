@@ -33,7 +33,7 @@ type ModuleId =
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
 const EVENT_EASTER_ICON = "https://static.wikitide.net/shminerwiki/c/cd/Event_Button_Easter.png";
 /** Obelisk level for “tested up to” in About and README. Update README when this changes. */
-const OB_LEVEL = 60;
+const OB_LEVEL = 63;
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
 const SHOW_BACKUP_KEY = "obeliskfarm:web:about_show_backup";
 const BACKUP_INTERVAL_MIN_KEY = "obeliskfarm:web:backup_interval_min";
