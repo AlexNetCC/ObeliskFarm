@@ -521,6 +521,7 @@ function computeVeinsAtFloor(
       floorsInRange > 0 &&
       s.oresPerFloor > 0
         ? (s.voidPortalChancePct / 100) *
+          s.oresPerFloor *
           (floorsInRange / floorsTotal) *
           s.voidPortalMult *
           s.voidSuitMult *
@@ -718,6 +719,7 @@ export function Veins() {
         floorsInRange > 0 &&
         state.oresPerFloor > 0
           ? (state.voidPortalChancePct / 100) *
+            state.oresPerFloor *
             (floorsInRange / floorsTotal) *
             state.voidPortalMult *
             state.voidSuitMult *
@@ -1299,7 +1301,7 @@ export function Veins() {
             tooltip={{
               title: "Void Portal Chance",
               lines: [
-                "Chance to activate Ore Portals (e.g. Void Suit: 10%).",
+                "Chance per ore slot to become a portal ore.",
                 "Portals allow veins from lower floors to contribute.",
               ],
             }}
