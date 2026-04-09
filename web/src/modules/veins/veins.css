@@ -94,6 +94,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.veinsAutoValue {
+  min-width: 88px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text);
+}
+
 .veinsStepper {
   display: flex;
   align-items: center;

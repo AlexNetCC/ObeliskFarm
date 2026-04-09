@@ -6,6 +6,7 @@ import { Collapsible } from "../../components/Collapsible";
 import { loadJson, saveJson } from "../../lib/storage";
 
 const STORAGE_KEY = "obeliskfarm:web:veins_save.json:v2";
+const GEMEV_EXTERNAL_KEY = "obeliskfarm:web:gemev_external.json";
 
 const WIKI_IMG = "https://shminer.miraheze.org/wiki/Special:FilePath";
 
@@ -432,6 +433,18 @@ function expectedTypeMult(s: VeinsState): number {
 }
 
 /**
+ * Expected type multiplier when Veinmorpher "Vein → golden" triggers (all veins become golden).
+ * Rainbow can still crit from golden with the configured rainbow chance; Gleaming stays independent.
+ */
+function expectedMorphGoldenTypeMult(s: VeinsState): number {
+  const r = s.rainbowChancePct / 100;
+  const gl = s.gleamingChancePct / 100;
+  const goldenWithRainbow = s.goldenMult * ((1 - r) + r * s.rainbowMult);
+  const gleamingMult = 1 - gl + gl * s.gleamingMult;
+  return goldenWithRainbow * gleamingMult;
+}
+
+/**
  * Expected type multiplier for veins from Void portals. Each portal can be normal, golden (chance), or rainbow (crit of golden).
  * So: (1 − pGP)*typeMult + pGP*(1 − pRP)*typeMult*goldenPortalMult + pGP*pRP*typeMult*goldenPortalMult*rainbowPortalMult.
  */
@@ -463,7 +476,8 @@ function computeVeinsAtFloor(
       : [];
   const pMorph = s.veinmorpherMorphChancePct / 100;
   const pGolden = s.veinmorpherGoldenChancePct / 100;
-  const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * s.goldenMult : typeMult;
+  const morphGoldenTypeMult = expectedMorphGoldenTypeMult(s);
+  const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * morphGoldenTypeMult : typeMult;
   const portalTypeMult = expectedPortalTypeMult(s, typeMult);
 
   const byType: Array<{ vein: (typeof VEIN_TYPES)[number]; veinsPerHour: number }> = relevantVeins.map((vein) => {
@@ -614,6 +628,24 @@ export function Veins() {
     return merged;
   });
 
+  const gemEvGameSpeed = useMemo(() => {
+    const ext = loadJson<{ game_speed_multiplier?: number }>(GEMEV_EXTERNAL_KEY);
+    const n = ext?.game_speed_multiplier;
+    return typeof n === "number" && Number.isFinite(n) && n >= 1 ? n : 1;
+  }, [state.floor, state.afk, state.voidDroneOn, state.veinSpawnRateMult, state.veinIncomeMult]);
+
+  const autoFloorClearsPerMin = useMemo(
+    () => Number((48 * gemEvGameSpeed).toFixed(2)),
+    [gemEvGameSpeed]
+  );
+
+  useEffect(() => {
+    setState((prev) => {
+      if (Math.abs(prev.floorClearsPerMin - autoFloorClearsPerMin) < 1e-9) return prev;
+      return { ...prev, floorClearsPerMin: autoFloorClearsPerMin };
+    });
+  }, [autoFloorClearsPerMin]);
+
   useEffect(() => {
     saveJson(STORAGE_KEY, state);
   }, [state]);
@@ -636,8 +668,9 @@ export function Veins() {
         : [];
     const pMorph = state.veinmorpherMorphChancePct / 100;
     const pGolden = state.veinmorpherGoldenChancePct / 100;
-    /** Golden trigger: with prob pGolden all veins on the floor become golden. So mult per vein = (1−pGolden)*typeMult + pGolden*goldenMult. */
-    const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * state.goldenMult : typeMult;
+    /** Golden trigger: with prob pGolden all veins on the floor become golden; those can still rainbow-crit by Rainbow chance. */
+    const morphGoldenTypeMult = expectedMorphGoldenTypeMult(state);
+    const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * morphGoldenTypeMult : typeMult;
     const portalTypeMult = expectedPortalTypeMult(state, typeMult);
 
     const byType: Array<{ vein: (typeof VEIN_TYPES)[number]; veinsPerHour: number }> = relevantVeins.map((vein) => {
@@ -969,28 +1002,30 @@ export function Veins() {
               ],
             }}
           />
-          <NumInput
-            label={
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                Floor clears / min
-                <Tooltip
-                  content={{
-                    title: "Floor clears / min",
-                    lines: [
-                      "How many floors you clear per minute (game or real time).",
-                      "Veins per hour = veins per floor × this × 60. Same concept as in Stargazing.",
-                    ],
-                  }}
-                  label="?"
-                />
+          <div className="veinsRow">
+            <div className="veinsLabelWrap">
+              <span>Floor clears / min (auto)</span>
+              <Tooltip
+                content={{
+                  title: "Floor clears / min",
+                  lines: [
+                    "Auto-calculated from Gem EV game speed.",
+                    "Formula: 48 × Game Speed multiplier.",
+                    "Change Game Speed in Gem EV to update this value.",
+                  ],
+                }}
+                label="?"
+              />
+            </div>
+            <div className="veinsInputWrap">
+              <span className="veinsAutoValue mono" aria-label="Floor clears per minute (auto from Gem EV)">
+                {autoFloorClearsPerMin.toFixed(2)}
               </span>
-            }
-            value={state.floorClearsPerMin}
-            onChange={(n) => update({ floorClearsPerMin: n })}
-            min={0}
-            decimals={2}
-            tooltip={undefined}
-          />
+              <span className="veinsSuffix" title={`Gem EV game speed multiplier: ${gemEvGameSpeed.toFixed(2)}×`}>
+                from Gem EV ({gemEvGameSpeed.toFixed(2)}×)
+              </span>
+            </div>
+          </div>
           <div className="veinsRow">
             <div className="veinsLabelWrap">
               <span>Offline farming</span>
@@ -1155,6 +1190,7 @@ export function Veins() {
               title: "Vein → golden chance",
               lines: [
                 "Per floor: chance that all veins on the floor (normal spawn + any morphed) become golden.",
+                "When this triggers, those golden veins can still rainbow-crit via your Rainbow Chance.",
                 "Independent of the ore → vein trigger.",
               ],
             }}
