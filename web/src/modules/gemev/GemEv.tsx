@@ -19,6 +19,7 @@ import {
   calculateStatueSopranoGiftsPerHour,
   calculateStonksChestsPerHour,
   calculateStonksRelicChestsPerHour,
+  getEffectiveFreebieTimerMinutes,
   calculateTotalEvPerHour,
   defaultGameParameters,
   getExpectedItemChestsPerGift,
@@ -548,6 +549,7 @@ export function GemEv() {
   }, [params, stonksEnabled, skillShardsEnabled, statueSopranoLevel, external10x.total, external.chaosTotemUptimePct, external.chaosTotem100FromBombs, external.valueOfOneChestForLootbug, external.chaosTotemValuePerTotemForGift, external.fishingUnlocked, external.giftFishingTickValue, external.giftFishPerHourDuring5xBuff, external.fishPerSushiEvForGift, external.founderFishingTickReduction, external.lootfrogsUnlocked, external.blackHoleUnlocked, external.lootfrogValuePerFrogspawn]);
 
   const ev = useMemo(() => calculateTotalEvPerHour(effectiveParams), [effectiveParams]);
+  const effectiveFreebieTimerMin = useMemo(() => getEffectiveFreebieTimerMinutes(effectiveParams), [effectiveParams]);
   const freebiesPerHour = useMemo(() => calculateFreebiesPerHour(effectiveParams), [effectiveParams]);
   const freebieChestsPerHour = useMemo(() => calculateFreebieChestsPerHour(effectiveParams), [effectiveParams]);
   const breakdown = useMemo(() => calculateEvBreakdown(effectiveParams), [effectiveParams]);
@@ -1044,12 +1046,17 @@ export function GemEv() {
                   <>
                   {(() => {
                     const cv = (s: VarianceMetricStats) => (s.mean !== 0 && Number.isFinite(s.mean) ? s.sd / s.mean : 0);
+                    const superStonksRow = (effectiveParams.super_stonks_chance ?? 0) > 0;
+                    const ultraStonksRow = (effectiveParams.ultra_stonks_chance ?? 0) > 0;
                     const metrics: Array<{ key: string; s: VarianceMetricStats }> = [
                       { key: "freebieGems", s: varianceSimResult.freebieGems },
+                      { key: "stonksProcs", s: varianceSimResult.stonksProcs },
+                      ...(superStonksRow ? [{ key: "superStonksProcs" as const, s: varianceSimResult.superStonksProcs }] : []),
+                      ...(ultraStonksRow ? [{ key: "ultraStonksProcs" as const, s: varianceSimResult.ultraStonksProcs }] : []),
                       { key: "giftsCount", s: varianceSimResult.giftsCount },
                       { key: "giftGems", s: varianceSimResult.giftGems },
                       { key: "giftSushi", s: varianceSimResult.giftSushi },
-                      { key: "lootfrogGems", s: varianceSimResult.lootfrogGems },
+                      ...(external.lootfrogsUnlocked ? [{ key: "lootfrogGems" as const, s: varianceSimResult.lootfrogGems }] : []),
                       { key: "lootbugNetGems", s: varianceSimResult.lootbugNetGems },
                       { key: "founderGems", s: varianceSimResult.founderGems },
                       { key: "chargeMagnetGems", s: varianceSimResult.chargeMagnetGems },
@@ -1058,6 +1065,7 @@ export function GemEv() {
                       { key: "totalGems", s: varianceSimResult.totalGems },
                     ];
                     const cvs = metrics.map((m) => cv(m.s));
+                    const ix = (key: string) => metrics.findIndex((m) => m.key === key);
                     const maxCV = Math.max(0, ...cvs.filter((n) => Number.isFinite(n)));
                     const cvToBg = (cvVal: number) => {
                       const t = maxCV > 0 ? Math.min(1, Math.max(0, cvVal / maxCV)) : 0;
@@ -1069,7 +1077,7 @@ export function GemEv() {
                     const formatCvPct = (cvVal: number, mean: number) => {
                       if (mean === 0) return "—";
                       const absCv = Math.abs(cvVal);
-                      return absCv >= 1 ? ">100% (unreliable!)" : `${Math.round(absCv * 100).toFixed(0)}%`;
+                      return absCv >= 1 ? ">100%" : `${Math.round(absCv * 100).toFixed(0)}%`;
                     };
                     return (
                     <>
@@ -1092,7 +1100,7 @@ export function GemEv() {
                                     title: "CV%",
                                     lines: [
                                       "Coefficient of variation (SD ÷ mean) as %. Measures relative variability (spread relative to the average).",
-                                      "Higher CV% = more variable from run to run. >100% (unreliable!) = very high variability. Color: white = low, red = highest in this table.",
+                                      "Higher CV% = more variable from run to run. Above 100% means SD exceeds the mean (very high relative spread). Color: white = low, red = highest in this table.",
                                     ],
                                   }}
                                   label="?"
@@ -1121,7 +1129,7 @@ export function GemEv() {
                                     lines: [
                                       "Base gems: every roll (1 per claim, or more on jackpot) adds the base gem value.",
                                       ...(skillShardsEnabled ? ["Skill shards: when the roll hits, its gem value is added (Obelisk/Lucky applied)."] : []),
-                                      "Stonks: on the first roll per claim only; Super/Ultra multiply the same Stonks gem reward (not separate flat bonuses).",
+                                      "Stonks: on the first roll per freebie pop only (timer pop and each instant refresh each count as their own pop). Super/Ultra multiply the same Stonks gem reward (not separate flat bonuses).",
                                     ],
                                   }}
                                   label="?"
@@ -1130,8 +1138,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.freebieGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[0]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[0], varianceSimResult.freebieGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("freebieGems")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("freebieGems")], varianceSimResult.freebieGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1145,6 +1153,103 @@ export function GemEv() {
                           </tr>
                           <tr>
                             <td>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                Stonks (count)
+                                <Tooltip
+                                  content={{
+                                    title: "Stonks count",
+                                    lines: [
+                                      "Number of Stonks procs in that simulated hour (first roll per freebie pop: timer completion or instant refresh).",
+                                      "When Stonks chance is 0, this row stays at 0.",
+                                    ],
+                                  }}
+                                  label="?"
+                                />
+                              </span>
+                            </td>
+                            <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.stonksProcs.mean.toFixed(1)}</td>
+                            <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.stonksProcs.sd.toFixed(1)}</td>
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("stonksProcs")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("stonksProcs")], varianceSimResult.stonksProcs.mean)}
+                            </td>
+                            {varianceShowPercentiles && (
+                              <>
+                                <td className="mono">{varianceSimResult.stonksProcs.p10.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.stonksProcs.p25.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.stonksProcs.p50.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.stonksProcs.p75.toFixed(0)}</td>
+                                <td className="mono">{varianceSimResult.stonksProcs.p90.toFixed(0)}</td>
+                              </>
+                            )}
+                          </tr>
+                          {superStonksRow && (
+                            <tr>
+                              <td>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                  Super Stonks (count)
+                                  <Tooltip
+                                    content={{
+                                      title: "Super Stonks count",
+                                      lines: [
+                                        "Number of Super Stonks procs in that simulated hour.",
+                                        "Only rolls on the same freebie pop as a Stonks proc (first roll of that pop).",
+                                      ],
+                                    }}
+                                    label="?"
+                                  />
+                                </span>
+                              </td>
+                              <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.superStonksProcs.mean.toFixed(1)}</td>
+                              <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.superStonksProcs.sd.toFixed(1)}</td>
+                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("superStonksProcs")]) }} title="CV% (SD/mean)">
+                                {formatCvPct(cvs[ix("superStonksProcs")], varianceSimResult.superStonksProcs.mean)}
+                              </td>
+                              {varianceShowPercentiles && (
+                                <>
+                                  <td className="mono">{varianceSimResult.superStonksProcs.p10.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.superStonksProcs.p25.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.superStonksProcs.p50.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.superStonksProcs.p75.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.superStonksProcs.p90.toFixed(0)}</td>
+                                </>
+                              )}
+                            </tr>
+                          )}
+                          {ultraStonksRow && (
+                            <tr>
+                              <td>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                  Ultra Stonks (count)
+                                  <Tooltip
+                                    content={{
+                                      title: "Ultra Stonks count",
+                                      lines: [
+                                        "Number of Ultra Stonks procs in that simulated hour.",
+                                        "Only rolls on the same freebie pop as a Super Stonks proc.",
+                                      ],
+                                    }}
+                                    label="?"
+                                  />
+                                </span>
+                              </td>
+                              <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.ultraStonksProcs.mean.toFixed(1)}</td>
+                              <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.ultraStonksProcs.sd.toFixed(1)}</td>
+                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("ultraStonksProcs")]) }} title="CV% (SD/mean)">
+                                {formatCvPct(cvs[ix("ultraStonksProcs")], varianceSimResult.ultraStonksProcs.mean)}
+                              </td>
+                              {varianceShowPercentiles && (
+                                <>
+                                  <td className="mono">{varianceSimResult.ultraStonksProcs.p10.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.ultraStonksProcs.p25.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.ultraStonksProcs.p50.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.ultraStonksProcs.p75.toFixed(0)}</td>
+                                  <td className="mono">{varianceSimResult.ultraStonksProcs.p90.toFixed(0)}</td>
+                                </>
+                              )}
+                            </tr>
+                          )}
+                          <tr>
+                            <td>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                                 <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0 }} />
                                 Gifts (count)
@@ -1152,8 +1257,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.mean.toFixed(1)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{varianceSimResult.giftsCount.sd.toFixed(1)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[1]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[1], varianceSimResult.giftsCount.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("giftsCount")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("giftsCount")], varianceSimResult.giftsCount.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1174,8 +1279,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[2]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[2], varianceSimResult.giftGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("giftGems")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("giftGems")], varianceSimResult.giftGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1202,8 +1307,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.giftSushi.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[3]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[3], varianceSimResult.giftSushi.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("giftSushi")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("giftSushi")], varianceSimResult.giftSushi.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1220,8 +1325,8 @@ export function GemEv() {
                               <td>Lootfrog gems</td>
                               <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.mean)}</td>
                               <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootfrogGems.sd)}</td>
-                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[4]) }} title="CV% (SD/mean)">
-                                {formatCvPct(cvs[4], varianceSimResult.lootfrogGems.mean)}
+                              <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("lootfrogGems")]) }} title="CV% (SD/mean)">
+                                {formatCvPct(cvs[ix("lootfrogGems")], varianceSimResult.lootfrogGems.mean)}
                               </td>
                               {varianceShowPercentiles && (
                                 <>
@@ -1252,8 +1357,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.lootbugNetGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[5]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[5], varianceSimResult.lootbugNetGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("lootbugNetGems")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("lootbugNetGems")], varianceSimResult.lootbugNetGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1269,8 +1374,8 @@ export function GemEv() {
                             <td>Founder gems</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.founderGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[6]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[6], varianceSimResult.founderGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("founderGems")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("founderGems")], varianceSimResult.founderGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1301,8 +1406,8 @@ export function GemEv() {
                             </td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.chargeMagnetGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[7]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[7], varianceSimResult.chargeMagnetGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("chargeMagnetGems")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("chargeMagnetGems")], varianceSimResult.chargeMagnetGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1318,8 +1423,8 @@ export function GemEv() {
                             <td>Gem Bomb gems</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.gemBombGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[8]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[8], varianceSimResult.gemBombGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("gemBombGems")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("gemBombGems")], varianceSimResult.gemBombGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1335,8 +1440,8 @@ export function GemEv() {
                             <td>Drone fuel cost</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(-varianceSimResult.droneFuelCost.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.droneFuelCost.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[9]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[9], varianceSimResult.droneFuelCost.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("droneFuelCost")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("droneFuelCost")], varianceSimResult.droneFuelCost.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1352,8 +1457,8 @@ export function GemEv() {
                             <td>Total</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.mean)}</td>
                             <td className="mono gemEvVarianceColMeanSd">{fmt1OrIntOver1k(varianceSimResult.totalGems.sd)}</td>
-                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[10]) }} title="CV% (SD/mean)">
-                              {formatCvPct(cvs[10], varianceSimResult.totalGems.mean)}
+                            <td className="mono gemEvVarianceColCV" style={{ backgroundColor: cvToBg(cvs[ix("totalGems")]) }} title="CV% (SD/mean)">
+                              {formatCvPct(cvs[ix("totalGems")], varianceSimResult.totalGems.mean)}
                             </td>
                             {varianceShowPercentiles && (
                               <>
@@ -1373,9 +1478,73 @@ export function GemEv() {
                   })()}
                   {(() => {
                       const giftIconSmall = <img src="https://static.wikitide.net/shminerwiki/2/24/Gift.png" alt="" width={12} height={12} style={{ display: "block", flexShrink: 0, marginRight: 4 }} />;
+                      const superStonksBox = (effectiveParams.super_stonks_chance ?? 0) > 0;
+                      const ultraStonksBox = (effectiveParams.ultra_stonks_chance ?? 0) > 0;
                       const rows: Array<{ key: string; label: React.ReactNode; s: VarianceMetricStats; isCount?: boolean }> = [
                         { key: "totalGems", label: "Total", s: varianceSimResult.totalGems },
                         { key: "freebieGems", label: "Freebie gems", s: varianceSimResult.freebieGems },
+                        {
+                          key: "stonksProcs",
+                          label: (
+                            <>
+                              Stonks (count)
+                              <Tooltip
+                                content={{
+                                  title: "Stonks count",
+                                  lines: [
+                                    "Stonks procs in that simulated hour (first roll per pop; each instant refresh is a new pop).",
+                                    "When Stonks chance is 0, this stays at 0.",
+                                  ],
+                                }}
+                                label="?"
+                              />
+                            </>
+                          ),
+                          s: varianceSimResult.stonksProcs,
+                          isCount: true,
+                        },
+                        ...(superStonksBox
+                          ? [
+                              {
+                                key: "superStonksProcs" as const,
+                                label: (
+                                  <>
+                                    Super Stonks (count)
+                                    <Tooltip
+                                      content={{
+                                        title: "Super Stonks count",
+                                        lines: ["Only after Stonks on the same freebie pop (first roll of that pop)."],
+                                      }}
+                                      label="?"
+                                    />
+                                  </>
+                                ),
+                                s: varianceSimResult.superStonksProcs,
+                                isCount: true,
+                              },
+                            ]
+                          : []),
+                        ...(ultraStonksBox
+                          ? [
+                              {
+                                key: "ultraStonksProcs" as const,
+                                label: (
+                                  <>
+                                    Ultra Stonks (count)
+                                    <Tooltip
+                                      content={{
+                                        title: "Ultra Stonks count",
+                                        lines: ["Only after Super Stonks on the same freebie pop."],
+                                      }}
+                                      label="?"
+                                    />
+                                  </>
+                                ),
+                                s: varianceSimResult.ultraStonksProcs,
+                                isCount: true,
+                              },
+                            ]
+                          : []),
                         { key: "giftsCount", label: <>{giftIconSmall}Gifts (count)</>, s: varianceSimResult.giftsCount, isCount: true },
                         { key: "giftGems", label: <>{giftIconSmall}Gift gems</>, s: varianceSimResult.giftGems },
                         {
@@ -1743,19 +1912,10 @@ export function GemEv() {
               />
               {freebiesPerHour > 0 && bankedFreebies > 0 && (
                 <div className="gemEvRow gemEvEffectiveTimerGlow">
-                  <span className="mono small">Time to hit Freebie cap:  </span>
                   <span className="mono small">
                     {(() => {
                       const totalMinutes = (bankedFreebies / freebiesPerHour) * 60;
-                      const hours = totalMinutes / 60;
-                      if (hours >= 1) {
-                        const h = Math.floor(hours);
-                        const remainderMinutes = (hours - h) * 60;
-                        return remainderMinutes >= 0.01
-                          ? `${h} h ${formatMinSecWithUnit(remainderMinutes)}`
-                          : `${h} h`;
-                      }
-                      return formatMinSecWithUnit(totalMinutes);
+                      return `eff. Freebie Timer ${formatMinSecWithUnit(effectiveFreebieTimerMin)} -> Time to hit cap: ${formatMinSecWithUnit(totalMinutes)}`;
                     })()}
                   </span>
                 </div>
@@ -1784,7 +1944,7 @@ export function GemEv() {
                       {
                         heading: "Does not affect",
                         lines: [
-                          "Stonks: procs only on the first roll per claim. Gifts (Statue of Soprano): one gift roll per claim, same as Stonks.",
+                          "Stonks: procs only on the first roll per freebie pop (timer pop or instant refresh). Gifts (Statue of Soprano): one gift roll per pop, same as Stonks.",
                         ],
                       },
                     ],
@@ -1933,7 +2093,7 @@ export function GemEv() {
                         content={{
                           title: "Super Stonks",
                           lines: [
-                            "Only rolls when Stonks triggered on the same claim (first roll).",
+                            "Only rolls when Stonks triggered on the same freebie pop (first roll).",
                             "Multiplies the normal Stonks reward (gems, item/relic chests). Default 2×.",
                           ],
                         }}
@@ -1973,7 +2133,7 @@ export function GemEv() {
                         content={{
                           title: "Ultra Stonks",
                           lines: [
-                            "Only rolls when Super Stonks triggered on the same claim.",
+                            "Only rolls when Super Stonks triggered on the same freebie pop.",
                             "Multiplies the Stonks reward again after Super (default 25×, stacks with Super multiplier).",
                           ],
                         }}

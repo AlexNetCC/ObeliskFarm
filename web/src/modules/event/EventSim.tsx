@@ -123,26 +123,30 @@ function formatPct01(x: number, digits = 1): string {
   return `${(x * 100).toFixed(digits)}%`;
 }
 
-function heatAlphaFromLevel(level: number): number {
-  // Absolute-points heatmap (NOT normalized by max per-upgrade).
-  // Compress a bit so high levels don't fully saturate.
-  // Typical event upgrade levels go up to ~50.
+/** Heat relative to own cap: 0/cap = red, cap/cap = green. Same as Arch Simulator. */
+function heatStyle(level: number, cap: number): CSSProperties {
   const lvl = Math.max(0, Math.trunc(level));
-  if (lvl <= 0) return 0;
-  const maxRef = 50;
-  const alpha = (Math.log1p(lvl) / Math.log1p(maxRef)) * 0.28; // up to ~0.28
-  return Math.max(0.06, Math.min(0.28, alpha));
+  const capSafe = Math.max(0, Math.trunc(cap));
+  const t = capSafe > 0 ? Math.min(1, lvl / capSafe) : 0;
+  if (t <= 0) return {};
+  // Slightly softer than Arch (less neon at max).
+  const a = Math.max(0.05, Math.min(0.22, 0.05 + t * 0.17));
+  const hue = t < 0.5 ? 30 + (60 - 30) * (t / 0.5) : 60 + (120 - 60) * ((t - 0.5) / 0.5);
+  const bg = `hsla(${hue.toFixed(1)}, 78%, 68%, ${a.toFixed(3)})`;
+  const border = `hsla(${hue.toFixed(1)}, 78%, 38%, 0.30)`;
+  return { backgroundColor: bg, borderColor: border };
 }
 
-function heatStyle(level: number): CSSProperties {
-  const a = heatAlphaFromLevel(level);
-  if (a <= 0) return {};
-  // Green -> Yellow -> Orange based on absolute points.
-  const maxRef = 50;
-  const t = Math.max(0, Math.min(1, Math.log1p(Math.max(0, level)) / Math.log1p(maxRef)));
-  const hue = t < 0.5 ? 120 + (60 - 120) * (t / 0.5) : 60 + (30 - 60) * ((t - 0.5) / 0.5);
-  const bg = `hsla(${hue.toFixed(1)}, 85%, 70%, ${a.toFixed(3)})`;
-  const border = `hsla(${hue.toFixed(1)}, 85%, 38%, 0.35)`;
+/** Same hue curve as heatStyle, but with lower alpha for row backgrounds. */
+function heatRowStyle(level: number, cap: number): CSSProperties {
+  const lvl = Math.max(0, Math.trunc(level));
+  const capSafe = Math.max(0, Math.trunc(cap));
+  const t = capSafe > 0 ? Math.min(1, lvl / capSafe) : 0;
+  if (t <= 0) return {};
+  const a = Math.max(0.02, Math.min(0.12, 0.02 + t * 0.10));
+  const hue = t < 0.5 ? 30 + (60 - 30) * (t / 0.5) : 60 + (120 - 60) * ((t - 0.5) / 0.5);
+  const bg = `hsla(${hue.toFixed(1)}, 78%, 68%, ${a.toFixed(3)})`;
+  const border = `hsla(${hue.toFixed(1)}, 78%, 38%, 0.18)`;
   return { backgroundColor: bg, borderColor: border };
 }
 
@@ -1344,13 +1348,32 @@ export function EventSim() {
                       </p>
                     </div>
                     {picked.length ? (
-                      <ul className="list">
+                      <ul className="list eventUpgradePlanList">
                         {picked.map(({ idx, add, lvl }) => {
                           const max = getMaxLevelWithCaps(tier as 1 | 2 | 3 | 4, idx, result.upgrades);
+                          const rawName = UPGRADE_SHORT_NAMES[tier][idx];
+                          const nameLines = String(rawName ?? "").split("\n");
+                          const isTwoLine = nameLines.length === 2;
                           return (
                             <li key={idx}>
-                              <span className="mono" style={{ whiteSpace: "pre-line" }}>{UPGRADE_SHORT_NAMES[tier][idx]}</span> + <span className="mono eventUpgradePlanAdd">{add}</span>
-                              <span className="small" style={{ color: "var(--muted)", marginLeft: 6 }}>(→ lvl {lvl}/{max})</span>
+                              {isTwoLine ? (
+                                <span className="eventUpgradePlanDual">
+                                  <span className="mono eventUpgradePlanDualStat">{nameLines[0]}</span>
+                                  <span className="eventUpgradePlanDualMid">
+                                    <span className="eventUpgradePlanBrace" aria-hidden="true">{"}"}</span>
+                                    <span className="eventUpgradePlanDualMidText">
+                                      <span className="mono eventUpgradePlanAdd">+{add}</span>
+                                      <span className="small eventUpgradePlanLvl">(→ lvl {lvl}/{max})</span>
+                                    </span>
+                                  </span>
+                                  <span className="mono eventUpgradePlanDualStat">{nameLines[1]}</span>
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="mono" style={{ whiteSpace: "pre-line" }}>{rawName}</span> + <span className="mono eventUpgradePlanAdd">{add}</span>
+                                  <span className="small" style={{ color: "var(--muted)", marginLeft: 6 }}>(→ lvl {lvl}/{max})</span>
+                                </>
+                              )}
                             </li>
                           );
                         })}
@@ -1727,12 +1750,17 @@ export function EventSim() {
                       const unlocked = ui.prestige >= PRESTIGE_UNLOCKED[t][idx];
                       const canAdd = canAllocateUpgrade(t, idx, tempState);
                       const max = getMaxLevelWithCaps(t, idx, tempState);
+                      const isMaxed = unlocked && lvl >= max;
                       const baseCost = COSTS[t][idx];
                       const nextCost = Math.round(baseCost * 1.25 ** lvl);
                       const icon = upgradeIconFilename(tier, idx);
                       const rowClass = unlocked ? "" : "lockedRow";
+                      const baseHeat = unlocked ? heatRowStyle(lvl, max) : undefined;
+                      const rowHeat = isMaxed
+                        ? { backgroundColor: "hsla(120, 85%, 70%, 0.14)", borderColor: "hsla(120, 85%, 38%, 0.30)" }
+                        : baseHeat;
                       return (
-                        <div key={idx} className={`eventUpgradeRow ${rowClass}`}>
+                        <div key={idx} className={`eventUpgradeRow ${rowClass}`} style={rowHeat}>
                           <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
                             <Sprite path={icon ? `sprites/event/${icon}` : null} alt={UPGRADE_SHORT_NAMES[t][idx].replace(/\n/g, ", ")} label={icon ?? ""} />
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1742,7 +1770,7 @@ export function EventSim() {
                                   <>
                                     <span className="small">
                                       lvl{" "}
-                                      <span className="heatNum mono" style={heatStyle(lvl)}>
+                                      <span className="heatNum mono" style={heatStyle(lvl, max)}>
                                         {lvl}
                                       </span>{" "}
                                       / <span className="mono">{max}</span> • next <span className="mono">{formatInt(nextCost)}</span>
@@ -1759,7 +1787,7 @@ export function EventSim() {
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                             {unlocked ? (
                               <>
-                                <span className="eventUpgradeLevelBadge mono" style={heatStyle(lvl)} title={`Level ${lvl} / ${max}`}>
+                                <span className="eventUpgradeLevelBadge mono" style={heatStyle(lvl, max)} title={`Level ${lvl} / ${max}`}>
                                   {lvl}/{max}
                                 </span>
                                 <button

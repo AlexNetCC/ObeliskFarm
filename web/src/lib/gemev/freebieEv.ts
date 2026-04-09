@@ -20,7 +20,7 @@ export type GameParameters = {
   skill_shard_chance: number; // 0..1
   skill_shard_value_gems: number;
 
-  // Stonks (only on first roll per claim; Super only when Stonks hit, Ultra only when Super hit)
+  // Stonks (only on first roll per freebie pop — timer or instant refresh; Super only when Stonks hit, Ultra only when Super hit)
   stonks_chance: number; // 0..1
   stonks_bonus_gems: number;
   stonks_multiplier: number; // e.g. 2.1
@@ -540,7 +540,7 @@ const STONKS_CHESTS_BASE = 20;
 /** Base relic chests per stonks proc (in-game: 10). Same scaling as item chests. */
 const STONKS_RELIC_CHESTS_BASE = 10;
 
-/** Refresh: instant refresh gives extra rolls per hour (more stonks chances), same as stonks gems. Stonks has no jackpot (procs on first roll per claim). */
+/** Refresh: instant refresh adds extra freebie pops per hour (each pop = own Stonks chance on first roll), same as stonks gems EV. Jackpot extra rolls still do not add Stonks. */
 export function calculateStonksChestsPerHour(params: GameParameters): number {
   const freebiesPerHour = calculateFreebiesPerHour(params);
   const refreshMult = calculateRefreshMultiplier(params);

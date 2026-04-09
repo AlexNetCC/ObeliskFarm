@@ -2053,6 +2053,68 @@ a:hover {
   animation: eventUpgradePlanAddPulse 1.2s ease-in-out infinite;
 }
 
+.eventUpgradePlanDual {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.eventUpgradePlanDualStat {
+  white-space: pre-line;
+}
+
+.eventUpgradePlanDualMid {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eventUpgradePlanBrace {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  transform: scaleY(1.8);
+  opacity: 0.8;
+  margin-top: 1px;
+}
+
+.eventUpgradePlanDualMidText {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.eventUpgradePlanLvl {
+  color: var(--muted);
+  margin-top: -1px;
+}
+
+.eventUpgradePlanList {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.eventUpgradePlanList > li {
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.eventUpgradePlanList > li:nth-child(even) {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.eventUpgradePlanList > li:nth-child(odd) {
+  background: rgba(0, 0, 0, 0.08);
+}
+
 @keyframes eventUpgradePlanAddPulse {
   0%, 100% {
     transform: scale(1);

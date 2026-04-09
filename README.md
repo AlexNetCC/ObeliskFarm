@@ -19,6 +19,7 @@ An interactive calculator toolkit for the Android game **Idle Obelisk Miner**.
 - **Gem EV Calculator**
   - Turns common gem sources into a single **gem-equivalent per hour** view.
   - Useful for comparing freebies / chains / sources in one place and seeing what drives EV most.
+  - Also includes Gifts!
 
 - **Stargazing Calculator**
   - Calculates **Stars/hour** and **Super Stars/hour** for **online/offline** scenarios.

@@ -306,6 +306,12 @@ export interface VarianceSimHourResult {
   droneFuelCost: number;
   /** Total gem-equivalent for this hour (matches Overview chart: freebie + founder + gifts + lootfrog + lootbug + gem bomb + charge magnet − drone). */
   totalGems: number;
+  /** Stonks procs this hour (first roll per freebie pop only; each instant refresh is a separate pop). */
+  stonksProcs: number;
+  /** Super Stonks procs this hour (only after a Stonks proc on the same claim). */
+  superStonksProcs: number;
+  /** Ultra Stonks procs this hour (only after Super on the same claim). */
+  ultraStonksProcs: number;
 }
 
 /** Inputs from Overview chart / external so the sim can compute total and Items/Drone/Gem Bomb. */
@@ -382,14 +388,9 @@ export function simulateOneHour(
   const effectiveTimerMin = getEffectiveFreebieTimerMinutes(params);
   const pRefresh = clamp01(params.instant_refresh_chance);
 
+  /** One freebie pop = timer completion or instant refresh; each pop gets its own Stonks roll (first roll only; jackpot extra rolls do not). */
   let claims = 0;
   let timeMin = 0;
-  while (timeMin < 60) {
-    timeMin += effectiveTimerMin;
-    claims += 1;
-    while (pRefresh > 0 && rng() < pRefresh) claims += 1;
-  }
-
   const pJackpot = clamp01(params.jackpot_chance);
   const jackpotRolls = Math.max(1, Math.trunc(params.jackpot_rolls ?? 5));
   const baseGems = clampPositive(params.freebie_gems_base, 9);
@@ -414,8 +415,11 @@ export function simulateOneHour(
   let freebieGiftCount = 0;
   let jackpotCount = 0;
   let stonksProcs = 0;
+  let superStonksProcs = 0;
+  let ultraStonksProcs = 0;
 
-  for (let c = 0; c < claims; c++) {
+  const processOneFreebiePop = () => {
+    claims += 1;
     const isJackpot = rng() < pJackpot;
     if (isJackpot) jackpotCount += 1;
     const rolls = isJackpot ? jackpotRolls : 1;
@@ -430,8 +434,10 @@ export function simulateOneHour(
           stonksProcs += 1;
           stonksGemsNormal += stonksReward * stonksAllMult;
           if (superChance > 0 && rng() < superChance) {
+            superStonksProcs += 1;
             stonksGemsSuper += stonksReward * (superMult - 1) * stonksAllMult;
             if (ultraChance > 0 && rng() < ultraChance) {
+              ultraStonksProcs += 1;
               stonksGemsUltra += stonksReward * (superMult * ultraMult - superMult) * stonksAllMult;
             }
           }
@@ -442,6 +448,16 @@ export function simulateOneHour(
         if (rng() < sopranoGiftChance) freebieGiftCount += 1;
         if (rng() < soprano100xChance) freebieGiftCount += 100;
       }
+    }
+  };
+
+  while (timeMin < 60) {
+    timeMin += effectiveTimerMin;
+    let chainOpen = true;
+    while (chainOpen) {
+      chainOpen = false;
+      processOneFreebiePop();
+      if (pRefresh > 0 && rng() < pRefresh) chainOpen = true;
     }
   }
 
@@ -558,6 +574,9 @@ export function simulateOneHour(
     gemBombGems,
     droneFuelCost,
     totalGems,
+    stonksProcs,
+    superStonksProcs,
+    ultraStonksProcs,
   };
 
   if (options?.withReport) {
@@ -612,6 +631,9 @@ export interface VarianceSimResult {
   stonksGemsSuper: VarianceMetricStats;
   stonksGemsUltra: VarianceMetricStats;
   freebieGems: VarianceMetricStats;
+  stonksProcs: VarianceMetricStats;
+  superStonksProcs: VarianceMetricStats;
+  ultraStonksProcs: VarianceMetricStats;
   giftsCount: VarianceMetricStats;
   giftGems: VarianceMetricStats;
   giftSushi: VarianceMetricStats;
@@ -687,6 +709,9 @@ export function runVarianceSim(
   const stonksGemsNormal: number[] = [];
   const stonksGemsSuper: number[] = [];
   const stonksGemsUltra: number[] = [];
+  const stonksProcs: number[] = [];
+  const superStonksProcs: number[] = [];
+  const ultraStonksProcs: number[] = [];
   const freebieGems: number[] = [];
   const giftsCount: number[] = [];
   const giftGems: number[] = [];
@@ -707,6 +732,9 @@ export function runVarianceSim(
     stonksGemsNormal.push(hour.stonksGemsNormal);
     stonksGemsSuper.push(hour.stonksGemsSuper);
     stonksGemsUltra.push(hour.stonksGemsUltra);
+    stonksProcs.push(hour.stonksProcs);
+    superStonksProcs.push(hour.superStonksProcs);
+    ultraStonksProcs.push(hour.ultraStonksProcs);
     freebieGems.push(hour.freebieGems);
     giftsCount.push(hour.giftsCount);
     giftGems.push(hour.giftGems);
@@ -726,6 +754,9 @@ export function runVarianceSim(
   const sgn = [...stonksGemsNormal]; sgn.sort(sort);
   const sgs = [...stonksGemsSuper]; sgs.sort(sort);
   const sgu = [...stonksGemsUltra]; sgu.sort(sort);
+  const sp = [...stonksProcs]; sp.sort(sort);
+  const ssp = [...superStonksProcs]; ssp.sort(sort);
+  const sup = [...ultraStonksProcs]; sup.sort(sort);
   const fg = [...freebieGems]; fg.sort(sort);
   const gc = [...giftsCount]; gc.sort(sort);
   const gg = [...giftGems]; gg.sort(sort);
@@ -744,6 +775,9 @@ export function runVarianceSim(
     stonksGemsSuper: toMetricStats(stonksGemsSuper, sgs),
     stonksGemsUltra: toMetricStats(stonksGemsUltra, sgu),
     freebieGems: toMetricStats(freebieGems, fg),
+    stonksProcs: toMetricStats(stonksProcs, sp),
+    superStonksProcs: toMetricStats(superStonksProcs, ssp),
+    ultraStonksProcs: toMetricStats(ultraStonksProcs, sup),
     giftsCount: toMetricStats(giftsCount, gc),
     giftGems: toMetricStats(giftGems, gg),
     giftSushi: toMetricStats(giftSushi, gs),
