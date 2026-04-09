@@ -458,6 +458,14 @@ function expectedPortalTypeMult(s: VeinsState, typeMult: number): number {
   return typeMult * ((1 - pGP) + pGP * goldenPart);
 }
 
+/** Apply Veinmorpher "all veins become golden" blend to a given branch multiplier (e.g. portal branch). */
+function applyMorphGoldenBlend(baseTypeMult: number, morphGoldenTypeMult: number, pGolden: number, fallbackTypeMult: number): number {
+  if (pGolden <= 0) return baseTypeMult;
+  if (fallbackTypeMult <= 0) return baseTypeMult;
+  const ratio = morphGoldenTypeMult / fallbackTypeMult;
+  return baseTypeMult * ((1 - pGolden) + pGolden * ratio);
+}
+
 /** Compute veins per hour by type and total for a given floor. Uses all state inputs; when forceVoidOn is true, Void is treated as ON (for floor comparison). */
 function computeVeinsAtFloor(
   floor: number,
@@ -478,7 +486,8 @@ function computeVeinsAtFloor(
   const pGolden = s.veinmorpherGoldenChancePct / 100;
   const morphGoldenTypeMult = expectedMorphGoldenTypeMult(s);
   const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * morphGoldenTypeMult : typeMult;
-  const portalTypeMult = expectedPortalTypeMult(s, typeMult);
+  const portalTypeMultBase = expectedPortalTypeMult(s, typeMult);
+  const portalTypeMultBlended = applyMorphGoldenBlend(portalTypeMultBase, morphGoldenTypeMult, pGolden, typeMult);
 
   const byType: Array<{ vein: (typeof VEIN_TYPES)[number]; veinsPerHour: number }> = relevantVeins.map((vein) => {
     const research2x = s.veinResearch2x[vein.id] ?? false;
@@ -515,10 +524,10 @@ function computeVeinsAtFloor(
           (floorsInRange / floorsTotal) *
           s.voidPortalMult *
           s.voidSuitMult *
-          (fromSpawn / s.oresPerFloor) *
+          ((fromSpawn / s.oresPerFloor) + pMorph * (1 - (fromSpawn / s.oresPerFloor))) *
           cardMult *
           s.veinIncomeMult *
-          portalTypeMult
+          portalTypeMultBlended
         : 0;
     const vpf = (normalVpf + veinmorpherVpf + voidVpf) * afkMult;
     const vph = vpf * floorsPerHour;
@@ -671,7 +680,8 @@ export function Veins() {
     /** Golden trigger: with prob pGolden all veins on the floor become golden; those can still rainbow-crit by Rainbow chance. */
     const morphGoldenTypeMult = expectedMorphGoldenTypeMult(state);
     const typeMultBlended = pGolden > 0 ? (1 - pGolden) * typeMult + pGolden * morphGoldenTypeMult : typeMult;
-    const portalTypeMult = expectedPortalTypeMult(state, typeMult);
+    const portalTypeMultBase = expectedPortalTypeMult(state, typeMult);
+    const portalTypeMultBlended = applyMorphGoldenBlend(portalTypeMultBase, morphGoldenTypeMult, pGolden, typeMult);
 
     const byType: Array<{ vein: (typeof VEIN_TYPES)[number]; veinsPerHour: number }> = relevantVeins.map((vein) => {
       const research2x = state.veinResearch2x[vein.id] ?? false;
@@ -711,10 +721,10 @@ export function Veins() {
             (floorsInRange / floorsTotal) *
             state.voidPortalMult *
             state.voidSuitMult *
-            (fromSpawn / state.oresPerFloor) *
+            ((fromSpawn / state.oresPerFloor) + pMorph * (1 - (fromSpawn / state.oresPerFloor))) *
             cardMult *
             state.veinIncomeMult *
-            portalTypeMult
+            portalTypeMultBlended
           : 0;
       const vpf = (normalVpf + veinmorpherVpf + voidVpf) * afkMult;
       const vph = vpf * floorsPerHour;
@@ -1174,6 +1184,7 @@ export function Veins() {
               title: "Ore → vein chance",
               lines: [
                 "Per floor: chance that all remaining ores (after normal vein spawn) morph into veins of the current floor type.",
+                "Also applies to portal-derived ores in the Void branch (remaining portal ores can morph too).",
                 "Independent of the vein → golden trigger.",
               ],
             }}
@@ -1190,6 +1201,7 @@ export function Veins() {
               title: "Vein → golden chance",
               lines: [
                 "Per floor: chance that all veins on the floor (normal spawn + any morphed) become golden.",
+                "Also applies to portal-derived veins in the Void branch.",
                 "When this triggers, those golden veins can still rainbow-crit via your Rainbow Chance.",
                 "Independent of the ore → vein trigger.",
               ],
