@@ -512,7 +512,7 @@ function computeVeinsAtFloor(
         : 0;
     const floorsTotal = Math.max(1, floor);
     const floorsInRange =
-      vein.floorMin <= floor ? Math.min(vein.floorMax, floor) - vein.floorMin + 1 : 0;
+      vein.floorMin <= floor - 1 ? Math.min(vein.floorMax, floor - 1) - vein.floorMin + 1 : 0;
     const voidVpf =
       voidOn &&
       s.voidPortalChancePct > 0 &&
@@ -710,7 +710,7 @@ export function Veins() {
       /** Void: portals run first. Each pull adds 1 ORE (random floor tin–current). Then normal vein spawn runs on floor ores + portal ores. So portal ores for type t = portals × P(pull from t); each ore becomes a vein with same rate as floor: fromSpawn/oresPerFloor. */
       const floorsTotal = Math.max(1, state.floor);
       const floorsInRange =
-        vein.floorMin <= state.floor ? Math.min(vein.floorMax, state.floor) - vein.floorMin + 1 : 0;
+        vein.floorMin <= state.floor - 1 ? Math.min(vein.floorMax, state.floor - 1) - vein.floorMin + 1 : 0;
       const voidVpf =
         state.voidDroneOn &&
         state.voidPortalChancePct > 0 &&
