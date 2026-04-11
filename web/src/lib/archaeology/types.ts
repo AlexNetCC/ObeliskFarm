@@ -1,5 +1,9 @@
 export type Skill = "strength" | "agility" | "perception" | "intellect" | "luck";
-export type BlockType = "dirt" | "common" | "rare" | "epic" | "legendary" | "mythic";
+export type BlockType = "dirt" | "common" | "rare" | "epic" | "legendary" | "mythic" | "divine";
+
+/** Block types that drop fragments (wiki: Common+ includes Divine). Order used for MC/UI tie-breaks. */
+export const ARCH_FRAGMENT_TYPES = ["common", "rare", "epic", "legendary", "mythic", "divine"] as const satisfies readonly BlockType[];
+export type ArchFragmentType = (typeof ARCH_FRAGMENT_TYPES)[number];
 export type BlockTier = 1 | 2 | 3 | 4;
 export type CardLevel = 0 | 1 | 2 | 3;
 

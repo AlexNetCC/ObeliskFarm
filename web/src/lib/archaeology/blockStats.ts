@@ -21,14 +21,14 @@ export type BlockData = {
   armor_150?: number;
 };
 
-export const BLOCK_TYPES: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
+export const BLOCK_TYPES: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic", "divine"];
 
 /**
  * Sprite path for block cards / breakdown rows. Tier 3 PNGs are not bundled for most rarities (only t1/t2/t4);
  * tier 3 uses tier-2 art so the icon loads. Tier 4 uses dedicated assets.
  */
 export function archBlockIconPath(blockType: BlockType, tier: BlockTier): string {
-  const t = tier === 3 ? 2 : tier;
+  const t = blockType === "divine" ? tier : tier === 3 ? 2 : tier;
   return `sprites/archaeology/block_${blockType}_t${t}.png`;
 }
 
@@ -77,6 +77,12 @@ export const BLOCK_DATA: BlockData[] = [
   { tier: 4, block_type: "epic", health: 31050, xp: 27.0, armor: 112.3, fragment: 0.08, floor_min: 126, floor_max: Number.POSITIVE_INFINITY, health_100: 62100, armor_100: 168.45, health_150: 124200, armor_150: 168.45 },
   { tier: 4, block_type: "legendary", health: 52650, xp: 94.5, armor: 224.61, fragment: 0.08, floor_min: 136, floor_max: Number.POSITIVE_INFINITY, health_100: 105300, armor_100: 336.91, health_150: 210600, armor_150: 336.91 },
   { tier: 4, block_type: "mythic", health: 94500, xp: 202.5, armor: 673.82, fragment: 0.08, floor_min: 141, floor_max: Number.POSITIVE_INFINITY, health_100: 189000, armor_100: 1010.73, health_150: 378000, armor_150: 1010.73 },
+
+  // Divine (Ascension 1+); wiki Archaeology → Block Stats, Tier Wave = first stage this tier appears
+  { tier: 1, block_type: "divine", health: 25000, xp: 20, armor: 300, fragment: 0.01, floor_min: 50, floor_max: 74, health_100: 50000, armor_100: 450, health_150: 100000, armor_150: 450 },
+  { tier: 2, block_type: "divine", health: 75000, xp: 60, armor: 495, fragment: 0.02, floor_min: 75, floor_max: 99, health_100: 150000, armor_100: 742.5, health_150: 300000, armor_150: 742.5 },
+  { tier: 3, block_type: "divine", health: 225000, xp: 180, armor: 816.75, fragment: 0.04, floor_min: 100, floor_max: 149, health_100: 450000, armor_100: 1225.13, health_150: 900000, armor_150: 1225.13 },
+  { tier: 4, block_type: "divine", health: 675000, xp: 540, armor: 1347.64, fragment: 0.08, floor_min: 150, floor_max: Number.POSITIVE_INFINITY, health_100: 1350000, armor_100: 2021.46, health_150: 2700000, armor_150: 2021.46 },
 ];
 
 function key(tier: number, bt: string) {

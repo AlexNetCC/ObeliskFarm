@@ -9,6 +9,7 @@ import {
   type CardConfig,
 } from "../lib/archaeology/mc/monteCarlo";
 import { mulberry32 } from "../lib/archaeology/mc/prng";
+import { ARCH_FRAGMENT_TYPES } from "../lib/archaeology/types";
 
 type Msg =
   | { type: "stageSummary"; payload: Parameters<typeof stageSimsSummary>[0] }
@@ -43,9 +44,8 @@ function runStageLite(payload: any) {
   const total_hits_samples: number[] = [];
   const target_frag_samples: number[] = [];
   const tfrag = payload.targetFrag ? String(payload.targetFrag) : null;
-  const FRAG_TYPES = ["common", "rare", "epic", "legendary", "mythic"] as const;
   const run_fragments_by_type: Record<string, number[]> = {};
-  for (const k of FRAG_TYPES) run_fragments_by_type[k] = [];
+  for (const k of ARCH_FRAGMENT_TYPES) run_fragments_by_type[k] = [];
   const stamina_at_stage_sum: Record<number, number> = {};
   const stamina_at_stage_sum_sq: Record<number, number> = {};
   const stamina_at_stage_count: Record<number, number> = {};
@@ -64,7 +64,7 @@ function runStageLite(payload: any) {
     run_duration_seconds_samples.push(Number(r.run_duration_seconds ?? 1));
     total_hits_samples.push(Number(r.total_hits ?? 0));
     if (tfrag) target_frag_samples.push(Number(r.fragments?.[tfrag] ?? 0));
-    for (const k of FRAG_TYPES) run_fragments_by_type[k].push(Number(r.fragments?.[k] ?? 0));
+    for (const k of ARCH_FRAGMENT_TYPES) run_fragments_by_type[k].push(Number(r.fragments?.[k] ?? 0));
     const stam: Record<number, number> | undefined = r.stamina_at_end_of_stage;
     if (stam && typeof stam === "object") {
       for (const [stageStr, val] of Object.entries(stam)) {

@@ -10,12 +10,18 @@ import { archBlockIconPath, BLOCK_CARD_TIERS, BLOCK_TYPES, getBlockData, getCard
 import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getFragmentUpgradeBonuses, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
 import { getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
 import { PERMANENT_SPEED_MOD_INITIAL_HITS } from "../../lib/archaeology/mc/monteCarlo";
-import type { ArchBuild, ArchGemUpgradeKey, BlockTier, BlockType, CardLevel, Skill } from "../../lib/archaeology/types";
+import { ARCH_FRAGMENT_TYPES, type ArchBuild, type ArchGemUpgradeKey, type BlockTier, type BlockType, type CardLevel, type Skill } from "../../lib/archaeology/types";
 
 const STORAGE_KEY = "obeliskfarm:web:archaeology_save.json:v1";
 const MC_LOG_KEY = "obeliskfarm:web:archaeology_mc_results_log.json:v1";
 const MC_SETTINGS_KEY = "obeliskfarm:web:archaeology_mc_settings.json:v1";
 const ARCH_EXTERNAL_KEY = "obeliskfarm:web:arch_external.json";
+
+const FRAG_TYPE_SET = new Set<string>(ARCH_FRAGMENT_TYPES);
+
+function emptyFragCounts(): Record<string, number> {
+  return Object.fromEntries(ARCH_FRAGMENT_TYPES.map((t) => [t, 0]));
+}
 
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -89,7 +95,7 @@ type McLogEntry = {
     attacksPerRunStd?: number;
     /** Std dev of run duration (seconds). Present when MC computed it. */
     durationSecondsStd?: number;
-    /** Fragments per hour by type (common, rare, epic, legendary, mythic). Present when MC final sims included per-type data. */
+    /** Fragments per hour by type (common through divine). Present when MC final sims included per-type data. */
     fragmentsPerHourByType?: Record<string, number>;
     /** Block time distribution (MC only). Time share % per block type, destroyed/run, avg hits/block. */
     blockBreakdown?: import("../../lib/archaeology/mc/monteCarlo").BlockBreakdownAggregate;
@@ -321,7 +327,7 @@ export function ArchSim() {
   const [gemCardSkillNextRefId, setGemCardSkillNextRefId] = useState<string | null>(null);
   const [gemFragNextRunning, setGemFragNextRunning] = useState(false);
   const [gemFragNextProgress, setGemFragNextProgress] = useState<string | null>(null);
-  type GemFragCostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic";
+  type GemFragCostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic" | "divine";
   const [gemFragNextResults, setGemFragNextResults] = useState<Array<{
     source: "gem" | "card" | "skill" | "fragment";
     costClass: GemFragCostClass;
@@ -337,13 +343,13 @@ export function ArchSim() {
   }> | null>(null);
 
   const COLLAPSED_FRAGMENT_GROUPS_KEY = "obeliskfarm:web:arch:collapsedFragmentGroups";
-  type FragmentGroupType = "common" | "rare" | "epic" | "legendary" | "mythic";
+  type FragmentGroupType = "common" | "rare" | "epic" | "legendary" | "mythic" | "divine";
   const [collapsedFragmentGroups, setCollapsedFragmentGroups] = useState<Set<FragmentGroupType>>(() => {
     try {
       const raw = localStorage.getItem(COLLAPSED_FRAGMENT_GROUPS_KEY);
       if (raw) {
         const arr = JSON.parse(raw) as unknown;
-        if (Array.isArray(arr) && arr.every((x) => ["common", "rare", "epic", "legendary", "mythic"].includes(x))) return new Set(arr as FragmentGroupType[]);
+        if (Array.isArray(arr) && arr.every((x) => typeof x === "string" && FRAG_TYPE_SET.has(x))) return new Set(arr as FragmentGroupType[]);
       }
     } catch {
       // ignore
@@ -1072,7 +1078,7 @@ export function ArchSim() {
     const refinementSims = mcSettings.devTuning ? clampInt(Number(mcSettings.refinementSims ?? defaultRefinement), 0, 999999) : defaultRefinement;
     const combosMult = mcSettings.devTuning ? clampInt(Number(mcSettings.combosMult ?? 1), 1, 50) : 1;
     const targetFrag = mcSettings.targetFrag;
-    const FRAG_ORDER: readonly BlockType[] = ["common", "rare", "epic", "legendary", "mythic"];
+    const FRAG_ORDER: readonly BlockType[] = ARCH_FRAGMENT_TYPES;
     /** For frag mode tie-break: secondary = next-smaller (or next-higher if none); tertiary = next-higher (or over-next-higher if no smaller). */
     function getFragTieBreakFragments(target: BlockType): { secFrag: BlockType | null; terFrag: BlockType | null } {
       const L = FRAG_ORDER.length;
@@ -1247,7 +1253,7 @@ export function ArchSim() {
         if (Math.abs(at - bt) >= epsS) return bt - at;
         const aXp = a.xpPerHour ?? -Infinity;
         const bXp = b.xpPerHour ?? -Infinity;
-        if (mode === "frag" && targetFrag === "mythic" && (Math.abs(aXp - bXp) >= epsS)) return bXp - aXp;
+        if (mode === "frag" && (targetFrag === "mythic" || targetFrag === "divine") && (Math.abs(aXp - bXp) >= epsS)) return bXp - aXp;
         return b.primary - a.primary;
       };
     }
@@ -1284,7 +1290,8 @@ export function ArchSim() {
         const { secFrag, terFrag } = getFragTieBreakFragments(targetFrag);
         const secLabel = secFrag != null ? secFrag.toUpperCase() : null;
         const terLabel = terFrag != null ? terFrag.toUpperCase() : null;
-        const hasXp = targetFrag === "mythic" && ((best.xpPerHour ?? 0) > 0 || cands.some((c) => (c.xpPerHour ?? 0) > 0));
+        const hasXp =
+          (targetFrag === "mythic" || targetFrag === "divine") && ((best.xpPerHour ?? 0) > 0 || cands.some((c) => (c.xpPerHour ?? 0) > 0));
         const tail =
           hasTertiary && secLabel && terLabel
             ? `tie-break by ${secLabel}/h then ${terLabel}/h`
@@ -1346,8 +1353,8 @@ export function ArchSim() {
         let sumFph = 0;
         let sumFphSq = 0;
         let sampleCount = 0;
-        const sumFragsByType: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
-        const FRAG_TYPES_STAGE = ["common", "rare", "epic", "legendary", "mythic"] as const;
+        const sumFragsByType: Record<string, number> = emptyFragCounts();
+        const FRAG_TYPES_STAGE = ARCH_FRAGMENT_TYPES;
         const staminaAtStageSum: Record<number, number> = {};
         const staminaAtStageSumSq: Record<number, number> = {};
         const staminaAtStageCount: Record<number, number> = {};
@@ -1807,8 +1814,8 @@ export function ArchSim() {
       let sumFph = 0;
       let sumFphSq = 0;
       let sampleCount = 0;
-      const sumFragsByTypeRef: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
-      const FRAG_TYPES_REF = ["common", "rare", "epic", "legendary", "mythic"] as const;
+      const sumFragsByTypeRef: Record<string, number> = emptyFragCounts();
+      const FRAG_TYPES_REF = ARCH_FRAGMENT_TYPES;
       const staminaAtStageSumRef: Record<number, number> = {};
       const staminaAtStageSumSqRef: Record<number, number> = {};
       const staminaAtStageCountRef: Record<number, number> = {};
@@ -2039,7 +2046,7 @@ export function ArchSim() {
     const bestStats = getTotalStats(currentBuild);
     const options = { use_crit: true, enrage_enabled: currentBuild.enrageEnabled, flurry_enabled: currentBuild.flurryEnabled, quake_enabled: currentBuild.quakeEnabled };
     const cardCfg = { blockCards: currentBuild.blockCards, polychromeBonus: getPolychromeBonus() };
-    const FRAG_TYPES_REF = ["common", "rare", "epic", "legendary", "mythic"] as const;
+    const FRAG_TYPES_REF = ARCH_FRAGMENT_TYPES;
     try {
       setBuildMcProgress(`Final sims (0/${N})…`);
       const chunkSize = clampInt(Math.trunc(N / Math.max(1, pool.size * 4)), 10, 500);
@@ -2060,7 +2067,7 @@ export function ArchSim() {
         sumFph = 0,
         sumFphSq = 0;
       let sampleCount = 0;
-      const sumFragsByTypeRef: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
+      const sumFragsByTypeRef: Record<string, number> = emptyFragCounts();
       const staminaAtStageSumRef: Record<number, number> = {};
       const staminaAtStageSumSqRef: Record<number, number> = {};
       const staminaAtStageCountRef: Record<number, number> = {};
@@ -2614,7 +2621,7 @@ export function ArchSim() {
     const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
-    type CostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic";
+    type CostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic" | "divine";
     type GemFragResult = { source: "gem" | "card" | "skill" | "fragment"; costClass: CostClass; key: string; displayName: string; meanFrags: number; growthPct: number; cost: number | undefined; perCost: number; allFragmentsGrowthPct: number; perCostAllFragments: number; significant: boolean };
     const results: GemFragResult[] = [];
     try {
@@ -3031,14 +3038,16 @@ export function ArchSim() {
           ? "sprites/archaeology/fragmentepic.png"
           : t === "legendary"
             ? "sprites/archaeology/fragmentlegendary.png"
-            : "sprites/archaeology/fragmentmythic.png";
+            : t === "mythic"
+              ? "sprites/archaeology/fragmentmythic.png"
+              : "sprites/archaeology/fragmentdivine.png";
   }
 
   function renderTieBreakBars(tb: NonNullable<TieBreakReport>): ReactNode {
     if (!tb?.top3?.length) return null;
     // Match desktop visual: grouped horizontal bars with legend outside plot.
     const rows = tb.top3;
-    const FRAG_ORDER_BAR: readonly BlockType[] = ["common", "rare", "epic", "legendary", "mythic"];
+    const FRAG_ORDER_BAR: readonly BlockType[] = ARCH_FRAGMENT_TYPES;
     type Series = {
       key: string;
       label: string;
@@ -3793,7 +3802,7 @@ export function ArchSim() {
                       ) : null}
                       {upgradeNextResults && upgradeNextResults.length > 0 ? (() => {
                         const rs = upgradeNextResults;
-                        const FRAG_ORDER = ["common", "rare", "epic", "legendary", "mythic"] as const;
+                        const FRAG_ORDER = ARCH_FRAGMENT_TYPES;
                         const heatPct = (v: number, lo: number, hi: number) =>
                           hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
                         const byCostType = (ct: (typeof FRAG_ORDER)[number]) => rs.filter((r) => r.costType === ct);
@@ -3833,7 +3842,7 @@ export function ArchSim() {
                               <span title="95% confidence; two-sample comparison (baseline vs variant, N=3000 each)">
                                 * = not statistically significant
                               </span>
-                              <span title="Colors normalized within each fragment cost type (common, rare, epic, legendary, mythic).">Colors per fragment type</span>
+                              <span title="Colors normalized within each fragment cost type (common through divine).">Colors per fragment type</span>
                             </div>
                             <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
                               <thead>
@@ -4167,7 +4176,7 @@ export function ArchSim() {
                         const scale = 1000;
                         const heatPct = (v: number, lo: number, hi: number) =>
                           hi > lo ? Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) : 50;
-                        const classes: GemFragCostClass[] = ["gem", "skill", "common", "rare", "epic", "legendary", "mythic"];
+                        const classes: GemFragCostClass[] = ["gem", "skill", "common", "rare", "epic", "legendary", "mythic", "divine"];
                         const byClass = (cls: GemFragCostClass) => rs.filter((r) => r.costClass === cls);
                         const minMax = (cls: GemFragCostClass, getVal: (r: (typeof rs)[number]) => number) => {
                           const vals = byClass(cls).map(getVal).filter((v) => Number.isFinite(v));
@@ -4188,7 +4197,8 @@ export function ArchSim() {
                           }),
                         ) as Record<GemFragCostClass, { min: number; max: number }>;
                         const targetFragLabel = (fragmentLogEntries.find((e) => e.id === (gemFragNextRefId ?? fragmentLogEntries[0]?.id))?.mc?.targetFrag ?? "target").toUpperCase();
-                        const costEfficTitle = "Cost efficiency: (+%) per unit cost × 1000. Colors are normalized within each cost class (gems vs common/rare/epic/legendary/mythic fragments).";
+                        const costEfficTitle =
+                          "Cost efficiency: (+%) per unit cost × 1000. Colors are normalized within each cost class (gems vs common/rare/epic/legendary/mythic/divine fragments).";
                         let rowNum = 0;
                         return (
                           <div className="small">
@@ -4196,7 +4206,7 @@ export function ArchSim() {
                             <div className="small" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                               <span style={{ color: "hsl(120, 75%, 35%)", textShadow: "0 0 8px hsla(120, 75%, 45%, 0.9)", fontWeight: 600 }}>GREEN = GOOD</span>
                               <span title="95% confidence">* = not statistically significant</span>
-                              <span title={costEfficTitle}>Colors per cost class (gems vs common/rare/epic/legendary/mythic)</span>
+                              <span title={costEfficTitle}>Colors per cost class (gems vs common/rare/epic/legendary/mythic/divine)</span>
                             </div>
                             <table className="mono" style={{ borderCollapse: "collapse", width: "100%" }}>
                               <thead>
@@ -4265,7 +4275,7 @@ export function ArchSim() {
             defaultExpanded={false}
           >
             <div className="panel fragmentUpgradesPanel" style={{ background: "var(--tier2)" }}>
-              {(["common", "rare", "epic", "legendary", "mythic"] as const).map((ct) => {
+              {ARCH_FRAGMENT_TYPES.map((ct) => {
               const entries = fragmentGroups[ct] ?? [];
               const color = BLOCK_COLORS[ct];
               const icon = getFragIconPath(ct);
@@ -4903,7 +4913,7 @@ export function ArchSim() {
                           <span className="mono">{mcSettings.targetFrag.toUpperCase()}</span>
                         </div>
                         <div className="fragToggleRow">
-                          {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => {
+                          {ARCH_FRAGMENT_TYPES.map((t) => {
                             const icon =
                               t === "common"
                                 ? "sprites/archaeology/fragmentcommon.png"
@@ -5270,7 +5280,7 @@ export function ArchSim() {
                     <>
                       <kbd>Fragment distribution (Frag/h)</kbd>
                       <div className="small mono" style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", alignItems: "center" }}>
-                        {(["common", "rare", "epic", "legendary", "mythic"] as const).map((t) => (
+                        {ARCH_FRAGMENT_TYPES.map((t) => (
                           <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                             <Sprite path={getFragIconPath(t)} alt={t} className="iconSmall" />
                             = {formatWithThinSpaces(byType[t] ?? 0, 1)}
@@ -5304,7 +5314,7 @@ export function ArchSim() {
                       </thead>
                       <tbody>
                         {(() => {
-                          const blockTypeOrder = ["dirt", "common", "rare", "epic", "legendary", "mythic"] as const;
+                          const blockTypeOrder = BLOCK_TYPES;
                           const entries = Object.entries(openLog.metrics.blockBreakdown!.by_type)
                             .filter(([, v]) => v && (v.blocks_destroyed_per_run >= 0.01 || v.time_seconds_per_run >= 0.5))
                             .map(([key, v]) => {

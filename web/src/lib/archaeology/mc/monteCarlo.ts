@@ -1,6 +1,6 @@
-import { getBlockMixForFloor } from "../blockStats";
+import { BLOCK_TYPES, getBlockMixForFloor } from "../blockStats";
 import { getNormalizedSpawnRates, getSpawnRatesForStage } from "../spawnRates";
-import type { BlockTier, BlockType } from "../types";
+import { ARCH_FRAGMENT_TYPES, type BlockTier, type BlockType } from "../types";
 import type { Rng } from "./prng";
 import { mulberry32, randUniform } from "./prng";
 
@@ -253,7 +253,7 @@ export class MonteCarloArchaeologySimulator {
     let max_stage_reached = starting_floor;
     const stamina_at_end_of_stage: Record<number, number> = {};
 
-    const fragments_by_type: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
+    const fragments_by_type: Record<string, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0, divine: 0 };
     const fragment_mult = Number(stats.fragment_mult ?? 1.0);
     const loot_mod_chance = Number(stats.loot_mod_chance ?? 0);
     const loot_mod_multiplier = Number(stats.loot_mod_multiplier ?? 3.5);
@@ -650,7 +650,7 @@ export function stageSimsDetailed(args: {
   return { max_stage_samples, metrics_samples };
 }
 
-const FRAG_TYPES_ORDER: readonly string[] = ["common", "rare", "epic", "legendary", "mythic"];
+const FRAG_TYPES_ORDER = ARCH_FRAGMENT_TYPES;
 
 /** Aggregated block breakdown for UI (time share %, destroyed/run, avg hits/block). */
 export type BlockBreakdownAggregate = {
@@ -707,7 +707,7 @@ export function blockBreakdownSummary(args: {
 
   const totalTimeAvg =
     Object.values(timeSumByType).reduce((a, b) => a + b, 0) / runsWithData;
-  const blockTypeOrder: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic"];
+  const blockTypeOrder: BlockType[] = [...BLOCK_TYPES];
   const allKeys = [...new Set([...Object.keys(timeSumByType), ...Object.keys(blocksSumByType)])];
   const sortedKeys = allKeys.sort((a, b) => {
     const [typeA, tierA] = a.includes(",") ? (a.split(",") as [string, string]) : [a, "1"];

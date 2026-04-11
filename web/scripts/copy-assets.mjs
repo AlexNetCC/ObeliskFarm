@@ -31,7 +31,7 @@ const dstSprites = path.join(webRoot, "public", "sprites");
 // Only what we currently need for the web UI modules.
 copyDir(path.join(srcSprites, "event"), path.join(dstSprites, "event"));
 copyDir(path.join(srcSprites, "common"), path.join(dstSprites, "common"));
-copyDir(path.join(srcSprites, "archaeology"), path.join(dstSprites, "archaeology"));
+// Archaeology sprites live in web/public/sprites/archaeology (wiki-aligned, incl. divine). Do not overwrite from ObeliskGemEV.
 copyDir(path.join(srcSprites, "stargazing"), path.join(dstSprites, "stargazing"));
 
 console.log("Copied sprites to web/public/sprites/");

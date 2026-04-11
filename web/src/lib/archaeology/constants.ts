@@ -69,7 +69,7 @@ export const GEM_UPGRADE_BONUSES: Record<
 
 export const FRAGMENT_UPGRADES: Record<
   string,
-  { max_level: number; stage_unlock: number; cost_type: "common" | "rare" | "epic" | "legendary" | "mythic"; display_name: string } & Record<
+  { max_level: number; stage_unlock: number; cost_type: "common" | "rare" | "epic" | "legendary" | "mythic" | "divine"; display_name: string } & Record<
     string,
     number | string
   >
@@ -128,6 +128,7 @@ export const BLOCK_COLORS: Record<BlockType, string> = {
   epic: "#9932CC",
   legendary: "#6B5200",
   mythic: "#FF4500",
+  divine: "#E8E8FF",
 };
 
 export const SLOTS_PER_FLOOR = 24;

@@ -22,7 +22,7 @@ import {
 } from "./constants";
 import { getBlockMixForFloor } from "./blockStats";
 import { getNormalizedSpawnRates, getTotalSpawnProbability } from "./spawnRates";
-import type { ArchBuild, ArchRunSummary, ArchStats, BlockTier, BlockType, Skill } from "./types";
+import { ARCH_FRAGMENT_TYPES, type ArchBuild, type ArchRunSummary, type ArchStats, type BlockTier, type BlockType, type Skill } from "./types";
 
 function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
@@ -408,7 +408,7 @@ export function calculateXpPerRun(build: ArchBuild, stats: ArchStats, startingFl
 
 export function calculateFragmentsPerRun(build: ArchBuild, stats: ArchStats, startingFloor: number): Record<Exclude<BlockType, "dirt">, number> {
   const floors = calculateFloorsPerRun(build, stats, startingFloor);
-  const out: Record<Exclude<BlockType, "dirt">, number> = { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
+  const out = Object.fromEntries(ARCH_FRAGMENT_TYPES.map((t) => [t, 0])) as Record<Exclude<BlockType, "dirt">, number>;
   if (floors <= 0) return out;
 
   const fragmentMult = stats.fragment_mult;
