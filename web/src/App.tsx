@@ -187,14 +187,6 @@ export function App() {
               {m.id === "overnight" ? <MoonStarsIcon /> : <Sprite path={m.id === "event" && isEasterIconMonth() ? EVENT_EASTER_ICON : m.icon} alt={m.label} className="icon" />}
               <span className="navTileLabel">
                 <span>{m.label}</span>
-                {m.id === "veins" && (
-                  <span className="navBetaBadge">
-                    <Tooltip
-                      content={{ title: "Beta", lines: ["This module is in beta. Numbers and behaviour may change."] }}
-                      label="Beta"
-                    />
-                  </span>
-                )}
               </span>
             </button>
           ))}

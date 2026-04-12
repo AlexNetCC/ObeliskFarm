@@ -123,6 +123,8 @@ type SavedStateV1 = {
   catch_manually?: boolean;
   cosmic_candy?: boolean;
   w3_debuff_removed_fishing?: boolean;
+  /** Elixir 2× Star Spawn: treat as 60 min/h for Online AFK / Offline (always active in-game). */
+  elixir_2x_star_full_uptime?: boolean;
   star_cards?: Partial<StarCardsState>;
 };
 
@@ -427,6 +429,13 @@ export function Stargazing() {
     const catch_manually = saved?.catch_manually ?? false;
     const cosmic_candy = saved?.cosmic_candy ?? false;
     const w3_debuff_removed_fishing = saved?.w3_debuff_removed_fishing ?? false;
+    const extLegacy2x = loadJson<{ stargazingElixir2xStarFullUptime?: boolean }>(STARGAZING_EXTERNAL_KEY);
+    const elixir_2x_star_full_uptime =
+      typeof saved?.elixir_2x_star_full_uptime === "boolean"
+        ? saved.elixir_2x_star_full_uptime
+        : typeof extLegacy2x?.stargazingElixir2xStarFullUptime === "boolean"
+          ? extLegacy2x.stargazingElixir2xStarFullUptime
+          : false;
     const sc = saved?.star_cards ?? {};
     const mergedCards: StarCardsState = {
       ...defaultStarCards(),
@@ -439,7 +448,16 @@ export function Stargazing() {
       mergedCards.happy_bot_quest_active = oldRank > 0;
       mergedCards.happy_bot_rank = oldRank > 0 ? Math.min(10, oldRank) - 1 : 0; // old 1→0, old 10→9
     }
-    return { stats: merged, ctrl_f_stars_enabled, spoon_strat, catch_manually, cosmic_candy, w3_debuff_removed_fishing, star_cards: mergedCards };
+    return {
+      stats: merged,
+      ctrl_f_stars_enabled,
+      spoon_strat,
+      catch_manually,
+      cosmic_candy,
+      w3_debuff_removed_fishing,
+      elixir_2x_star_full_uptime,
+      star_cards: mergedCards,
+    };
   }, []);
 
   const [ui, setUi] = useState<UiStats>(initial.stats);
@@ -448,6 +466,7 @@ export function Stargazing() {
   const [catchManually, setCatchManually] = useState<boolean>(initial.catch_manually ?? false);
   const [cosmicCandy, setCosmicCandy] = useState<boolean>(initial.cosmic_candy ?? false);
   const [w3DebuffRemovedFishing, setW3DebuffRemovedFishing] = useState<boolean>(initial.w3_debuff_removed_fishing ?? false);
+  const [elixir2xStarFullUptime, setElixir2xStarFullUptime] = useState<boolean>(initial.elixir_2x_star_full_uptime ?? false);
   const [starCards, setStarCards] = useState<StarCardsState>(initial.star_cards);
   const [resetArmed, setResetArmed] = useState(false);
 
@@ -462,11 +481,20 @@ export function Stargazing() {
   // autosave (matches other web modules; close to desktop intent)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const payload: SavedStateV1 = { stats: ui, ctrl_f_stars_enabled: ctrlF, spoon_strat: spoonStrat, catch_manually: catchManually, cosmic_candy: cosmicCandy, w3_debuff_removed_fishing: w3DebuffRemovedFishing, star_cards: starCards };
+      const payload: SavedStateV1 = {
+        stats: ui,
+        ctrl_f_stars_enabled: ctrlF,
+        spoon_strat: spoonStrat,
+        catch_manually: catchManually,
+        cosmic_candy: cosmicCandy,
+        w3_debuff_removed_fishing: w3DebuffRemovedFishing,
+        elixir_2x_star_full_uptime: elixir2xStarFullUptime,
+        star_cards: starCards,
+      };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui, ctrlF, spoonStrat, catchManually, cosmicCandy, w3DebuffRemovedFishing, starCards]);
+  }, [ui, ctrlF, spoonStrat, catchManually, cosmicCandy, w3DebuffRemovedFishing, elixir2xStarFullUptime, starCards]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -525,7 +553,10 @@ export function Stargazing() {
     };
   }, [starburstToggleRefresh, externalRefreshKey]);
 
-  /** For Online AFK and Offline Gains: Elixir + Starburst. When displayed 2× Star buff uptime > 60 min/h, assume 100% uptime so Online = Online AFK = Offline for 2×. */
+  /**
+   * For Online AFK and Offline Gains: 2× Star spawn uptime from Elixir Drone only (same as full `droneBuffs` Starburst fields).
+   * Lootbug and Founder 2× minutes must not raise this to 100% — they do not apply AFK/offline, so we never use (elixir+lootbug+founder)≥60 → 1.0 here.
+   */
   const droneBuffsOnlineAfk = useMemo(() => {
     const sg = loadJson<{
       elixir2xStarMinPerHour?: number;
@@ -536,14 +567,10 @@ export function Stargazing() {
       starburstStarSpawnRatePct?: number;
       starburstAutoCatch100MinPerHour?: number;
     }>(STARGAZING_EXTERNAL_KEY);
-    const gemev = loadJson<{ lootbug2xStarMinPerHour?: number }>(GEMEV_EXTERNAL_KEY);
-    const elixirMin = typeof sg?.elixir2xStarMinPerHour === "number" ? Math.max(0, sg.elixir2xStarMinPerHour) : 0;
-    const lootbugMin = typeof gemev?.lootbug2xStarMinPerHour === "number" ? Math.max(0, gemev.lootbug2xStarMinPerHour) : 0;
-    const founder2xMin = typeof sg?.founderSupplyDrop2xStarMinPerHour === "number" ? Math.max(0, sg.founderSupplyDrop2xStarMinPerHour) : 0;
-    const displayed2xMinPerHour = elixirMin + lootbugMin + founder2xMin;
-    const full2xUptime = displayed2xMinPerHour >= 60;
-    const total2xUptimeFraction = full2xUptime ? 1 : Math.min(1, elixirMin / 60);
-    const total2xStarMinPerHour = full2xUptime ? 60 : elixirMin;
+    const elixirMinFromDrone = typeof sg?.elixir2xStarMinPerHour === "number" ? Math.max(0, sg.elixir2xStarMinPerHour) : 0;
+    const elixirMin = elixir2xStarFullUptime ? 60 : elixirMinFromDrone;
+    const total2xUptimeFraction = Math.min(1, elixirMin / 60);
+    const total2xStarMinPerHour = Math.min(60, elixirMin);
     return {
       total2xStarMinPerHour,
       total2xUptimeFraction,
@@ -555,7 +582,7 @@ export function Stargazing() {
       starburstStarSpawnRatePct: typeof sg?.starburstStarSpawnRatePct === "number" ? Math.max(0, sg.starburstStarSpawnRatePct) : 0,
       starburstAutoCatch100MinPerHour: typeof sg?.starburstAutoCatch100MinPerHour === "number" ? Math.max(0, sg.starburstAutoCatch100MinPerHour) : 0,
     };
-  }, [starburstToggleRefresh, externalRefreshKey]);
+  }, [starburstToggleRefresh, externalRefreshKey, elixir2xStarFullUptime]);
 
   /** Offline gains use same drone buff set as Online AFK (Elixir + Starburst). */
   const droneBuffsOffline = droneBuffsOnlineAfk;
@@ -651,7 +678,7 @@ export function Stargazing() {
     return s;
   }, [ui, ctrlF, spoonStrat, cosmicCandy, w3FloorsMult, droneBuffsOnlineAfk.total2xUptimeFraction, droneBuffsOnlineAfk.drone3xSuperUptimeFraction, droneBuffsOnlineAfk.founderSupplyDropAutoCatch100MinPerHour, droneBuffsOnlineAfk.starburstTripleStarChancePct, droneBuffsOnlineAfk.starburstStarSpawnRateUptimeFraction, droneBuffsOnlineAfk.starburstStarSpawnRatePct, starburstToggleRefresh]);
 
-  /** Stats for Offline Gains: no spoon strat, no external buffs (Lootbug, Founder, Elixir, Starburst off). */
+  /** Stats for Offline Gains: same Elixir + Starburst drone buffs as Online AFK; no spoon; no Lootbug/Founder. */
   const statsOffline = useMemo<PlayerStats>(() => {
     const floor_clears_per_hour = clamp(ui.floor_clears_per_minute, 0, 1_000_000) * 60.0 * w3FloorsMult;
     const baseStarMult = clamp(ui.star_spawn_rate_mult, 0, 1_000_000);
@@ -791,6 +818,36 @@ export function Stargazing() {
     return getCardMultiplier(sel, tier);
   }, [starCards.selected_card_for_results, starCards.card_tier, starCards.happy_bot_quest_active, starCards.happy_bot_rank, starCards.polychrome_bundle, starCards.infernal_bonus]);
 
+  const elixir2xFullUptimeInfo = useMemo(
+    () => ({
+      title: "Elixir 2× Star at 60 min/h",
+      sections: [
+        {
+          heading: "Drone table",
+          lines: [
+            "The Drone tab shows fair-share minutes per hour for 2× Star Spawn in one Elixir rotation.",
+            "That value can be far below 60 even when you keep the buff active with elixir stock.",
+          ],
+        },
+        {
+          heading: "This checkbox",
+          lines: [
+            "When checked, Online AFK and Offline Gains use 60 min/h for Elixir 2× Star Spawn (100% uptime).",
+            "Uncheck to use only the number from Drone (rotation model).",
+          ],
+        },
+        {
+          heading: "Display",
+          lines: [
+            "While checked, the combined “2× Star buff uptime” line under Results is hidden.",
+            "That line sums Elixir, Lootbug, and Founder and can exceed 60 min/h; it is for the Online (manual) rate only.",
+          ],
+        },
+      ],
+    }),
+    [],
+  );
+
   const onlineInfo = useMemo(
     () => ({
       title: "Online",
@@ -809,6 +866,8 @@ export function Stargazing() {
       lines: [
         "— Game open, phone aside. All stars caught by auto-catch. Offline factor 0.85 does not apply.",
         "— Elixir Drone and Starburst apply (normal stars and Super Stars). Lootbug and Founder Supply Drop do not apply when you are AFK.",
+        "— 2× Star spawn uptime here uses Elixir Drone minutes per hour only. Lootbug or Founder 2× time does not increase this row (matches no AFK buff from those sources).",
+        "— If you keep 2× Star Spawn active full-time, turn on “Elixir 2× Star at 60 min/h” above (Results panel).",
         "— Stars/hour (Online) is higher when you have Lootbug or Founder active; Online AFK has Elixir + Starburst only.",
       ],
     }),
@@ -818,10 +877,23 @@ export function Stargazing() {
   const offlineGainsInfo = useMemo(
     () => ({
       title: "Offline Gains",
-      lines: [
-        "— When the game gives offline gains: auto-catch × 0.85. The game applies this factor when you are offline.",
-        "— Spoon strat is not applied (you cannot spoon when the device is off).",
-        "— Elixir Drone and Starburst apply when offline (normal stars and Super Stars). Lootbug and Founder do not apply when the game is closed.",
+      sections: [
+        {
+          heading: "Rate",
+          lines: [
+            "Offline Gains/h = Online AFK/h × 0.85.",
+            "The 0.85 factor applies to the whole offline rate (everything already in Online AFK), not only auto-catch.",
+          ],
+        },
+        {
+          heading: "Buffs",
+          lines: [
+            "Spoon strat does not apply when the device is off.",
+            "Elixir Drone and Starburst apply when offline (normal stars and Super Stars). Lootbug and Founder do not apply when the game is closed.",
+            "2× Star spawn uptime for Offline Gains uses Elixir Drone minutes per hour only (same rule as Online AFK).",
+            "If you keep 2× Star Spawn active full-time with elixir stock, enable “Elixir 2× Star at 60 min/h” in the Results panel so this module does not use the Drone rotation fair-share min/h.",
+          ],
+        },
       ],
     }),
     [],
@@ -915,6 +987,16 @@ export function Stargazing() {
                   onChange={(e) => setCatchManually(e.target.checked)}
                 />
                 <span>Do you catch manually? (like 100% auto-catch rate, online only)</span>
+              </label>
+              <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={elixir2xStarFullUptime}
+                  onChange={(e) => setElixir2xStarFullUptime(e.target.checked)}
+                />
+                <Sprite paths={["sprites/stargazing/Telescope.png"]} alt="" className="iconSmall" label="sprites/stargazing/Telescope.png" />
+                <span>Elixir 2× Star Spawn at 60 min/h (always active in-game)</span>
+                <Tooltip content={elixir2xFullUptimeInfo} label="?" />
               </label>
               <label className="sgCheckRow" style={{ gridColumn: "1 / -1", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
                 <input
@@ -1071,7 +1153,7 @@ export function Stargazing() {
               )}
             </div>
 
-            {droneBuffs.total2xStarMinPerHour > 0 && (
+            {!elixir2xStarFullUptime && droneBuffs.total2xStarMinPerHour > 0 && (
               <div className="sg2xUptimeRow">
                 <span className="sg2xUptimeLabel">
                   <img src={ICON_2X_STAR_SPAWN} alt="" width={18} height={18} className="sg2xUptimeIcon" aria-hidden />
@@ -1651,6 +1733,7 @@ export function Stargazing() {
                   if (!confirmDanger("Reset all inputs to defaults?")) return;
                   setUi(defaultUiStats());
                   setSpoonStrat(false);
+                  setElixir2xStarFullUptime(false);
                   setStarCards(defaultStarCards());
                 }}
                 title={resetArmed ? "Click again to confirm (then confirm dialog)." : "Click once to arm, click again to confirm."}

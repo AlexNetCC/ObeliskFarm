@@ -55,7 +55,7 @@ export type PlayerStats = {
   all_star_mult: number;
   novagiant_combo_mult: number;
  
-  // CTRL+F Stars skill (multiplies offline gains by 5x)
+  // CTRL+F Stars: Online AFK / Offline use all 5 star floors (×5 vs one-floor factor 0.2).
   ctrl_f_stars_enabled: boolean;
 };
  
@@ -183,7 +183,10 @@ export class StargazingCalculator {
     return total_stars * clamp01(this.stats.auto_catch_chance) * floor_mult;
   }
 
-  /** Offline gains: same as Online AFK × 0.85 (game's offline factor). */
+  /**
+   * Game offline factor: multiplied against the full Online AFK stars/h rate (spawn, multipliers, auto-catch, CTRL+F floor factor, etc.).
+   * Not an extra layer on auto-catch only.
+   */
   static readonly OFFLINE_GAINS_MALUS = 0.85;
 
   calculate_stars_per_hour_offline_gains(): number {
@@ -261,7 +264,7 @@ export class StargazingCalculator {
     return total_super_stars * clamp01(this.stats.auto_catch_chance) * floor_mult;
   }
 
-  /** Offline gains: Online AFK with the game's 80% offline malus. */
+  /** Offline gains: full Online AFK super stars/h × {@link StargazingCalculator.OFFLINE_GAINS_MALUS} (same global offline factor as regular stars). */
   calculate_super_stars_per_hour_offline_gains(): number {
     return this.calculate_super_stars_per_hour_online_afk() * StargazingCalculator.OFFLINE_GAINS_MALUS;
   }
