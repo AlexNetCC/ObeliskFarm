@@ -93,6 +93,10 @@
   background: rgba(230, 81, 0, 0.75);
 }
 
+.itemsChestsBarLootbugGem {
+  background: rgba(255, 112, 67, 0.86);
+}
+
 .itemsChestsBarFounder {
   background: rgba(120, 80, 180, 0.8);
 }
@@ -150,6 +154,10 @@
 
 .itemsChestsBarLegendSwatch.itemsChestsBarLootbug {
   background: rgba(230, 81, 0, 0.75);
+}
+
+.itemsChestsBarLegendSwatch.itemsChestsBarLootbugGem {
+  background: rgba(255, 112, 67, 0.86);
 }
 
 .itemsChestsBarLegendSwatch.itemsChestsBarFounder {

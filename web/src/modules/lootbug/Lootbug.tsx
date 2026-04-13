@@ -424,12 +424,23 @@ export function Lootbug() {
   }, [lootbugsPerHour, totalGemWeightAll, gameSpeed, lootMultiplier]);
 
   /** Free buff "+1 Item Chest" per hour (× loot multiplier); written to external for Items / Chests module. */
-  const lootbugItemChestsPerHour = useMemo(() => {
+  const lootbugItemChestsPerHourFree = useMemo(() => {
     const buff = FREE_BUFFS.find((b) => b.name === "+1 Item Chest");
     if (!buff || totalFreeWeight <= 0) return 0;
     const procsPerHour = (lootbugsPerHour * getWeight(buff)) / totalFreeWeight;
     return procsPerHour * lootMultiplier;
   }, [lootbugsPerHour, totalFreeWeight, lootMultiplier]);
+
+  /** Gem buff "+3 Item Chests" per hour only when the buff is purchased (checked in Gem Buffs). */
+  const lootbugItemChestsPerHourGem = useMemo(() => {
+    if (!buyGemBuffsSet.has("+3 Item Chests")) return 0;
+    const buff = GEM_BUFFS.find((b) => b.name === "+3 Item Chests");
+    if (!buff || totalGemWeightAll <= 0) return 0;
+    const perHour = (lootbugsPerHour * getWeight(buff)) / totalGemWeightAll;
+    return perHour * 3 * lootMultiplier;
+  }, [lootbugsPerHour, totalGemWeightAll, buyGemBuffsSet, lootMultiplier]);
+
+  const lootbugItemChestsPerHour = lootbugItemChestsPerHourFree + lootbugItemChestsPerHourGem;
 
   /** Gem EV/h from Lootbug "+1 Item Chest": value per chest from Items. When Chaos Totem 100% uptime, only Charge Magnet; else Charge Magnet + Chaos Totem. */
   const lootbugChestGemEvPerHour = useMemo(() => {
@@ -711,6 +722,8 @@ export function Lootbug() {
       lootbugSpawnsPerHour?: number;
       droneBomb10xMinPerHour?: number;
       lootbugItemChestsPerHour?: number;
+      lootbugItemChestsPerHourFree?: number;
+      lootbugItemChestsPerHourGem?: number;
       lootbugRelicChestsPerHour?: number;
       lootbugRelicChestsPerHourFree?: number;
       lootbugRelicChestsPerHourGem?: number;
@@ -731,6 +744,8 @@ export function Lootbug() {
     ext.lootbugBomb10xMinPerHour = bombRecharge10xMinPerHour;
     ext.lootbugSpawnsPerHour = spawnsPerHour;
     ext.lootbugItemChestsPerHour = lootbugItemChestsPerHour;
+    ext.lootbugItemChestsPerHourFree = lootbugItemChestsPerHourFree;
+    ext.lootbugItemChestsPerHourGem = lootbugItemChestsPerHourGem;
     ext.lootbugRelicChestsPerHour = lootbugRelicChestsPerHour;
     ext.lootbugRelicChestsPerHourFree = lootbugRelicChestsPerHourFree;
     ext.lootbugRelicChestsPerHourGem = lootbugRelicChestsPerHourGem;
@@ -748,7 +763,7 @@ export function Lootbug() {
     ext.lootbugTotalGemCostPerHour = totalGemCostPerHour;
     ext.bankedLootbugs = state.bankCap;
     saveJson(GEMEV_EXTERNAL_KEY, ext);
-  }, [state.bankCap, spawnsPerHour, bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbugNetEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
+  }, [state.bankCap, spawnsPerHour, bombRecharge10xMinPerHour, lootbugItemChestsPerHour, lootbugItemChestsPerHourFree, lootbugItemChestsPerHourGem, lootbugRelicChestsPerHour, lootbugRelicChestsPerHourFree, lootbugRelicChestsPerHourGem, bombBearLootbugGemsEvPerHour, gemsPerHour, net10xGemEvPerHour, netGemsPerHour, lootbug2xStarMinPerHour, lootbugEvPerClaim, lootbugEvPerSpawn, lootbugNetEvPerSpawn, lootbug10xGemEvPerHour, lootbugChestGemEvPerHour, totalGemCostPerHour]);
 
   useEffect(() => {
     const ext = loadJson<Record<string, unknown>>(FISHING_EXTERNAL_KEY) ?? {};

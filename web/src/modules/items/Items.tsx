@@ -103,6 +103,8 @@ export function Items() {
     freebieChestsPerHour?: number;
     stonksChestsPerHour?: number;
     lootbugItemChestsPerHour?: number;
+    lootbugItemChestsPerHourFree?: number;
+    lootbugItemChestsPerHourGem?: number;
     giftItemChestsPerHour?: number;
     lootbugRelicChestsPerHour?: number;
     lootbugRelicChestsPerHourFree?: number;
@@ -123,7 +125,11 @@ export function Items() {
   const freebieChestsPerHour =
     typeof ext?.freebieChestsPerHour === "number" ? ext.freebieChestsPerHour : (typeof ext?.freebiesPerHour === "number" ? ext.freebiesPerHour : 0);
   const stonksChestsPerHour = typeof ext?.stonksChestsPerHour === "number" ? ext.stonksChestsPerHour : 0;
-  const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number" ? ext.lootbugItemChestsPerHour : 0;
+  const lootbugItemChestsPerHourFree = typeof ext?.lootbugItemChestsPerHourFree === "number" ? ext.lootbugItemChestsPerHourFree : 0;
+  const lootbugItemChestsPerHourGem = typeof ext?.lootbugItemChestsPerHourGem === "number" ? ext.lootbugItemChestsPerHourGem : 0;
+  const lootbugItemChestsPerHour = typeof ext?.lootbugItemChestsPerHour === "number"
+    ? ext.lootbugItemChestsPerHour
+    : lootbugItemChestsPerHourFree + lootbugItemChestsPerHourGem;
   const giftItemChestsPerHour = typeof ext?.giftItemChestsPerHour === "number" ? ext.giftItemChestsPerHour : 0;
   const founderSupplyDropItemChestsPerHour = typeof ext?.founderSupplyDropItemChestsPerHour === "number" ? ext.founderSupplyDropItemChestsPerHour : 0;
   const chestsPerHour = freebieChestsPerHour + stonksChestsPerHour + lootbugItemChestsPerHour + giftItemChestsPerHour + founderSupplyDropItemChestsPerHour;
@@ -291,7 +297,8 @@ export function Items() {
                         lines: [
                           "Freebies: effective chests from freebie rolls (1 roll = 1 chest, jackpot = 5 chests, refresh = +1 chest).",
                           "Stonks: when enabled in Gem EV, chests from stonks procs.",
-                          "Lootbug: free buff \"+1 Item Chest\" per hour.",
+                          "Lootbug (free): free buff \"+1 Item Chest\" per hour.",
+                          "Lootbug (gem): gem buff \"+3 Item Chests\" per hour when bought.",
                           "Gift: expected item chests from Gifts (one of 12 outcomes, Obelisk and Lucky mult).",
                           "Open Gem EV and Lootbug to refresh.",
                         ],
@@ -331,10 +338,19 @@ export function Items() {
                     <div
                       className="itemsChestsBarSeg itemsChestsBarLootbug"
                       style={{
-                        width: `${(lootbugItemChestsPerHour / chestsPerHour) * 100}%`,
+                        width: `${(lootbugItemChestsPerHourFree / chestsPerHour) * 100}%`,
                       }}
-                      title={`Lootbug: ${lootbugItemChestsPerHour.toFixed(2)}/h`}
+                      title={`Lootbug (free): ${lootbugItemChestsPerHourFree.toFixed(2)}/h`}
                     />
+                    {lootbugItemChestsPerHourGem > 0 ? (
+                      <div
+                        className="itemsChestsBarSeg itemsChestsBarLootbugGem"
+                        style={{
+                          width: `${(lootbugItemChestsPerHourGem / chestsPerHour) * 100}%`,
+                        }}
+                        title={`Lootbug (gem): ${lootbugItemChestsPerHourGem.toFixed(2)}/h`}
+                      />
+                    ) : null}
                     {giftItemChestsPerHour > 0 ? (
                       <div
                         className="itemsChestsBarSeg itemsChestsBarGift"
@@ -369,8 +385,14 @@ export function Items() {
                 ) : null}
                 <span className="itemsChestsBarLegendItem">
                   <span className="itemsChestsBarLegendSwatch itemsChestsBarLootbug" />
-                  Lootbug
+                  Lootbug (free)
                 </span>
+                {lootbugItemChestsPerHourGem > 0 ? (
+                  <span className="itemsChestsBarLegendItem">
+                    <span className="itemsChestsBarLegendSwatch itemsChestsBarLootbugGem" />
+                    Lootbug (gem)
+                  </span>
+                ) : null}
                 {giftItemChestsPerHour > 0 ? (
                   <span className="itemsChestsBarLegendItem">
                     <span className="itemsChestsBarLegendSwatch itemsChestsBarGift" />
