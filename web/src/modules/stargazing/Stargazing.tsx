@@ -10,12 +10,12 @@ import { StargazingCalculator, type PlayerStats } from "../../lib/stargazing/cal
 function StatsContribChart(props: {
   title: string;
   titleIcon?: React.ReactNode;
-  total: number;
   rows: { label: string; value: number; color: string }[];
   fmt: (x: number) => string;
 }) {
-  const { title, titleIcon, total, rows, fmt } = props;
+  const { title, titleIcon, rows, fmt } = props;
   const maxVal = Math.max(...rows.map((r) => r.value), 1);
+  const pctTotal = rows.reduce((sum, row) => sum + Math.max(0, row.value), 0);
   return (
     <div className="sgStatsContribBlock">
       <div className="sgStatsContribTitle" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -24,7 +24,7 @@ function StatsContribChart(props: {
       </div>
       <div className="sgStatsContribBars" role="img" aria-label={`${title} contributions bar chart`}>
         {rows.map(({ label, value, color }) => {
-          const pct = total > 0 ? (value / total) * 100 : 0;
+          const pct = pctTotal > 0 ? (Math.max(0, value) / pctTotal) * 100 : 0;
           const widthPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
           return (
             <div key={label} className="sgStatsContribRow">
@@ -1771,24 +1771,24 @@ export function Stargazing() {
                     label={`sprites/stargazing/${starCards.selected_card_for_results}.png`}
                   />
                 }
-                total={summary.stars_per_hour_online}
                 rows={[
                   { label: "Double Star", value: starContributions.doubleStar, color: "#fff59d" },
                   { label: "Triple Star", value: starContributions.tripleStar, color: "#ffeb3b" },
                   { label: "Supernova", value: starContributions.supernova, color: "#ffc107" },
                   { label: "Supergiant", value: starContributions.supergiant, color: "#ffa726" },
+                  { label: "Novagiant Combo Multi", value: starContributions.novagiant, color: "#ff8f00" },
                   { label: "Radiant", value: starContributions.radiant, color: "#f57f17" },
                 ]}
                 fmt={fmt1}
               />
               <StatsContribChart
                 title="Super Stars"
-                total={summary.super_stars_per_hour_online}
                 rows={[
                   { label: "Triple Star", value: superStarContributions.tripleStar, color: "#42a5f5" },
                   { label: "10× Chance", value: superStarContributions.tenXChance, color: "#90caf9" },
                   { label: "Supernova", value: superStarContributions.supernova, color: "#2196f3" },
                   { label: "Supergiant", value: superStarContributions.supergiant, color: "#1e88e5" },
+                  { label: "Novagiant Combo Multi", value: superStarContributions.novagiant, color: "#1976d2" },
                   { label: "Radiant", value: superStarContributions.radiant, color: "#1565c0" },
                 ]}
                 fmt={fmt1}

@@ -154,8 +154,8 @@ export class StargazingCalculator {
     const radiant_contribution = 1 + p_radiant * (this.stats.star_radiant_mult - 1);
  
     // Novagiant combo: when both supernova AND supergiant occur
-    const p_novagiant = p_supernova * p_supergiant;
-    const novagiant_contribution = 1 + p_novagiant * (this.stats.novagiant_combo_mult - 1);
+    const p_nov_star = p_supernova * p_supergiant;
+    const novagiant_contribution = 1 + p_nov_star * (this.stats.novagiant_combo_mult - 1);
  
     // Total multiplier (multiplicative stacking)
     let total_mult = supernova_contribution * supergiant_contribution * radiant_contribution * novagiant_contribution;
@@ -224,8 +224,8 @@ export class StargazingCalculator {
     const radiant_contribution = 1 + p_radiant * (this.stats.super_star_radiant_mult - 1);
  
     // Novagiant combo for super stars
-    const p_novagiant = p_supernova * p_supergiant;
-    const novagiant_contribution = 1 + p_novagiant * (this.stats.novagiant_combo_mult - 1);
+    const p_nov_ss = p_supernova * p_supergiant;
+    const novagiant_contribution = 1 + p_nov_ss * (this.stats.novagiant_combo_mult - 1);
  
     let total_mult = supernova_contribution * supergiant_contribution * radiant_contribution * novagiant_contribution;
     total_mult *= this.stats.all_star_mult;
@@ -331,6 +331,7 @@ export class StargazingCalculator {
     supernova: number;
     supergiant: number;
     radiant: number;
+    novagiant: number;
     /** Stars that roll both Supernova and Supergiant (Novagiant) per hour; for Divine Challenge. */
     supernovaSupergiant: number;
   } {
@@ -357,17 +358,18 @@ export class StargazingCalculator {
     const sn_contrib = 1 + p_sn * (this.stats.star_supernova_mult - 1);
     const sg_contrib = 1 + p_sg * (this.stats.star_supergiant_mult - 1);
     const rad_contrib = 1 + p_rad * (this.stats.star_radiant_mult - 1);
-    const p_nov = p_sn * p_sg;
-    const nov_contrib = 1 + p_nov * (this.stats.novagiant_combo_mult - 1);
+    const p_nov_star = p_sn * p_sg;
+    const nov_contrib = 1 + p_nov_star * (this.stats.novagiant_combo_mult - 1);
     const sum_extra = (sn_contrib - 1) + (sg_contrib - 1) + (rad_contrib - 1) + (nov_contrib - 1);
     const mult_extra = mult - 1;
     const slice = sum_extra > 0 && mult_extra > 0 ? (mult_extra * spawns * stars_per_spawn) / sum_extra : 0;
-    const supernova = (sn_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
-    const supergiant = (sg_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
+    const supernova = (sn_contrib - 1) * slice;
+    const supergiant = (sg_contrib - 1) * slice;
     const radiant = (rad_contrib - 1) * slice;
+    const novagiant = (nov_contrib - 1) * slice;
     const supernovaSupergiant = spawns * stars_per_spawn * p_sn * p_sg;
 
-    return { doubleStar, tripleStar, supernova, supergiant, radiant, supernovaSupergiant };
+    return { doubleStar, tripleStar, supernova, supergiant, radiant, novagiant, supernovaSupergiant };
   }
 
   /**
@@ -380,6 +382,7 @@ export class StargazingCalculator {
     supernova: number;
     supergiant: number;
     radiant: number;
+    novagiant: number;
     /** SS that are both Supernova and Supergiant (Novagiant combo) per hour. */
     supernovaSupergiant: number;
   } {
@@ -399,18 +402,19 @@ export class StargazingCalculator {
     const sn_contrib = 1 + p_sn * (this.stats.super_star_supernova_mult - 1);
     const sg_contrib = 1 + p_sg * (this.stats.super_star_supergiant_mult - 1);
     const rad_contrib = 1 + p_rad * (this.stats.super_star_radiant_mult - 1);
-    const p_nov = p_sn * p_sg;
-    const nov_contrib = 1 + p_nov * (this.stats.novagiant_combo_mult - 1);
+    const p_nov_ss = p_sn * p_sg;
+    const nov_contrib = 1 + p_nov_ss * (this.stats.novagiant_combo_mult - 1);
     const sum_extra = (sn_contrib - 1) + (sg_contrib - 1) + (rad_contrib - 1) + (nov_contrib - 1);
     const mult_extra = mult - 1;
     const slice = sum_extra > 0 && mult_extra > 0 ? (mult_extra * spawns * ss_per_spawn) / sum_extra : 0;
-    const supernova = (sn_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
-    const supergiant = (sg_contrib - 1) * slice + (nov_contrib - 1) * slice * 0.5;
+    const supernova = (sn_contrib - 1) * slice;
+    const supergiant = (sg_contrib - 1) * slice;
     const radiant = (rad_contrib - 1) * slice;
+    const novagiant = (nov_contrib - 1) * slice;
     /** Expected count of SS per hour that roll both Supernova and Supergiant (p_sn × p_sg per SS). */
     const supernovaSupergiant = spawns * ss_per_spawn * p_sn * p_sg;
 
-    return { tenXChance, tripleStar, supernova, supergiant, radiant, supernovaSupergiant };
+    return { tenXChance, tripleStar, supernova, supergiant, radiant, novagiant, supernovaSupergiant };
   }
 
   /** Get a summary of all calculated values. */
