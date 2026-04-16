@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import { formatInt, formatTime } from "../../lib/format";
 import { loadJson, saveJson } from "../../lib/storage";
-import { COSTS, GEM_UPGRADE_NAMES, getPrestigeWaveRequirement, getRewardMilestoneDisplayLabel, getNextRewardMilestoneAfterPrestige, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES, TARGET_WAVE_OPTIONS, clampToTargetWaveOption, type TargetWaveOption } from "../../lib/event/constants";
+import { COSTS, GEM_UPGRADE_NAMES, getPrestigeWaveRequirement, getRewardMilestoneDisplayLabel, PRESTIGE_UNLOCKED, UPGRADE_SHORT_NAMES, TARGET_WAVE_OPTIONS, clampToTargetWaveOption, type TargetWaveOption } from "../../lib/event/constants";
 import {
   canAllocateUpgrade,
   copyState,
@@ -93,8 +93,6 @@ type UiState = {
   waveBandStep: number;
   /** When true: band = highest reward wave reached (EVENT_REWARD_WAVES), tie-break by currency/h. */
   useRewardMilestones: boolean;
-  /** When true: MC only considers setups whose attack damage does not exceed enemy HP at target wave. */
-  targetWaveOverride: boolean;
   /** Target wave for override (e.g. 200). Only setups with atk <= enemy HP at this wave are considered. */
   targetWave: number;
   devOnlyMcTuning: boolean;
@@ -202,7 +200,6 @@ export function EventSim() {
       mcRunsPerCombo: 500,
       waveBandStep: 0,
       useRewardMilestones: true,
-      targetWaveOverride: saved?.targetWaveOverride ?? saved?.targetPrestigeOverride ?? true,
       targetWave: (() => {
         const raw = saved?.targetWave ?? (saved?.targetPrestige != null ? getPrestigeWaveRequirement(saved.targetPrestige) : 250);
         const w = clampInt(raw, 0, 99999);
@@ -322,13 +319,13 @@ export function EventSim() {
           "4": ui.upgrades.levels[4].slice(),
         },
         gem_levels: ui.upgrades.gemLevels.slice(),
-        targetWaveOverride: ui.targetWaveOverride,
+        targetWaveOverride: true,
         targetWave: ui.targetWave,
       };
       saveJson(STORAGE_KEY, payload);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [ui.prestige, ui.worldMonuments, ui.upgrades, ui.targetWaveOverride, ui.targetWave]);
+  }, [ui.prestige, ui.worldMonuments, ui.upgrades, ui.targetWave]);
 
   useEffect(() => {
     if (!resetUpgradesArmed) return;
@@ -476,7 +473,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10 + (comp.multiStartRun + 1),
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
-                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
+                targetWave: clampInt(ui.targetWave, 0, 99999),
               },
             });
             setProgress(null);
@@ -515,7 +512,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500 + comp.replicateIndex * 10,
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
-                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
+                targetWave: clampInt(ui.targetWave, 0, 99999),
               },
             });
             setProgress(null);
@@ -536,7 +533,7 @@ export function EventSim() {
                 seedBase: 1_000_000 + comp.methodIndex * 500,
                 waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
                 useRewardMilestones: ui.useRewardMilestones ?? false,
-                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
+                targetWave: clampInt(ui.targetWave, 0, 99999),
               },
             });
             setProgress(null);
@@ -665,7 +662,7 @@ export function EventSim() {
           seedBase: null,
           waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
           useRewardMilestones: ui.useRewardMilestones ?? false,
-          targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
+          targetWave: clampInt(ui.targetWave, 0, 99999),
         },
       });
     } catch (e) {
@@ -682,7 +679,7 @@ export function EventSim() {
           seedBase: null,
           waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
           useRewardMilestones: ui.useRewardMilestones ?? false,
-          targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
+          targetWave: clampInt(ui.targetWave, 0, 99999),
           progressCallback: (cur: number, total2: number, curWave: number, bestWave: number) => {
             if (cur % 25 === 0 || cur === total2) setProgress({ cur, total: total2, curWave, bestWave });
           },
@@ -791,7 +788,7 @@ export function EventSim() {
         seedBase: 1_000_000,
         waveBandStep: clampInt(ui.waveBandStep ?? 0, 0, 20) || null,
         useRewardMilestones: ui.useRewardMilestones ?? false,
-        targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
+        targetWave: clampInt(ui.targetWave, 0, 99999),
       },
     });
   }
@@ -933,8 +930,8 @@ export function EventSim() {
           <Collapsible
             id="event-target-prestige"
             className="eventPlayerStatsDark eventTargetPrestige"
-            title="Target Wave (Advanced)"
-            defaultExpanded={false}
+            title="Target Wave"
+            defaultExpanded={true}
             headerOverlay={() => (
               <div className="eventTargetPrestigeShaderWrap">
                 <SilverHologramCanvas />
@@ -942,47 +939,35 @@ export function EventSim() {
             )}
           >
             <div className="eventPlayerStatsDarkInner">
-              <label className="labelRow">
-                <input
-                  type="checkbox"
-                  checked={ui.targetWaveOverride}
-                  onChange={(e) =>
-                    setUi((s) => ({ ...s, targetWaveOverride: e.target.checked }))
-                  }
-                />
-                <span>Override simulation with target wave goal</span>
-              </label>
-              {ui.targetWaveOverride && (
-                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div className="kv kvCompact">
-                    <kbd>Target Wave</kbd>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {TARGET_WAVE_OPTIONS.map((w) => (
-                        <button
-                          key={w}
-                          type="button"
-                          className={ui.targetWave === w ? "eventTargetWaveActive" : ""}
-                          onClick={() => setUi((s) => ({ ...s, targetWave: w as TargetWaveOption }))}
-                        >
-                          Wave {w}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="kv kvCompact">
-                    <span>Enemy HP at wave {ui.targetWave}</span>
-                    <span className="mono">{formatInt(getEnemyHpAtWave(currentEnemyStats, ui.targetWave))}</span>
+              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div className="kv kvCompact">
+                  <kbd>Target Wave</kbd>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {TARGET_WAVE_OPTIONS.map((w) => (
+                      <button
+                        key={w}
+                        type="button"
+                        className={ui.targetWave === w ? "eventTargetWaveActive" : ""}
+                        onClick={() => setUi((s) => ({ ...s, targetWave: w as TargetWaveOption }))}
+                      >
+                        Wave {w}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
+                <div className="kv kvCompact">
+                  <span>Enemy HP at wave {ui.targetWave}</span>
+                  <span className="mono">{formatInt(getEnemyHpAtWave(currentEnemyStats, ui.targetWave))}</span>
+                </div>
+              </div>
               <Tooltip
                 content={{
-                  title: "Target Wave (Advanced)",
+                  title: "Target Wave",
                   sections: [
                     {
                       heading: "Target wave",
                       lines: [
-                        "When enabled, the optimizer suggests upgrades to get you closer to the target wave (you don't have to reach it).",
+                        "The optimizer suggests upgrades to get you closer to the selected target wave (you don't have to reach it).",
                         "If your current attack already one-shots enemies at the target wave, damage-only upgrades (pure atk, crit) are skipped; HP, speed, and atk+HP upgrades are still suggested.",
                         "Wave 250 is the last reward milestone in Event Results, so it is the recommended default goal.",
                       ],
@@ -1198,60 +1183,13 @@ export function EventSim() {
                       ) : null}
                     </span>
                     <div className="mono" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      {ui.targetWaveOverride ? (
-                        (() => {
-                          const wave = ui.targetWave;
-                          const info = getRewardMilestoneDisplayLabel(wave, ui.worldMonuments);
-                          return (
-                            <>
-                              Wave {wave}
-                              {info ? (
-                                <>
-                                  {" "}
-                                  (
-                                  <img
-                                    src={info.iconUrl}
-                                    alt=""
-                                    className="iconSmall"
-                                    style={{ width: 18, height: 18, verticalAlign: "middle" }}
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  {info.label})
-                                </>
-                              ) : null}
-                            </>
-                          );
-                        })()
-                      ) : mcStats.tieBreakByRewardMilestones ? (
-                        (() => {
-                          const nextWave = getNextRewardMilestoneAfterPrestige(ui.prestige);
-                          const info = getRewardMilestoneDisplayLabel(nextWave, ui.worldMonuments);
-                          return (
-                            <>
-                              Wave {nextWave}
-                              {info ? (
-                                <>
-                                  {" "}
-                                  (
-                                  <img
-                                    src={info.iconUrl}
-                                    alt=""
-                                    className="iconSmall"
-                                    style={{ width: 18, height: 18, verticalAlign: "middle" }}
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  {info.label})
-                                </>
-                              ) : null}
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <>
-                          Wave {mcStats.bestWaveBand}
-                          {(() => {
-                            const info = getRewardMilestoneDisplayLabel(mcStats.bestWaveBand, ui.worldMonuments);
-                            return info ? (
+                      {(() => {
+                        const wave = ui.targetWave;
+                        const info = getRewardMilestoneDisplayLabel(wave, ui.worldMonuments);
+                        return (
+                          <>
+                            Wave {wave}
+                            {info ? (
                               <>
                                 {" "}
                                 (
@@ -1264,10 +1202,10 @@ export function EventSim() {
                                 />
                                 {info.label})
                               </>
-                            ) : null;
-                          })()}
-                        </>
-                      )}
+                            ) : null}
+                          </>
+                        );
+                      })()}
                     </div>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <kbd>Currency/h</kbd>
@@ -1432,17 +1370,13 @@ export function EventSim() {
                           4: Math.round(mats.mat4 * scale),
                         };
                       })();
-                const targetWave = ui.targetWaveOverride
-                  ? clampInt(ui.targetWave, 0, 99999)
-                  : getPrestigeWaveRequirement(ui.prestige + 1);
-                const nextPrestigeLabel = ui.prestige + 1;
-                const useTargetWaveGoal = ui.targetWaveOverride;
+                const targetWave = clampInt(ui.targetWave, 0, 99999);
                 return (
                   <Collapsible
                     id="event-prestige-1h"
                     title={
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        {useTargetWaveGoal ? "Will I reach target wave in X hours farming?" : "Will I reach next prestige in X hours farming?"}
+                        {"Will I reach target wave in X hours farming?"}
                         <Tooltip
                           content={{
                             title: "Reach target in X hours",
@@ -1476,11 +1410,7 @@ export function EventSim() {
                       ) : null}
                     </div>
                     <div className="small" style={{ marginBottom: 8 }}>
-                      {useTargetWaveGoal ? (
-                        <>Target wave: <span className="mono">{targetWave}</span></>
-                      ) : (
-                        <>Next prestige (you are {ui.prestige}): wave <span className="mono">{targetWave}</span> for prestige {nextPrestigeLabel}</>
-                      )}
+                      Target wave: <span className="mono">{targetWave}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <label className="small" style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1543,7 +1473,7 @@ export function EventSim() {
                                 seedBase: null,
                                 waveBandStep,
                                 useRewardMilestones,
-                                targetWave: ui.targetWaveOverride ? clampInt(ui.targetWave, 0, 99999) : null,
+                                targetWave: clampInt(ui.targetWave, 0, 99999),
                               },
                             });
                           }}
@@ -1577,9 +1507,7 @@ export function EventSim() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {prestigeReachMcResult[0]!.probability <= PRESTIGE_REACH_SIGNIFICANT ? (
                             <div className="mono" style={{ color: "var(--muted)" }}>
-                              {useTargetWaveGoal
-                                ? `Even with ${prestigeReachHoursSelected}h farming, chance to reach target wave is ≤95%.`
-                                : `Even with ${prestigeReachHoursSelected}h farming, chance to reach next Prestige is ≤95%.`}
+                              {`Even with ${prestigeReachHoursSelected}h farming, chance to reach target wave is ≤95%.`}
                             </div>
                           ) : null}
                           <div className="mono">
@@ -1862,133 +1790,7 @@ export function EventSim() {
                 </div>
               );
             })}
-            <div className="row2">
-              <div className="row">
-                <div className="label">
-                  <span>
-                    MC candidates (N)
-                    <Tooltip
-                      content={{
-                        title: "MC candidates (N)",
-                        sections: [
-                          { heading: "Meaning", lines: ["How many different upgrade allocations are tried."] },
-                          { heading: "Accuracy", lines: ["Higher N improves search quality (better chance to find a strong build)."] },
-                        ],
-                      }}
-                    />
-                  </span>
-                  <span className="mono">{ui.mcCandidates}</span>
-                </div>
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  step={1}
-                  disabled={!ui.devOnlyMcTuning}
-                  value={ui.mcCandidates}
-                  onChange={(e) => setUi((s) => ({ ...s, mcCandidates: clampInt(Number(e.target.value), 1, 20000) }))}
-                />
-              </div>
-              <div className="row">
-                <div className="label">
-                  <span>
-                    Runs per combo
-                    <Tooltip
-                      content={{
-                        title: "Runs per combo",
-                        sections: [
-                          { heading: "Meaning", lines: ["How many simulation runs are averaged per candidate allocation."] },
-                          { heading: "Accuracy", lines: ["Higher runs reduces randomness/noise (more stable results)."] },
-                        ],
-                      }}
-                    />
-                  </span>
-                  <span className="mono">{ui.mcRunsPerCombo}</span>
-                </div>
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  max={2000}
-                  step={1}
-                  disabled={!ui.devOnlyMcTuning}
-                  value={ui.mcRunsPerCombo}
-                  onChange={(e) => setUi((s) => ({ ...s, mcRunsPerCombo: clampInt(Number(e.target.value), 1, 2000) }))}
-                />
-              </div>
-              <label className="toggle" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={ui.useRewardMilestones}
-                  onChange={(e) => setUi((s) => ({ ...s, useRewardMilestones: e.target.checked }))}
-                />
-                <span>
-                  Tie-break by reward milestones (currency/h)
-                  <Tooltip
-                    content={{
-                      title: "Tie-break by reward milestones",
-                      sections: [
-                        {
-                          heading: "What it does",
-                          lines: [
-                            "Band = highest reward wave you reach (e.g. 40 = Seasonal Miner, 42 = 5 Blue Cows).",
-                            "Among builds that reach the same reward wave, the one with more currency per hour wins.",
-                          ],
-                        },
-                        {
-                          heading: "Off",
-                          lines: ["Uncheck to use a fixed wave step instead, or no tie-break (wave + time only)."],
-                        },
-                      ],
-                    }}
-                  />
-                </span>
-              </label>
-              <div className="row">
-                <div className="label">
-                  <span>
-                    Wave band step (if reward milestones off)
-                    <Tooltip
-                      content={{
-                        title: "Wave band step",
-                        sections: [
-                          {
-                            heading: "When to use",
-                            lines: [
-                              "Only used when 'Tie-break by reward milestones' is off.",
-                              "E.g. step 5: waves 40–44 count as same band; tie-break by currency/h.",
-                            ],
-                          },
-                          { heading: "Off", lines: ["0 = no tie-break. Optimizer picks by highest wave and shortest time only."] },
-                        ],
-                      }}
-                    />
-                  </span>
-                  <span className="mono">{ui.waveBandStep}</span>
-                </div>
-                <input
-                  className="input"
-                  type="number"
-                  min={0}
-                  max={20}
-                  step={1}
-                  disabled={ui.useRewardMilestones}
-                  value={ui.waveBandStep}
-                  onChange={(e) => setUi((s) => ({ ...s, waveBandStep: clampInt(Number(e.target.value), 0, 20) }))}
-                />
-              </div>
-            </div>
-
-            <label className="toggle">
-              <input type="checkbox" checked={ui.devOnlyMcTuning} onChange={(e) => setUi((s) => ({ ...s, devOnlyMcTuning: e.target.checked }))} />
-              For developers only (unlock MC tuning)
-              <Tooltip
-                content={{
-                  title: "For developers only",
-                  lines: ["These settings can make the optimizer extremely slow.", "Leave them locked for normal usage."],
-                }}
-              />
-            </label>
+            {/* Advanced MC tuning is intentionally hidden in normal module usage. */}
 
             {SHOW_COMPARISON ? (
               <div style={{ marginTop: 12 }}>
