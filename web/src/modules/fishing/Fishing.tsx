@@ -365,8 +365,8 @@ function formatHoursToHhMin(hours: number): string {
 }
 
 /** Toggles for fish card tier: None (0), Card 1.5× (1), Gilded 2× (2), Poly 4× (3). Same layout as Stargazing card tier row. */
-function FishCardTierToggles(props: { value: FishCardTier; onChange: (t: FishCardTier) => void }) {
-  const { value, onChange } = props;
+function FishCardTierToggles(props: { value: FishCardTier; onChange: (t: FishCardTier) => void; polyTotalMulti?: number }) {
+  const { value, onChange, polyTotalMulti } = props;
   const cur = value;
   const mk = (tier: FishCardTier, label: string) => (
     <button
@@ -378,11 +378,22 @@ function FishCardTierToggles(props: { value: FishCardTier; onChange: (t: FishCar
     </button>
   );
   return (
-    <div className="fishingCardTierRow">
-      {mk(1, "Card")}
-      {mk(2, "Gilded")}
-      {mk(3, "Poly")}
-    </div>
+    <>
+      <div className="fishingCardTierRow">
+        {mk(1, "Card")}
+        {mk(2, "Gilded")}
+        {mk(3, "Poly")}
+      </div>
+      {polyTotalMulti != null && cur > 0 ? (
+        <div className="small" style={{ marginTop: 2, opacity: 0.75 }}>
+          {cur === 1
+            ? "Current: Card 1.50×"
+            : cur === 2
+              ? "Current: Gilded 2.00×"
+              : `Current: Poly ${polyTotalMulti.toFixed(2)}×`}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -588,9 +599,9 @@ function formatEnhanceNextEffect(
     }
     case "enhance_poly_card_multi": {
       const lvl = Math.floor(Number(enhanceLevels?.enhance_poly_card_multi ?? 0));
-      const curFactor = 1 + 0.1 * lvl;
-      const nextFactor = 1 + 0.1 * (lvl + 1);
-      return `${curFactor.toFixed(2)}×→${nextFactor.toFixed(2)}×`;
+      const curBonus = 0.1 * lvl;
+      const nextBonus = 0.1 * (lvl + 1);
+      return `+${curBonus.toFixed(2)}×→+${nextBonus.toFixed(2)}×`;
     }
     case "enhance_tiny_notice_chance": {
       const lvl = Math.floor(Number(enhanceLevels?.enhance_tiny_notice_chance ?? 0));
@@ -666,7 +677,7 @@ function computeTotalFishPerHour(
   const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
   const rodMult = (skillOptions?.fishingRodCardTier != null) ? FISHING_ROD_CARD_MULT[skillOptions.fishingRodCardTier] : 1;
   const baseRod = Math.round(stats.fishing_rod_power * rodMult); // round only once, after card mult
-  const polyCardGainMulti = stats.poly_card_gain_multi * (skillOptions?.valuePackPotencyPoly ? 1.15 : 1);
+  const polyCardTotalMulti = (4 + stats.poly_card_gain_multi) * (skillOptions?.valuePackPotencyPoly ? 1.15 : 1);
   const fishCardTier = skillOptions?.fishCardTier ?? {};
   const tickOpts = {
     motleySchoolLevel: skillOptions?.skillTreeLevels?.["motley_school"] ?? 0,
@@ -687,8 +698,7 @@ function computeTotalFishPerHour(
     const fillsPerHour = dockFillsPerHour + extraTicksPerHour / ticksNeeded;
     for (const f of set.fish) {
       const tier = (fishCardTier[f.id] ?? 0) as FishCardTier;
-      const cardBase = tier === 1 ? 1.5 : tier === 2 ? 2 : tier === 3 ? 4 : 1;
-      const cardMulti = tier > 0 ? cardBase * polyCardGainMulti : 1;
+      const cardMulti = tier === 1 ? 1.5 : tier === 2 ? 2 : tier === 3 ? polyCardTotalMulti : 1;
       total +=
         fillsPerHour *
         expectedRollsPerFill *
@@ -1352,14 +1362,15 @@ export function Fishing() {
     stats.super_shiny_multiplier,
   ]);
 
-  /** Card gain multiplier for a fish: tier 0 → 1×, Card → 1.5×, Gilded → 2×, Poly → 4×; when tier > 0 also × poly_card_gain_multi and Polychrome Potency Bundle 1.15 if active. */
+  /** Card gain multiplier for a fish: tier 0 → 1×, Card → 1.5×, Gilded → 2×, Poly → (4 + additive bonus), then × Potency 1.15 if active. */
   const getCardMulti = useMemo(() => {
-    const poly = stats.poly_card_gain_multi * (state.valuePackPotencyPoly ? 1.15 : 1);
+    const poly = (4 + stats.poly_card_gain_multi) * (state.valuePackPotencyPoly ? 1.15 : 1);
     return (fishId: string): number => {
       const tier = (state.fishCardTier[fishId] ?? 0) as FishCardTier;
-      if (tier === 0) return 1;
-      const base = tier === 1 ? 1.5 : tier === 2 ? 2 : 4;
-      return base * poly;
+      if (tier === 1) return 1.5;
+      if (tier === 2) return 2;
+      if (tier === 3) return poly;
+      return 1;
     };
   }, [stats.poly_card_gain_multi, state.valuePackPotencyPoly, state.fishCardTier]);
 
@@ -5736,8 +5747,8 @@ export function Fishing() {
                           <td className="fishingUpgradeTdSpeed">
                             {marginalPct != null
                               ? marginalPct >= 0
-                                ? `+${marginalPct.toFixed(1)}%`
-                                : `${marginalPct.toFixed(1)}%`
+                                ? `+${marginalPct.toFixed(2)}%`
+                                : `${marginalPct.toFixed(2)}%`
                               : "—"}
                           </td>
                         </tr>
@@ -5848,7 +5859,7 @@ export function Fishing() {
                                 <td className="fishingUpgradeTdTime">
                                   {gems > 0 && gemEvGemsPerHour > 0 ? formatHoursToHhMin(gems / gemEvGemsPerHour) : "—"}
                                 </td>
-                                <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
+                                <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(2)}%</td>
                               </>
                             ) : (
                               <td colSpan={4} className="fishingUpgradeTdCostEffic" style={{ color: "var(--error, #b91c1c)", fontWeight: 500 }}>
@@ -5930,7 +5941,7 @@ export function Fishing() {
                           <td className="fishingUpgradeTdTime">
                             {gemEvGemsPerHour > 0 ? formatHoursToHhMin(FISHING_ROD_GILD_CARD_COST / gemEvGemsPerHour) : "—"}
                           </td>
-                          <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(1)}%</td>
+                          <td className="fishingUpgradeTdSpeed">+{marginalPct.toFixed(2)}%</td>
                         </tr>
                       );
                     })}
@@ -5989,6 +6000,7 @@ export function Fishing() {
                     </div>
                     <FishCardTierToggles
                       value={tier}
+                      polyTotalMulti={(4 + stats.poly_card_gain_multi) * (state.valuePackPotencyPoly ? 1.15 : 1)}
                       onChange={(t) => setState((prev) => ({ ...prev, fishCardTier: { ...prev.fishCardTier, [f.id]: t } }))}
                     />
                   </div>
@@ -6260,7 +6272,7 @@ export function Fishing() {
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null ? (
                           <span title={isFriendshipEnded ? "Notice farming: effective +11.1% per level" : undefined}>
-                            {marginalPct >= 0 ? "+" : ""}{marginalPct.toFixed(1)}%{isFriendshipEnded ? " (notice)" : ""}
+                            {marginalPct >= 0 ? "+" : ""}{marginalPct.toFixed(2)}%{isFriendshipEnded ? " (notice)" : ""}
                           </span>
                         ) : (
                           "—"

@@ -80,7 +80,7 @@ export interface ComputedFishingStats {
   tier2_dock_power_mult: number;
   shiny_multiplier: number;
   super_shiny_multiplier: number;
-  /** Multiplier on fish card gains from upgrades (poly_card_multi, enhance_poly_card_multi). Polychrome Potency Bundle (fish poly ×1.15) applied in UI. */
+  /** Additive bonus on top of Poly base 4× from upgrades (poly_card_multi, enhance_poly_card_multi). */
   poly_card_gain_multi: number;
 }
 
@@ -317,9 +317,8 @@ export function computeFishingStatsFromLevels(
     (options?.abyssLegendaryCaught ? 3 : 0);
   const super_shiny_multiplier = superShinyBase * (1 + 0.0005 * tethysIdol);
 
-  // Poly card gain multi: applies to fish card gains (Card 1.5×, Gilded 2×). Polychrome Potency Bundle fish poly ×1.15 in UI.
+  // Poly card additive bonus on top of base 4× (e.g. 4 + 1.28 + 0.10 = 5.38× before potency).
   const poly_card_gain_multi =
-    1 +
     0.08 * u("poly_card_multi") +
     0.1 * e("enhance_poly_card_multi");
 
