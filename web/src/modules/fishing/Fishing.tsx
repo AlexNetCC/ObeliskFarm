@@ -606,6 +606,7 @@ function formatEnhanceNextEffect(
 type TotalFishOptions = {
   skillTreeLevels?: Partial<Record<FishingSkillId, number>>;
   fishCardTier?: Partial<Record<string, number>>;
+  valuePackPotencyPoly?: boolean;
   legendaryFishFound?: number;
   /** Abyss Legendary (Cthulhu) caught: Abyss dock tick req -9. */
   abyssLegendaryCaught?: boolean;
@@ -665,6 +666,8 @@ function computeTotalFishPerHour(
   const expectedRollsPerFill = (1 + doublePct) * (1 + 2 * triplePct) * (1 + 4 * fivePct);
   const rodMult = (skillOptions?.fishingRodCardTier != null) ? FISHING_ROD_CARD_MULT[skillOptions.fishingRodCardTier] : 1;
   const baseRod = Math.round(stats.fishing_rod_power * rodMult); // round only once, after card mult
+  const polyCardGainMulti = stats.poly_card_gain_multi * (skillOptions?.valuePackPotencyPoly ? 1.15 : 1);
+  const fishCardTier = skillOptions?.fishCardTier ?? {};
   const tickOpts = {
     motleySchoolLevel: skillOptions?.skillTreeLevels?.["motley_school"] ?? 0,
     enhanceT2DockTicksLevel: enhanceLevels["enhance_tier2_dock_ticks"] ?? 0,
@@ -683,12 +686,16 @@ function computeTotalFishPerHour(
     const dockFillsPerHour = 3600 / (ticksNeeded * effectiveTickSec);
     const fillsPerHour = dockFillsPerHour + extraTicksPerHour / ticksNeeded;
     for (const f of set.fish) {
+      const tier = (fishCardTier[f.id] ?? 0) as FishCardTier;
+      const cardBase = tier === 1 ? 1.5 : tier === 2 ? 2 : tier === 3 ? 4 : 1;
+      const cardMulti = tier > 0 ? cardBase * polyCardGainMulti : 1;
       total +=
         fillsPerHour *
         expectedRollsPerFill *
         expectedCatchesPerRoll(powerOnThisDock, f.powerRating) *
         stats.fish_income_multi *
-        expectedShinyMulti;
+        expectedShinyMulti *
+        cardMulti;
     }
   }
   return total;
@@ -1815,6 +1822,7 @@ export function Fishing() {
     const skillOpts = {
       skillTreeLevels: state.skillTreeLevels,
       fishCardTier: state.fishCardTier,
+      valuePackPotencyPoly: state.valuePackPotencyPoly,
       legendaryFishFound: state.legendaryFishFound,
       abyssLegendaryCaught: state.abyssLegendaryCaught,
       fishingRodCardTier: state.fishingRodCardTier,
@@ -5054,7 +5062,7 @@ export function Fishing() {
                       </td>
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null && marginalPct >= 0
-                          ? `+${marginalPct.toFixed(1)}%`
+                          ? `+${marginalPct.toFixed(2)}%`
                           : "—"}
                       </td>
                     </tr>
@@ -5240,7 +5248,7 @@ export function Fishing() {
                       </td>
                       <td className="fishingUpgradeTdSpeed">
                         {marginalPct != null && marginalPct >= 0
-                          ? `+${marginalPct.toFixed(1)}%`
+                          ? `+${marginalPct.toFixed(2)}%`
                           : "—"}
                       </td>
                     </tr>
@@ -5557,8 +5565,8 @@ export function Fishing() {
                           <td className="fishingUpgradeTdSpeed">
                             {marginalPct != null
                               ? marginalPct >= 0
-                                ? `+${marginalPct.toFixed(1)}%`
-                                : `${marginalPct.toFixed(1)}%`
+                                ? `+${marginalPct.toFixed(2)}%`
+                                : `${marginalPct.toFixed(2)}%`
                               : "—"}
                           </td>
                         </tr>
