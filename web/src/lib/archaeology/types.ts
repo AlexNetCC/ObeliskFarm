@@ -11,6 +11,13 @@ export type CardLevel = 0 | 1 | 2 | 3;
 // Gem upgrades in the desktop Arch simulator (cost type: Gems)
 export type ArchGemUpgradeKey = "stamina" | "xp" | "fragment";
 
+export type AscensionUpgradeSnapshot = {
+  fragmentUpgradeLevels: Record<string, number>;
+  gemUpgrades: Record<ArchGemUpgradeKey, number>;
+};
+
+export type AscensionUpgradeSnapshots = Partial<Record<AscensionLevel, AscensionUpgradeSnapshot>>;
+
 export type ArchBuild = {
   /** 0 = pre-ascension, 1 = ascended once, 2 = ascended twice (requires stage 150+ to select). */
   ascensionLevel: AscensionLevel;
@@ -25,6 +32,8 @@ export type ArchBuild = {
   skillPoints: Record<Skill, number>;
   gemUpgrades: Record<ArchGemUpgradeKey, number>;
   fragmentUpgradeLevels: Record<string, number>;
+  /** Per-ascension fragment/gem upgrade levels (0 = No Ascension, 1, 2). */
+  ascensionUpgradeSnapshots?: AscensionUpgradeSnapshots;
 
   // Key: `${blockType},${tier}` like Python save format.
   blockCards: Record<string, CardLevel>;

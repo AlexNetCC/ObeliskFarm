@@ -1,12 +1,84 @@
 import { FRAGMENT_UPGRADES } from "./constants";
 import { getVisibleSkills } from "./skills";
-import type { ArchBuild, AscensionLevel, Skill } from "./types";
+import type { ArchBuild, ArchGemUpgradeKey, AscensionLevel, AscensionUpgradeSnapshot, AscensionUpgradeSnapshots, Skill } from "./types";
+
+export function emptyGemUpgrades(): Record<ArchGemUpgradeKey, number> {
+  return { stamina: 0, xp: 0, fragment: 0 };
+}
+
+export function emptyUpgradeSnapshot(): AscensionUpgradeSnapshot {
+  return { fragmentUpgradeLevels: {}, gemUpgrades: emptyGemUpgrades() };
+}
+
+export function captureUpgradeSnapshot(build: ArchBuild): AscensionUpgradeSnapshot {
+  return {
+    fragmentUpgradeLevels: { ...build.fragmentUpgradeLevels },
+    gemUpgrades: { ...build.gemUpgrades },
+  };
+}
+
+/** Load legacy saves: seed per-ascension upgrade storage from flat fragment/gem fields. */
+export function migrateAscensionUpgradeSnapshots(
+  saved: Partial<ArchBuild>,
+  ascensionLevel: AscensionLevel,
+  gemUpgrades: Record<ArchGemUpgradeKey, number>,
+): AscensionUpgradeSnapshots {
+  if (saved.ascensionUpgradeSnapshots && Object.keys(saved.ascensionUpgradeSnapshots).length > 0) {
+    return { ...saved.ascensionUpgradeSnapshots };
+  }
+  return {
+    [ascensionLevel]: {
+      fragmentUpgradeLevels: { ...(saved.fragmentUpgradeLevels ?? {}) },
+      gemUpgrades: { ...gemUpgrades },
+    },
+  };
+}
+
+export function getUpgradeSnapshotForAscension(
+  snapshots: AscensionUpgradeSnapshots | undefined,
+  ascensionLevel: AscensionLevel,
+): AscensionUpgradeSnapshot {
+  return snapshots?.[ascensionLevel] ?? emptyUpgradeSnapshot();
+}
+
+/** Persist active fragment/gem upgrades into the snapshot for the current ascension level. */
+export function withSyncedUpgradeSnapshot(
+  build: ArchBuild,
+  updates: Partial<Pick<ArchBuild, "fragmentUpgradeLevels" | "gemUpgrades">>,
+): ArchBuild {
+  const asc = build.ascensionLevel ?? 0;
+  const next: ArchBuild = { ...build, ...updates };
+  return {
+    ...next,
+    ascensionUpgradeSnapshots: {
+      ...(build.ascensionUpgradeSnapshots ?? {}),
+      [asc]: captureUpgradeSnapshot(next),
+    },
+  };
+}
+
+/** Save current ascension upgrades, then load the target ascension's fragment/gem levels. */
+export function switchAscensionUpgrades(build: ArchBuild, nextAsc: AscensionLevel): Pick<ArchBuild, "ascensionUpgradeSnapshots" | "fragmentUpgradeLevels" | "gemUpgrades"> {
+  const curAsc = build.ascensionLevel ?? 0;
+  const asc = normalizeAscensionLevel(nextAsc, build.unlockedStage);
+  const snapshots: AscensionUpgradeSnapshots = {
+    ...(build.ascensionUpgradeSnapshots ?? {}),
+    [curAsc]: captureUpgradeSnapshot(build),
+  };
+  const loaded = getUpgradeSnapshotForAscension(snapshots, asc);
+  return {
+    ascensionUpgradeSnapshots: snapshots,
+    fragmentUpgradeLevels: { ...loaded.fragmentUpgradeLevels },
+    gemUpgrades: { ...loaded.gemUpgrades },
+  };
+}
+
 
 export const ASCENSION2_UNLOCK_STAGE = 150;
 
-export function normalizeAscensionLevel(raw: unknown, unlockedStage: number): AscensionLevel {
+export function normalizeAscensionLevel(raw: unknown, _unlockedStage?: number): AscensionLevel {
   const n = Math.trunc(Number(raw ?? 0));
-  if (n >= 2 && unlockedStage >= ASCENSION2_UNLOCK_STAGE) return 2;
+  if (n >= 2) return 2;
   if (n >= 1) return 1;
   return 0;
 }

@@ -10,14 +10,17 @@ import { archBlockIconPath, BLOCK_CARD_TIERS, BLOCK_TYPES, getBlockData, getCard
 import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getFragmentUpgradeBonuses, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
 import { getGemUpgradeCost, getGemUpgradeMaxLevel, getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
 import {
-  ASCENSION2_UNLOCK_STAGE,
   ascensionLabel,
   buildSkillPointsFromOptimizerDist,
   getBonusSkillPoints,
   getOptimizerSkillBudget,
   getTotalSkillPointBudget,
+  getUpgradeSnapshotForAscension,
+  migrateAscensionUpgradeSnapshots,
   mcOptionsFromBuild,
   normalizeAscensionLevel,
+  switchAscensionUpgrades,
+  withSyncedUpgradeSnapshot,
 } from "../../lib/archaeology/ascension";
 import { formatSkillPointsLine, getSkillDisplay, getVisibleSkills, sanitizeSkillPoints, skillTrimOrder } from "../../lib/archaeology/skills";
 import { PERMANENT_SPEED_MOD_INITIAL_HITS } from "../../lib/archaeology/mc/monteCarlo";
@@ -204,6 +207,7 @@ function defaultBuild(): ArchBuild {
     skillPoints: { strength: 0, agility: 0, perception: 0, intellect: 0, luck: 0, divinity: 0, corruption: 0 },
     gemUpgrades: { stamina: 0, xp: 0, fragment: 0 },
     fragmentUpgradeLevels: {},
+    ascensionUpgradeSnapshots: {},
     blockCards,
     miscCardLevel: 0,
     enrageEnabled: true,
@@ -233,6 +237,14 @@ function formatDurationMinSec(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function SkillToggleState({ on }: { on: boolean }) {
+  return (
+    <span className="mono" style={on ? undefined : { color: "#c62828", fontWeight: 700 }}>
+      {on ? "ON" : "OFF"}
+    </span>
+  );
 }
 
 function normalizeSkillsToTotal(sp: Record<Skill, number>, total: number, ascensionLevel: AscensionLevel): Record<Skill, number> {
@@ -274,14 +286,18 @@ export function ArchSim() {
     if (!saved) return base;
     const asc = normalizeAscensionLevel(saved.ascensionLevel, Number(saved.unlockedStage ?? base.unlockedStage));
     const skillPoints = sanitizeSkillPoints({ ...base.skillPoints, ...(saved.skillPoints ?? {}) }, asc);
+    const gemUpgrades = sanitizeGemUpgrades(saved.gemUpgrades);
+    const ascensionUpgradeSnapshots = migrateAscensionUpgradeSnapshots(saved, asc, gemUpgrades);
+    const activeUpgrades = getUpgradeSnapshotForAscension(ascensionUpgradeSnapshots, asc);
     return {
       ...base,
       ...saved,
       ascensionLevel: asc,
       // deep-ish merges:
       skillPoints,
-      gemUpgrades: sanitizeGemUpgrades(saved.gemUpgrades),
-      fragmentUpgradeLevels: { ...(saved.fragmentUpgradeLevels ?? {}) },
+      ascensionUpgradeSnapshots,
+      gemUpgrades: { ...activeUpgrades.gemUpgrades },
+      fragmentUpgradeLevels: { ...activeUpgrades.fragmentUpgradeLevels },
       blockCards: { ...base.blockCards, ...(saved.blockCards ?? {}) },
     };
   });
@@ -786,7 +802,7 @@ export function ArchSim() {
       const cur = s.gemUpgrades[key] ?? 0;
       const max = getGemUpgradeMaxLevel(key, s.ascensionLevel ?? 0);
       const next = clampInt(cur + delta, 0, max);
-      return { ...s, gemUpgrades: { ...s.gemUpgrades, [key]: next } };
+      return withSyncedUpgradeSnapshot(s, { gemUpgrades: { ...s.gemUpgrades, [key]: next } });
     });
   }
 
@@ -799,7 +815,7 @@ export function ArchSim() {
       const copy = { ...s.fragmentUpgradeLevels };
       if (next <= 0) delete copy[key];
       else copy[key] = next;
-      return { ...s, fragmentUpgradeLevels: copy };
+      return withSyncedUpgradeSnapshot(s, { fragmentUpgradeLevels: copy });
     });
   }
 
@@ -826,11 +842,15 @@ export function ArchSim() {
   function setAscensionLevel(next: AscensionLevel) {
     setBuild((s) => {
       const asc = normalizeAscensionLevel(next, s.unlockedStage);
-      const sp: Record<Skill, number> = { ...s.skillPoints };
-      if (asc < 1) sp.divinity = 0;
-      if (asc < 2) sp.corruption = 0;
-      const normalized = normalizeSkillsToTotal(sp, getTotalSkillPointBudget({ ...s, ascensionLevel: asc, skillPoints: sp }), asc);
-      return { ...s, ascensionLevel: asc, skillPoints: normalized };
+      if ((s.ascensionLevel ?? 0) === asc) return s;
+      const upgradeSwitch = switchAscensionUpgrades(s, asc);
+      const sp = sanitizeSkillPoints({ ...s.skillPoints }, asc);
+      const normalized = normalizeSkillsToTotal(
+        sp,
+        getTotalSkillPointBudget({ ...s, ...upgradeSwitch, ascensionLevel: asc, skillPoints: sp }),
+        asc,
+      );
+      return { ...s, ...upgradeSwitch, ascensionLevel: asc, skillPoints: normalized };
     });
   }
 
@@ -3365,7 +3385,7 @@ export function ArchSim() {
                     lines: [
                       "No Ascension: pre-ascension archaeology (no Divine blocks).",
                       "Ascension 1: Divine blocks and Divinity skill unlock.",
-                      `Ascension 2: Tier 4 blocks and Corruption skill (select after stage ${ASCENSION2_UNLOCK_STAGE}).`,
+                      "Ascension 2: Tier 4 blocks and Corruption skill unlock.",
                     ],
                   },
                   {
@@ -3388,15 +3408,13 @@ export function ArchSim() {
             </div>
             <div className="btnRow" style={{ flexWrap: "wrap" }}>
               {([0, 1, 2] as const).map((lvl) => {
-                const disabled = lvl === 2 && build.unlockedStage < ASCENSION2_UNLOCK_STAGE;
                 const active = (build.ascensionLevel ?? 0) === lvl;
                 return (
                   <button
                     key={lvl}
                     type="button"
                     className={active ? "btn" : "btn btnSecondary"}
-                    disabled={disabled || mcRunning}
-                    title={disabled ? `Ascension 2 requires unlocked stage ${ASCENSION2_UNLOCK_STAGE}+` : undefined}
+                    disabled={mcRunning}
                     onClick={() => setAscensionLevel(lvl)}
                   >
                     {ascensionLabel(lvl)}
@@ -3404,15 +3422,6 @@ export function ArchSim() {
                 );
               })}
             </div>
-            {(build.ascensionLevel ?? 0) >= 1 ? (
-              <div className="small" style={{ marginTop: 6 }}>
-                Divine blocks can spawn from stage 50+. Ascension 1 upgrades appear in Fragment upgrades.
-              </div>
-            ) : (
-              <div className="small" style={{ marginTop: 6 }}>
-                Without Ascension, Divine blocks do not spawn (except some boss floors are also gated).
-              </div>
-            )}
           </div>
         </div>
 
@@ -3535,24 +3544,19 @@ export function ArchSim() {
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="btn btnSecondary" type="button" onClick={() => setBuild((s) => ({ ...s, enrageEnabled: !s.enrageEnabled }))}>
-                <Sprite path="sprites/archaeology/Archaeology_Ability_Enrage.png" alt="Enrage" className="iconSmall" /> Enrage:{" "}
-                <span className="mono">{build.enrageEnabled ? "ON" : "OFF"}</span>
+                <Sprite path="sprites/archaeology/Archaeology_Ability_Enrage.png" alt="Enrage" className="iconSmall" /> Enrage: <SkillToggleState on={build.enrageEnabled} />
               </button>
               <button className="btn btnSecondary" type="button" onClick={() => setBuild((s) => ({ ...s, flurryEnabled: !s.flurryEnabled }))}>
-                <Sprite path="sprites/archaeology/Archaeology_Ability_Flurry.png" alt="Flurry" className="iconSmall" /> Flurry:{" "}
-                <span className="mono">{build.flurryEnabled ? "ON" : "OFF"}</span>
+                <Sprite path="sprites/archaeology/Archaeology_Ability_Flurry.png" alt="Flurry" className="iconSmall" /> Flurry: <SkillToggleState on={build.flurryEnabled} />
               </button>
               <button className="btn btnSecondary" type="button" onClick={() => setBuild((s) => ({ ...s, quakeEnabled: !s.quakeEnabled }))}>
-                <Sprite path="sprites/archaeology/Archaeology_Ability_Quake.png" alt="Quake" className="iconSmall" /> Quake:{" "}
-                <span className="mono">{build.quakeEnabled ? "ON" : "OFF"}</span>
+                <Sprite path="sprites/archaeology/Archaeology_Ability_Quake.png" alt="Quake" className="iconSmall" /> Quake: <SkillToggleState on={build.quakeEnabled} />
               </button>
               <button className="btn btnSecondary" type="button" onClick={() => setBuild((s) => ({ ...s, avadaKedaEnabled: !s.avadaKedaEnabled }))}>
-                <Sprite path="sprites/archaeology/avadakeda.png" alt="Avada Keda" className="iconSmall" /> Avada Keda:{" "}
-                <span className="mono">{build.avadaKedaEnabled ? "ON" : "OFF"}</span>
+                <Sprite path="sprites/archaeology/avadakeda.png" alt="Avada Keda" className="iconSmall" /> Avada Keda: <SkillToggleState on={build.avadaKedaEnabled} />
               </button>
               <button className="btn btnSecondary" type="button" onClick={() => setBuild((s) => ({ ...s, blockBonkerEnabled: !s.blockBonkerEnabled }))}>
-                <Sprite path="sprites/archaeology/blockbonker.png" alt="Block Bonker" className="iconSmall" /> Block Bonker:{" "}
-                <span className="mono">{build.blockBonkerEnabled ? "ON" : "OFF"}</span>
+                <Sprite path="sprites/archaeology/blockbonker.png" alt="Block Bonker" className="iconSmall" /> Block Bonker: <SkillToggleState on={build.blockBonkerEnabled} />
               </button>
             </div>
           </Collapsible>
@@ -3835,7 +3839,7 @@ export function ArchSim() {
                       step={1}
                       value={build.mythicChestsOwned ?? 0}
                       onChange={(e) => setBuild((s) => ({ ...s, mythicChestsOwned: clampInt(Number(e.target.value), 0, 999) }))}
-                      style={{ width: 56 }}
+                      style={{ width: 88 }}
                     />
                   </>
                 ) : null}

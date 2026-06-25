@@ -10,12 +10,15 @@ import { StargazingCalculator, type PlayerStats } from "../../lib/stargazing/cal
 function StatsContribChart(props: {
   title: string;
   titleIcon?: React.ReactNode;
+  totalTarget: number;
   rows: { label: string; value: number; color: string }[];
   fmt: (x: number) => string;
 }) {
-  const { title, titleIcon, rows, fmt } = props;
+  const { title, titleIcon, totalTarget, rows, fmt } = props;
   const maxVal = Math.max(...rows.map((r) => r.value), 1);
-  const pctTotal = rows.reduce((sum, row) => sum + Math.max(0, row.value), 0);
+  const rawTotal = rows.reduce((sum, row) => sum + Math.max(0, row.value), 0);
+  const scale = rawTotal > 0 && totalTarget > 0 ? totalTarget / rawTotal : 1;
+  const scaledTotal = rows.reduce((sum, row) => sum + Math.max(0, row.value * scale), 0);
   return (
     <div className="sgStatsContribBlock">
       <div className="sgStatsContribTitle" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -24,7 +27,8 @@ function StatsContribChart(props: {
       </div>
       <div className="sgStatsContribBars" role="img" aria-label={`${title} contributions bar chart`}>
         {rows.map(({ label, value, color }) => {
-          const pct = pctTotal > 0 ? (Math.max(0, value) / pctTotal) * 100 : 0;
+          const scaledValue = Math.max(0, value * scale);
+          const pct = scaledTotal > 0 ? (scaledValue / scaledTotal) * 100 : 0;
           const widthPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
           return (
             <div key={label} className="sgStatsContribRow">
@@ -35,8 +39,8 @@ function StatsContribChart(props: {
                   style={{ width: `${widthPct}%`, backgroundColor: color }}
                 />
               </div>
-              <span className="mono sgStatsContribValue" title={`${fmt(value)}/h (${pct.toFixed(1)}%)`}>
-                {fmt(value)}
+              <span className="mono sgStatsContribValue" title={`${fmt(scaledValue)}/h (${pct.toFixed(1)}%)`}>
+                {fmt(scaledValue)}
                 <span className="sgStatsContribPct"> ({pct.toFixed(1)}%)</span>
               </span>
             </div>
@@ -1771,6 +1775,7 @@ export function Stargazing() {
                     label={`sprites/stargazing/${starCards.selected_card_for_results}.png`}
                   />
                 }
+                totalTarget={summary.stars_per_hour_online * resultsCardMult}
                 rows={[
                   { label: "Double Star", value: starContributions.doubleStar, color: "#fff59d" },
                   { label: "Triple Star", value: starContributions.tripleStar, color: "#ffeb3b" },
@@ -1783,6 +1788,7 @@ export function Stargazing() {
               />
               <StatsContribChart
                 title="Super Stars"
+                totalTarget={summary.super_stars_per_hour_online}
                 rows={[
                   { label: "Triple Star", value: superStarContributions.tripleStar, color: "#42a5f5" },
                   { label: "10× Chance", value: superStarContributions.tenXChance, color: "#90caf9" },
