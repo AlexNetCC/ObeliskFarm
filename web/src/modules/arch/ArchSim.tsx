@@ -14,11 +14,14 @@ import {
   buildSkillPointsFromOptimizerDist,
   getBonusSkillPoints,
   getOptimizerSkillBudget,
+  getOptimizerStats,
   getTotalSkillPointBudget,
   getUpgradeSnapshotForAscension,
   migrateAscensionUpgradeSnapshots,
   mcOptionsFromBuild,
   normalizeAscensionLevel,
+  optimizerDistArrayToRecord,
+  skillPointsFromOptimizerDistRecord,
   switchAscensionUpgrades,
   withSyncedUpgradeSnapshot,
 } from "../../lib/archaeology/ascension";
@@ -144,14 +147,19 @@ type McLogEntry = {
         tertiary?: number;
         /** Frag mode: XP/h for tertiary display. */
         xpPerHour?: number;
-        dist: { strength: number; agility: number; perception: number; intellect: number; luck: number };
+        dist: { strength: number; agility: number; perception: number; intellect: number; luck: number; divinity?: number; corruption?: number };
       }>;
     };
   };
 };
 
 type TieBreakReport = NonNullable<McLogEntry["mc"]>["tieBreak"];
-type BaseOptimizerSkill = "strength" | "agility" | "perception" | "intellect" | "luck";
+
+function winnerStatsFromLogEntry(entry: McLogEntry): Record<Skill, number> {
+  const dist = entry.mc?.tieBreak?.top3?.[0]?.dist;
+  if (dist) return skillPointsFromOptimizerDistRecord(entry.build, dist);
+  return { ...entry.build.skillPoints };
+}
 
 export type McComparisonMethodId = "default" | "multiStart3";
 
@@ -1004,11 +1012,8 @@ export function ArchSim() {
       mcCalibrationMsPer100Sims != null ? (totalSims * mcCalibrationMsPer100Sims) / (100 * 1000 * workerCount) : null;
     return mcCalibrating ? "Calibrating…" : estimateSec != null ? `Est. ~${Math.round(estimateSec)} s` : "Est. —";
   }, [
-    build.archLevel,
     build.ascensionLevel,
     build.fragmentUpgradeLevels,
-    build.skillPoints.divinity,
-    build.skillPoints.corruption,
     mcSettings.devTuning,
     mcSettings.screeningSims,
     mcSettings.refinementSims,
@@ -1017,20 +1022,19 @@ export function ArchSim() {
     mcCalibrating,
   ]);
 
-  const skills = useMemo(() => ["strength", "agility", "perception", "intellect", "luck"] as const, []);
-
   function sampleDirichletInteger(args: {
+    optimizerSkills: Skill[];
     numPoints: number;
-    caps: Record<BaseOptimizerSkill, number>;
+    caps: Partial<Record<Skill, number>>;
     requireStr: boolean;
     rng: () => number;
   }): number[] {
-    const { numPoints, caps, requireStr, rng } = args;
+    const { optimizerSkills, numPoints, caps, requireStr, rng } = args;
     // Exponential trick (Dirichlet with alpha=1): sample w_i ~ Exp(1), normalize.
-    const w = skills.map(() => -Math.log(Math.max(1e-12, rng())));
+    const w = optimizerSkills.map(() => -Math.log(Math.max(1e-12, rng())));
     const sumW = w.reduce((a, b) => a + b, 0) || 1;
     const raw = w.map((x) => (x / sumW) * numPoints);
-    const base = raw.map((x, i) => Math.min(caps[skills[i]], Math.max(0, Math.trunc(x))));
+    const base = raw.map((x, i) => Math.min(caps[optimizerSkills[i]!] ?? numPoints, Math.max(0, Math.trunc(x))));
     let used = base.reduce((a, b) => a + b, 0);
     let remaining = numPoints - used;
 
@@ -1039,8 +1043,8 @@ export function ArchSim() {
     while (remaining > 0 && guard++ < 1000) {
       let placed = false;
       for (const it of frac) {
-        const si = skills[it.i];
-        if (base[it.i] < caps[si]) {
+        const sk = optimizerSkills[it.i]!;
+        if (base[it.i] < (caps[sk] ?? numPoints)) {
           base[it.i] += 1;
           remaining -= 1;
           placed = true;
@@ -1051,18 +1055,18 @@ export function ArchSim() {
     }
 
     if (requireStr) {
-      const strIdx = skills.indexOf("strength");
-      if (base[strIdx] <= 0) {
+      const strIdx = optimizerSkills.indexOf("strength");
+      if (strIdx >= 0 && base[strIdx] <= 0) {
         // Force STR=1 by moving one point from the largest other bucket.
         for (const it of frac) {
           if (it.i === strIdx) continue;
           if (base[it.i] > 0) {
             base[it.i] -= 1;
-            base[strIdx] = Math.min(caps.strength, base[strIdx] + 1);
+            base[strIdx] = Math.min(caps.strength ?? numPoints, base[strIdx] + 1);
             break;
           }
         }
-        if (base[strIdx] <= 0 && caps.strength > 0) base[strIdx] = 1;
+        if (base[strIdx] <= 0 && (caps.strength ?? 0) > 0) base[strIdx] = 1;
       }
     }
     // Fix sum (caps may have reduced allocations)
@@ -1073,14 +1077,15 @@ export function ArchSim() {
       while (diff !== 0 && g2++ < 5000) {
         if (diff > 0) {
           const i = Math.trunc(rng() * base.length);
-          const sk = skills[i];
-          if (base[i] < caps[sk]) {
+          const sk = optimizerSkills[i]!;
+          if (base[i] < (caps[sk] ?? numPoints)) {
             base[i] += 1;
             diff -= 1;
           }
         } else {
           const i = Math.trunc(rng() * base.length);
-          if (requireStr && skills[i] === "strength" && base[i] <= 1) continue;
+          const sk = optimizerSkills[i]!;
+          if (requireStr && sk === "strength" && base[i] <= 1) continue;
           if (base[i] > 0) {
             base[i] -= 1;
             diff += 1;
@@ -1092,19 +1097,20 @@ export function ArchSim() {
   }
 
   function refineAroundAnchor(args: {
+    optimizerSkills: Skill[];
     anchor: number[];
     numPoints: number;
-    caps: Record<BaseOptimizerSkill, number>;
+    caps: Partial<Record<Skill, number>>;
     radius: number;
     requireStr: boolean;
     rng: () => number;
   }): number[] {
-    const { anchor, numPoints, caps, radius, requireStr, rng } = args;
+    const { optimizerSkills, anchor, numPoints, caps, radius, requireStr, rng } = args;
     const v = anchor.slice();
     for (let i = 0; i < v.length; i += 1) {
       const d = Math.trunc((rng() * (radius * 2 + 1)) - radius);
-      const sk = skills[i];
-      v[i] = clampInt(v[i] + d, 0, caps[sk]);
+      const sk = optimizerSkills[i]!;
+      v[i] = clampInt(v[i] + d, 0, caps[sk] ?? numPoints);
     }
     // Fix sum
     let sum = v.reduce((a, b) => a + b, 0);
@@ -1112,9 +1118,9 @@ export function ArchSim() {
     let guard = 0;
     while (diff !== 0 && guard++ < 5000) {
       const i = Math.trunc(rng() * v.length);
-      const sk = skills[i];
+      const sk = optimizerSkills[i]!;
       if (diff > 0) {
-        if (v[i] < caps[sk]) {
+        if (v[i] < (caps[sk] ?? numPoints)) {
           v[i] += 1;
           diff -= 1;
         }
@@ -1127,8 +1133,8 @@ export function ArchSim() {
       }
     }
     if (requireStr) {
-      const strIdx = skills.indexOf("strength");
-      if (v[strIdx] <= 0 && caps.strength > 0) v[strIdx] = 1;
+      const strIdx = optimizerSkills.indexOf("strength");
+      if (strIdx >= 0 && v[strIdx] <= 0 && (caps.strength ?? 0) > 0) v[strIdx] = 1;
     }
     return v;
   }
@@ -1156,7 +1162,8 @@ export function ArchSim() {
       setMcProgress("Starting…");
     }
 
-    const archLevel = getOptimizerSkillBudget(build);
+    const statsBudget = getOptimizerSkillBudget(build);
+    const optimizerSkills = getOptimizerStats(build.ascensionLevel ?? 0);
     // Always enabled (matches desktop; user should not toggle)
     const defaultScreening = 100;
     const defaultRefinement = 200;
@@ -1175,15 +1182,12 @@ export function ArchSim() {
       return { secFrag, terFrag };
     }
 
-    const caps: Record<BaseOptimizerSkill, number> = {
-      strength: Math.min(archLevel, getSkillPointCap(build, "strength")),
-      agility: Math.min(archLevel, getSkillPointCap(build, "agility")),
-      perception: Math.min(archLevel, getSkillPointCap(build, "perception")),
-      intellect: Math.min(archLevel, getSkillPointCap(build, "intellect")),
-      luck: Math.min(archLevel, getSkillPointCap(build, "luck")),
-    };
+    const caps: Partial<Record<Skill, number>> = {};
+    for (const sk of optimizerSkills) {
+      caps[sk] = Math.min(statsBudget, getSkillPointCap(build, sk));
+    }
 
-    const baseSamples = Math.max(500, Math.max(1, archLevel) * 20);
+    const baseSamples = Math.max(500, Math.max(1, statsBudget) * 20);
     const nSamples = Math.max(1, Math.trunc(baseSamples * 4 * combosMult));
     const topRatio = 0.05;
     const requireStr = true;
@@ -1344,8 +1348,8 @@ export function ArchSim() {
       };
     }
 
-    function candToDistMap(dist: number[]): { strength: number; agility: number; perception: number; intellect: number; luck: number } {
-      return { strength: dist[0] ?? 0, agility: dist[1] ?? 0, perception: dist[2] ?? 0, intellect: dist[3] ?? 0, luck: dist[4] ?? 0 };
+    function candToDistMap(dist: number[]) {
+      return optimizerDistArrayToRecord(build, dist);
     }
 
     function makeTieBreakReport(cands: Cand[], best: Cand): TieBreakReport {
@@ -1411,7 +1415,7 @@ export function ArchSim() {
     }
 
     try {
-      if (archLevel <= 0) throw new Error("Arch level must be >= 1.");
+      if (statsBudget <= 0) throw new Error("Arch level must be >= 1.");
 
       // If both screening+refinement are off, just run final sims on current build.
       if (screeningSims <= 0 && refinementSims <= 0) {
@@ -1605,7 +1609,7 @@ export function ArchSim() {
             blockBreakdown: blockBreakdownEarly,
           },
           mc: {
-            archLevel,
+            archLevel: statsBudget,
             screeningSims,
             refinementSims,
             targetFrag: mode === "frag" ? targetFrag : undefined,
@@ -1632,7 +1636,7 @@ export function ArchSim() {
       const inFlight = new Set<Promise<void>>();
       for (let i = 0; i < nSamples; i += 1) {
         if (cancelRef.current.cancelled) throw new Error("cancelled");
-        const dist = sampleDirichletInteger({ numPoints: archLevel, caps, requireStr, rng });
+        const dist = sampleDirichletInteger({ optimizerSkills, numPoints: statsBudget, caps, requireStr, rng });
         const p = submitCandidate(dist, phase1Sims, seedBase + i).then(() => {
           completed += 1;
           if (completed % 10 === 0 || completed === nSamples) setMcProgress(`Phase 1: Search (${completed}/${nSamples})`);
@@ -1683,7 +1687,7 @@ export function ArchSim() {
         for (let a = 0; a < anchors.length; a += 1) {
           for (let j = 0; j < perAnchor; j += 1) {
             if (cancelRef.current.cancelled) throw new Error("cancelled");
-            const dist = refineAroundAnchor({ anchor: anchors[a]!.dist, numPoints: archLevel, caps, radius, requireStr, rng });
+            const dist = refineAroundAnchor({ optimizerSkills, anchor: anchors[a]!.dist, numPoints: statsBudget, caps, radius, requireStr, rng });
             const p = (async () => {
               const b2: ArchBuild = { ...build, skillPoints: buildSkillPointsFromOptimizerDist(build, dist) };
               const stats2 = getTotalStats(b2);
@@ -2078,7 +2082,7 @@ export function ArchSim() {
           blockBreakdown,
         },
         mc: {
-          archLevel,
+          archLevel: statsBudget,
           screeningSims,
           refinementSims,
           targetFrag: mode === "frag" ? targetFrag : undefined,
@@ -2389,18 +2393,10 @@ export function ArchSim() {
       setUpgradeNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
       return;
     }
-    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const winnerDist = winnerStatsFromLogEntry(refEntry);
     const baseBuild: ArchBuild = {
       ...refEntry.build,
-      skillPoints: {
-        strength: winnerDist.strength ?? 0,
-        agility: winnerDist.agility ?? 0,
-        perception: winnerDist.perception ?? 0,
-        intellect: winnerDist.intellect ?? 0,
-        luck: winnerDist.luck ?? 0,
-        divinity: refEntry.build.skillPoints.divinity ?? 0,
-        corruption: refEntry.build.skillPoints.corruption ?? 0,
-      },
+      skillPoints: winnerDist,
     };
     const unlockedUpgrades = sortedFragmentUpgrades.filter(([key, info]) => {
       const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
@@ -2494,18 +2490,10 @@ export function ArchSim() {
       setGemCardSkillNextProgress("No Stage MC result to use. Run a Stage Push MC first.");
       return;
     }
-    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const winnerDist = winnerStatsFromLogEntry(refEntry);
     const baseBuild: ArchBuild = {
       ...refEntry.build,
-      skillPoints: {
-        strength: winnerDist.strength ?? 0,
-        agility: winnerDist.agility ?? 0,
-        perception: winnerDist.perception ?? 0,
-        intellect: winnerDist.intellect ?? 0,
-        luck: winnerDist.luck ?? 0,
-        divinity: refEntry.build.skillPoints.divinity ?? 0,
-        corruption: refEntry.build.skillPoints.corruption ?? 0,
-      },
+      skillPoints: winnerDist,
     };
     const GEM_KEYS: ArchGemUpgradeKey[] = ["stamina", "xp", "fragment"];
     const GEM_LABELS: Record<ArchGemUpgradeKey, string> = {
@@ -2656,18 +2644,10 @@ export function ArchSim() {
       return;
     }
     const targetFrag: BlockType = refEntry.mc?.targetFrag ?? mcSettings.targetFrag;
-    const winnerDist = refEntry.mc?.tieBreak?.top3?.[0]?.dist ?? refEntry.build.skillPoints;
+    const winnerDist = winnerStatsFromLogEntry(refEntry);
     const baseBuild: ArchBuild = {
       ...refEntry.build,
-      skillPoints: {
-        strength: winnerDist.strength ?? 0,
-        agility: winnerDist.agility ?? 0,
-        perception: winnerDist.perception ?? 0,
-        intellect: winnerDist.intellect ?? 0,
-        luck: winnerDist.luck ?? 0,
-        divinity: refEntry.build.skillPoints.divinity ?? 0,
-        corruption: refEntry.build.skillPoints.corruption ?? 0,
-      },
+      skillPoints: winnerDist,
     };
     const GEM_KEYS: ArchGemUpgradeKey[] = ["stamina", "xp", "fragment"];
     const GEM_LABELS: Record<ArchGemUpgradeKey, string> = {
@@ -3441,13 +3421,13 @@ export function ArchSim() {
             <div className="label">
               <span>
                 Arch level
-                <Tooltip content={{ title: "Arch level", lines: ["Total skill points available to distribute (and used by the MC optimizers)."] }} />
+                <Tooltip content={{ title: "Arch level", lines: ["Total stats points available to distribute (and used by the MC optimizers)."] }} />
               </span>
               <span className="mono">{build.archLevel}</span>
             </div>
             <input className="input" type="number" min={0} step={1} value={build.archLevel} onChange={(e) => setArchLevel(Number(e.target.value))} />
             <div className="small" style={{ marginTop: 6 }}>
-              Points used: <span className="mono">{totalSkillPoints}</span> / <span className="mono">{skillPointBudget}</span>
+              Stats used: <span className="mono">{totalSkillPoints}</span> / <span className="mono">{skillPointBudget}</span>
               {getBonusSkillPoints(build) > 0 ? (
                 <>
                   {" "}
@@ -5714,14 +5694,7 @@ export function ArchSim() {
                                 {formatSkillPointsLine(
                                   {
                                     ...openLog.build,
-                                    skillPoints: {
-                                      ...openLog.build.skillPoints,
-                                      strength: c.dist.strength ?? 0,
-                                      agility: c.dist.agility ?? 0,
-                                      perception: c.dist.perception ?? 0,
-                                      intellect: c.dist.intellect ?? 0,
-                                      luck: c.dist.luck ?? 0,
-                                    },
+                                    skillPoints: skillPointsFromOptimizerDistRecord(openLog.build, c.dist),
                                   },
                                   getVisibleSkills(openLog.build.ascensionLevel ?? 0),
                                 )}

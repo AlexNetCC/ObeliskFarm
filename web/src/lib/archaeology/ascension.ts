@@ -1,5 +1,5 @@
 import { FRAGMENT_UPGRADES } from "./constants";
-import { getVisibleSkills } from "./skills";
+import { getVisibleSkills, sanitizeSkillPoints } from "./skills";
 import type { ArchBuild, ArchGemUpgradeKey, AscensionLevel, AscensionUpgradeSnapshot, AscensionUpgradeSnapshots, Skill } from "./types";
 
 export function emptyGemUpgrades(): Record<ArchGemUpgradeKey, number> {
@@ -83,7 +83,7 @@ export function normalizeAscensionLevel(raw: unknown, _unlockedStage?: number): 
   return 0;
 }
 
-/** Extra skill points from Ascension 1 "Stat Points" upgrade (+1 per level, max 5). */
+/** Extra stats points from Ascension 1 "Stat Points" upgrade (+1 per level, max 5). */
 export function getBonusSkillPoints(build: ArchBuild): number {
   const lvl = Math.max(0, Math.trunc(Number(build.fragmentUpgradeLevels["stat_points_a1"] ?? 0)));
   const perLvl = Number(FRAGMENT_UPGRADES.stat_points_a1?.extra_skill_points ?? 1);
@@ -119,24 +119,55 @@ export function ascensionLabel(level: AscensionLevel): string {
   return "No Ascension";
 }
 
-/** Skill points the MC optimizers distribute across the five base skills (excludes fixed Divinity/Corruption). */
+/** Stats the MC optimizers distribute (base five + Divinity at Asc 1+ + Corruption at Asc 2+). */
+export function getOptimizerStats(ascensionLevel: AscensionLevel): Skill[] {
+  const stats: Skill[] = ["strength", "agility", "perception", "intellect", "luck"];
+  if (ascensionLevel >= 1) stats.push("divinity");
+  if (ascensionLevel >= 2) stats.push("corruption");
+  return stats;
+}
+
+/** Total stats points the MC optimizers may distribute across all active stats. */
 export function getOptimizerSkillBudget(build: ArchBuild): number {
-  let fixed = 0;
-  if ((build.ascensionLevel ?? 0) >= 1) fixed += Math.max(0, Math.trunc(Number(build.skillPoints.divinity ?? 0)));
-  if ((build.ascensionLevel ?? 0) >= 2) fixed += Math.max(0, Math.trunc(Number(build.skillPoints.corruption ?? 0)));
-  return Math.max(0, getTotalSkillPointBudget(build) - fixed);
+  return getTotalSkillPointBudget(build);
+}
+
+export type OptimizerDistRecord = {
+  strength: number;
+  agility: number;
+  perception: number;
+  intellect: number;
+  luck: number;
+  divinity?: number;
+  corruption?: number;
+};
+
+export function optimizerDistArrayToRecord(build: ArchBuild, dist: number[]): OptimizerDistRecord {
+  const keys = getOptimizerStats(build.ascensionLevel ?? 0);
+  const out: OptimizerDistRecord = { strength: 0, agility: 0, perception: 0, intellect: 0, luck: 0 };
+  keys.forEach((k, i) => {
+    (out as Record<string, number>)[k] = Math.trunc(dist[i] ?? 0);
+  });
+  return out;
+}
+
+export function skillPointsFromOptimizerDistRecord(
+  build: ArchBuild,
+  dist: OptimizerDistRecord | Record<Skill, number>,
+): Record<Skill, number> {
+  const asc = build.ascensionLevel ?? 0;
+  const out = sanitizeSkillPoints(
+    { strength: 0, agility: 0, perception: 0, intellect: 0, luck: 0, divinity: 0, corruption: 0 },
+    asc,
+  );
+  for (const k of getOptimizerStats(asc)) {
+    out[k] = Math.trunc(Number((dist as Record<string, number>)[k] ?? 0));
+  }
+  return out;
 }
 
 export function buildSkillPointsFromOptimizerDist(build: ArchBuild, dist: number[]): Record<Skill, number> {
-  return {
-    strength: Math.trunc(dist[0] ?? 0),
-    agility: Math.trunc(dist[1] ?? 0),
-    perception: Math.trunc(dist[2] ?? 0),
-    intellect: Math.trunc(dist[3] ?? 0),
-    luck: Math.trunc(dist[4] ?? 0),
-    divinity: (build.ascensionLevel ?? 0) >= 1 ? Math.trunc(Number(build.skillPoints.divinity ?? 0)) : 0,
-    corruption: (build.ascensionLevel ?? 0) >= 2 ? Math.trunc(Number(build.skillPoints.corruption ?? 0)) : 0,
-  };
+  return skillPointsFromOptimizerDistRecord(build, optimizerDistArrayToRecord(build, dist));
 }
 
 export function mcOptionsFromBuild(build: ArchBuild) {
