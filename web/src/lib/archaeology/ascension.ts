@@ -94,12 +94,11 @@ export function getTotalSkillPointBudget(build: ArchBuild): number {
   return Math.max(0, Math.trunc(Number(build.archLevel ?? 0))) + getBonusSkillPoints(build);
 }
 
+/** Tier-0 fragment upgrade multiplier (Asc 1: 5×, Asc 2: 10×). Ascension-only upgrades use tier-specific rules in upgradeCosts. */
 export function getAscensionFragmentCostMultiplier(ascensionLevel: AscensionLevel): number {
-  return ascensionLevel >= 1 ? 5 : 1;
-}
-
-export function getAscensionGemCostMultiplier(ascensionLevel: AscensionLevel): number {
-  return ascensionLevel >= 1 ? 50 : 1;
+  if (ascensionLevel >= 2) return 10;
+  if (ascensionLevel >= 1) return 5;
+  return 1;
 }
 
 /** Base skills always available; Divinity at Asc 1+, Corruption at Asc 2+. */
