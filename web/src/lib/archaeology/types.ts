@@ -1,4 +1,5 @@
-export type Skill = "strength" | "agility" | "perception" | "intellect" | "luck";
+export type Skill = "strength" | "agility" | "perception" | "intellect" | "luck" | "divinity" | "corruption";
+export type AscensionLevel = 0 | 1 | 2;
 export type BlockType = "dirt" | "common" | "rare" | "epic" | "legendary" | "mythic" | "divine";
 
 /** Block types that drop fragments (wiki: Common+ includes Divine). Order used for MC/UI tie-breaks. */
@@ -11,6 +12,9 @@ export type CardLevel = 0 | 1 | 2 | 3;
 export type ArchGemUpgradeKey = "stamina" | "xp" | "fragment";
 
 export type ArchBuild = {
+  /** 0 = pre-ascension, 1 = ascended once, 2 = ascended twice (requires stage 150+ to select). */
+  ascensionLevel: AscensionLevel;
+
   // Goal stage (Python UI: "Goal Stage"). Calculations use (goalStage - 1).
   goalStage: number;
   unlockedStage: number;
@@ -62,6 +66,8 @@ export type ArchStats = {
   ultra_crit_chance: number;
   super_crit_dmg_mult: number;
   ultra_crit_dmg_mult: number;
+  /** Ultra crit damage bonus (fraction); applied to ultra crit mult like super crit damage. */
+  ultra_crit_damage: number;
   one_hit_chance: number;
 
   xp_mult: number;

@@ -1,5 +1,8 @@
 // Ported from ObeliskGemEV/archaeology/upgrade_costs.py
 
+import { FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES } from "./constants";
+import type { ArchGemUpgradeKey } from "./types";
+
 export const FRAGMENT_UPGRADE_COSTS: Record<string, number[]> = {
   flat_damage_c1: [
     0.5, 0.6, 0.72, 0.86, 1.04, 1.24, 1.49, 1.79, 2.15, 2.58, 3.1, 3.72, 4.46, 5.35, 6.42, 7.7, 9.24, 11.09, 13.31, 15.97, 19.17,
@@ -58,13 +61,51 @@ export const FRAGMENT_UPGRADE_COSTS: Record<string, number[]> = {
     638.0,
   ],
   exp_stat_cap_m1: [5000.0],
+
+  stat_points_a1: [120.0, 144.0, 173.0, 207.0, 249.0],
+  crosshair_fairy_a1: [2.5, 3.0, 3.6, 4.32, 5.18, 6.22, 7.46, 8.96, 10.75, 12.9, 15.48, 18.58, 22.29, 26.75, 32.1],
+  all_mod_chance_a1: [5.0, 6.0, 7.2, 8.64, 10.37, 12.44, 14.93, 17.92, 21.5, 25.8, 30.96, 37.15, 44.58, 53.5, 64.2, 77.04, 92.44, 110.0, 133.0, 159.0, 191.0, 229.0, 275.0, 330.0, 396.0, 475.0, 570.0, 684.0, 821.0, 985.0],
+  enrage_flat_a1: [18.0, 21.6, 25.92, 31.1, 37.32],
+  ultra_crit_dmg_a1: [22.0, 26.4, 31.68, 38.02, 45.62, 54.74, 65.69, 78.83, 94.6, 113.0, 136.0, 163.0, 195.0, 234.0, 281.0, 337.0, 405.0, 486.0, 583.0, 700.0],
+  str_skill_buff_a1: [25000.0],
+  gold_crosshair_a1: [28000.0, 33600.0, 40320.0, 48384.0, 58061.0],
+  flat_ultra_a1: [32000.0, 38400.0, 46080.0, 55296.0, 66355.0],
+  instacharge_a1: [35000.0, 42000.0, 50400.0, 60480.0, 72576.0, 87091.0, 104509.0, 125411.0, 150493.0, 180592.0, 216710.0, 260052.0, 312062.0, 374474.0, 449369.0, 539243.0, 647091.0, 776509.0, 931811.0, 1118173.0, 1341808.0, 1610169.0, 1932203.0, 2318644.0, 2782373.0],
+  dmg_xp_a1: [40000.0, 48000.0, 57600.0, 69120.0, 82944.0],
+  super_crit_exp_a1: [14.0, 16.8, 20.16, 24.19, 29.03, 34.84, 41.81, 50.17, 60.2, 72.24, 86.69, 104.0, 125.0, 150.0, 180.0, 216.0, 259.0, 311.0, 373.0, 448.0, 537.0, 645.0, 774.0, 929.0, 1115.0, 1338.0, 1605.0, 1926.0, 2311.0, 2773.0, 3328.0, 3994.0, 4793.0, 5751.0, 6901.0, 8281.0, 9937.0, 11924.0, 14309.0, 17171.0],
+  stam_autotap_a1: [25.0, 30.0, 36.0, 43.2, 51.84, 62.21, 74.65, 89.58, 107.0, 128.0, 154.0, 185.0, 222.0, 266.0, 319.0, 383.0, 460.0, 552.0, 662.0, 794.0, 953.0, 1144.0, 1373.0, 1647.0, 1976.0, 2372.0, 2846.0, 3415.0, 4098.0, 4918.0, 5902.0, 7082.0, 8498.0, 10198.0, 12238.0, 14685.0, 17622.0, 21146.0, 25375.0, 30450.0, 36540.0, 43848.0, 52618.0, 63142.0, 75770.0, 90924.0, 109109.0, 130931.0, 157117.0, 188540.0],
+
+  gleaming_chance_a2: [1.5, 1.8, 2.16, 2.59, 3.11, 3.73, 4.48, 5.38, 6.45, 7.74, 9.29, 11.15, 13.38, 16.06, 19.27, 23.12, 27.74, 33.29, 39.95, 47.94, 57.53, 69.04, 82.85, 99.42, 119.0, 143.0, 172.0, 206.0, 247.0, 296.0],
+  ability_fairy_a2: [8.0, 9.6, 11.52, 13.82, 16.59, 19.91, 23.89, 28.67, 34.4, 41.28, 49.54, 59.45, 71.34, 85.61, 102.0, 123.0, 148.0, 177.0, 212.0, 255.0, 306.0, 367.0, 440.0, 528.0, 634.0, 761.0, 913.0, 1096.0, 1315.0, 1578.0],
+  divinity_buff_a2: [200.0, 240.0, 288.0, 346.0, 415.0],
+  gleaming_multi_a2: [16.0, 19.2, 23.04, 27.65, 33.18, 39.82, 47.78, 57.34, 68.81, 82.57, 99.08, 118.0, 142.0, 170.0, 204.0, 245.0, 294.0, 353.0, 424.0, 509.0, 611.0, 733.0, 880.0, 1056.0, 1267.0, 1520.0, 1824.0, 2189.0, 2627.0, 3152.0],
+  corruption_buff_a2: [28.0, 33.6, 40.32, 48.38, 58.06, 69.67, 83.6, 100.0, 120.0, 144.0],
+  all_mod_mult_a2: [45000.0, 54000.0, 64800.0, 77760.0, 93312.0, 111974.0, 134369.0, 161243.0, 193491.0, 202189.0],
 };
 
-export function getUpgradeCost(upgradeKey: string, level0: number): number | null {
+export function getUpgradeCost(upgradeKey: string, level0: number, ascensionLevel: 0 | 1 | 2 = 0): number | null {
   const costs = FRAGMENT_UPGRADE_COSTS[upgradeKey];
   if (!costs) return null;
   if (level0 >= costs.length) return null;
-  return costs[level0] ?? null;
+  const base = costs[level0] ?? null;
+  if (base == null) return null;
+  const info = FRAGMENT_UPGRADES[upgradeKey];
+  const tier = (info?.ascension_tier ?? 0) as 0 | 1 | 2;
+  if (tier === 0 && ascensionLevel >= 1) return base * 5;
+  return base;
+}
+
+export function getGemUpgradeCost(key: ArchGemUpgradeKey, level0: number, ascensionLevel: 0 | 1 | 2 = 0): number {
+  const costs = GEM_COSTS[key];
+  if (!costs.length) return 0;
+  const idx = ascensionLevel >= 1 ? level0 : Math.min(level0, costs.length - 1);
+  const base = idx < costs.length ? costs[idx]! : costs[costs.length - 1]! + (idx - costs.length + 1) * 125;
+  return ascensionLevel >= 1 ? base * 50 : base;
+}
+
+export function getGemUpgradeMaxLevel(key: ArchGemUpgradeKey, ascensionLevel: 0 | 1 | 2): number {
+  if (ascensionLevel >= 1) return 999;
+  return GEM_UPGRADE_BONUSES[key]?.max_level ?? 0;
 }
 
 export function getMaxLevel(upgradeKey: string): number {

@@ -20,8 +20,9 @@ import {
   SUPER_CRIT_DMG_MULT_DEFAULT,
   ULTRA_CRIT_DMG_MULT_DEFAULT,
 } from "./constants";
+import { isSkillUnlocked } from "./ascension";
 import { getBlockMixForFloor } from "./blockStats";
-import { getNormalizedSpawnRates, getTotalSpawnProbability } from "./spawnRates";
+import { getNormalizedSpawnRates, getTotalSpawnProbability, type SpawnContext } from "./spawnRates";
 import { ARCH_FRAGMENT_TYPES, type ArchBuild, type ArchRunSummary, type ArchStats, type BlockTier, type BlockType, type Skill } from "./types";
 
 function clamp01(x: number): number {
@@ -29,10 +30,14 @@ function clamp01(x: number): number {
 }
 
 export function getSkillPointCap(build: ArchBuild, skill: Skill): number {
-  // "all_stat_cap" is +5 to all stat caps (max_level=1)
+  if (!isSkillUnlocked(build, skill)) return 0;
   const bonuses = getFragmentUpgradeBonuses(build.fragmentUpgradeLevels);
   const extra = Math.trunc(Number(bonuses.all_stat_cap ?? 0));
   return (SKILL_POINT_CAPS_BASE[skill] ?? 0) + extra;
+}
+
+function spawnCtx(build: ArchBuild): SpawnContext {
+  return { ascensionLevel: build.ascensionLevel ?? 0 };
 }
 
 export function getCalculationStage(build: ArchBuild): number {
@@ -47,7 +52,7 @@ export function getFragmentUpgradeBonuses(levels: Record<string, number>): Recor
     const info = FRAGMENT_UPGRADES[upgradeKey];
     if (!info) continue;
     for (const [k, v] of Object.entries(info)) {
-      if (k === "max_level" || k === "stage_unlock" || k === "cost_type" || k === "display_name") continue;
+      if (k === "max_level" || k === "stage_unlock" || k === "cost_type" || k === "display_name" || k === "ascension_tier") continue;
       const n = Number(v);
       if (!Number.isFinite(n)) continue;
       bonuses[k] = (bonuses[k] ?? 0) + n * level;
@@ -122,6 +127,20 @@ export function getTotalStats(build: ArchBuild): ArchStats {
   const intPts = build.skillPoints.intellect;
   const perPts = build.skillPoints.perception;
   const luckPts = build.skillPoints.luck;
+  const divPts = isSkillUnlocked(build, "divinity") ? Math.trunc(Number(build.skillPoints.divinity ?? 0)) : 0;
+  const corrPts = isSkillUnlocked(build, "corruption") ? Math.trunc(Number(build.skillPoints.corruption ?? 0)) : 0;
+
+  const frag = getFragmentUpgradeBonuses(build.fragmentUpgradeLevels);
+  const blockBonker = getBlockBonkerBonus(build);
+
+  const divBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["divinity_buff_a2"] ?? 0));
+  const corrBuffLvl = Math.trunc(Number(build.fragmentUpgradeLevels["corruption_buff_a2"] ?? 0));
+  const divFlatPerPt = (SKILL_BONUSES.divinity.flat_damage ?? 0) + divBuffLvl * Number(FRAGMENT_UPGRADES.divinity_buff_a2?.divinity_buff ?? 0.2);
+  const divSuperCritPerPt = (SKILL_BONUSES.divinity.super_crit_chance ?? 0) + divBuffLvl * 0.002;
+  const corrDmgPerPt = (SKILL_BONUSES.corruption.percent_damage ?? 0) + corrBuffLvl * Number(FRAGMENT_UPGRADES.corruption_buff_a2?.corruption_damage_buff ?? 0.002);
+  const corrStamPerPt = SKILL_BONUSES.corruption.max_stamina_percent ?? 0;
+  const corrModMultPerPt = SKILL_BONUSES.corruption.mod_mult_bonus ?? 0;
+  const corrSpeedModPerPt = corrBuffLvl * Number(FRAGMENT_UPGRADES.corruption_buff_a2?.corruption_speed_mod_buff ?? 0.001);
 
   // Base state (matches reset_to_level1)
   const base_damage = 10;
@@ -136,13 +155,10 @@ export function getTotalStats(build: ArchBuild): ArchStats {
   const gem_xp = build.gemUpgrades.xp ?? 0;
   const gem_fragment = build.gemUpgrades.fragment ?? 0;
 
-  const frag = getFragmentUpgradeBonuses(build.fragmentUpgradeLevels);
-  const blockBonker = getBlockBonkerBonus(build);
-
   const flat_damage_per_str = (SKILL_BONUSES.strength.flat_damage ?? 0) + (frag.flat_damage_skill ?? 0);
   const percent_damage_per_str = (SKILL_BONUSES.strength.percent_damage ?? 0) + (frag.percent_damage_skill ?? 0);
-  const flat_damage = base_damage + strPts * flat_damage_per_str + (frag.flat_damage ?? 0);
-  const percent_damage_bonus = strPts * percent_damage_per_str + (frag.percent_damage ?? 0);
+  const flat_damage = base_damage + strPts * flat_damage_per_str + divPts * divFlatPerPt + (frag.flat_damage ?? 0);
+  const percent_damage_bonus = strPts * percent_damage_per_str + corrPts * corrDmgPerPt + (frag.percent_damage ?? 0);
   const total_damage = Math.round(flat_damage * (1 + percent_damage_bonus) * (1 + blockBonker.damage_percent));
 
   const armor_pen_per_per = (SKILL_BONUSES.perception.armor_pen ?? 0) + (frag.armor_pen_skill ?? 0);
@@ -158,20 +174,20 @@ export function getTotalStats(build: ArchBuild): ArchStats {
     agiPts * max_stamina_per_agi +
     gem_stamina * (GEM_UPGRADE_BONUSES.stamina.max_stamina ?? 0) +
     (frag.max_stamina ?? 0);
-  max_stamina = Math.round(max_stamina * (1 + (frag.max_stamina_percent ?? 0)) * (1 + blockBonker.max_stamina_percent));
+  max_stamina = Math.round(max_stamina * (1 + (frag.max_stamina_percent ?? 0) + corrPts * corrStamPerPt) * (1 + blockBonker.max_stamina_percent));
 
   const crit_chance = base_crit_chance + agiPts * (SKILL_BONUSES.agility.crit_chance ?? 0) + luckPts * (SKILL_BONUSES.luck.crit_chance ?? 0) + (frag.crit_chance ?? 0);
   const total_crit_mult = 1 + strPts * (SKILL_BONUSES.strength.crit_damage ?? 0) + (frag.crit_damage ?? 0);
   const crit_damage = base_crit_damage * total_crit_mult;
   const one_hit_chance = luckPts * (SKILL_BONUSES.luck.one_hit_chance ?? 0);
 
-  const super_crit_chance = frag.super_crit_chance ?? 0;
+  const super_crit_chance = (frag.super_crit_chance ?? 0) + divPts * divSuperCritPerPt;
   const super_crit_damage = frag.super_crit_damage ?? 0;
   const ultra_crit_chance = frag.ultra_crit_chance ?? 0;
+  const ultra_crit_damage = frag.ultra_crit_damage ?? 0;
 
   const super_crit_dmg_mult = SUPER_CRIT_DMG_MULT_DEFAULT * (1 + super_crit_damage);
-  /** Ultra crit mult is fixed 3× in-game; Super Crit Damage only affects super crits. */
-  const ultra_crit_dmg_mult = ULTRA_CRIT_DMG_MULT_DEFAULT;
+  const ultra_crit_dmg_mult = ULTRA_CRIT_DMG_MULT_DEFAULT * (1 + ultra_crit_damage);
 
   let xp_mult_base = base_xp_mult + gem_xp * (GEM_UPGRADE_BONUSES.xp.xp_bonus ?? 0);
   if ((frag.xp_bonus_mult ?? 0) > 0) xp_mult_base *= frag.xp_bonus_mult ?? 1.0;
@@ -199,15 +215,16 @@ export function getTotalStats(build: ArchBuild): ArchStats {
 
   const exp_mod_chance = intPts * (SKILL_BONUSES.intellect.exp_mod_chance ?? 0) + mod_from_int_buff + all_mod_bonus + gem_xp * (GEM_UPGRADE_BONUSES.xp.exp_mod_chance ?? 0) + (frag.exp_mod_chance ?? 0);
   const loot_mod_chance = perPts * (SKILL_BONUSES.perception.loot_mod_chance ?? 0) + mod_from_per_buff + all_mod_bonus + gem_fragment * (GEM_UPGRADE_BONUSES.fragment.loot_mod_chance ?? 0);
-  const speed_mod_chance = agiPts * (SKILL_BONUSES.agility.speed_mod_chance ?? 0) + mod_from_agi_buff + all_mod_bonus;
+  const speed_mod_chance = agiPts * (SKILL_BONUSES.agility.speed_mod_chance ?? 0) + mod_from_agi_buff + all_mod_bonus + corrPts * corrSpeedModPerPt;
   const stamina_mod_chance = all_mod_bonus + gem_stamina * (GEM_UPGRADE_BONUSES.stamina.stamina_mod_chance ?? 0) + (frag.stamina_mod_chance ?? 0);
 
   const arch_xp_bonus_total = frag.arch_xp_bonus ?? 0;
   const arch_xp_mult = 1.0 + arch_xp_bonus_total;
 
-  const loot_mod_multiplier = MOD_LOOT_MULTIPLIER_AVG + (frag.loot_mod_multiplier ?? 0);
-  const exp_mod_gain = MOD_EXP_MULTIPLIER_AVG + (frag.exp_mod_gain ?? 0);
-  const stamina_mod_gain = MOD_STAMINA_BONUS_AVG + (frag.stamina_mod_gain ?? 0);
+  const modMultFactor = 1 + corrPts * corrModMultPerPt + (frag.mod_mult_bonus ?? 0);
+  const loot_mod_multiplier = (MOD_LOOT_MULTIPLIER_AVG + (frag.loot_mod_multiplier ?? 0)) * modMultFactor;
+  const exp_mod_gain = (MOD_EXP_MULTIPLIER_AVG + (frag.exp_mod_gain ?? 0)) * modMultFactor;
+  const stamina_mod_gain = (MOD_STAMINA_BONUS_AVG + (frag.stamina_mod_gain ?? 0)) * modMultFactor;
 
   const avada = getAvadaKedaBonus(build.avadaKedaEnabled);
   const enrage_damage_bonus = ENRAGE_DAMAGE_BONUS + (frag.enrage_damage ?? 0);
@@ -227,6 +244,7 @@ export function getTotalStats(build: ArchBuild): ArchStats {
     ultra_crit_chance: clamp01(ultra_crit_chance),
     super_crit_dmg_mult,
     ultra_crit_dmg_mult,
+    ultra_crit_damage,
     one_hit_chance: clamp01(one_hit_chance),
     xp_mult,
     xp_gain_total: xp_mult * arch_xp_mult,
@@ -270,7 +288,7 @@ export function calculateHitsToKill(build: ArchBuild, stats: ArchStats, blockHpB
     const uc = clamp01(ultraCritChance);
     const cd = Math.max(0, superCritDamage);
     const superMult = SUPER_CRIT_DMG_MULT_DEFAULT * (1 + cd);
-    const ultraMult = ULTRA_CRIT_DMG_MULT_DEFAULT;
+    const ultraMult = stats.ultra_crit_dmg_mult ?? ULTRA_CRIT_DMG_MULT_DEFAULT * (1 + cd);
     const critMultExpected = (1 - sc) * critDmgMult + sc * ((1 - uc) * critDmgMult * superMult + uc * critDmgMult * ultraMult);
     return baseDmg * ((1 - critChance) + critChance * critMultExpected);
   }
@@ -306,6 +324,8 @@ export function calculateHitsToKill(build: ArchBuild, stats: ArchStats, blockHpB
 }
 
 export function calculateFloorsPerRun(build: ArchBuild, stats: ArchStats, startingFloor: number): number {
+  const ctx = spawnCtx(build);
+  const asc = build.ascensionLevel ?? 0;
   const maxStamina = stats.max_stamina;
   let staminaRemaining = maxStamina;
   let floorsCleared = 0;
@@ -327,10 +347,10 @@ export function calculateFloorsPerRun(build: ArchBuild, stats: ArchStats, starti
   }
 
   for (let i = 0; i < 100; i += 1) {
-    const spawnRates = getNormalizedSpawnRates(currentFloor);
-    const blockMix = getBlockMixForFloor(currentFloor);
+    const spawnRates = getNormalizedSpawnRates(currentFloor, ctx);
+    const blockMix = getBlockMixForFloor(currentFloor, asc);
 
-    const totalSpawnProb = getTotalSpawnProbability(currentFloor);
+    const totalSpawnProb = getTotalSpawnProbability(currentFloor, ctx);
     const expectedBlocks = SLOTS_PER_FLOOR * (totalSpawnProb / 100.0);
     const floorBlocks = expectedBlocks;
 
@@ -362,6 +382,8 @@ export function calculateFloorsPerRun(build: ArchBuild, stats: ArchStats, starti
 }
 
 export function calculateXpPerRun(build: ArchBuild, stats: ArchStats, startingFloor: number): number {
+  const ctx = spawnCtx(build);
+  const asc = build.ascensionLevel ?? 0;
   const floors = calculateFloorsPerRun(build, stats, startingFloor);
   if (floors <= 0) return 0;
 
@@ -382,9 +404,9 @@ export function calculateXpPerRun(build: ArchBuild, stats: ArchStats, startingFl
     const floorMult = i === floorsToProcess ? partial : 1.0;
     if (floorMult <= 0) break;
 
-    const spawnRates = getNormalizedSpawnRates(currentFloor);
-    const blockMix = getBlockMixForFloor(currentFloor);
-    const totalSpawnProb = getTotalSpawnProbability(currentFloor);
+    const spawnRates = getNormalizedSpawnRates(currentFloor, ctx);
+    const blockMix = getBlockMixForFloor(currentFloor, asc);
+    const totalSpawnProb = getTotalSpawnProbability(currentFloor, ctx);
     const expectedBlocks = SLOTS_PER_FLOOR * (totalSpawnProb / 100.0);
 
     let floorXp = 0;
@@ -407,6 +429,8 @@ export function calculateXpPerRun(build: ArchBuild, stats: ArchStats, startingFl
 }
 
 export function calculateFragmentsPerRun(build: ArchBuild, stats: ArchStats, startingFloor: number): Record<Exclude<BlockType, "dirt">, number> {
+  const ctx = spawnCtx(build);
+  const asc = build.ascensionLevel ?? 0;
   const floors = calculateFloorsPerRun(build, stats, startingFloor);
   const out = Object.fromEntries(ARCH_FRAGMENT_TYPES.map((t) => [t, 0])) as Record<Exclude<BlockType, "dirt">, number>;
   if (floors <= 0) return out;
@@ -424,9 +448,9 @@ export function calculateFragmentsPerRun(build: ArchBuild, stats: ArchStats, sta
     const floorMult = i === floorsToProcess ? partial : 1.0;
     if (floorMult <= 0) break;
 
-    const spawnRates = getNormalizedSpawnRates(currentFloor);
-    const blockMix = getBlockMixForFloor(currentFloor);
-    const totalSpawnProb = getTotalSpawnProbability(currentFloor);
+    const spawnRates = getNormalizedSpawnRates(currentFloor, ctx);
+    const blockMix = getBlockMixForFloor(currentFloor, asc);
+    const totalSpawnProb = getTotalSpawnProbability(currentFloor, ctx);
     const expectedBlocks = SLOTS_PER_FLOOR * (totalSpawnProb / 100.0);
 
     for (const [blockTypeRaw, spawnChanceRaw] of Object.entries(spawnRates)) {
@@ -497,9 +521,11 @@ export function calculateRunDurationSeconds(build: ArchBuild, stats: ArchStats, 
 }
 
 export function calculateBlocksPerRun(build: ArchBuild, stats: ArchStats, floor: number): number {
+  const ctx = spawnCtx(build);
+  const asc = build.ascensionLevel ?? 0;
   const maxStamina = stats.max_stamina;
-  const spawnRates = getNormalizedSpawnRates(floor);
-  const blockMix = getBlockMixForFloor(floor);
+  const spawnRates = getNormalizedSpawnRates(floor, ctx);
+  const blockMix = getBlockMixForFloor(floor, asc);
 
   let weightedHits = 0;
   for (const [btRaw, spawnChanceRaw] of Object.entries(spawnRates)) {

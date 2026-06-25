@@ -44,6 +44,8 @@ export type McRunOptions = {
   return_block_metrics: boolean;
   /** When set, each run starts with this many speed-mod hits remaining (e.g. permanent speed mod). */
   initialSpeedModHits?: number;
+  /** 0 = pre-ascension; 1+ enables divine blocks and ascension upgrades in spawn/block mix. */
+  ascensionLevel?: 0 | 1 | 2;
 };
 
 type EnrageState = { charges_remaining: number; cooldown: number };
@@ -153,8 +155,9 @@ export class MonteCarloArchaeologySimulator {
     const super_crit_chance = Math.max(0, Math.min(1, Number(stats.super_crit_chance ?? 0)));
     const ultra_crit_chance = Math.max(0, Math.min(1, Number(stats.ultra_crit_chance ?? 0)));
     const super_crit_damage_bonus = Math.max(0, Number(stats.super_crit_damage ?? 0));
+    const ultra_crit_damage_bonus = Math.max(0, Number(stats.ultra_crit_damage ?? 0));
     const super_mult = this.SUPER_CRIT_DMG_MULT_DEFAULT * (1 + super_crit_damage_bonus);
-    const ultra_mult = this.ULTRA_CRIT_DMG_MULT_DEFAULT;
+    const ultra_mult = Number(stats.ultra_crit_dmg_mult ?? this.ULTRA_CRIT_DMG_MULT_DEFAULT * (1 + ultra_crit_damage_bonus));
 
     if (this.rng() < super_crit_chance) {
       if (this.rng() < ultra_crit_chance) return Math.max(1, Math.round(base_damage * crit_damage_mult * ultra_mult));
@@ -223,12 +226,13 @@ export class MonteCarloArchaeologySimulator {
     return { hits, enrage_state: enrage_was_enabled ? state : null, seconds_elapsed, speed_consumed };
   }
 
-  private spawnBlockForSlot(stage: number): BlockType | null {
-    const raw = getSpawnRatesForStage(stage);
+  private spawnBlockForSlot(stage: number, ascensionLevel: 0 | 1 | 2 = 0): BlockType | null {
+    const ctx = { ascensionLevel };
+    const raw = getSpawnRatesForStage(stage, ctx);
     const total_spawn_chance = Object.values(raw).reduce((a, b) => a + b, 0);
     if (this.rng() * 100.0 > total_spawn_chance) return null;
 
-    const normalized = getNormalizedSpawnRates(stage);
+    const normalized = getNormalizedSpawnRates(stage, ctx);
     let r = this.rng();
     let cum = 0;
     for (const [bt, p] of Object.entries(normalized)) {
@@ -245,6 +249,7 @@ export class MonteCarloArchaeologySimulator {
     cardCfg: CardConfig | null,
   ): number | McRunMetrics {
     const { use_crit, enrage_enabled, flurry_enabled, quake_enabled, return_block_metrics, initialSpeedModHits } = options;
+    const ascensionLevel = (options.ascensionLevel ?? 0) as 0 | 1 | 2;
 
     const max_stamina = Number(stats.max_stamina ?? 0);
     let stamina_remaining = max_stamina;
@@ -319,7 +324,7 @@ export class MonteCarloArchaeologySimulator {
     }
 
     for (let floor_iter = 0; floor_iter < 1000; floor_iter += 1) {
-      const block_mix = getBlockMixForFloor(current_floor);
+      const block_mix = getBlockMixForFloor(current_floor, ascensionLevel);
 
       let stamina_for_floor = 0;
       let blocks_killed = 0;
@@ -331,7 +336,7 @@ export class MonteCarloArchaeologySimulator {
 
       // Spawn all blocks
       for (let slot = 0; slot < this.SLOTS_PER_FLOOR; slot += 1) {
-        const bt = this.spawnBlockForSlot(current_floor);
+        const bt = this.spawnBlockForSlot(current_floor, ascensionLevel);
         if (!bt) continue;
         const bd = (block_mix as any)[bt] as { tier: BlockTier; armor: number; health: number; xp: number; fragment: number } | undefined;
         if (!bd) continue;

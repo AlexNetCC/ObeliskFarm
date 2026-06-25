@@ -6,6 +6,8 @@ export const SKILL_POINT_CAPS_BASE: Record<Skill, number> = {
   perception: 25,
   intellect: 25,
   luck: 25,
+  divinity: 10,
+  corruption: 10,
 };
 
 export const SKILL_BONUSES: Record<
@@ -15,6 +17,7 @@ export const SKILL_BONUSES: Record<
     percent_damage: number;
     crit_damage: number;
     max_stamina: number;
+    max_stamina_percent: number;
     crit_chance: number;
     speed_mod_chance: number;
     fragment_gain: number;
@@ -25,6 +28,9 @@ export const SKILL_BONUSES: Record<
     armor_pen_mult: number;
     all_mod_chance: number;
     one_hit_chance: number;
+    super_crit_chance: number;
+    mod_mult_bonus: number;
+    crosshair_autotap_chance: number;
   }>
 > = {
   strength: { flat_damage: 1, percent_damage: 0.01, crit_damage: 0.03 },
@@ -32,6 +38,8 @@ export const SKILL_BONUSES: Record<
   perception: { fragment_gain: 0.04, loot_mod_chance: 0.003, armor_pen: 2 },
   intellect: { xp_bonus: 0.05, exp_mod_chance: 0.003, armor_pen_mult: 0.03 },
   luck: { crit_chance: 0.02, all_mod_chance: 0.002, one_hit_chance: 0.0004 },
+  divinity: { flat_damage: 2, super_crit_chance: 0.02, crosshair_autotap_chance: 0.02 },
+  corruption: { percent_damage: 0.06, max_stamina_percent: -0.03, mod_mult_bonus: 0.01 },
 };
 
 export const ENRAGE_CHARGES = 5;
@@ -69,12 +77,16 @@ export const GEM_UPGRADE_BONUSES: Record<
 
 export const FRAGMENT_UPGRADES: Record<
   string,
-  { max_level: number; stage_unlock: number; cost_type: "common" | "rare" | "epic" | "legendary" | "mythic" | "divine"; display_name: string } & Record<
-    string,
-    number | string
-  >
+  {
+    max_level: number;
+    stage_unlock: number;
+    cost_type: "common" | "rare" | "epic" | "legendary" | "mythic" | "divine";
+    display_name: string;
+    /** 0 = base tree; 1 = Ascension 1; 2 = Ascension 2. */
+    ascension_tier?: 0 | 1 | 2;
+  } & Record<string, number | string>
 > = {
-  flat_damage_c1: { flat_damage: 1, max_level: 25, stage_unlock: 0, cost_type: "common", display_name: "Flat Damage +1" },
+  flat_damage_c1: { flat_damage: 1, max_level: 25, stage_unlock: 0, cost_type: "common", display_name: "Flat Damage +1", ascension_tier: 0 },
   armor_pen_c1: { armor_pen: 1, max_level: 25, stage_unlock: 2, cost_type: "common", display_name: "Armor Penetration +1" },
   arch_xp_c1: { arch_xp_bonus: 0.02, max_level: 25, stage_unlock: 3, cost_type: "common", display_name: "Archaeology Exp Gain +2%" },
   crit_c1: { crit_chance: 0.0025, crit_damage: 0.01, max_level: 25, stage_unlock: 4, cost_type: "common", display_name: "Crit Chance +0.25%, Crit Damage +1%" },
@@ -106,7 +118,29 @@ export const FRAGMENT_UPGRADES: Record<
   crit_chance_m1: { super_crit_chance: 0.0035, ultra_crit_chance: 0.01, max_level: 20, stage_unlock: 28, cost_type: "mythic", display_name: "Super Crit Chance +0.35%, Ultra Crit Chance +1%" },
   exp_mod_m1: { exp_mod_gain: 0.1, exp_mod_chance: 0.001, max_level: 20, stage_unlock: 30, cost_type: "mythic", display_name: "EXP Mod Gain +0.10x, EXP Mod Chance +0.10%" },
   ability_stam_m1: { ability_instacharge: 0.003, max_stamina: 4, max_level: 20, stage_unlock: 32, cost_type: "mythic", display_name: "Ability Instacharge +0.30%, Max Stamina +4" },
-  exp_stat_cap_m1: { xp_bonus_mult: 2.0, all_stat_cap: 5, max_level: 1, stage_unlock: 42, cost_type: "mythic", display_name: "Exp Gain 2.00x, All Stat Point Caps +5" },
+  exp_stat_cap_m1: { xp_bonus_mult: 2.0, all_stat_cap: 5, max_level: 1, stage_unlock: 42, cost_type: "mythic", display_name: "Exp Gain 2.00x, All Stat Point Caps +5", ascension_tier: 0 },
+
+  // Ascension 1 (wiki Archaeology → Upgrades → Ascension 1)
+  stat_points_a1: { extra_skill_points: 1, max_level: 5, stage_unlock: 4, cost_type: "common", display_name: "Stat Points +1", ascension_tier: 1 },
+  crosshair_fairy_a1: { armor_pen: 3, max_level: 15, stage_unlock: 7, cost_type: "rare", display_name: "Crosshair Fairy Unlock, Armor Penetration +3", ascension_tier: 1 },
+  all_mod_chance_a1: { all_mod_chance: 0.0002, max_level: 30, stage_unlock: 12, cost_type: "epic", display_name: "All Mod Chances +0.02%", ascension_tier: 1 },
+  enrage_flat_a1: { flat_damage: 3, enrage_cooldown: -1, max_level: 5, stage_unlock: 21, cost_type: "legendary", display_name: "Flat Damage +3, Enrage Cooldown -1s", ascension_tier: 1 },
+  ultra_crit_dmg_a1: { ultra_crit_damage: 0.02, stamina_mod_chance: 0.0003, max_level: 20, stage_unlock: 33, cost_type: "mythic", display_name: "Ultra Crit Damage +2%, Stamina Mod Chance +0.03%", ascension_tier: 1 },
+  str_skill_buff_a1: { percent_damage_skill: 0.01, crit_damage: 0.01, max_level: 1, stage_unlock: 50, cost_type: "divine", display_name: "Strength Skill Buff: Damage +1%, Crit Damage +1%", ascension_tier: 1 },
+  gold_crosshair_a1: { gold_crosshair_chance: 0.01, crosshair_autotap_chance: 0.01, max_level: 5, stage_unlock: 55, cost_type: "divine", display_name: "Gold Crosshair Chance +1%, Crosshair Auto-Tap +1%", ascension_tier: 1 },
+  flat_ultra_a1: { flat_damage: 3, ultra_crit_chance: 0.005, max_level: 5, stage_unlock: 60, cost_type: "divine", display_name: "Flat Damage +3, Ultra Crit Chance +0.50%", ascension_tier: 1 },
+  instacharge_a1: { ability_instacharge: 0.001, stamina_mod_chance: 0.001, max_level: 25, stage_unlock: 65, cost_type: "divine", display_name: "Ability Instacharge +0.10%, Stamina Mod Chance +0.10%", ascension_tier: 1 },
+  dmg_xp_a1: { percent_damage: 0.1, arch_xp_bonus: 0.1, max_level: 5, stage_unlock: 70, cost_type: "divine", display_name: "Damage +10%, Archaeology Exp Gain +10%", ascension_tier: 1 },
+  super_crit_exp_a1: { super_crit_damage: 0.005, exp_mod_gain: 0.02, max_level: 40, stage_unlock: 85, cost_type: "legendary", display_name: "Super Crit Damage +0.50%, Exp Mod Gain +2%", ascension_tier: 1 },
+  stam_autotap_a1: { max_stamina_percent: 0.005, crosshair_autotap_chance: 0.002, max_level: 50, stage_unlock: 90, cost_type: "mythic", display_name: "Max Stamina +0.50%, Crosshair Auto-Tap +0.20%", ascension_tier: 1 },
+
+  // Ascension 2
+  gleaming_chance_a2: { gleaming_floor_chance: 0.001, max_level: 30, stage_unlock: 8, cost_type: "common", display_name: "Gleaming Floor Chance +0.10%", ascension_tier: 2 },
+  ability_fairy_a2: { loot_mod_multiplier: 0.05, max_level: 30, stage_unlock: 16, cost_type: "rare", display_name: "Ability Fairy Unlock, Loot Mod Gain +0.05x", ascension_tier: 2 },
+  divinity_buff_a2: { divinity_buff: 0.2, max_level: 5, stage_unlock: 23, cost_type: "epic", display_name: "Buff Divinity: All Div Stats +0.20", ascension_tier: 2 },
+  gleaming_multi_a2: { gleaming_floor_mult: 0.03, max_level: 30, stage_unlock: 45, cost_type: "legendary", display_name: "Gleaming Floor Multi +3%", ascension_tier: 2 },
+  corruption_buff_a2: { corruption_damage_buff: 0.002, corruption_speed_mod_buff: 0.001, max_level: 10, stage_unlock: 72, cost_type: "mythic", display_name: "Corruption Buff: Damage +0.2%, Speed Mod +0.1%", ascension_tier: 2 },
+  all_mod_mult_a2: { mod_mult_bonus: 0.02, max_level: 10, stage_unlock: 92, cost_type: "divine", display_name: "All Mod Multipliers +2%", ascension_tier: 2 },
 };
 
 export const GEM_COSTS: Record<ArchGemUpgradeKey, number[]> = {

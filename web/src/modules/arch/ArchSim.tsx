@@ -8,9 +8,20 @@ import { loadJson, saveJson } from "../../lib/storage";
 import { BLOCK_COLORS, FRAGMENT_UPGRADES, GEM_COSTS, GEM_UPGRADE_BONUSES, SKILL_BONUSES } from "../../lib/archaeology/constants";
 import { archBlockIconPath, BLOCK_CARD_TIERS, BLOCK_TYPES, getBlockData, getCardGemCost } from "../../lib/archaeology/blockStats";
 import { computeRunSummary, getBlockBonkerBonus, getCalculationStage, getFragmentUpgradeBonuses, getSkillPointCap, getTotalStats } from "../../lib/archaeology/sim";
-import { getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
+import { getGemUpgradeCost, getGemUpgradeMaxLevel, getUpgradeCost } from "../../lib/archaeology/upgradeCosts";
+import {
+  ASCENSION2_UNLOCK_STAGE,
+  ascensionLabel,
+  buildSkillPointsFromOptimizerDist,
+  getBonusSkillPoints,
+  getOptimizerSkillBudget,
+  getTotalSkillPointBudget,
+  mcOptionsFromBuild,
+  normalizeAscensionLevel,
+} from "../../lib/archaeology/ascension";
+import { formatSkillPointsLine, getSkillDisplay, getVisibleSkills, sanitizeSkillPoints, skillTrimOrder } from "../../lib/archaeology/skills";
 import { PERMANENT_SPEED_MOD_INITIAL_HITS } from "../../lib/archaeology/mc/monteCarlo";
-import { ARCH_FRAGMENT_TYPES, type ArchBuild, type ArchGemUpgradeKey, type BlockTier, type BlockType, type CardLevel, type Skill } from "../../lib/archaeology/types";
+import { ARCH_FRAGMENT_TYPES, type ArchBuild, type ArchGemUpgradeKey, type AscensionLevel, type BlockTier, type BlockType, type CardLevel, type Skill } from "../../lib/archaeology/types";
 
 const STORAGE_KEY = "obeliskfarm:web:archaeology_save.json:v1";
 const MC_LOG_KEY = "obeliskfarm:web:archaeology_mc_results_log.json:v1";
@@ -137,6 +148,7 @@ type McLogEntry = {
 };
 
 type TieBreakReport = NonNullable<McLogEntry["mc"]>["tieBreak"];
+type BaseOptimizerSkill = "strength" | "agility" | "perception" | "intellect" | "luck";
 
 export type McComparisonMethodId = "default" | "multiStart3";
 
@@ -185,10 +197,11 @@ function defaultBuild(): ArchBuild {
     }
   }
   return {
+    ascensionLevel: 0,
     goalStage: 1,
     unlockedStage: 1,
     archLevel: 20,
-    skillPoints: { strength: 0, agility: 0, perception: 0, intellect: 0, luck: 0 },
+    skillPoints: { strength: 0, agility: 0, perception: 0, intellect: 0, luck: 0, divinity: 0, corruption: 0 },
     gemUpgrades: { stamina: 0, xp: 0, fragment: 0 },
     fragmentUpgradeLevels: {},
     blockCards,
@@ -222,10 +235,10 @@ function formatDurationMinSec(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function normalizeSkillsToTotal(sp: Record<Skill, number>, total: number): Record<Skill, number> {
-  const order: Skill[] = ["luck", "intellect", "perception", "agility", "strength"];
-  const out: Record<Skill, number> = { ...sp };
-  let sum = (Object.values(out) as number[]).reduce((a, b) => a + clampInt(Number(b ?? 0), 0, 999), 0);
+function normalizeSkillsToTotal(sp: Record<Skill, number>, total: number, ascensionLevel: AscensionLevel): Record<Skill, number> {
+  const order = skillTrimOrder(ascensionLevel);
+  const out: Record<Skill, number> = sanitizeSkillPoints(sp, ascensionLevel);
+  let sum = getVisibleSkills(ascensionLevel).reduce((a, k) => a + clampInt(Number(out[k] ?? 0), 0, 999), 0);
   let diff = sum - total;
   let guard = 0;
   while (diff > 0 && guard++ < 10000) {
@@ -259,11 +272,14 @@ export function ArchSim() {
     const saved = loadJson<Partial<ArchBuild>>(STORAGE_KEY);
     const base = defaultBuild();
     if (!saved) return base;
+    const asc = normalizeAscensionLevel(saved.ascensionLevel, Number(saved.unlockedStage ?? base.unlockedStage));
+    const skillPoints = sanitizeSkillPoints({ ...base.skillPoints, ...(saved.skillPoints ?? {}) }, asc);
     return {
       ...base,
       ...saved,
+      ascensionLevel: asc,
       // deep-ish merges:
-      skillPoints: { ...base.skillPoints, ...(saved.skillPoints ?? {}) },
+      skillPoints,
       gemUpgrades: sanitizeGemUpgrades(saved.gemUpgrades),
       fragmentUpgradeLevels: { ...(saved.fragmentUpgradeLevels ?? {}) },
       blockCards: { ...base.blockCards, ...(saved.blockCards ?? {}) },
@@ -524,7 +540,11 @@ export function ArchSim() {
   const summary = computed.summary;
   void summary; // MC-only UI: keep deterministic summary internal, but do not render it.
 
-  const totalSkillPoints = useMemo(() => Object.values(build.skillPoints).reduce((a, b) => a + b, 0), [build.skillPoints]);
+  const skillPointBudget = useMemo(() => getTotalSkillPointBudget(build), [build.archLevel, build.fragmentUpgradeLevels]);
+  const totalSkillPoints = useMemo(
+    () => getVisibleSkills(build.ascensionLevel ?? 0).reduce((sum, k) => sum + clampInt(Number(build.skillPoints[k] ?? 0), 0, 999), 0),
+    [build.skillPoints, build.ascensionLevel],
+  );
 
   const PLAYER_STATS_TOOLTIP = useMemo(
     () => ({
@@ -684,6 +704,32 @@ export function ArchSim() {
           },
         ],
       },
+      divinity: {
+        title: "Divinity",
+        sections: [
+          {
+            heading: "Per point",
+            lines: [
+              `Flat Damage: +${SKILL_BONUSES.divinity.flat_damage ?? 0}`,
+              `Super Crit Chance: +${fmtPct(SKILL_BONUSES.divinity.super_crit_chance ?? 0, 0)}%`,
+              "Crosshair Auto-Tap is not modeled in the simulator.",
+            ],
+          },
+        ],
+      },
+      corruption: {
+        title: "Corruption",
+        sections: [
+          {
+            heading: "Per point",
+            lines: [
+              `Damage: +${fmtPct(SKILL_BONUSES.corruption.percent_damage ?? 0, 0)}%`,
+              `Max Stamina: ${fmtPct(SKILL_BONUSES.corruption.max_stamina_percent ?? 0, 0)}%`,
+              `All Mod Multipliers: +${fmtPct(SKILL_BONUSES.corruption.mod_mult_bonus ?? 0, 0)}%`,
+            ],
+          },
+        ],
+      },
     };
   }, [build.fragmentUpgradeLevels]);
 
@@ -704,25 +750,30 @@ export function ArchSim() {
   }, []);
 
   const fragmentGroups = useMemo(() => {
+    const asc = build.ascensionLevel ?? 0;
     const groups: Record<string, Array<[string, any]>> = {};
     for (const [k, info] of sortedFragmentUpgrades) {
+      const tier = Number((info as { ascension_tier?: number }).ascension_tier ?? 0);
+      if (tier > asc) continue;
       const ct = String((info as any)?.cost_type ?? "misc");
       if (!groups[ct]) groups[ct] = [];
       groups[ct]!.push([k, info]);
     }
     return groups;
-  }, [sortedFragmentUpgrades]);
+  }, [sortedFragmentUpgrades, build.ascensionLevel]);
 
   // Deterministic recommendation panels removed (MC-only UI).
 
   function setSkill(skill: Skill, delta: number) {
     setBuild((s) => {
+      const visible = getVisibleSkills(s.ascensionLevel ?? 0);
+      if (!visible.includes(skill)) return s;
       const cap = getSkillPointCap(s, skill);
       const cur = clampInt(Number(s.skillPoints[skill] ?? 0), 0, cap);
-      const otherSum = (Object.entries(s.skillPoints) as Array<[Skill, number]>)
-        .filter(([k]) => k !== skill)
-        .reduce((acc, [, v]) => acc + clampInt(Number(v ?? 0), 0, 999), 0);
-      const totalCap = clampInt(Number(s.archLevel ?? 0), 0, 999);
+      const otherSum = visible
+        .filter((k) => k !== skill)
+        .reduce((acc, k) => acc + clampInt(Number(s.skillPoints[k] ?? 0), 0, 999), 0);
+      const totalCap = getTotalSkillPointBudget(s);
       const maxForSkillByTotal = Math.max(0, totalCap - otherSum);
       const maxAllowed = Math.min(cap, maxForSkillByTotal);
       const next = clampInt(cur + delta, 0, maxAllowed);
@@ -733,7 +784,7 @@ export function ArchSim() {
   function setGemUpgrade(key: ArchGemUpgradeKey, delta: number) {
     setBuild((s) => {
       const cur = s.gemUpgrades[key] ?? 0;
-      const max = GEM_UPGRADE_BONUSES[key].max_level ?? 0;
+      const max = getGemUpgradeMaxLevel(key, s.ascensionLevel ?? 0);
       const next = clampInt(cur + delta, 0, max);
       return { ...s, gemUpgrades: { ...s.gemUpgrades, [key]: next } };
     });
@@ -767,8 +818,19 @@ export function ArchSim() {
   function setArchLevel(nextLevel: number) {
     setBuild((s) => {
       const lvl = clampInt(nextLevel, 0, 999);
-      const normalized = normalizeSkillsToTotal(s.skillPoints, lvl);
+      const normalized = normalizeSkillsToTotal(s.skillPoints, getTotalSkillPointBudget({ ...s, archLevel: lvl }), s.ascensionLevel ?? 0);
       return { ...s, archLevel: lvl, skillPoints: normalized };
+    });
+  }
+
+  function setAscensionLevel(next: AscensionLevel) {
+    setBuild((s) => {
+      const asc = normalizeAscensionLevel(next, s.unlockedStage);
+      const sp: Record<Skill, number> = { ...s.skillPoints };
+      if (asc < 1) sp.divinity = 0;
+      if (asc < 2) sp.corruption = 0;
+      const normalized = normalizeSkillsToTotal(sp, getTotalSkillPointBudget({ ...s, ascensionLevel: asc, skillPoints: sp }), asc);
+      return { ...s, ascensionLevel: asc, skillPoints: normalized };
     });
   }
 
@@ -880,7 +942,7 @@ export function ArchSim() {
     const workerCount = clampInt(Math.max(1, hc - 1), 1, 8);
     const pool = createWorkerPool(workerCount);
     const stats = getTotalStats(build);
-    const options = { use_crit: true, enrage_enabled: build.enrageEnabled, flurry_enabled: build.flurryEnabled, quake_enabled: build.quakeEnabled };
+    const options = mcOptionsFromBuild(build);
     const cardCfg = { blockCards: build.blockCards, polychromeBonus: getPolychromeBonus() };
     const run100 = () =>
       pool.run({
@@ -911,7 +973,7 @@ export function ArchSim() {
     const refinementN = mcSettings.devTuning ? clampInt(Number(mcSettings.refinementSims ?? defaultRefinement), 0, 999999) : defaultRefinement;
     const combosN = mcSettings.devTuning ? clampInt(Number(mcSettings.combosMult ?? 1), 1, 50) : 1;
     const totalSims = getEstimatedTotalSims(
-      clampInt(Number(build.archLevel ?? 0), 0, 999),
+      clampInt(getOptimizerSkillBudget(build), 0, 999),
       screeningN,
       refinementN,
       combosN,
@@ -923,6 +985,10 @@ export function ArchSim() {
     return mcCalibrating ? "Calibrating…" : estimateSec != null ? `Est. ~${Math.round(estimateSec)} s` : "Est. —";
   }, [
     build.archLevel,
+    build.ascensionLevel,
+    build.fragmentUpgradeLevels,
+    build.skillPoints.divinity,
+    build.skillPoints.corruption,
     mcSettings.devTuning,
     mcSettings.screeningSims,
     mcSettings.refinementSims,
@@ -935,7 +1001,7 @@ export function ArchSim() {
 
   function sampleDirichletInteger(args: {
     numPoints: number;
-    caps: Record<Skill, number>;
+    caps: Record<BaseOptimizerSkill, number>;
     requireStr: boolean;
     rng: () => number;
   }): number[] {
@@ -1008,7 +1074,7 @@ export function ArchSim() {
   function refineAroundAnchor(args: {
     anchor: number[];
     numPoints: number;
-    caps: Record<Skill, number>;
+    caps: Record<BaseOptimizerSkill, number>;
     radius: number;
     requireStr: boolean;
     rng: () => number;
@@ -1070,7 +1136,7 @@ export function ArchSim() {
       setMcProgress("Starting…");
     }
 
-    const archLevel = clampInt(Number(build.archLevel ?? 0), 0, 999);
+    const archLevel = getOptimizerSkillBudget(build);
     // Always enabled (matches desktop; user should not toggle)
     const defaultScreening = 100;
     const defaultRefinement = 200;
@@ -1089,7 +1155,7 @@ export function ArchSim() {
       return { secFrag, terFrag };
     }
 
-    const caps: Record<Skill, number> = {
+    const caps: Record<BaseOptimizerSkill, number> = {
       strength: Math.min(archLevel, getSkillPointCap(build, "strength")),
       agility: Math.min(archLevel, getSkillPointCap(build, "agility")),
       perception: Math.min(archLevel, getSkillPointCap(build, "perception")),
@@ -1106,7 +1172,7 @@ export function ArchSim() {
     const rng = mulberry32(seedBase);
 
     const cardCfg = { blockCards: build.blockCards, polychromeBonus: getPolychromeBonus() };
-    const options = { use_crit: true, enrage_enabled: build.enrageEnabled, flurry_enabled: build.flurryEnabled, quake_enabled: build.quakeEnabled };
+    const options = mcOptionsFromBuild(build);
 
     type Cand = {
       dist: number[];
@@ -1140,7 +1206,7 @@ export function ArchSim() {
     let completed = 0;
 
     const submitCandidate = async (dist: number[], simN: number, seed: number) => {
-      const b2: ArchBuild = { ...build, skillPoints: { strength: dist[0], agility: dist[1], perception: dist[2], intellect: dist[3], luck: dist[4] } };
+      const b2: ArchBuild = { ...build, skillPoints: buildSkillPointsFromOptimizerDist(build, dist) };
       const stats2 = getTotalStats(b2);
       if (mode === "frag") {
         if (useSignificance) {
@@ -1599,7 +1665,7 @@ export function ArchSim() {
             if (cancelRef.current.cancelled) throw new Error("cancelled");
             const dist = refineAroundAnchor({ anchor: anchors[a]!.dist, numPoints: archLevel, caps, radius, requireStr, rng });
             const p = (async () => {
-              const b2: ArchBuild = { ...build, skillPoints: { strength: dist[0], agility: dist[1], perception: dist[2], intellect: dist[3], luck: dist[4] } };
+              const b2: ArchBuild = { ...build, skillPoints: buildSkillPointsFromOptimizerDist(build, dist) };
               const stats2 = getTotalStats(b2);
               const seedRef = seedBase + 100_000 + a * 100 + j;
               if (mode === "frag") {
@@ -1788,7 +1854,7 @@ export function ArchSim() {
 
       const bestBuild: ArchBuild = {
         ...build,
-        skillPoints: { strength: best.dist[0], agility: best.dist[1], perception: best.dist[2], intellect: best.dist[3], luck: best.dist[4] },
+        skillPoints: buildSkillPointsFromOptimizerDist(build, best.dist),
       };
       const bestStats = getTotalStats(bestBuild);
 
@@ -2044,7 +2110,7 @@ export function ArchSim() {
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const currentBuild = build;
     const bestStats = getTotalStats(currentBuild);
-    const options = { use_crit: true, enrage_enabled: currentBuild.enrageEnabled, flurry_enabled: currentBuild.flurryEnabled, quake_enabled: currentBuild.quakeEnabled };
+    const options = mcOptionsFromBuild(currentBuild);
     const cardCfg = { blockCards: currentBuild.blockCards, polychromeBonus: getPolychromeBonus() };
     const FRAG_TYPES_REF = ARCH_FRAGMENT_TYPES;
     try {
@@ -2312,13 +2378,16 @@ export function ArchSim() {
         perception: winnerDist.perception ?? 0,
         intellect: winnerDist.intellect ?? 0,
         luck: winnerDist.luck ?? 0,
+        divinity: refEntry.build.skillPoints.divinity ?? 0,
+        corruption: refEntry.build.skillPoints.corruption ?? 0,
       },
     };
     const unlockedUpgrades = sortedFragmentUpgrades.filter(([key, info]) => {
       const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
       const maxLvl = clampInt(Number(info.max_level ?? 0), 0, 999);
+      const ascTier = Number((info as { ascension_tier?: number }).ascension_tier ?? 0);
       const lvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, maxLvl);
-      return baseBuild.unlockedStage >= stageUnlock && lvl < maxLvl;
+      return ascTier <= (baseBuild.ascensionLevel ?? 0) && baseBuild.unlockedStage >= stageUnlock && lvl < maxLvl;
     });
     if (unlockedUpgrades.length === 0) {
       setUpgradeNextProgress("No upgrades to evaluate (all maxed or locked).");
@@ -2330,7 +2399,7 @@ export function ArchSim() {
     upgradeNextCancelRef.current = false;
     const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
     const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
-    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const options = mcOptionsFromBuild(baseBuild);
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
     type UpgradeResult = { key: string; displayName: string; costType: string; meanFloors: number; growthPct: number; cost: number | null; perCost: number | null; significant: boolean };
@@ -2354,7 +2423,7 @@ export function ArchSim() {
         const [key, info] = unlockedUpgrades[i]!;
         setUpgradeNextProgress(`Which Fragment Upgrade next to maximize Stage Push: ${i + 1}/${unlockedUpgrades.length} — ${(info as any).display_name ?? key}`);
         const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, 999);
-        const cost = getUpgradeCost(key, curLvl);
+        const cost = getUpgradeCost(key, curLvl, baseBuild.ascensionLevel ?? 0);
         const variantBuild: ArchBuild = {
           ...baseBuild,
           fragmentUpgradeLevels: { ...baseBuild.fragmentUpgradeLevels, [key]: curLvl + 1 },
@@ -2414,6 +2483,8 @@ export function ArchSim() {
         perception: winnerDist.perception ?? 0,
         intellect: winnerDist.intellect ?? 0,
         luck: winnerDist.luck ?? 0,
+        divinity: refEntry.build.skillPoints.divinity ?? 0,
+        corruption: refEntry.build.skillPoints.corruption ?? 0,
       },
     };
     const GEM_KEYS: ArchGemUpgradeKey[] = ["stamina", "xp", "fragment"];
@@ -2451,7 +2522,7 @@ export function ArchSim() {
     gemCardSkillNextCancelRef.current = false;
     const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
     const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
-    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const options = mcOptionsFromBuild(baseBuild);
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
     type StagePushResult = { source: "gem" | "card" | "skill"; costClass: "gem" | "skill"; key: string; displayName: string; meanFloors: number; growthPct: number; cost: number | undefined; perCost: number; significant: boolean };
@@ -2476,7 +2547,7 @@ export function ArchSim() {
         idx += 1;
         setGemCardSkillNextProgress(`Which Gem/Card/Skill Tree next (Stage Push): ${idx}/${totalOptions} — Gem: ${displayName}`);
         const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, 999);
-        const cost = GEM_COSTS[key]?.[curLvl] ?? 0;
+        const cost = getGemUpgradeCost(key, curLvl, baseBuild.ascensionLevel ?? 0);
         const variantBuild: ArchBuild = { ...baseBuild, gemUpgrades: { ...baseBuild.gemUpgrades, [key]: curLvl + 1 } };
         const stats = getTotalStats(variantBuild);
         const polychromeLvl = clampInt(Number(variantBuild.fragmentUpgradeLevels["polychrome_bonus"] ?? 0), 0, 1);
@@ -2574,6 +2645,8 @@ export function ArchSim() {
         perception: winnerDist.perception ?? 0,
         intellect: winnerDist.intellect ?? 0,
         luck: winnerDist.luck ?? 0,
+        divinity: refEntry.build.skillPoints.divinity ?? 0,
+        corruption: refEntry.build.skillPoints.corruption ?? 0,
       },
     };
     const GEM_KEYS: ArchGemUpgradeKey[] = ["stamina", "xp", "fragment"];
@@ -2605,6 +2678,8 @@ export function ArchSim() {
       const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
       const maxLvl = clampInt(Number(info.max_level ?? 0), 0, 999);
       const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, maxLvl);
+      const ascTier = Number((info as { ascension_tier?: number }).ascension_tier ?? 0);
+      if (ascTier > (baseBuild.ascensionLevel ?? 0)) continue;
       if (baseBuild.unlockedStage >= stageUnlock && curLvl < maxLvl) eligibleFragmentUpgrades.push({ key, displayName: String(info.display_name ?? key) });
     }
     const totalOptions = eligibleGems.length + eligibleCards.length + eligibleSkills.length + eligibleFragmentUpgrades.length;
@@ -2618,7 +2693,7 @@ export function ArchSim() {
     gemFragNextCancelRef.current = false;
     const hc = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 4;
     const pool = createWorkerPool(clampInt(Math.max(1, hc - 1), 1, 8));
-    const options = { use_crit: true, enrage_enabled: baseBuild.enrageEnabled, flurry_enabled: baseBuild.flurryEnabled, quake_enabled: baseBuild.quakeEnabled };
+    const options = mcOptionsFromBuild(baseBuild);
     const seedBase = (Date.now() & 0x7fffffff) >>> 0;
     const N_SIMS = 3000;
     type CostClass = "gem" | "skill" | "common" | "rare" | "epic" | "legendary" | "mythic" | "divine";
@@ -2647,7 +2722,7 @@ export function ArchSim() {
         idx += 1;
         setGemFragNextProgress(`Which Gem/Card/Skill Tree Upgrade next to maximize Fragment gains: ${idx}/${totalOptions} — Gem: ${displayName}`);
         const curLvl = clampInt(Number(baseBuild.gemUpgrades[key] ?? 0), 0, 999);
-        const cost = GEM_COSTS[key]?.[curLvl] ?? 0;
+        const cost = getGemUpgradeCost(key, curLvl, baseBuild.ascensionLevel ?? 0);
         const variantBuild: ArchBuild = {
           ...baseBuild,
           gemUpgrades: { ...baseBuild.gemUpgrades, [key]: curLvl + 1 },
@@ -2744,7 +2819,7 @@ export function ArchSim() {
         idx += 1;
         setGemFragNextProgress(`Which Gem/Card/Skill Tree Upgrade next to maximize Fragment gains: ${idx}/${totalOptions} — Fragment: ${displayName}`);
         const curLvl = clampInt(Number(baseBuild.fragmentUpgradeLevels[key] ?? 0), 0, 999);
-        const cost = getUpgradeCost(key, curLvl) ?? undefined;
+        const cost = getUpgradeCost(key, curLvl, baseBuild.ascensionLevel ?? 0) ?? undefined;
         const variantBuild: ArchBuild = {
           ...baseBuild,
           fragmentUpgradeLevels: { ...baseBuild.fragmentUpgradeLevels, [key]: curLvl + 1 },
@@ -3269,15 +3344,80 @@ export function ArchSim() {
       </div>
 
       <div className="panel archSetupPanel" style={{ background: "var(--tier1)" }}>
-        <div className="panelHeader" style={{ marginBottom: 8 }}>
-          <h2 className="panelTitle">Run setup</h2>
-          <p className="panelHint">
-            Calc stage: <span className="mono">{calcStage}</span>
-          </p>
+        <div className="panelHeader" style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div>
+            <h2 className="panelTitle">Run setup</h2>
+            <p className="panelHint">
+              Calc stage: <span className="mono">{calcStage}</span>
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span className="small">Ascension:</span>
+            <span className="mono" style={{ fontWeight: 800 }}>
+              {ascensionLabel(build.ascensionLevel ?? 0)}
+            </span>
+            <Tooltip
+              content={{
+                title: "Ascension",
+                sections: [
+                  {
+                    heading: "Levels",
+                    lines: [
+                      "No Ascension: pre-ascension archaeology (no Divine blocks).",
+                      "Ascension 1: Divine blocks and Divinity skill unlock.",
+                      `Ascension 2: Tier 4 blocks and Corruption skill (select after stage ${ASCENSION2_UNLOCK_STAGE}).`,
+                    ],
+                  },
+                  {
+                    heading: "Costs",
+                    lines: [
+                      "After Ascension 1, base fragment upgrades cost 5× and gem upgrades cost 50×.",
+                      "Ascension-only upgrades use their own cost tables.",
+                    ],
+                  },
+                ],
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="archSetupGrid" style={{ marginBottom: 8 }}>
+          <div className="archSetupCell archSetupCellAscension" style={{ gridColumn: "1 / -1" }}>
+            <div className="label" style={{ marginBottom: 6 }}>
+              <span>Ascension state</span>
+            </div>
+            <div className="btnRow" style={{ flexWrap: "wrap" }}>
+              {([0, 1, 2] as const).map((lvl) => {
+                const disabled = lvl === 2 && build.unlockedStage < ASCENSION2_UNLOCK_STAGE;
+                const active = (build.ascensionLevel ?? 0) === lvl;
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    className={active ? "btn" : "btn btnSecondary"}
+                    disabled={disabled || mcRunning}
+                    title={disabled ? `Ascension 2 requires unlocked stage ${ASCENSION2_UNLOCK_STAGE}+` : undefined}
+                    onClick={() => setAscensionLevel(lvl)}
+                  >
+                    {ascensionLabel(lvl)}
+                  </button>
+                );
+              })}
+            </div>
+            {(build.ascensionLevel ?? 0) >= 1 ? (
+              <div className="small" style={{ marginTop: 6 }}>
+                Divine blocks can spawn from stage 50+. Ascension 1 upgrades appear in Fragment upgrades.
+              </div>
+            ) : (
+              <div className="small" style={{ marginTop: 6 }}>
+                Without Ascension, Divine blocks do not spawn (except some boss floors are also gated).
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="archSetupGrid">
-          <div className="archSetupCell" style={{ background: "var(--tier2)" }}>
+          <div className="archSetupCell" style={{ background: "var(--tier3)" }}>
             <div className="label">
               <span>
                 Unlocked stage
@@ -3298,7 +3438,13 @@ export function ArchSim() {
             </div>
             <input className="input" type="number" min={0} step={1} value={build.archLevel} onChange={(e) => setArchLevel(Number(e.target.value))} />
             <div className="small" style={{ marginTop: 6 }}>
-              Points used: <span className="mono">{totalSkillPoints}</span> / <span className="mono">{build.archLevel}</span>
+              Points used: <span className="mono">{totalSkillPoints}</span> / <span className="mono">{skillPointBudget}</span>
+              {getBonusSkillPoints(build) > 0 ? (
+                <>
+                  {" "}
+                  (<span className="mono">{build.archLevel}</span> level + <span className="mono">{getBonusSkillPoints(build)}</span> ascension)
+                </>
+              ) : null}
             </div>
           </div>
         </div>
@@ -3422,7 +3568,7 @@ export function ArchSim() {
             defaultExpanded={false}
             headerRight={
               <span className="mono">
-                {totalSkillPoints}/{build.archLevel}
+                {totalSkillPoints}/{skillPointBudget}
               </span>
             }
           >
@@ -3430,15 +3576,15 @@ export function ArchSim() {
             <div className="small" style={{ marginBottom: 8 }}>
               Spend your <span className="mono">Arch level</span> points here.
             </div>
-            {(["strength", "agility", "perception", "intellect", "luck"] as const).map((statKey) => {
+            {getVisibleSkills(build.ascensionLevel ?? 0).map((statKey) => {
+              const meta = getSkillDisplay(statKey);
               const cap = getSkillPointCap(build, statKey);
-              const v = build.skillPoints[statKey];
-              const short =
-                statKey === "strength" ? "STR" : statKey === "agility" ? "AGI" : statKey === "perception" ? "PER" : statKey === "intellect" ? "INT" : "LCK";
+              const v = clampInt(Number(build.skillPoints[statKey] ?? 0), 0, cap);
               return (
                 <div key={statKey} className="row" style={{ marginBottom: 8 }}>
                   <div className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span className="mono">{short}</span>
+                    <Sprite path={meta.icon} alt={meta.label} className="iconSmall" />
+                    <span className="mono">{meta.short}</span>
                     <Tooltip content={STAT_TOOLTIPS[statKey]} />
                     <span className="mono">
                       {v} / {cap}
@@ -3451,10 +3597,10 @@ export function ArchSim() {
                     <button className="btn btnSecondary" type="button" onClick={() => setSkill(statKey, -1)} disabled={v <= 0}>
                       −
                     </button>
-                    <button className="btn" type="button" onClick={() => setSkill(statKey, +1)} disabled={v >= cap || totalSkillPoints >= build.archLevel}>
+                    <button className="btn" type="button" onClick={() => setSkill(statKey, +1)} disabled={v >= cap || totalSkillPoints >= skillPointBudget}>
                       +
                     </button>
-                    <button className="btn btnSecondary" type="button" onClick={() => setSkill(statKey, +5)} disabled={v >= cap || totalSkillPoints >= build.archLevel}>
+                    <button className="btn btnSecondary" type="button" onClick={() => setSkill(statKey, +5)} disabled={v >= cap || totalSkillPoints >= skillPointBudget}>
                       +5
                     </button>
                   </div>
@@ -4314,8 +4460,10 @@ export function ArchSim() {
                         const lvl = clampInt(Number(build.fragmentUpgradeLevels[key] ?? 0), 0, clampInt(Number(info.max_level ?? 0), 0, 999));
                         const maxLvl = clampInt(Number(info.max_level ?? 0), 0, 999);
                         const stageUnlock = clampInt(Number(info.stage_unlock ?? 0), 0, 999);
-                        const locked = build.unlockedStage < stageUnlock;
-                        const nextCost = getUpgradeCost(key, lvl);
+                        const ascTier = Number((info as { ascension_tier?: number }).ascension_tier ?? 0);
+                        const ascLocked = ascTier > (build.ascensionLevel ?? 0);
+                        const locked = ascLocked || build.unlockedStage < stageUnlock;
+                        const nextCost = getUpgradeCost(key, lvl, build.ascensionLevel ?? 0);
                         const isMaxed = !locked && lvl >= maxLvl;
                         return (
                           <div
@@ -4335,7 +4483,10 @@ export function ArchSim() {
                               <div className="fragmentUpgradeRight upgradeLevel" style={isMaxed ? { color: "#888" } : undefined}>
                                 {locked ? (
                                   <span className="small">
-                                    <span className="pillLocked">LOCKED</span> <span className="lockedText">until stage {stageUnlock}</span>
+                                    <span className="pillLocked">LOCKED</span>{" "}
+                                    <span className="lockedText">
+                                      {ascLocked ? `requires ${ascensionLabel(ascTier as AscensionLevel)}` : `until stage ${stageUnlock}`}
+                                    </span>
                                   </span>
                                 ) : (
                                   <>
@@ -4431,8 +4582,8 @@ export function ArchSim() {
                 ).map((u) => {
                   const k = u.key;
                   const lvl = build.gemUpgrades[k] ?? 0;
-                  const max = GEM_UPGRADE_BONUSES[k].max_level;
-                  const nextCost = GEM_COSTS[k][lvl] ?? null;
+                  const max = getGemUpgradeMaxLevel(k, build.ascensionLevel ?? 0);
+                  const nextCost = getGemUpgradeCost(k, lvl, build.ascensionLevel ?? 0);
                   const locked = build.unlockedStage < (GEM_UPGRADE_BONUSES[k].stage_unlock ?? 0);
                   const maxed = lvl >= max;
                   return (
@@ -5360,8 +5511,7 @@ export function ArchSim() {
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   {(() => {
                     const b = openLog.build;
-                    const skills = ["strength", "agility", "perception", "intellect", "luck"] as const;
-                    const abbr: Record<(typeof skills)[number], string> = { strength: "STR", agility: "AGI", perception: "PER", intellect: "INT", luck: "LCK" };
+                    const skills = getVisibleSkills(b.ascensionLevel ?? 0);
                     const skillTitle = (
                       <span
                         style={{
@@ -5375,11 +5525,13 @@ export function ArchSim() {
                         }}
                       >
                         {skills.map((s) => {
+                          const meta = getSkillDisplay(s);
                           const v = b.skillPoints[s] ?? 0;
                           const skillCap = getSkillPointCap(b, s);
                           return (
-                            <span key={s}>
-                              {abbr[s]}{" "}
+                            <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <Sprite path={meta.icon} alt={meta.label} className="iconSmall" />
+                              {meta.short}{" "}
                               <span className="mono" style={heatGlowStyle(v, skillCap)}>
                                 {v}
                               </span>
@@ -5416,7 +5568,7 @@ export function ArchSim() {
                               </span>
                             </div>
                           ),
-                          ariaLabel: `STR ${b.skillPoints.strength ?? 0} AGI ${b.skillPoints.agility ?? 0} PER ${b.skillPoints.perception ?? 0} INT ${b.skillPoints.intellect ?? 0} LCK ${b.skillPoints.luck ?? 0} — ${distTitle}`,
+                          ariaLabel: `${formatSkillPointsLine(b, skills)} — ${distTitle}`,
                           xLabel:
                             openLog.mc.objective === "stage"
                               ? "Max Stage Reached"
@@ -5555,7 +5707,20 @@ export function ArchSim() {
                                 </>
                               ) : null}
                               <div className="mono" style={{ marginTop: 4 }}>
-                                STR {c.dist.strength ?? 0} • AGI {c.dist.agility ?? 0} • PER {c.dist.perception ?? 0} • INT {c.dist.intellect ?? 0} • LCK {c.dist.luck ?? 0}
+                                {formatSkillPointsLine(
+                                  {
+                                    ...openLog.build,
+                                    skillPoints: {
+                                      ...openLog.build.skillPoints,
+                                      strength: c.dist.strength ?? 0,
+                                      agility: c.dist.agility ?? 0,
+                                      perception: c.dist.perception ?? 0,
+                                      intellect: c.dist.intellect ?? 0,
+                                      luck: c.dist.luck ?? 0,
+                                    },
+                                  },
+                                  getVisibleSkills(openLog.build.ascensionLevel ?? 0),
+                                )}
                               </div>
                             </li>
                           ))}

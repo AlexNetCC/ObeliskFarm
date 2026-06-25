@@ -1,25 +1,7 @@
-import type { BlockTier, BlockType } from "./types";
+import type { AscensionLevel, BlockTier, BlockType } from "./types";
 
 /** Card / block tiers in sim (tier 4 unlocks at high stages; see wiki Archaeology → Block Stats, “Tier unlock wave”). */
 export const BLOCK_CARD_TIERS = [1, 2, 3, 4] as const;
-
-/** Stage thresholds: from stage 100 use health_100/armor_100, from stage 150 use health_150/armor_150. */
-export type BlockData = {
-  tier: BlockTier;
-  block_type: BlockType;
-  health: number;
-  xp: number;
-  armor: number;
-  fragment: number;
-  floor_min: number;
-  floor_max: number; // Infinity for open-ended
-  /** HP from stage 100 (inclusive). If set, used when floor >= 100 and < 150. */
-  health_100?: number;
-  armor_100?: number;
-  /** HP/Armor from stage 150 (inclusive). If set, used when floor >= 150. */
-  health_150?: number;
-  armor_150?: number;
-};
 
 export const BLOCK_TYPES: BlockType[] = ["dirt", "common", "rare", "epic", "legendary", "mythic", "divine"];
 
@@ -32,17 +14,61 @@ export function archBlockIconPath(blockType: BlockType, tier: BlockTier): string
   return `sprites/archaeology/block_${blockType}_t${t}.png`;
 }
 
-/** HP/Armor for a block at a given stage. From stage 100 use health_100/armor_100, from stage 150 use health_150/armor_150. */
+/** Stage thresholds: from stage 100 use health_100/armor_100, from stage 150 use health_150/armor_150. */
+export type BlockData = {
+  tier: BlockTier;
+  block_type: BlockType;
+  health: number;
+  xp: number;
+  armor: number;
+  fragment: number;
+  floor_min: number;
+  floor_max: number; // Infinity for open-ended
+  /** Wiki Block Stats HP@100 / Armor@100 (reference; equals base × multipliers through stage 100). */
+  health_100?: number;
+  armor_100?: number;
+  /** Wiki Block Stats HP@150 / Armor@150 (reference; equals base × multipliers through stage 150). */
+  health_150?: number;
+  armor_150?: number;
+};
+
+/** Wiki Archaeology → Block Stat Multipliers. Applied cumulatively from base HP/armor when floor ≥ stage. */
+export const BLOCK_STAT_MULTIPLIER_THRESHOLDS: ReadonlyArray<{ stage: number; hpMult: number; armorMult: number }> = [
+  { stage: 100, hpMult: 2, armorMult: 1.5 },
+  { stage: 150, hpMult: 2, armorMult: 1 },
+  { stage: 200, hpMult: 2, armorMult: 1.5 },
+  { stage: 250, hpMult: 2, armorMult: 1.5 },
+  { stage: 300, hpMult: 4, armorMult: 2.25 },
+  { stage: 350, hpMult: 2, armorMult: 1.5 },
+  { stage: 400, hpMult: 2, armorMult: 1.5 },
+  { stage: 450, hpMult: 2, armorMult: 1.5 },
+  { stage: 500, hpMult: 2, armorMult: 1.5 },
+];
+
+export function getCumulativeBlockStatMultipliers(floor: number): { hp: number; armor: number } {
+  let hp = 1;
+  let armor = 1;
+  for (const t of BLOCK_STAT_MULTIPLIER_THRESHOLDS) {
+    if (floor >= t.stage) {
+      hp *= t.hpMult;
+      armor *= t.armorMult;
+    }
+  }
+  return { hp, armor };
+}
+
+function scaleBlockStatsAtFloor(baseHp: number, baseArmor: number, floor: number): { health: number; armor: number } {
+  const mult = getCumulativeBlockStatMultipliers(floor);
+  return { health: baseHp * mult.hp, armor: baseArmor * mult.armor };
+}
+
+/** HP/Armor for a block at a given stage (base stats × cumulative stage multipliers). XP/fragments unchanged. */
 export function getBlockHealthAtFloor(block: BlockData, floor: number): number {
-  if (floor >= 150 && block.health_150 != null) return block.health_150;
-  if (floor >= 100 && block.health_100 != null) return block.health_100;
-  return block.health;
+  return scaleBlockStatsAtFloor(block.health, block.armor, floor).health;
 }
 
 export function getBlockArmorAtFloor(block: BlockData, floor: number): number {
-  if (floor >= 150 && block.armor_150 != null) return block.armor_150;
-  if (floor >= 100 && block.armor_100 != null) return block.armor_100;
-  return block.armor;
+  return scaleBlockStatsAtFloor(block.health, block.armor, floor).armor;
 }
 
 export const BLOCK_DATA: BlockData[] = [
@@ -102,18 +128,20 @@ export function getBlockData(tier: BlockTier, blockType: BlockType): BlockData |
   return INDEX.get(key(tier, blockType)) ?? null;
 }
 
-export function getBlockAtFloor(floor: number, blockType: BlockType): BlockData | null {
+export function getBlockAtFloor(floor: number, blockType: BlockType, ascensionLevel: AscensionLevel = 0): BlockData | null {
+  if (blockType === "divine" && ascensionLevel < 1) return null;
+  const maxTier: BlockTier = blockType === "divine" ? 4 : ascensionLevel >= 2 ? 4 : 3;
   const blocks = BY_TYPE.get(blockType) ?? [];
-  const valid = blocks.filter((b) => b.floor_min <= floor && floor <= b.floor_max);
+  const valid = blocks.filter((b) => b.floor_min <= floor && floor <= b.floor_max && b.tier <= maxTier);
   if (!valid.length) return null;
   return valid.reduce((best, cur) => (cur.tier > best.tier ? cur : best), valid[0]);
 }
 
-/** Block mix for a floor with health/armor resolved for that stage (stage 100+ and 150+ use scaled values). */
-export function getBlockMixForFloor(floor: number): Record<BlockType, BlockData> {
+/** Block mix for a floor with health/armor resolved for that stage (includes cumulative Block Stat Multipliers). */
+export function getBlockMixForFloor(floor: number, ascensionLevel: AscensionLevel = 0): Record<BlockType, BlockData> {
   const out: Partial<Record<BlockType, BlockData>> = {};
   for (const bt of BLOCK_TYPES) {
-    const b = getBlockAtFloor(floor, bt);
+    const b = getBlockAtFloor(floor, bt, ascensionLevel);
     if (b) {
       out[bt] = {
         ...b,

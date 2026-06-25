@@ -1,8 +1,13 @@
-import type { BlockType } from "./types";
+import type { AscensionLevel, BlockType } from "./types";
 import { BLOCK_TYPES } from "./blockStats";
 
 /** Re-export for callers that need the full block-type order (includes divine). */
 export { BLOCK_TYPES };
+
+export type SpawnContext = {
+  ascensionLevel?: AscensionLevel;
+  ignoreBoss?: boolean;
+};
 
 /** Boss floors with a single block type (24 blocks). Wiki: Archaeology → Boss Floors. */
 export const BOSS_FLOORS: Record<number, BlockType> = {
@@ -17,6 +22,10 @@ export const BOSS_FLOORS: Record<number, BlockType> = {
   44: "legendary",
   95: "common",
   98: "mythic",
+  110: "rare",
+  125: "epic",
+  135: "legendary",
+  140: "mythic",
   149: "divine",
 };
 
@@ -37,7 +46,7 @@ const MIXED_BOSS_FLOORS: Record<number, Record<BlockType, number>> = {
 type StageRangeKey = string;
 type StageRange = { min: number; max: number };
 
-/** Normal stages only; divine does not appear in the procedural table (wiki). Boss floors override. */
+/** Normal stages; divine rates apply only when ascensionLevel >= 1. Boss floors override. */
 const RANGES: Array<{ key: StageRangeKey; range: StageRange; rates: Record<BlockType, number> }> = [
   { key: "1-2", range: { min: 1, max: 2 }, rates: { dirt: 28.57, common: 14.29, rare: 0, epic: 0, legendary: 0, mythic: 0, divine: 0 } },
   { key: "3-4", range: { min: 3, max: 4 }, rates: { dirt: 25.4, common: 12.7, rare: 11.11, epic: 0, legendary: 0, mythic: 0, divine: 0 } },
@@ -49,16 +58,31 @@ const RANGES: Array<{ key: StageRangeKey; range: StageRange; rates: Record<Block
   { key: "20-24", range: { min: 20, max: 24 }, rates: { dirt: 19.5, common: 7.31, rare: 8.23, epic: 12.34, legendary: 8.64, mythic: 5.0, divine: 0 } },
   { key: "25-29", range: { min: 25, max: 29 }, rates: { dirt: 18.47, common: 7.92, rare: 9.05, epic: 12.06, legendary: 10.56, mythic: 5.0, divine: 0 } },
   { key: "30-49", range: { min: 30, max: 49 }, rates: { dirt: 18.1, common: 9.05, rare: 7.92, epic: 11.88, legendary: 11.88, mythic: 5.0, divine: 0 } },
-  { key: "50-75", range: { min: 50, max: 75 }, rates: { dirt: 16.87, common: 8.43, rare: 9.84, epic: 13.77, legendary: 11.81, mythic: 5.56, divine: 0 } },
-  { key: "75+", range: { min: 76, max: Number.POSITIVE_INFINITY }, rates: { dirt: 16.81, common: 10.08, rare: 10.08, epic: 11.76, legendary: 11.76, mythic: 5.88, divine: 0 } },
+  { key: "50-59", range: { min: 50, max: 59 }, rates: { dirt: 16.53, common: 8.26, rare: 9.64, epic: 13.5, legendary: 11.57, mythic: 5.44, divine: 2.0 } },
+  { key: "60-69", range: { min: 60, max: 69 }, rates: { dirt: 16.49, common: 8.25, rare: 9.62, epic: 13.47, legendary: 11.54, mythic: 5.43, divine: 2.22 } },
+  { key: "70-99", range: { min: 70, max: 99 }, rates: { dirt: 16.39, common: 9.83, rare: 9.83, epic: 11.47, legendary: 11.47, mythic: 5.74, divine: 2.5 } },
+  { key: "100-149", range: { min: 100, max: 149 }, rates: { dirt: 15.7, common: 9.42, rare: 9.42, epic: 10.99, legendary: 12.82, mythic: 6.9, divine: 3.33 } },
+  { key: "150+", range: { min: 150, max: Number.POSITIVE_INFINITY }, rates: { dirt: 13.5, common: 8.1, rare: 9.72, epic: 11.67, legendary: 14.0, mythic: 9.33, divine: 6.67 } },
 ];
 
-export function getSpawnRatesForStage(stage: number, ignoreBoss = false): Record<BlockType, number> {
+function gateBossRates(rates: Record<BlockType, number>, ascensionLevel: AscensionLevel): Record<BlockType, number> {
+  const out = { ...rates };
+  if (ascensionLevel < 1) out.divine = 0;
+  return out;
+}
+
+export function getSpawnRatesForStage(stage: number, ctx: SpawnContext = {}): Record<BlockType, number> {
+  const ascensionLevel = ctx.ascensionLevel ?? 0;
+  const ignoreBoss = ctx.ignoreBoss ?? false;
+
   if (!ignoreBoss && MIXED_BOSS_FLOORS[stage]) {
-    return { ...MIXED_BOSS_FLOORS[stage] };
+    return gateBossRates({ ...MIXED_BOSS_FLOORS[stage] }, ascensionLevel);
   }
   if (!ignoreBoss && BOSS_FLOORS[stage]) {
     const b = BOSS_FLOORS[stage];
+    if (b === "divine" && ascensionLevel < 1) {
+      return { dirt: 0, common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0, divine: 0 };
+    }
     return {
       dirt: b === "dirt" ? 100 : 0,
       common: b === "common" ? 100 : 0,
@@ -70,18 +94,24 @@ export function getSpawnRatesForStage(stage: number, ignoreBoss = false): Record
     };
   }
   for (const r of RANGES) {
-    if (r.range.min <= stage && stage <= r.range.max) return { ...r.rates };
+    if (r.range.min <= stage && stage <= r.range.max) {
+      const rates = { ...r.rates };
+      if (ascensionLevel < 1) rates.divine = 0;
+      return rates;
+    }
   }
-  return { ...RANGES[RANGES.length - 1].rates };
+  const fallback = { ...RANGES[RANGES.length - 1].rates };
+  if (ascensionLevel < 1) fallback.divine = 0;
+  return fallback;
 }
 
-export function getTotalSpawnProbability(stage: number): number {
-  const raw = getSpawnRatesForStage(stage);
+export function getTotalSpawnProbability(stage: number, ctx: SpawnContext = {}): number {
+  const raw = getSpawnRatesForStage(stage, ctx);
   return Object.values(raw).reduce((a, b) => a + b, 0);
 }
 
-export function getNormalizedSpawnRates(stage: number, ignoreBoss = false): Record<BlockType, number> {
-  const raw = getSpawnRatesForStage(stage, ignoreBoss);
+export function getNormalizedSpawnRates(stage: number, ctx: SpawnContext = {}): Record<BlockType, number> {
+  const raw = getSpawnRatesForStage(stage, ctx);
   const active: Partial<Record<BlockType, number>> = {};
   let total = 0;
   for (const bt of BLOCK_TYPES) {
