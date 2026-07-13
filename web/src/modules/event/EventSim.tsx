@@ -17,6 +17,7 @@ import { applyUpgrades, calculateMaterials, getEnemyHpAtWave, getGemMaxLevel, ru
 import { mulberry32 } from "../../lib/rng";
 import { assetUrl } from "../../lib/assets";
 import { currencyIconFilename, gemUpgradeIconFilename, upgradeIconFilename } from "../../lib/event/icons";
+import { formatSeasonalEventStartDate, getActiveSeasonalEvent, getNextSeasonalEvent, SEASONAL_SPRITE_PATHS } from "../../lib/event/schedule";
 import { Collapsible } from "../../components/Collapsible";
 import { SilverHologramCanvas } from "../../components/SilverHologramCanvas";
 import { Tooltip } from "../../components/Tooltip";
@@ -837,12 +838,27 @@ export function EventSim() {
     setAppliedSinceLastOptimize(true);
   }
 
+  const seasonalEvent = getActiveSeasonalEvent();
+  const nextEvent = seasonalEvent.isFallback ? getNextSeasonalEvent() : null;
+
   return (
     <div className="container">
       <div className="header">
         <div>
           <h1 className="title">Event Budget Optimizer</h1>
           <p className="subtitle">Saves upgrades/prestige automatically in your browser (localStorage).</p>
+          {nextEvent ? (
+            <div className="eventNextStart">
+              <Sprite
+                path={SEASONAL_SPRITE_PATHS.eventButton(nextEvent.event.id)}
+                alt={nextEvent.event.name}
+                className="eventNextStartIcon"
+              />
+              <span>
+                Next event: {nextEvent.event.name} — starts {formatSeasonalEventStartDate(nextEvent.startsAt)}
+              </span>
+            </div>
+          ) : null}
           <div className="worldMonumentsBlock">
             <span className="worldMonumentsLabel">Your Max World:</span>
             <span className="mono worldMonumentsValue">{ui.worldMonuments}</span>

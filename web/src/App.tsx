@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { assetUrl } from "./lib/assets";
 import { Tooltip } from "./components/Tooltip";
-import { isEasterIconMonth } from "./lib/event/icons";
+import { eventButtonIconPath } from "./lib/event/icons";
 import { loadJson, saveJson } from "./lib/storage";
 import { EventSim } from "./modules/event/EventSim";
 import { ArchSim } from "./modules/arch/ArchSim";
@@ -31,7 +31,6 @@ type ModuleId =
   | "overnight"
   | "about";
 const SUPPORT_URL = "https://buymeacoffee.com/arisboeuf";
-const EVENT_EASTER_ICON = "https://static.wikitide.net/shminerwiki/c/cd/Event_Button_Easter.png";
 /** Obelisk level for “tested up to” in About and README. Update README when this changes. */
 const OB_LEVEL = 63;
 const HEADER_MINIMIZED_KEY = "obeliskfarm:web:header_minimized";
@@ -184,7 +183,7 @@ export function App() {
               className={`navTile ${active === m.id ? "navTileActive" : ""} ${m.id === "overnight" ? "navTileOvernight" : ""}`}
               onClick={() => setActive(m.id)}
             >
-              {m.id === "overnight" ? <MoonStarsIcon /> : <Sprite path={m.id === "event" && isEasterIconMonth() ? EVENT_EASTER_ICON : m.icon} alt={m.label} className="icon" />}
+              {m.id === "overnight" ? <MoonStarsIcon /> : <Sprite path={m.id === "event" ? eventButtonIconPath() : m.icon} alt={m.label} className="icon" />}
               <span className="navTileLabel">
                 <span>{m.label}</span>
               </span>

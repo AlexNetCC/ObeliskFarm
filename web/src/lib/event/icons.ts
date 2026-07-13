@@ -1,17 +1,22 @@
 // Mirrors ObeliskGemEV/event/gui_budget.py:_load_upgrade_icons mapping.
 
-/** March (2) or April (3); used to show Easter icons in the event module and nav. */
+import {
+  getActiveSeasonalEvent,
+  SEASONAL_SPRITE_PATHS,
+} from "./schedule";
+
+export { getActiveSeasonalEvent, isSeasonalEventMonth, SEASONAL_EVENTS } from "./schedule";
+
+/** @deprecated Use getActiveSeasonalEvent().event.id === "easter" instead. */
 export function isEasterIconMonth(): boolean {
-  const m = new Date().getMonth();
-  return m === 2 || m === 3;
+  const active = getActiveSeasonalEvent();
+  return active?.event.id === "easter";
 }
 
-const EASTER_CURRENCY_ICON_URLS: Record<number, string> = {
-  1: "https://static.wikitide.net/shminerwiki/thumb/e/ec/Easter_Event_Currency_1.png/30px-Easter_Event_Currency_1.png",
-  2: "https://static.wikitide.net/shminerwiki/thumb/0/01/Easter_Event_Currency_2.png/30px-Easter_Event_Currency_2.png",
-  3: "https://static.wikitide.net/shminerwiki/thumb/6/67/Easter_Event_Currency_3.png/30px-Easter_Event_Currency_3.png",
-  4: "https://static.wikitide.net/shminerwiki/thumb/c/c0/Easter_Event_Currency_4.png/30px-Easter_Event_Currency_4.png",
-};
+export function eventButtonIconPath(date: Date = new Date()): string {
+  const { event } = getActiveSeasonalEvent(date);
+  return SEASONAL_SPRITE_PATHS.eventButton(event.id);
+}
 
 export function upgradeIconFilename(tier: number, idx: number): string | null {
   const map: Record<string, string> = {
@@ -56,15 +61,13 @@ export function upgradeIconFilename(tier: number, idx: number): string | null {
   return map[`${tier}:${idx}`] ?? null;
 }
 
-export function currencyIconFilename(tier: number): string | null {
-  if (tier >= 1 && tier <= 4) {
-    return EASTER_CURRENCY_ICON_URLS[tier] ?? null;
-  }
-  return null;
+export function currencyIconFilename(tier: number, date: Date = new Date()): string | null {
+  if (tier < 1 || tier > 4) return null;
+  const { event } = getActiveSeasonalEvent(date);
+  return `${event.id}_currency_${tier}.png`;
 }
 
 export function gemUpgradeIconFilename(idx: number): string | null {
   if (idx >= 0 && idx <= 3) return `gem_upgrade_${idx}.png`;
   return null;
 }
-
