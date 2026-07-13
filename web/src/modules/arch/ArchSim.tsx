@@ -20,6 +20,7 @@ import {
   migrateAscensionUpgradeSnapshots,
   mcOptionsFromBuild,
   normalizeAscensionLevel,
+  normalizeOptimizerDistribution,
   optimizerDistArrayToRecord,
   skillPointsFromOptimizerDistRecord,
   switchAscensionUpgrades,
@@ -564,7 +565,7 @@ export function ArchSim() {
   const summary = computed.summary;
   void summary; // MC-only UI: keep deterministic summary internal, but do not render it.
 
-  const skillPointBudget = useMemo(() => getTotalSkillPointBudget(build), [build.archLevel, build.fragmentUpgradeLevels]);
+  const skillPointBudget = useMemo(() => getTotalSkillPointBudget(build), [build.archLevel, build.fragmentUpgradeLevels, build.ascensionLevel, build.ascensionUpgradeSnapshots]);
   const totalSkillPoints = useMemo(
     () => getVisibleSkills(build.ascensionLevel ?? 0).reduce((sum, k) => sum + clampInt(Number(build.skillPoints[k] ?? 0), 0, 999), 0),
     [build.skillPoints, build.ascensionLevel],
@@ -1057,7 +1058,6 @@ export function ArchSim() {
     if (requireStr) {
       const strIdx = optimizerSkills.indexOf("strength");
       if (strIdx >= 0 && base[strIdx] <= 0) {
-        // Force STR=1 by moving one point from the largest other bucket.
         for (const it of frac) {
           if (it.i === strIdx) continue;
           if (base[it.i] > 0) {
@@ -1066,34 +1066,9 @@ export function ArchSim() {
             break;
           }
         }
-        if (base[strIdx] <= 0 && (caps.strength ?? 0) > 0) base[strIdx] = 1;
       }
     }
-    // Fix sum (caps may have reduced allocations)
-    used = base.reduce((a, b) => a + b, 0);
-    if (used !== numPoints) {
-      let diff = numPoints - used;
-      let g2 = 0;
-      while (diff !== 0 && g2++ < 5000) {
-        if (diff > 0) {
-          const i = Math.trunc(rng() * base.length);
-          const sk = optimizerSkills[i]!;
-          if (base[i] < (caps[sk] ?? numPoints)) {
-            base[i] += 1;
-            diff -= 1;
-          }
-        } else {
-          const i = Math.trunc(rng() * base.length);
-          const sk = optimizerSkills[i]!;
-          if (requireStr && sk === "strength" && base[i] <= 1) continue;
-          if (base[i] > 0) {
-            base[i] -= 1;
-            diff += 1;
-          }
-        }
-      }
-    }
-    return base;
+    return normalizeOptimizerDistribution({ optimizerSkills, dist: base, numPoints, caps, requireStr, rng });
   }
 
   function refineAroundAnchor(args: {
@@ -1132,11 +1107,7 @@ export function ArchSim() {
         }
       }
     }
-    if (requireStr) {
-      const strIdx = optimizerSkills.indexOf("strength");
-      if (strIdx >= 0 && v[strIdx] <= 0 && (caps.strength ?? 0) > 0) v[strIdx] = 1;
-    }
-    return v;
+    return normalizeOptimizerDistribution({ optimizerSkills, dist: v, numPoints, caps, requireStr, rng });
   }
 
   type RunMcOpts = { returnResult?: boolean; seedOffset?: number };
@@ -1229,7 +1200,8 @@ export function ArchSim() {
     const maxPending = Math.max(2, pool.size * 2);
     let completed = 0;
 
-    const submitCandidate = async (dist: number[], simN: number, seed: number) => {
+    const submitCandidate = async (rawDist: number[], simN: number, seed: number) => {
+      const dist = normalizeOptimizerDistribution({ optimizerSkills, dist: rawDist, numPoints: statsBudget, caps, requireStr, rng });
       const b2: ArchBuild = { ...build, skillPoints: buildSkillPointsFromOptimizerDist(build, dist) };
       const stats2 = getTotalStats(b2);
       if (mode === "frag") {
@@ -1878,7 +1850,10 @@ export function ArchSim() {
 
       const bestBuild: ArchBuild = {
         ...build,
-        skillPoints: buildSkillPointsFromOptimizerDist(build, best.dist),
+        skillPoints: buildSkillPointsFromOptimizerDist(
+          build,
+          normalizeOptimizerDistribution({ optimizerSkills, dist: best.dist, numPoints: statsBudget, caps, requireStr, rng }),
+        ),
       };
       const bestStats = getTotalStats(bestBuild);
 
@@ -5049,16 +5024,7 @@ export function ArchSim() {
                         </div>
                         <div className="fragToggleRow">
                           {ARCH_FRAGMENT_TYPES.map((t) => {
-                            const icon =
-                              t === "common"
-                                ? "sprites/archaeology/fragmentcommon.png"
-                                : t === "rare"
-                                  ? "sprites/archaeology/fragmentrare.png"
-                                  : t === "epic"
-                                    ? "sprites/archaeology/fragmentepic.png"
-                                    : t === "legendary"
-                                      ? "sprites/archaeology/fragmentlegendary.png"
-                                      : "sprites/archaeology/fragmentmythic.png";
+                            const icon = getFragIconPath(t);
                             const active = mcSettings.targetFrag === t;
                             const tierColor = BLOCK_COLORS[t];
                             return (

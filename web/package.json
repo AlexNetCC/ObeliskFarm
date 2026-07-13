@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "prepare-assets": "node scripts/copy-assets.mjs",
+    "prepare-assets": "node scripts/download-arch-sprites.mjs && node scripts/copy-assets.mjs",
     "dev": "npm run prepare-assets && vite",
     "build": "npm run prepare-assets && tsc -b && vite build",
     "preview": "vite preview"

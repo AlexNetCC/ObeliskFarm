@@ -83,9 +83,24 @@ export function normalizeAscensionLevel(raw: unknown, _unlockedStage?: number): 
   return 0;
 }
 
+/** Level of Ascension 1 "Stat Points +1" upgrade (persists from the Asc 1 snapshot at higher ascensions). */
+export function getStatPointsUpgradeLevel(build: ArchBuild): number {
+  const asc = build.ascensionLevel ?? 0;
+  if (asc < 1) return 0;
+  const current = Math.max(0, Math.trunc(Number(build.fragmentUpgradeLevels["stat_points_a1"] ?? 0)));
+  if (current > 0) return current;
+  if (asc >= 2) {
+    return Math.max(
+      0,
+      Math.trunc(Number(build.ascensionUpgradeSnapshots?.[1]?.fragmentUpgradeLevels?.["stat_points_a1"] ?? 0)),
+    );
+  }
+  return 0;
+}
+
 /** Extra stats points from Ascension 1 "Stat Points" upgrade (+1 per level, max 5). */
 export function getBonusSkillPoints(build: ArchBuild): number {
-  const lvl = Math.max(0, Math.trunc(Number(build.fragmentUpgradeLevels["stat_points_a1"] ?? 0)));
+  const lvl = getStatPointsUpgradeLevel(build);
   const perLvl = Number(FRAGMENT_UPGRADES.stat_points_a1?.extra_skill_points ?? 1);
   return lvl * perLvl;
 }
@@ -130,6 +145,71 @@ export function getOptimizerStats(ascensionLevel: AscensionLevel): Skill[] {
 /** Total stats points the MC optimizers may distribute across all active stats. */
 export function getOptimizerSkillBudget(build: ArchBuild): number {
   return getTotalSkillPointBudget(build);
+}
+
+function clampOptimizerPoint(value: number, cap: number): number {
+  return Math.max(0, Math.min(cap, Math.trunc(Number(value ?? 0))));
+}
+
+/**
+ * Force an optimizer distribution to sum exactly to numPoints (respecting caps and STR >= 1).
+ * MC samplers must call this so requireStr never inflates the total budget.
+ */
+export function normalizeOptimizerDistribution(args: {
+  optimizerSkills: Skill[];
+  dist: number[];
+  numPoints: number;
+  caps: Partial<Record<Skill, number>>;
+  requireStr?: boolean;
+  rng?: () => number;
+}): number[] {
+  const { optimizerSkills, numPoints, caps, requireStr = false } = args;
+  const rng = args.rng ?? (() => Math.random());
+  const base = optimizerSkills.map((sk, i) => clampOptimizerPoint(args.dist[i] ?? 0, caps[sk] ?? numPoints));
+
+  let sum = base.reduce((a, b) => a + b, 0);
+  let guard = 0;
+  while (sum !== numPoints && guard++ < 10000) {
+    if (sum > numPoints) {
+      const order = base
+        .map((v, i) => ({ i, v, sk: optimizerSkills[i]! }))
+        .sort((a, b) => b.v - a.v);
+      let removed = false;
+      for (const { i, v, sk } of order) {
+        if (v <= 0) continue;
+        if (requireStr && sk === "strength" && v <= 1) continue;
+        base[i] -= 1;
+        sum -= 1;
+        removed = true;
+        break;
+      }
+      if (!removed) break;
+    } else {
+      const candidates = optimizerSkills
+        .map((sk, i) => ({ i, cap: caps[sk] ?? numPoints }))
+        .filter(({ i, cap }) => base[i]! < cap);
+      if (!candidates.length) break;
+      const pick = candidates[Math.trunc(rng() * candidates.length)]!;
+      base[pick.i]! += 1;
+      sum += 1;
+    }
+  }
+
+  if (requireStr && numPoints > 0) {
+    const strIdx = optimizerSkills.indexOf("strength");
+    if (strIdx >= 0 && base[strIdx]! <= 0 && (caps.strength ?? numPoints) > 0) {
+      const donors = base
+        .map((v, i) => ({ i, v }))
+        .filter(({ i, v }) => i !== strIdx && v > 0)
+        .sort((a, b) => b.v - a.v);
+      if (donors.length > 0) {
+        base[donors[0]!.i]! -= 1;
+        base[strIdx]! += 1;
+      }
+    }
+  }
+
+  return base;
 }
 
 export type OptimizerDistRecord = {

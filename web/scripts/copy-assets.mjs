@@ -27,12 +27,22 @@ function copyDir(srcDir, dstDir) {
 
 const srcSprites = path.join(repoRoot, "ObeliskGemEV", "sprites");
 const dstSprites = path.join(webRoot, "public", "sprites");
+const srcArchSprites = path.join(srcSprites, "archaeology");
+const dstArchSprites = path.join(dstSprites, "archaeology");
 
 // Only what we currently need for the web UI modules.
 copyDir(path.join(srcSprites, "event"), path.join(dstSprites, "event"));
 copyDir(path.join(srcSprites, "common"), path.join(dstSprites, "common"));
-// Archaeology sprites live in web/public/sprites/archaeology (wiki-aligned, incl. divine). Do not overwrite from ObeliskGemEV.
 copyDir(path.join(srcSprites, "stargazing"), path.join(dstSprites, "stargazing"));
+
+// Block card sprites only (wiki fragments/skills come from download-arch-sprites.mjs).
+ensureDir(dstArchSprites);
+if (fs.existsSync(srcArchSprites)) {
+  for (const entry of fs.readdirSync(srcArchSprites, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.startsWith("block_") || !entry.name.endsWith(".png")) continue;
+    fs.copyFileSync(path.join(srcArchSprites, entry.name), path.join(dstArchSprites, entry.name));
+  }
+}
 
 console.log("Copied sprites to web/public/sprites/");
 
