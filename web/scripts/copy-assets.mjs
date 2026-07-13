@@ -35,7 +35,7 @@ copyDir(path.join(srcSprites, "event"), path.join(dstSprites, "event"));
 copyDir(path.join(srcSprites, "common"), path.join(dstSprites, "common"));
 copyDir(path.join(srcSprites, "stargazing"), path.join(dstSprites, "stargazing"));
 
-// Block card sprites only (wiki fragments/skills come from download-arch-sprites.mjs).
+// Block card sprites from desktop assets (fragments/skills are committed under public/sprites/archaeology).
 ensureDir(dstArchSprites);
 if (fs.existsSync(srcArchSprites)) {
   for (const entry of fs.readdirSync(srcArchSprites, { withFileTypes: true })) {

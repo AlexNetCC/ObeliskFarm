@@ -9,6 +9,3 @@ dist/
 vite.config.js
 vite.config.d.ts
 
-# Copied at build-time via scripts/copy-assets.mjs
-public/sprites/archaeology/
-

@@ -8,7 +8,10 @@ const __dirname = path.dirname(__filename);
 const webRoot = path.resolve(__dirname, "..");
 const dstDir = path.join(webRoot, "public", "sprites", "archaeology");
 
-/** Wiki full-size sprites used by the Arch web UI (not thumbnails). */
+/**
+ * Refresh archaeology sprites from the wiki (full size, not thumbnails).
+ * Committed copies live in public/sprites/archaeology/; prepare-assets re-downloads to keep them current.
+ */
 const WIKI_SPRITES = [
   ["fragmentcommon.png", "https://static.wikitide.net/shminerwiki/9/9a/Common_Fragment.png"],
   ["fragmentrare.png", "https://static.wikitide.net/shminerwiki/7/7d/Rare_Fragment.png"],
