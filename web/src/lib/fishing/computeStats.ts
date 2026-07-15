@@ -238,7 +238,7 @@ export function computeFishingStatsFromLevels(
   const drone_base_power_base = droneBaseRaw;
   const drone_base_power_base_rounded = droneBase;
 
-  // Fishing Drone Cap: base 0, then from upgrades (+1 per fishing_drone, +2 per fishing_drone_2) and enhancements (+1 per enhance_fishing_drone, +3 per enhance_fishing_drone_3); then Drone Cloner 1.05x. Skill: Fishing With Friends +5, Motley School +5 per level.
+  // Fishing Drone Cap: base 0, then from upgrades (+1 per fishing_drone, +2 per fishing_drone_2) and enhancements (+1 per enhance_fishing_drone, +3 per enhance_fishing_drone_3); then Drone Cloner +0.05x per level. Skill: Fishing With Friends +5, Motley School +5 per level.
   const capFromUpgradesAndEnhancements =
     0 +
     1 * u("fishing_drone") +
@@ -247,7 +247,7 @@ export function computeFishingStatsFromLevels(
     3 * e("enhance_fishing_drone_3") +
     5 * skill("fishing_with_friends") +
     5 * skill("motley_school");
-  const fishing_drone_cap = capFromUpgradesAndEnhancements * Math.pow(1.05, u("drone_cloner"));
+  const fishing_drone_cap = capFromUpgradesAndEnhancements * (1 + 0.05 * u("drone_cloner"));
 
   // Token Gain Multiplier: only from enhancement +0.05x per level.
   const token_gain_multi = 1 + 0.05 * e("enhance_token_multiplier");

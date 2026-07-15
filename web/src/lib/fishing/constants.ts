@@ -244,7 +244,7 @@ export const FISHING_UPGRADES_T2: UpgradeDef[] = [
   { id: "tier2_dock_power", name: "Tier 2 Dock Power", perk: "Tier 2 Dock Power", iconFile: "Tier_2_Dock_Power.png", increasePerLevel: "+0.05x", maxLevel: 20, boatLevelRequired: 5, t2BoatLevelRequired: 2 },
   { id: "super_shiny_chance", name: "Super Shiny Chance", perk: "Super Shiny Chance", iconFile: "Super_Shiny_Fish_Chance.png", increasePerLevel: "+1%", maxLevel: 20, boatLevelRequired: 5, t2BoatLevelRequired: 3 },
   { id: "poly_card_multi", name: "Poly Card Multi", perk: "Poly Card Multi", iconFile: "Super_Shiny_Multiplier.png", increasePerLevel: "+0.08x", maxLevel: 25, boatLevelRequired: 5, t2BoatLevelRequired: 4 },
-  { id: "drone_cloner", name: "Drone Cloner", perk: "Drone Cloner", iconFile: "Fishing_Drone_Cloner.png", increasePerLevel: "1.05x", maxLevel: 30, boatLevelRequired: 5, t2BoatLevelRequired: 5 },
+  { id: "drone_cloner", name: "Drone Cloner", perk: "Drone Cloner", iconFile: "Fishing_Drone_Cloner.png", increasePerLevel: "+0.05x", maxLevel: 30, boatLevelRequired: 5, t2BoatLevelRequired: 5 },
 ];
 
 // ——— Enhancements (bought with gems; do not count toward completion). Wiki: Enhancements ———
