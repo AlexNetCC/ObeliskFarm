@@ -28,6 +28,7 @@ import {
   getFounderDropIntervalMinutes,
   getFounderSupplyDropGemsEvPerHour,
   getFounderSupplyDropPerHour,
+  getFreebieEvPerClaim,
   getGameSpeedMultiplier,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
@@ -648,6 +649,12 @@ export function GemEv() {
   /** Founder supply drop: Frogspawn (1/500 × 5 per drop) → capacity Lootfrogs each with recursive EV. Value from Drone (lootfrogValuePerFrogspawn). */
   const founderSupplyDropFrogspawnGemValue = founderSupplyDrop.frogspawnPerHour * (external.lootfrogValuePerFrogspawn ?? 0);
 
+  /** Founder supply drop: Buttery Lobster (1/1500 × 5 per crate). Each fills freebie bank to cap → bankedFreebies × freebie EV. */
+  const founderSupplyDropButteryLobsterGemValue = useMemo(() => {
+    const freebieEv = getFreebieEvPerClaim(effectiveParams);
+    return founderSupplyDrop.butteryLobsterPerHour * bankedFreebies * freebieEv;
+  }, [founderSupplyDrop.butteryLobsterPerHour, bankedFreebies, effectiveParams]);
+
   /** Rows for Founder Supply Drop breakdown chart (per hour). Wiki Founder#Founder_Supply_Drop + Jackpots. */
   const founderSupplyDropChartRows = useMemo(() => {
     const sd = founderSupplyDrop;
@@ -671,6 +678,7 @@ export function GemEv() {
       { key: "starAutoCatch", label: "Star Auto-Catch 100% (min/h)", value: sd.starAutoCatch100MinPerHour, color: "#fdd835" },
       { key: "frogspawn", label: "Frogspawn (1/500 jackpot)", value: sd.frogspawnPerHour, color: "#2e7d32" },
       { key: "sushiJackpot", label: "Sushi (1/750 jackpot)", value: sushiFromJackpotPerHour, color: "#26a69a" },
+      { key: "butteryLobster", label: "Buttery Lobster (1/1500 jackpot)", value: sd.butteryLobsterPerHour, color: "#ef6c00" },
     ];
   }, [founderSupplyDrop, effectiveParams]);
 
@@ -739,7 +747,14 @@ export function GemEv() {
   const lootbugNetContribution = typeof external.lootbugGainsGross === "number"
     ? external.lootbugGainsGross - (external.lootbugTotalGemCostPerHour ?? 0)
     : (external.lootbugNetGemsPerHour ?? 0);
-  const totalWithLootbugAndDroneFuel = (ev.total - ev.gem_bomb_gems) + bombContribution + lootbugNetContribution + (external.lootfrogGemsPerHour ?? 0) - external.droneFuelGemsPerHour + chargeMagnetImpactResolved;
+  const totalWithLootbugAndDroneFuel =
+    (ev.total - ev.gem_bomb_gems) +
+    bombContribution +
+    lootbugNetContribution +
+    (external.lootfrogGemsPerHour ?? 0) -
+    external.droneFuelGemsPerHour +
+    chargeMagnetImpactResolved +
+    founderSupplyDropButteryLobsterGemValue;
 
   /** Inputs for Variance MC so the sim can compute total (Overview chart). */
   const varianceOverviewInputs = useMemo((): VarianceOverviewInputs => {
@@ -825,7 +840,7 @@ export function GemEv() {
           heading: "Jackpots (per crate)",
           lines: [
             "1/100: Level×10+50 Gems. 1/500: Relic Level×3+10, or Frogspawn 5 (Lootfrogs). 1/750: 100 Sushi (Fishing). 1/1234: 10 Gifts.",
-            "1/2000: 1 Mythic Chest. 1/69696: 1 Divine, 100 Relic, 1000 Gems.",
+            "1/1500: 5 Buttery Lobster (fill freebie bank). 1/2000: 1 Mythic Chest. 1/69696: 1 Divine, 100 Relic, 1000 Gems.",
           ],
         },
         {
@@ -962,7 +977,7 @@ export function GemEv() {
                       {
                         heading: "What it simulates",
                         lines: [
-                          "Full game in one hour: freebies (jackpot, refresh, stonks, gifts), Founder supply drop (gems, jackpots: 1/100 gems, 1/500 relic/frogspawn, 1/750 sushi, 1/1234 gifts, 1/2000 mythic, 1/69696 mega), Lootbug, gifts opened (Soprano + Founder), Item chests → Charge Magnet, Gem Bomb gems, Drone fuel cost.",
+                          "Full game in one hour: freebies (jackpot, refresh, stonks, gifts), Founder supply drop (gems, jackpots: 1/100 gems, 1/500 relic/frogspawn, 1/750 sushi, 1/1234 gifts, 1/1500 buttery lobster, 1/2000 mythic, 1/69696 mega), Lootbug, gifts opened (Soprano + Founder), Item chests → Charge Magnet, Gem Bomb gems, Drone fuel cost.",
                           "Same components as the Overview chart. Open Lootbug, Drone, Items, and Bombs so rates are synced.",
                         ],
                       },
@@ -2109,7 +2124,7 @@ export function GemEv() {
                         step={0.5}
                         min={0}
                         max={100}
-                        decimals={1}
+                        decimals={2}
                       />
                       <Stepper
                         label="Super Stonks multiplier (×)"
@@ -2118,7 +2133,7 @@ export function GemEv() {
                         step={0.1}
                         min={0}
                         max={999}
-                        decimals={1}
+                        decimals={2}
                       />
                     </div>
                   </Collapsible>
@@ -2444,6 +2459,7 @@ export function GemEv() {
                     chargeMagnetImpact={chargeMagnetForChart}
                     founderSupplyDropItemsGemValue={founderSupplyDropItemsGemValue}
                     founderSupplyDropFrogspawnGemValue={founderSupplyDropFrogspawnGemValue}
+                    founderSupplyDropButteryLobsterGemValue={founderSupplyDropButteryLobsterGemValue}
                     showJackpotRefresh={showJackpotRefresh}
                     skillShardsEnabled={skillShardsEnabled}
                   />

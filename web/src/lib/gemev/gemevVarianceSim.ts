@@ -31,6 +31,7 @@ import {
   getTripleDropChance,
   getSupplyDropQuantityMultiplier,
   getGoldenSupplyDropChance,
+  getGiftRareChanceArray,
 } from "./freebieEv";
 
 function clamp01(x: number): number {
@@ -48,54 +49,19 @@ function clampInt(x: number, fallback = 0): number {
   return Math.trunc(x);
 }
 
-/** Rare roll chain: wiki Store#Gifts order. Index 0..15; -1 = basic roll. */
+/** Rare roll chain: later rolls replace earlier. Returns winning rare index, or -1 for basic. */
 function sampleRareChainIndex(obelisk: number, rng: () => number, blackHoleUnlocked?: boolean): number {
-  const starOk = obelisk >= 23 && obelisk <= 59;
-  const p = [
-    starOk ? 1 / 20 : 0,
-    1 / 40,
-    1 / 45,
-    1 / 100,
-    blackHoleUnlocked ? 1 / 25 : 0,
-    obelisk >= 37 ? 1 / 37 : 0,
-    obelisk >= 18 ? 1 / 30 : 0,
-    obelisk >= 30 ? 1 / 33 : 0,
-    obelisk >= 37 ? 1 / 45 : 0,
-    obelisk >= 37 ? 1 / 175 : 0,
-    obelisk >= 60 ? 1 / 25 : 0,
-    obelisk >= 60 ? 1 / 1000 : 0,
-    obelisk >= 60 ? 1 / 30 : 0,
-    1 / 200,
-    1 / 2000,
-    1 / 2500,
-  ];
+  const p = getGiftRareChanceArray(obelisk, blackHoleUnlocked);
+  let win = -1;
   for (let i = 0; i < p.length; i++) {
-    if (p[i] > 0 && rng() < p[i]) return i;
+    if (p[i] > 0 && rng() < p[i]) win = i;
   }
-  return -1;
+  return win;
 }
 
 /** Probability that no rare wins (basic roll). Same as getBasicRollProbability in freebieEv. */
 function getBasicRollProbability(obelisk: number, blackHoleUnlocked?: boolean): number {
-  const starOk = obelisk >= 23 && obelisk <= 59;
-  const p = [
-    starOk ? 1 / 20 : 0,
-    1 / 40,
-    1 / 45,
-    1 / 100,
-    blackHoleUnlocked ? 1 / 25 : 0,
-    obelisk >= 37 ? 1 / 37 : 0,
-    obelisk >= 18 ? 1 / 30 : 0,
-    obelisk >= 30 ? 1 / 33 : 0,
-    obelisk >= 37 ? 1 / 45 : 0,
-    obelisk >= 37 ? 1 / 175 : 0,
-    obelisk >= 60 ? 1 / 25 : 0,
-    obelisk >= 60 ? 1 / 1000 : 0,
-    obelisk >= 60 ? 1 / 30 : 0,
-    1 / 200,
-    1 / 2000,
-    1 / 2500,
-  ];
+  const p = getGiftRareChanceArray(obelisk, blackHoleUnlocked);
   return p.reduce((acc, pi) => acc * (1 - pi), 1);
 }
 
@@ -121,34 +87,33 @@ function sampleOneGiftGemValue(params: GiftSimParams, rng: () => number): number
     const giftEvPerGift = params.__giftEvPerGift ?? 0;
     const gems15k25kAvg = 20000;
     switch (rareIndex) {
-      case 0:
+      case 0: // Star Spawn
+      case 3: // Tier 2
+      case 5: // Idol
+      case 7: // Mythic
+      case 15: // Divine
         return 0;
       case 1:
         return 3 * giftEvPerGift;
       case 2:
         return gems80_130_avg * obeliskMult * luckyMultThis;
-      case 3:
       case 4:
-      case 5:
-      case 7:
-        return 0;
-      case 6:
         return droneFuelAvgQty * gemsPerFuel * luckyMultThis;
-      case 8:
-      case 9:
+      case 6: // 15-24 Sushi
+      case 11: // 50-60 Sushi
         return 0;
-      case 10:
+      case 8:
         return gems15k25kAvg * luckyMultThis;
-      case 11:
-        return params.gift_forbidden_sushi_gem_value ?? 0;
-      case 12:
+      case 9:
+        return 1.5 * (params.gift_frogspawn_gem_value ?? 0);
+      case 10:
         return 1.5 * (params.gift_cosmic_candy_gem_value ?? 0);
+      case 12:
+        return params.gift_forbidden_sushi_gem_value ?? 0;
       case 13:
         return 105 * luckyMultThis;
       case 14:
         return 25 * giftEvPerGift;
-      case 15:
-        return 0;
       default:
         return 0;
     }
@@ -187,7 +152,7 @@ function sampleOneGiftGemValue(params: GiftSimParams, rng: () => number): number
   return basicValues[which] ?? 0;
 }
 
-/** Sample one gift's gem value and sushi quantity (wiki Store#Gifts; sushi from rare 8 = 15–24, 9 = 50–60). */
+/** Sample one gift's gem value and sushi quantity (wiki Store#Gifts; sushi from rare 6 = 15–24, 11 = 50–60). */
 function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { gems: number; sushi: number } {
   const obelisk = clampPositive(params.obelisk_level, 0);
   const obeliskMult = calculateObeliskMultiplier(params);
@@ -211,25 +176,28 @@ function sampleOneGiftGemsAndSushi(params: GiftSimParams, rng: () => number): { 
     switch (rareIndex) {
       case 0:
       case 3:
-      case 4:
       case 5:
       case 7:
-      case 11:
-      case 12:
       case 15:
         return { gems: 0, sushi: 0 };
       case 1:
         return { gems: 3 * giftEvPerGift, sushi: 0 };
       case 2:
         return { gems: gems80_130_avg * obeliskMult * luckyMultThis, sushi: 0 };
-      case 6:
+      case 4:
         return { gems: droneFuelAvgQty * gemsPerFuel * luckyMultThis, sushi: 0 };
-      case 8:
+      case 6:
         return { gems: 0, sushi: (15 + rng() * 9) * luckyMultThis };
-      case 9:
-        return { gems: 0, sushi: (50 + rng() * 10) * luckyMultThis };
-      case 10:
+      case 8:
         return { gems: gems15k25kAvg * luckyMultThis, sushi: 0 };
+      case 9:
+        return { gems: 1.5 * (params.gift_frogspawn_gem_value ?? 0), sushi: 0 };
+      case 10:
+        return { gems: 1.5 * (params.gift_cosmic_candy_gem_value ?? 0), sushi: 0 };
+      case 11:
+        return { gems: 0, sushi: (50 + rng() * 10) * luckyMultThis };
+      case 12:
+        return { gems: params.gift_forbidden_sushi_gem_value ?? 0, sushi: 0 };
       case 13:
         return { gems: 105 * luckyMultThis, sushi: 0 };
       case 14:

@@ -135,6 +135,8 @@ export function ContribBarChart(props: {
   founderSupplyDropItemsGemValue?: number;
   /** Founder supply drop Frogspawn (1/500 × 5 per drop) → capacity Lootfrogs; recursive EV from Drone. Shown in Founder bar. */
   founderSupplyDropFrogspawnGemValue?: number;
+  /** Founder supply drop Buttery Lobster (1/1500 × 5) → each fills freebie bank to cap. Shown in Founder bar. */
+  founderSupplyDropButteryLobsterGemValue?: number;
   /** When true, Freebie Gems / Stonks / Skill Shards bars show base/jackpot/refresh segments. When false, solid blue. */
   showJackpotRefresh?: boolean;
   /** When false, Skill Shards row is hidden entirely. */
@@ -152,6 +154,7 @@ export function ContribBarChart(props: {
     chargeMagnetImpact,
     founderSupplyDropItemsGemValue = 0,
     founderSupplyDropFrogspawnGemValue = 0,
+    founderSupplyDropButteryLobsterGemValue = 0,
     showJackpotRefresh = true,
     skillShardsEnabled = true,
   } = props;
@@ -193,9 +196,15 @@ export function ContribBarChart(props: {
     (hasDroneFuel && typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0) +
     (chargeMagnetImpact ?? 0) +
     founderSupplyDropItemsGemValue +
-    founderSupplyDropFrogspawnGemValue;
+    founderSupplyDropFrogspawnGemValue +
+    founderSupplyDropButteryLobsterGemValue;
   const gemBombValueForDisplay = ev.gem_bomb_gems + (chargeMagnetImpact ?? 0);
-  const founderValueForDisplay = ev.founder_speed_boost + ev.founder_gems + founderSupplyDropItemsGemValue + founderSupplyDropFrogspawnGemValue;
+  const founderValueForDisplay =
+    ev.founder_speed_boost +
+    ev.founder_gems +
+    founderSupplyDropItemsGemValue +
+    founderSupplyDropFrogspawnGemValue +
+    founderSupplyDropButteryLobsterGemValue;
 
   const valuesTopBase: number[] = [
     ev.gems_base,
@@ -242,7 +251,7 @@ export function ContribBarChart(props: {
     ...(skillShardsEnabled
       ? [sumEntry(breakdown.gems_base), sumEntry(breakdown.stonks_ev), sumEntry(breakdown.skill_shards_ev)]
       : [sumEntry(breakdown.gems_base), sumEntry(breakdown.stonks_ev)]),
-    sumEntry(founderSpeed) + sumEntry(founderGems) + founderSupplyDropItemsGemValue + founderSupplyDropFrogspawnGemValue,
+    sumEntry(founderSpeed) + sumEntry(founderGems) + founderSupplyDropItemsGemValue + founderSupplyDropFrogspawnGemValue + founderSupplyDropButteryLobsterGemValue,
     sumEntry(gemBomb),
   );
   const extraMin = [
@@ -435,6 +444,7 @@ export function ContribBarChart(props: {
         }
         const founderItemsTotal = isFounderRow ? founderSupplyDropItemsGemValue : 0;
         const founderFrogspawnTotal = isFounderRow ? founderSupplyDropFrogspawnGemValue : 0;
+        const founderLobsterTotal = isFounderRow ? founderSupplyDropButteryLobsterGemValue : 0;
 
         const totalBarLen = isLootbugGainsRow
           ? (typeof lootbugGainsGross === "number" ? lootbugGainsGross : 0)
@@ -443,7 +453,7 @@ export function ContribBarChart(props: {
             : isDroneFuelRow
               ? (typeof droneFuelGemsPerHour === "number" ? droneFuelGemsPerHour : 0)
               : isFounderRow
-                  ? founderSpeedTotal + founderGemsTotal + founderItemsTotal + founderFrogspawnTotal
+                  ? founderSpeedTotal + founderGemsTotal + founderItemsTotal + founderFrogspawnTotal + founderLobsterTotal
                   : isGemBombRow && entry != null
                     ? sumEntry(entry) + (chargeMagnetImpact ?? 0)
                     : entry != null
@@ -780,6 +790,18 @@ export function ContribBarChart(props: {
                 width={wOf(founderFrogspawnTotal)}
                 height={barH}
                 fill="#2e7d32"
+                stroke="rgba(15,23,42,0.45)"
+                strokeWidth={0.6}
+                aria-hidden
+              />
+            ) : null}
+            {isFounderRow && founderLobsterTotal > 0 ? (
+              <rect
+                x={xOf(founderSpeedTotal + founderGemsTotal + founderItemsTotal + founderFrogspawnTotal)}
+                y={y0}
+                width={wOf(founderLobsterTotal)}
+                height={barH}
+                fill="#ef6c00"
                 stroke="rgba(15,23,42,0.45)"
                 strokeWidth={0.6}
                 aria-hidden

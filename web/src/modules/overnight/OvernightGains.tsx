@@ -8,7 +8,7 @@ import {
   getFreebieEvPerClaim,
   getFounderGemsPerSingleEvent,
   getGameSpeedBonus,
-  getGemBombGemChanceT12Bonus,
+  getEffectiveGemBombGemChance,
   getGameSpeedMultiplier,
   type GameParameters,
 } from "../../lib/gemev/freebieEv";
@@ -400,7 +400,11 @@ export function OvernightGains() {
     const effectiveCherryPerHour = Math.min(dropsPerHour, cherryRechargedPerHour);
     const tripleChance = Math.max(0, Math.min(1, bombsParams.cherry_bomb_triple_charge_chance ?? 0));
     const cherryEffectMult = 1.0 + 2.0 * tripleChance;
-    const gemChance = Math.max(0, Math.min(1, bombsParams.gem_bomb_gem_chance ?? 0)) + getGemBombGemChanceT12Bonus(effectiveParams);
+    const gemChance = getEffectiveGemBombGemChance({
+      ...effectiveParams,
+      gem_bomb_gem_chance: bombsParams.gem_bomb_gem_chance ?? 0,
+      has_golden_gem_bomb: bombsParams.has_golden_gem_bomb,
+    });
     return effectiveCherryPerHour * cherryEffectMult * gemChance;
   }, [state.gemBombActive, effectiveParams, bombsParams, effectiveDrone10x, external.gameSpeed, external.chaos100]);
 

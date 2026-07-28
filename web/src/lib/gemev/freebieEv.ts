@@ -73,6 +73,8 @@ export type GameParameters = {
   // Gem Bomb
   gem_bomb_recharge_seconds: number;
   gem_bomb_gem_chance: number; // 0..1
+  /** Golden Gem Bomb (Tier 2 Tribute of Glimmering Geoduck): multiplies gem chance by 1.25. */
+  has_golden_gem_bomb?: boolean;
 
   // Cherry Bomb
   cherry_bomb_recharge_seconds: number;
@@ -304,6 +306,8 @@ export interface FounderSupplyDropPerHour {
   archaeologyTicksPerHour: number;
   /** Expected frogspawn per hour from supply drop (1/500 × 5 per drop), only when lootfrogs_unlocked. */
   frogspawnPerHour: number;
+  /** Expected Buttery Lobster per hour from supply drop jackpot (1/1500 × 5 per crate). Each fills freebie bank to cap. */
+  butteryLobsterPerHour: number;
   starSpawn2xMinPerHour: number;
   starAutoCatch100MinPerHour: number;
 }
@@ -317,6 +321,7 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
     fishingTicksPerHour: 0,
     archaeologyTicksPerHour: 0,
     frogspawnPerHour: 0,
+    butteryLobsterPerHour: 0,
     starSpawn2xMinPerHour: 0,
     starAutoCatch100MinPerHour: 0,
   };
@@ -377,6 +382,8 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
   const relicChestsPerDrop = relicBasePerDrop + relicJackpotPerDrop;
   const lootfrogsUnlocked = Boolean(params.lootfrogs_unlocked);
   const frogspawnPerHour = lootfrogsUnlocked ? eventsPerHour * (1 / 500) * 5 * goldenMult : 0;
+  /** Wiki Founder#Jackpots: 1/1500 → 5 Buttery Lobster (no unlock gate). */
+  const butteryLobsterPerHour = eventsPerHour * (1 / 1500) * 5 * goldenMult;
 
   return {
     itemChestsPerHour: eventsPerHour * itemChestsPerDrop * goldenMult,
@@ -386,6 +393,7 @@ export function getFounderSupplyDropPerHour(params: GameParameters): FounderSupp
     fishingTicksPerHour: eventsPerHour * fishingPerDrop * goldenMult,
     archaeologyTicksPerHour: eventsPerHour * archPerDrop * goldenMult,
     frogspawnPerHour,
+    butteryLobsterPerHour,
     starSpawn2xMinPerHour: eventsPerHour * star2xMinPerDrop * goldenMult,
     starAutoCatch100MinPerHour: eventsPerHour * starAutoCatch100MinPerDrop * goldenMult,
   };
@@ -450,6 +458,13 @@ export function getGoldenSupplyDropChance(params: GameParameters): number {
 export function getGemBombGemChanceT12Bonus(params: GameParameters): number {
   const lvl = Math.max(1, Math.min(12, clampInt(params.vip_lounge_level, 3)));
   return lvl >= 12 ? 0.005 : 0.0;
+}
+
+/** Effective Gem Bomb gem chance (0..1), including T12 bonus and Golden Gem Bomb ×1.25. */
+export function getEffectiveGemBombGemChance(params: GameParameters): number {
+  const base = clamp01(params.gem_bomb_gem_chance) + getGemBombGemChanceT12Bonus(params);
+  const mult = params.has_golden_gem_bomb ? 1.25 : 1.0;
+  return Math.min(1, base * mult);
 }
 
 export function calculateExpectedRollsPerClaim(params: GameParameters): number {
@@ -632,30 +647,35 @@ export function getExpectedRelicChestsPerGift(params: GameParameters): number {
  * Wiki Store#Gifts: rare chain order and chances.
  */
 export function getBasicRollProbability(obelisk: number, blackHoleUnlocked?: boolean): number {
-  const p = getRareChanceArray(obelisk, blackHoleUnlocked);
+  const p = getGiftRareChanceArray(obelisk, blackHoleUnlocked);
   return p.reduce((acc, pi) => acc * (1 - pi), 1);
 }
 
-/** Rare chance array in wiki order (Store#Gifts). [3] Star: 23 ≤ Ob ≤ 59. [5] Frogspawn: Lootfrogs/Black Hole unlocked. */
-function getRareChanceArray(obelisk: number, blackHoleUnlocked?: boolean): number[] {
+/**
+ * Rare chance array in wiki Store#Gifts order (later rolls replace earlier).
+ * New in 2.2 omitted until known: Stickers (TBD), Buttery Lobster (fills freebie bank — wire EV when chance known),
+ * rare Relic Chests, Gems (Ob≥70). Star Spawn: wiki chance still "?"; keep 1/20 and Ob 23–59 until confirmed.
+ */
+export function getGiftRareChanceArray(obelisk: number, blackHoleUnlocked?: boolean): number[] {
   const starOk = obelisk >= 23 && obelisk <= 59;
   return [
-    starOk ? 1 / 20 : 0, // 1. 60-90 min 2x Star Spawn
-    1 / 40, // 2. 3 Gifts
-    1 / 45, // 3. 80-130 Gems [1]
-    1 / 100, // 4. Mythic Chest
-    blackHoleUnlocked ? 1 / 25 : 0, // 5. 1-2 Frogspawn
-    obelisk >= 37 ? 1 / 37 : 0, // 6. 6-12 Tier 2 Items
-    obelisk >= 18 ? 1 / 30 : 0, // 7. Drone Fuel [4]
-    obelisk >= 30 ? 1 / 33 : 0, // 8. 1-3 Idol Tokens [6]
-    obelisk >= 37 ? 1 / 45 : 0, // 9. 15-24 Sushi [5]
-    obelisk >= 37 ? 1 / 175 : 0, // 10. 50-60 Sushi [5]
-    obelisk >= 60 ? 1 / 25 : 0, // 11. 15k-25k Gems
+    // TODO 2.2 (not in chain until odds known): Stickers TBD; Buttery Lobster = freebie bank fill; Relic Chests; Gems Ob≥70
+    starOk ? 1 / 20 : 0, // 0. 2x Star Spawn Rate (duration/chance wiki "?")
+    1 / 40, // 1. 3 Gifts
+    1 / 45, // 2. 80-130 Gems [1]
+    obelisk >= 37 ? 1 / 37 : 0, // 3. 6-12 Tier 2 Items
+    obelisk >= 18 ? 1 / 30 : 0, // 4. Drone Fuel [4]
+    obelisk >= 30 ? 1 / 33 : 0, // 5. 1-3 Idol Tokens [5]
+    obelisk >= 37 ? 1 / 45 : 0, // 6. 15-24 Sushi
+    1 / 100, // 7. 1 Mythic Chest
+    obelisk >= 60 ? 1 / 25 : 0, // 8. 15k-25k Gems
+    blackHoleUnlocked ? 1 / 25 : 0, // 9. 1-2 Frogspawn
+    obelisk >= 60 ? 1 / 30 : 0, // 10. 1-2 Cosmic Candy
+    obelisk >= 37 ? 1 / 175 : 0, // 11. 50-60 Sushi
     obelisk >= 60 ? 1 / 1000 : 0, // 12. 1 Forbidden Sushi
-    obelisk >= 60 ? 1 / 30 : 0, // 13. 1-2 Cosmic Candy
-    1 / 200, // 14. Skin [7][8]
-    1 / 2000, // 15. Gilded Skin [7][9]
-    1 / 2500, // 16. Divine Chest
+    1 / 200, // 13. Skin [6][7]
+    1 / 2000, // 14. Gilded Skin [6][8]
+    1 / 2500, // 15. Divine Chest
   ];
 }
 
@@ -673,20 +693,20 @@ function computeRareRollWinProbs(obelisk: number, blackHoleUnlocked?: boolean): 
   forbiddenSushi: number;
   cosmicCandy: number;
 } {
-  const p = getRareChanceArray(obelisk, blackHoleUnlocked);
+  const p = getGiftRareChanceArray(obelisk, blackHoleUnlocked);
   const noReplace = p.map((_, i) => p.slice(i + 1).reduce((acc, pj) => acc * (1 - pj), 1));
   return {
     gifts3: p[1] * noReplace[1],
     gems80_130: p[2] * noReplace[2],
-    droneFuel: p[6] * noReplace[6],
-    sushi15_24: p[8] * noReplace[8],
-    sushi50_60: p[9] * noReplace[9],
+    droneFuel: p[4] * noReplace[4],
+    sushi15_24: p[6] * noReplace[6],
+    sushi50_60: p[11] * noReplace[11],
     skin: p[13] * noReplace[13],
     gildedSkin: p[14] * noReplace[14],
-    gems15k_25k: p[10] * noReplace[10],
-    frogspawn: p[4] * noReplace[4],
-    forbiddenSushi: p[11] * noReplace[11],
-    cosmicCandy: p[12] * noReplace[12],
+    gems15k_25k: p[8] * noReplace[8],
+    frogspawn: p[9] * noReplace[9],
+    forbiddenSushi: p[12] * noReplace[12],
+    cosmicCandy: p[10] * noReplace[10],
   };
 }
 
@@ -720,7 +740,8 @@ export function calculateGiftEvPerGift(params: GameParameters): number {
     ? probBasicRoll * chancePerItem * chargeMagnetAvg * (params.gift_charge_magnet_value_per_magnet ?? 0)
     : 0;
 
-  // 2) Rare rolls (wiki Store#Gifts second table). [4] Drone Fuel = 5+2×Ob + random(-10..10) → avg 5+2×Ob.
+  // 2) Rare rolls (wiki Store#Gifts). Drone Fuel [4]: 2×Ob + random(−5..+15) → avg 2×Ob+5.
+  // TODO: Buttery Lobster (2.2) fills banked freebie cap — add EV when wiki chance/amount known.
   const rare = computeRareRollWinProbs(obelisk, params.gift_black_hole_unlocked);
   const gemsPerFuel = params.gift_drone_fuel_gems_per_fuel ?? 5;
   const droneFuelAvgQty = 5 + 2 * obelisk;
@@ -1243,8 +1264,7 @@ export function calculateGemBombGemsPerHour(
   const totalGemBombClicks = bombCycle === "late"
     ? gemTotal + cherryTotal * cherryEffectMult
     : gemTotal;
-  const gemChance = clamp01(params.gem_bomb_gem_chance) + getGemBombGemChanceT12Bonus(params);
-  const gemsPerHour = totalGemBombClicks * gemChance;
+  const gemsPerHour = totalGemBombClicks * getEffectiveGemBombGemChance(params);
   return gemsPerHour;
 }
 

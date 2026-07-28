@@ -423,14 +423,37 @@ export function Bombs() {
           <div className="gemEvBombBlock">
             <div className="gemEvBombHeader">
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span className="mono" style={{ fontWeight: 900 }}>Gem Bomb</span>
-                <Sprite path="sprites/event/gembomb.png" alt="Gem Bomb" className="iconSmall" />
-                <Tooltip content={{ title: "Gem Bomb", lines: ["As shown in bomb's ingame tooltip. (WITHOUT influence of W3 Debuff)"] }} />
+                <span className="mono" style={{ fontWeight: 900 }}>{params.has_golden_gem_bomb ? "GOLDEN Gem Bomb" : "Gem Bomb"}</span>
+                <Sprite path="sprites/event/gembomb.png" alt={params.has_golden_gem_bomb ? "GOLDEN Gem Bomb" : "Gem Bomb"} className="iconSmall" />
+                <Tooltip content={{ title: params.has_golden_gem_bomb ? "GOLDEN Gem Bomb" : "Gem Bomb", lines: ["As shown in bomb's ingame tooltip. (WITHOUT influence of W3 Debuff)", ...(params.has_golden_gem_bomb ? ["Gem chance ×1.25 from Golden upgrade."] : [])] }} />
               </div>
               <CardToggles value={params.gem_bomb_recharge_card_level} onChange={(lvl) => setParams((s) => ({ ...s, gem_bomb_recharge_card_level: lvl }))} />
             </div>
             <Stepper label={<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Recharge (seconds{chaosTotem100Uptime ? ")" : ", without Chaos Totem)"}{chaosTotem100Uptime ? null : <img src={CHAOS_TOTEM_ICON} alt="Chaos Totem" className="iconSmall" aria-hidden />}</span>} value={params.gem_bomb_recharge_seconds} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_recharge_seconds: v }))} step={0.01} min={0.1} max={9999} decimals={2} />
             <Stepper label="Gem Chance per Charge (%)" value={params.gem_bomb_gem_chance * 100} onChange={(v) => setParams((s) => ({ ...s, gem_bomb_gem_chance: v / 100 }))} step={0.1} min={0} max={100} decimals={1} />
+            <label className="toggle" style={{ margin: "6px 0 0", display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={params.has_golden_gem_bomb ?? false}
+                onChange={(e) => setParams((s) => ({ ...s, has_golden_gem_bomb: e.target.checked }))}
+              />
+              <span>Tier 2 Tribute of Glimmering Geoduck</span>
+              <Tooltip
+                content={{
+                  title: "Golden Gem Bomb",
+                  sections: [
+                    {
+                      heading: "Unlock",
+                      lines: ["Tier 2 Tribute of Glimmering Geoduck (Fishing)."],
+                    },
+                    {
+                      heading: "Effect",
+                      lines: ["Upgrades Gem Bomb to GOLDEN Gem Bomb.", "Multiplies gem chance by 1.25."],
+                    },
+                  ],
+                }}
+              />
+            </label>
           </div>
 
           <div className="gemEvDivider" />
