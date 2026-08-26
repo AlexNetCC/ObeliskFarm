@@ -1,0 +1,33 @@
+name: Validate Event Enhancements
+
+on:
+  push:
+    branches: ["event-enhancements"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: web
+        run: npm install --no-audit --no-fund
+      - name: Prepare assets
+        working-directory: web
+        run: npm run prepare-assets
+      - name: Typecheck and build
+        working-directory: web
+        env:
+          BASE_PATH: "/ObeliskFarm/"
+        run: |
+          npx tsc -b --pretty false
+          npx vite build
