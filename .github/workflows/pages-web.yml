@@ -1,8 +1,9 @@
-name: Deploy Web (GitHub Pages)
+name: Deploy Event Enhancements (GitHub Pages)
 
 on:
   push:
-    branches: ["web"]
+    branches: ["event-enhancements"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,47 +26,18 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Debug environment
-        shell: bash
-        run: |
-          set -euxo pipefail
-          pwd
-          ls -la
-          ls -la web
-          node -v
-          npm -v
-
       - name: Install dependencies
         working-directory: web
-        shell: bash
-        run: |
-          set -euxo pipefail
-          npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Build
         working-directory: web
         env:
-          # Repo is a project site: https://<user>.github.io/<repo>/
           BASE_PATH: "/ObeliskFarm/"
-        shell: bash
         run: |
-          set -euxo pipefail
           npm run prepare-assets
-          ls -la public || true
-          ls -la public/sprites || true
-          ls -la public/sprites/event || true
           npx tsc -b --pretty false
-          npx vite build --debug
-
-      - name: Upload npm logs (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-logs
-          path: |
-            /home/runner/.npm/_logs/*.log
-            web/npm-debug.log
-            web/package-lock.json
+          npx vite build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -82,4 +54,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
